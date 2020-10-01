@@ -8,3 +8,4 @@ comments
 atmospheres/
 globbin.egg-info/
 logs/
+globin/__pycache/
