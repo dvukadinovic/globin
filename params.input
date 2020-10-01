@@ -12,4 +12,5 @@ n_threads = 2
 spectrum = observed.fits
 
 #--- Initial atmosphere
-atmosphere = sample.fits
+atmosphere = ../../Atmos/falc_2x2.fits
+range = [0,2,0,2]

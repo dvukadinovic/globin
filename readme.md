@@ -29,3 +29,8 @@ Many to come...
 subprocess>=
 multiprocessing>=
 emcee>=
+astropy>=
+os>=
+sys>=
+time>=
+rh...
