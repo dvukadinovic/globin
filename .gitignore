@@ -6,6 +6,6 @@ comments
 *.input
 !params.input
 atmospheres/
-globbin.egg-info/
+globin.egg-info/
 logs/
 globin/__pycache/
