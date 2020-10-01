@@ -1,2 +1,8 @@
+analyse_spec.py
+comments
 *.out
 *.dat
+*.ray
+atmospheres/*
+globbin.egg-info/*
+logs/*
