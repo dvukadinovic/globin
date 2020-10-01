@@ -1,0 +1,269 @@
+
+-WARNING in routine readValues
+ Did not recognize keyword #WAVETABLE with value ../../Atoms/wave_files/wavegrid_346_348
+
+-WARNING in routine readValues
+ Did not recognize keyword #WAVETABLE with value ../../Atoms/wave_files/wavegrid_402nm_michiel_obs
+
+-WARNING in routine readValues
+ Did not recognize keyword #WAVETABLE with value ../../Atoms/wave_files/single_line
+
+-WARNING in routine readValues
+ Did not recognize keyword #WAVETABLE with value ../../Atoms/wave_files/susi_1e2_335-336
+
+-WARNING in routine readValues
+ Did not recognize keyword #WAVETABLE with value ../../Atoms/wave_files/susi_wav_range.wave
+
+-WARNING in routine readValues
+ Overriding default value FALSE for keyword RLK_SCATTER with FALSE
+
+-WARNING in routine readValues
+ Overriding default value spectrum.out for keyword SPECTRUM_OUTPUT with spectrum.out
+
+-WARNING in routine readValues
+ Overriding default value S_BEZIER3 for keyword S_INTERPOLATION with S_BEZIER3
+
+-WARNING in routine readValues
+ Overriding default value DELO_BEZIER3 for keyword S_INTERPOLATION_STOKES with DELO_BEZIER3
+
+-WARNING in routine readValues
+ Overriding default value FALSE for keyword LIMIT_MEMORY with FALSE
+
+ -- reading input file: /media/dusan/storage/RH/rh/rhf1d/atoms_invert/atmospheres/atm_1_1
+
+ -- reading input file: ../../Atoms/H_10.atom (active)
+
+ -- reading input file: ../../Atoms/He.atom (passive)
+ -- reading input file: ../../Atoms/C.atom (passive)
+ -- reading input file: ../../Atoms/N.atom (passive)
+ -- reading input file: ../../Atoms/O.atom (passive)
+ -- reading input file: ../../Atoms/S.atom (passive)
+ -- reading input file: ../../Atoms/Fe.atom (passive)
+ -- reading input file: ../../Atoms/Si.atom (passive)
+ -- reading input file: ../../Atoms/Al.atom (passive)
+ -- reading input file: ../../Atoms/Na.atom (passive)
+ -- reading input file: ../../Atoms/Mg.atom (passive)
+ -- reading input file: ../../Atoms/CaII.atom (passive)
+
+-WARNING in routine readAtom
+ Line   3 ->   0: cannot treat line with Barklem type broadening. Using UNSOLD.
+
+-WARNING in routine readAtom
+ Line   4 ->   0: cannot treat line with Barklem type broadening. Using UNSOLD.
+
+-WARNING in routine readAtom
+ Line   3 ->   1: cannot treat line with Barklem type broadening. Using UNSOLD.
+
+-WARNING in routine readAtom
+ Line   4 ->   1: cannot treat line with Barklem type broadening. Using UNSOLD.
+
+-WARNING in routine readAtom
+ Line   4 ->   2: cannot treat line with Barklem type broadening. Using UNSOLD.
+ -- reading input file: ../../Molecules/H2.molecule (passive)
+ -- reading input file: ../../Molecules/H2+.molecule (passive)
+ -- reading input file: ../../Molecules/C2.molecule (passive)
+ -- reading input file: ../../Molecules/N2.molecule (passive)
+ -- reading input file: ../../Molecules/O2.molecule (passive)
+ -- reading input file: ../../Molecules/CH.molecule (passive)
+ -- reading input file: ../../Molecules/CO.molecule (passive)
+ -- reading input file: ../../Molecules/CN.molecule (passive)
+ -- reading input file: ../../Molecules/NH.molecule (passive)
+ -- reading input file: ../../Molecules/NO.molecule (passive)
+ -- reading input file: ../../Molecules/OH.molecule (passive)
+ -- reading input file: ../../Molecules/H2O.molecule (passive)
+
+ SortLambda: Found 1136 unique wavelengths
+
+Reduced number density of active atom H  due to molecules
+  H2, H2+, CH, NH, OH, H2O
+
+Read 20 Kurucz lines from file ../../Atoms/Kurucz/spinor_window
+ initScatter: Lambda iterating background scattering...
+
+ Spectrum max delta J = 1.0000E+00 (lambda#: 0)
+ Spectrum max delta J = 1.3515E-01 (lambda#: 197)
+ Spectrum max delta J = 1.8355E-02 (lambda#: 197)
+
+ -- Iteration   1
+ H , delta = 2.4851E+00
+ Spectrum max delta J = 8.5229E+00 (lambda#: 30)
+
+ -- Iteration   2
+ H , delta = 1.7673E+00
+ Spectrum max delta J = 3.9703E+00 (lambda#: 125)
+
+ -- Iteration   3
+ H , delta = 1.0310E+00
+ Spectrum max delta J = 1.7726E+00 (lambda#: 144)
+
+ -- Iteration   4
+ H , delta = 6.9963E-01
+ Spectrum max delta J = 9.3576E-01 (lambda#: 144)
+
+ -- Iteration   5
+ H , delta = 5.4047E-01
+ Spectrum max delta J = 6.2184E-01 (lambda#: 163)
+
+ -- Iteration   6
+ H , delta = 4.2874E-01
+ Spectrum max delta J = 5.0981E-01 (lambda#: 163)
+
+ -- Iteration   7
+ H , delta = 3.7645E-01
+ Spectrum max delta J = 4.4213E-01 (lambda#: 163)
+
+ -- Iteration   8
+ H , delta = 3.4306E-01
+ Spectrum max delta J = 3.9853E-01 (lambda#: 163)
+
+ -- Iteration   9
+ H , delta = 3.2251E-01
+ Spectrum max delta J = 3.7037E-01 (lambda#: 163)
+
+ -- Iteration  10
+ H , delta = 3.0804E-01
+ Spectrum max delta J = 3.4664E-01 (lambda#: 163)
+
+ -- Iteration  11
+ H , delta = 2.9568E-01
+ Spectrum max delta J = 3.2821E-01 (lambda#: 163)
+
+ -- Iteration  12
+ H , delta = 2.8496E-01
+ Spectrum max delta J = 3.1074E-01 (lambda#: 163)
+
+ -- Iteration  13
+ H , delta = 2.7436E-01
+ Spectrum max delta J = 2.9593E-01 (lambda#: 163)
+
+ -- Iteration  14
+ H , delta = 2.6448E-01
+ Spectrum max delta J = 2.8174E-01 (lambda#: 163)
+
+ -- Iteration  15
+ H , delta = 2.5478E-01
+ Spectrum max delta J = 2.6959E-01 (lambda#: 163)
+
+ -- Iteration  16
+ H , delta = 2.4578E-01
+ Spectrum max delta J = 2.5830E-01 (lambda#: 163)
+
+ -- Iteration  17
+ H , delta = 2.3692E-01
+ Spectrum max delta J = 2.4799E-01 (lambda#: 163)
+
+ -- Iteration  18
+ H , delta = 2.2893E-01
+ Spectrum max delta J = 2.3787E-01 (lambda#: 163)
+
+ -- Iteration  19
+ H , delta = 2.2073E-01
+ Spectrum max delta J = 2.2821E-01 (lambda#: 163)
+
+ -- Iteration  20
+ H , delta = 2.1244E-01
+ Spectrum max delta J = 2.1777E-01 (lambda#: 163)
+
+ -- Iteration  21
+ H , delta = 2.0440E-01
+ Spectrum max delta J = 2.0816E-01 (lambda#: 184)
+
+ -- Iteration  22
+ H , delta = 1.9839E-01
+ Spectrum max delta J = 2.0096E-01 (lambda#: 184)
+
+ -- Iteration  23
+ H , delta = 1.9075E-01
+ Spectrum max delta J = 1.9230E-01 (lambda#: 184)
+
+ -- Iteration  24
+ H , delta = 1.8173E-01
+ Spectrum max delta J = 1.8249E-01 (lambda#: 184)
+
+ -- Iteration  25
+ H , delta = 1.7165E-01
+ Spectrum max delta J = 1.7184E-01 (lambda#: 184)
+
+ -- Iteration  26
+ H , delta = 1.6089E-01
+ Spectrum max delta J = 1.6061E-01 (lambda#: 184)
+
+ -- Iteration  27
+ H , delta = 1.4962E-01
+ Spectrum max delta J = 1.4893E-01 (lambda#: 184)
+
+ -- Iteration  28
+ H , delta = 1.3797E-01
+ Spectrum max delta J = 1.3696E-01 (lambda#: 184)
+
+ -- Iteration  29
+ H , delta = 1.2610E-01
+ Spectrum max delta J = 1.2487E-01 (lambda#: 184)
+
+ -- Iteration  30
+ H , delta = 1.1418E-01
+ Spectrum max delta J = 1.1280E-01 (lambda#: 184)
+
+ -- Iteration  31
+ H , delta = 1.0239E-01
+ Spectrum max delta J = 1.0095E-01 (lambda#: 184)
+
+ -- Iteration  32
+ H , delta = 9.0955E-02
+ Spectrum max delta J = 8.9487E-02 (lambda#: 184)
+
+ -- Iteration  33
+ H , delta = 8.0036E-02
+ Spectrum max delta J = 7.8603E-02 (lambda#: 184)
+
+ -- Iteration  34
+ H , delta = 6.9807E-02
+ Spectrum max delta J = 6.8440E-02 (lambda#: 184)
+
+ -- Iteration  35
+ H , delta = 6.0372E-02
+ Spectrum max delta J = 5.9101E-02 (lambda#: 184)
+
+ -- Iteration  36
+ H , delta = 5.1813E-02
+ Spectrum max delta J = 5.0652E-02 (lambda#: 184)
+
+ -- Iteration  37
+ H , delta = 4.4155E-02
+ Spectrum max delta J = 4.3114E-02 (lambda#: 184)
+
+ -- Iteration  38
+ H , delta = 3.7396E-02
+ Spectrum max delta J = 3.6475E-02 (lambda#: 184)
+
+ -- Iteration  39
+ H , delta = 3.1497E-02
+ Spectrum max delta J = 3.0694E-02 (lambda#: 184)
+
+ -- Iteration  40
+ H , delta = 2.6402E-02
+ Spectrum max delta J = 2.5709E-02 (lambda#: 184)
+
+ -- Iteration  41
+ H , delta = 2.2041E-02
+ Spectrum max delta J = 2.1448E-02 (lambda#: 184)
+
+ -- Iteration  42
+ H , delta = 1.8335E-02
+ Spectrum max delta J = 1.7832E-02 (lambda#: 184)
+
+ -- Iteration  43
+ H , delta = 1.5207E-02
+ Spectrum max delta J = 1.4783E-02 (lambda#: 184)
+
+ -- Iteration  44
+ H , delta = 1.2581E-02
+ Spectrum max delta J = 1.2225E-02 (lambda#: 184)
+
+ -- Iteration  45
+ H , delta = 1.0386E-02
+ Spectrum max delta J = 1.0089E-02 (lambda#: 184)
+
+ -- Iteration  46
+ H , delta = 8.5592E-03
+ Spectrum max delta J = 8.3123E-03 (lambda#: 184)
