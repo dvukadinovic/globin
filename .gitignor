@@ -3,6 +3,8 @@ comments
 *.out
 *.dat
 *.ray
-atmospheres/*
-globbin.egg-info/*
-logs/*
+*.input
+!params.input
+atmospheres/
+globbin.egg-info/
+logs/
