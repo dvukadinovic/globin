@@ -20,10 +20,13 @@ Last update: 17/09/2020
 import subprocess as sp
 import multiprocessing as mp
 from astropy.io import fits
+import numpy as np
 import os
 import sys
-import rh
 import time
+
+from globin import rh
+import globin
 
 class Atmosphere(object):
 	def __init__(self, fpath):
@@ -38,10 +41,16 @@ class Atmosphere(object):
 		self.atmos = atmos.data
 		self.shape = self.atmos.shape
 		self.path = fpath
+		self.atm_name_list = []
+
+		print(f"Read atmosphere {self.path} with dimensions:")
+		print(f"  (nx, ny, npar, nz) = {self.shape}")
+		
 		self.WriteAtmospheres()
-		print(f"Read atmosphere {self.path} with dimensions {self.shape}\n")
 
 	def get_atmos(self, idx, idy):
+		# return atmosphere from cube with given
+		# indices 'idx' and 'idy'
 		try:
 			return self.atmos[idx,idy]
 		except:
@@ -52,7 +61,6 @@ class Atmosphere(object):
 	def WriteAtmospheres(self):
 		# write every atmosphere from cube into separate file and
 		# store them in 'atmosphere' directory
-		self.atm_name_list = []
 
 		if not os.path.exists("atmospheres"):
 			os.mkdir("atmospheres")
@@ -96,53 +104,101 @@ class Atmosphere(object):
 
 		print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-def pool_distribute(atm_path):
+def pool_distribute(arg):
 	start = time.time()
+
+	atm_path, spec_name = arg
+
+	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
+	set_old_J = True
 	if not os.path.exists(f"../pid_{pid}"):
 		os.mkdir(f"../pid_{pid}")
+		#--- copy *.input files
+		sp.run(f"cp *.input ../pid_{pid}", 
+			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+		set_old_J = False
 
-	# copy *.input files
-	sp.run(f"cp *.input ../pid_{pid}", 
-		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
-	# change atmos name in 'keyword.input' file
 	lines = open(f"../pid_{pid}/keyword.input","r").readlines()
 	for i_, line in enumerate(lines):
-		aux = line.rstrip("\n").split("=")
-		if aux[0].replace(" ","")=="ATMOS_FILE":
-			lines[i_] = f"  ATMOS_FILE = {os.getcwd()}/{atm_path}\n"
-		if aux[0].replace(" ","")=="SPECTRUM_OUTPUT":
-			spec_name = aux[1].replace(" ","")
+		if line.replace(" ","")[0]!=globin.COMMENT_CHAR:
+			line = line.rstrip("\n").split("=")
+			#--- change atmos path in 'keyword.input' file
+			if line[0].replace(" ","")=="ATMOS_FILE":
+				lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
+			#--- set to read old J.dat file
+			if line[0].replace(" ","")=="STARTING_J":
+				if set_old_J:
+					lines[i_] = "  STARTING_J      = OLD_J\n"
+				else:
+					lines[i_] = "  STARTING_J      = NEW_J\n"
+
 	out = open(f"../pid_{pid}/keyword.input","w")
 	out.writelines(lines)
 	out.close()
 
 	aux = atm_path.split("_")
-	stdout = open(f"{os.getcwd()}/logs/log_{aux[1]}_{aux[2]}", "w")
+	idx, idy = aux[1], aux[2]
+	stdout = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
 	sp.run(f"cd ../pid_{pid}; ../rhf1d",
 			shell=True, stdout=stdout, stderr=sp.STDOUT)
 	stdout.close()
 
-	dt = time.time() - start
-	print("Finished synthesis of {:} in {:4.2f} s".format(atm_path, dt))
-
 	spec = rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
 	spec.read_spectrum(spec_name)
 
-	return spec
+	dt = time.time() - start
+	print("Finished synthesis of {:} in {:4.2f} s".format(atm_path, dt))
+	
+	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
-def ComputeSpectra(init):
+def ComputeSpectra(init, new_run=True):
 	n_thread = init.n_thread
-	atm = init.atm
+	atm_name_list = init.atm.atm_name_list
+	spec_name = init.spec_name
+
+	args = [[atm_name,spec_name] for atm_name in atm_name_list]
+
+	#--- make directory in which we will save logs of running RH
 	if not os.path.exists("logs"):
 		os.mkdir("logs")
 	else:
 		sp.run("rm logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
+	#--- distribute the process to threads
 	with mp.Pool(processes=n_thread) as pool:
-		specs = pool.map(func=pool_distribute, iterable=atm.atm_name_list)
-	return specs
+		specs = pool.map(func=pool_distribute, iterable=args)
 
-def ComputeRF():
+	spec_cube = save_spectra(specs, init.atm.shape)
+
+	#--- delete thread directories if we had a new synthesis
+	if new_run:
+		for threadID in range(n_thread):
+			sp.run(f"rm -r ../pid_{threadID+1}",
+				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+
+	return spec_cube
+
+def save_spectra(specs, shape):
+	"""
+	make fits header with additional info
+	"""
+	wavs = specs[0]["spectra"].wave
+	spectra = np.zeros((shape[0], shape[1], len(wavs), 5))
+	spectra[:,:,:,0] = wavs
+
+	for item in specs:
+		spec, idx, idy = item["spectra"], item["idx"], item["idy"]
+		spectra[idx,idy,:,0] = spec.imu[-1]
+
+	primary = fits.PrimaryHDU(spectra)
+	# secondary = fits.ImageHDU(wavs)
+	# hdulist = fits.HDUList([primary, secondary])
+	hdulist = fits.HDUList([primary])
+	hdulist.writeto("spectra.fits", overwrite=True)
+
+	return spectra
+
+def ComputeRF(init):
 	pass

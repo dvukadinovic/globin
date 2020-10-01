@@ -1,16 +1,39 @@
+# Note: currently unread parameters are commented out
+
+#--- wavelength window
+# in nm
+lmin = 401.5
+lmax = 401.7
+# in mA
+step = 10
+
 #--- MCMC parameters and Parallelisation
-n_walkers = 100
-n_length = 1000
-n_threads = 2
+# n_walkers = 100
+# n_length = 1000
+n_threads = 4
+
+#--- Levenberg-Marquardt parameters
+
+#--- Parameter regularization
+
+#--- Spatial coupling by PSF
 
 #--- Parameters to be fitted
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters
-1 1 0 uniform -8 0
-5 1 1 uniform -8 0 -50 50
+# 1 1 0 uniform -8 0
+# 5 1 1 uniform -8 0 -50 50
+
+# loggf = 1,2,4,6,8,10
+# lam = 1,2,3,4,5,10
 
 #--- Spectra to be fitted
-spectrum = observed.fits
+# spectrum = observed.fits
 
 #--- Initial atmosphere
 atmosphere = ../../Atmos/falc_2x2.fits
-range = [0,2,0,2]
+# first and last index in given atmospheric cube to be used for synthesis/inversion
+# [start_x, end_x, start_y, end_y]
+# range = [0,1,0,1]
+
+#--- RH root folder path
+# rh_path = /media/dusan/storage/RH/rh

@@ -3,9 +3,10 @@ comments
 *.out
 *.dat
 *.ray
+*.fits
 *.input
 !params.input
 atmospheres/
 globin.egg-info/
 logs/
-globin/__pycache/
+globin/__pycache__/
