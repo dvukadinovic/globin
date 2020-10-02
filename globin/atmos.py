@@ -24,8 +24,8 @@ import numpy as np
 import os
 import sys
 import time
+import copy
 
-from globin import rh
 import globin
 
 class Atmosphere(object):
@@ -38,21 +38,32 @@ class Atmosphere(object):
 			sys.exit()
 		
 		self.header = atmos.header
-		self.atmos = atmos.data
-		self.shape = self.atmos.shape
+		self.data = atmos.data
+		self.shape = self.data.shape
 		self.path = fpath
 		self.atm_name_list = []
+		self.par_id = {"logtau" : 0,
+					   "temp"   : 1,
+					   "Bx"     : -1,
+					   "By"     : -1,
+					   "Bz"     : -1,
+					   "vz"     : 3,
+					   "vmic"   : 4,}
 
 		print(f"Read atmosphere {self.path} with dimensions:")
-		print(f"  (nx, ny, npar, nz) = {self.shape}")
+		print(f"  (nx, ny, npar, nz) = {self.shape}\n")
 		
+		for idx in range(self.shape[0]):
+			for idy in range(self.shape[1]):
+				self.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+
 		self.WriteAtmospheres()
 
 	def get_atmos(self, idx, idy):
 		# return atmosphere from cube with given
 		# indices 'idx' and 'idy'
 		try:
-			return self.atmos[idx,idy]
+			return self.data[idx,idy]
 		except:
 			print("Error: Atmosphere index notation does not match")
 			print("       it's dimension.\n")
@@ -74,7 +85,6 @@ class Atmosphere(object):
 		for idx in range(self.shape[0]):
 			for idy in range(self.shape[1]):
 				atm = self.get_atmos(idx, idy)
-				self.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
 				out = open(f"atmospheres/atm_{idx}_{idy}","w")
 
 				out.write("* Model file'\n")
@@ -102,7 +112,7 @@ class Atmosphere(object):
 
 				out.close()
 
-		print("Extracted all atmospheres into folder 'atmospheres'\n")
+		# print("Extracted all atmospheres into folder 'atmospheres'\n")
 
 def pool_distribute(arg):
 	start = time.time()
@@ -144,20 +154,21 @@ def pool_distribute(arg):
 			shell=True, stdout=stdout, stderr=sp.STDOUT)
 	stdout.close()
 
-	spec = rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
+	spec = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	print("Finished synthesis of {:} in {:4.2f} s".format(atm_path, dt))
+	# print("Finished synthesis of {:} in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
-def ComputeSpectra(init, new_run=True):
+def ComputeSpectra(init, clean_dirs=True):
 	n_thread = init.n_thread
 	atm_name_list = init.atm.atm_name_list
 	spec_name = init.spec_name
 
 	args = [[atm_name,spec_name] for atm_name in atm_name_list]
+	# args = [for i_,item in enumerate(args)]
 
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists("logs"):
@@ -167,13 +178,12 @@ def ComputeSpectra(init, new_run=True):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	with mp.Pool(processes=n_thread) as pool:
-		specs = pool.map(func=pool_distribute, iterable=args)
+	specs = init.pool.map(func=pool_distribute, iterable=args)
 
 	spec_cube = save_spectra(specs, init.atm.shape)
 
-	#--- delete thread directories if we had a new synthesis
-	if new_run:
+	#--- delete thread directories (save them if you want to use previous run J)
+	if clean_dirs:
 		for threadID in range(n_thread):
 			sp.run(f"rm -r ../pid_{threadID+1}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -190,7 +200,7 @@ def save_spectra(specs, shape):
 
 	for item in specs:
 		spec, idx, idy = item["spectra"], item["idx"], item["idy"]
-		spectra[idx,idy,:,0] = spec.imu[-1]
+		spectra[idx,idy,:,1] = spec.imu[-1]
 
 	primary = fits.PrimaryHDU(spectra)
 	# secondary = fits.ImageHDU(wavs)
@@ -201,4 +211,59 @@ def save_spectra(specs, shape):
 	return spectra
 
 def ComputeRF(init):
-	pass
+	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
+	# InterpolateAtmos(init)
+	#--- get current iteration atmosphere
+	atmos = init.atm
+	logtau = atmos.data[0,0,atmos.par_id["logtau"]]
+	dtau = logtau[1] - logtau[0]
+	#--- copy current atmosphere to new model atmosphere with +/- perturbation
+	model_plus = copy.deepcopy(atmos)
+	model_minus = copy.deepcopy(atmos)
+
+	nz = init.atm.shape[-1]
+	delta = {"temp" : 1,
+			 "Bx"   : 25/1e4, # G --> T
+			 "By"   : 25/1e4, # G --> T
+			 "Bz"   : 25/1e4, # G --> T
+			 "vz"   : 10/1e3, # m/s --> km/s
+			 "vmic" : 10/1e3} # m/s --> km/s
+	
+	rf = np.zeros((atmos.shape[0], atmos.shape[1], atmos.shape[-1], len(delta), len(init.wavs), 4))
+
+	import matplotlib.pyplot as plt
+
+	spec = ComputeSpectra(init)
+
+	#-- compute RF for each atmospheric parameter for which we are inverting
+	for parID,par in enumerate(init.nodes):
+		nodes = init.nodes[par]
+		par_id = init.atm.par_id[par]
+		perturbation = delta[par]
+		if nodes!=[]:
+			print(par)
+			for zID in range(nz):
+
+				model_plus.data[:,:,par_id,zID] = np.copy(atmos.data[:,:,par_id,zID]) + perturbation
+				model_plus.WriteAtmospheres()
+				spec_plus = ComputeSpectra(init, clean_dirs=False)
+				
+				model_minus.data[:,:,par_id,zID] = atmos.data[:,:,par_id,zID] - perturbation
+				model_minus.WriteAtmospheres()
+				spec_minus = ComputeSpectra(init, clean_dirs=False)
+				
+				# print(model_plus.data[:,:,par_id,zID])
+				# print(model_minus.data[:,:,par_id,zID])
+				
+				ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavs[0]))
+				ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavs[-1]))+1
+				
+				diff = spec_plus[:,:,ind_min:ind_max,1:] - spec_minus[:,:,ind_min:ind_max,1:]
+
+				rf[:,:,zID,parID,:,:] = diff / 2 / perturbation / dtau
+
+	fits.writeto("rf.fits", rf, overwrite=True)
+
+	print("RF done!\n\n")
+
+	return rf

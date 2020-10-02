@@ -33,4 +33,5 @@ astropy>=
 os>=
 sys>=
 time>=
+copy>=
 rh...
