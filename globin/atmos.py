@@ -1,20 +1,11 @@
 """
-Inversion of atomic parameters.
-
-Method functions:
-  -- read input file ('params.input')
-  -- forward solution --> calling RH (distribute load into threads)
-  -- minimization rootine --> calling MCMC routines
-
 Contributors:
   Dusan Vukadinovic (DV)
 
-Diary: 
-  17/09/2020 --- started writing the code (readme file, structuring)
-  21/09/2020 --- wrote down reading of atmos in .fits format and sent
-  				 calculation to different process
-
-Last update: 17/09/2020
+17/09/2020 : started writing the code (readme file, structuring)
+21/09/2020 : wrote down reading of atmos in .fits format and sent
+			 calculation to different process
+##/10/2020 : rewriten class Atmosphere
 """
 
 import subprocess as sp
@@ -29,90 +20,133 @@ import copy
 import globin
 
 class Atmosphere(object):
-	def __init__(self, fpath):
+	def __init__(self, fpath, ftype=None, verbose=False):
+		self.verbose = verbose
+		
+		# by file extension determine atmosphere type / format
+		if ftype is None:
+			ftype = fpath.split(".")[-1]
+		
+		# read atmosphere by the type
+		# if ftype=="dat" or ftype=="txt":
+		# 	pass
+		
+		# read fits / fit / cube type atmosphere
+		if ftype=="fits" or ftype=="fit" or ftype=="cube":
+			self.read_fits(fpath)
+		else:
+			print(f"Unsupported type '{ftype}' of atmosphere file.")
+			print(" Supported types are: .dat, .txt, .fit(s) / cube")
+			sys.exit()
+
+	def read_fits(self, fpath):
 		try:
 			atmos = fits.open(fpath)[0]
 		except:
-			print(f"Error: Atmosphere file with path {fpath}")
+			print(f"Error: Atmosphere file with path '{fpath}'")
 			print("       does not exist.\n")
 			sys.exit()
 		
 		self.header = atmos.header
 		self.data = atmos.data
-		self.shape = self.data.shape
+		self.nx, self.ny, self.npar, self.nz = self.data.shape
 		self.path = fpath
 		self.atm_name_list = []
-		self.par_id = {"logtau" : 0,
-					   "temp"   : 1,
-					   "Bx"     : -1,
-					   "By"     : -1,
-					   "Bz"     : -1,
-					   "vz"     : 3,
-					   "vmic"   : 4,}
 
-		print(f"Read atmosphere {self.path} with dimensions:")
-		print(f"  (nx, ny, npar, nz) = {self.shape}\n")
-		
-		for idx in range(self.shape[0]):
-			for idy in range(self.shape[1]):
-				self.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+		# type of atmosphere: are we reading MULTI, SPINOR or SIR format
+		# self.atm_type = self.header["TYPE"]
 
-		self.WriteAtmospheres()
+		# parameter ID in atmosphere cube; what column is temperature and so on...
+		# self.par_id = {"logtau" : 0,
+		# 			   "temp"   : 1,
+		# 			   "Bx"     : -1,
+		# 			   "By"     : -1,
+		# 			   "Bz"     : -1,
+		# 			   "vz"     : 3,
+		# 			   "vmic"   : 4,}
+
+		print(f"Read atmosphere '{self.path}' with dimensions:")
+		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
+
+		self.split_cube()
+
+	def read_spirno(self):
+		pass
+
+	def read_sir(self):
+		pass
+
+	def read_multi(self):
+		pass
 
 	def get_atmos(self, idx, idy):
 		# return atmosphere from cube with given
-		# indices 'idx' and 'idy'
+		# indices 'idx' and 'idy'.
 		try:
 			return self.data[idx,idy]
 		except:
-			print("Error: Atmosphere index notation does not match")
-			print("       it's dimension.\n")
+			print(f"Error: Atmosphere index notation does not match")
+			print(f"       it's dimension. No atmosphere (x,y) = ({idx},{idy})\n")
 			sys.exit()
 
-	def WriteAtmospheres(self):
-		# write every atmosphere from cube into separate file and
-		# store them in 'atmosphere' directory
-
+	def split_cube(self):
+		# go through the cube and save each pixel as separate atmosphere
 		if not os.path.exists("atmospheres"):
 			os.mkdir("atmospheres")
 		else:
 			# clean directory if it exists (maybe we have atmospheres extracted
-			# from some other cube); it takes few seconds, so not a big deal
+			# from some other cube); it takes few miliseconds, so not a big deal
 			sp.run("rm atmospheres/*",
 				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
 		# go through each atmosphere and extract it to separate file
-		for idx in range(self.shape[0]):
-			for idy in range(self.shape[1]):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
 				atm = self.get_atmos(idx, idy)
-				out = open(f"atmospheres/atm_{idx}_{idy}","w")
+				fpath = f"atmospheres/atm_{idx}_{idy}"
+				self.atm_name_list.append(fpath)
+				write_multi_atmosphere(atm, fpath)
 
-				out.write("* Model file'\n")
-				out.write("*\n")
-				out.write(f"  atm_{idx}_{idy}\n")
-				out.write("  Tau scale\n")
-				out.write("*\n")
-				out.write("* log(g) [cm s^-2]\n")
-				out.write("  4.44\n")
-				out.write("*\n")
-				out.write("* Ndep\n")
-				out.write(f"  {self.shape[3]}\n")
-				out.write("*\n")
-				out.write("* lot tau    Temp[K]    n_e[m-3]    v_z[km/s]   v_turb[km/s]\n")
+		if self.verbose:
+			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-				for i_ in range(self.shape[3]):
-					out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+def write_multi_atmosphere(atm, fpath):
+	# write atmosphere 'atm' of MULTI type 
+	# into separate file and store them at 'fpath'.
 
-				out.write("*\n")
-				out.write("* Hydrogen populations [m-3]\n")
-				out.write("*     nh(1)        nh(2)        nh(3)        nh(4)        nh(5)        nh(6)\n")
+	# atmosphere name (extracted from full path given)
+	fname = fpath.split("/")[-1]
 
-				for i_ in range(self.shape[3]):
-					out.write("   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[5,i_], atm[6,i_], atm[7,i_], atm[8,i_], atm[9,i_], atm[10,i_]))
+	out = open(fpath,"w")
+	npar, nz = atm.shape
 
-				out.close()
+	out.write("* Model file\n")
+	out.write("*\n")
+	out.write(f"  {fname}\n")
+	out.write("  Tau scale\n")
+	out.write("*\n")
+	out.write("* log(g) [cm s^-2]\n")
+	out.write("  4.44\n")
+	out.write("*\n")
+	out.write("* Ndep\n")
+	out.write(f"  {nz}\n")
+	out.write("*\n")
+	out.write("* lot tau    Temp[K]    n_e[m-3]    v_z[km/s]   v_turb[km/s]\n")
 
-		# print("Extracted all atmospheres into folder 'atmospheres'\n")
+	for i_ in range(nz):
+		out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+
+	out.write("*\n")
+	out.write("* Hydrogen populations [m-3]\n")
+	out.write("*     nh(1)        nh(2)        nh(3)        nh(4)        nh(5)        nh(6)\n")
+
+	for i_ in range(nz):
+		out.write("   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[8,i_], atm[9,i_], atm[10,i_], atm[11,i_], atm[12,i_], atm[13,i_]))
+
+	out.close()
+
+	# store now and magnetic field vector
+	globin.rh.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 def pool_distribute(arg):
 	start = time.time()
@@ -129,13 +163,16 @@ def pool_distribute(arg):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 		set_old_J = False
 
-	lines = open(f"../pid_{pid}/keyword.input","r").readlines()
+	lines = open(f"keyword.input", "r").readlines()
 	for i_, line in enumerate(lines):
 		if line.replace(" ","")[0]!=globin.COMMENT_CHAR:
 			line = line.rstrip("\n").split("=")
 			#--- change atmos path in 'keyword.input' file
 			if line[0].replace(" ","")=="ATMOS_FILE":
 				lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
+			#--- change path for magnetic field
+			if line[0].replace(" ","")=="":
+				lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
 			#--- set to read old J.dat file
 			if line[0].replace(" ","")=="STARTING_J":
 				if set_old_J:
@@ -158,11 +195,11 @@ def pool_distribute(arg):
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	# print("Finished synthesis of {:} in {:4.2f} s".format(atm_path, dt))
+	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
-def ComputeSpectra(init, clean_dirs=True):
+def compute_spectra(init, clean_dirs=False):
 	n_thread = init.n_thread
 	atm_name_list = init.atm.atm_name_list
 	spec_name = init.spec_name
@@ -180,7 +217,7 @@ def ComputeSpectra(init, clean_dirs=True):
 	#--- distribute the process to threads
 	specs = init.pool.map(func=pool_distribute, iterable=args)
 
-	spec_cube = save_spectra(specs, init.atm.shape)
+	spec_cube = save_spectra(specs, init.atm.nx, init.atm.ny)
 
 	#--- delete thread directories (save them if you want to use previous run J)
 	if clean_dirs:
@@ -190,27 +227,52 @@ def ComputeSpectra(init, clean_dirs=True):
 
 	return spec_cube
 
-def save_spectra(specs, shape):
+def save_spectra(specs, nx, ny):
 	"""
+	Function which takes 'specs' and save them in fits file format.
+
+	Parameters:
+	---------------
+	specs : list
+		List of dictionaries with fields 'spectra', 'idx' and 'idy'.
+		Spectrum in dictionary is Rhout() class object and 'idx' and 'idy'
+		are pixel positions in the atmosphere cube to which given spectrum
+		coresponds.
+
+	nx : int
+		Number of pixels along x-axis in atmosphere cube.
+
+	ny : ind
+		Number of pixels along y-axis in atmosphere cube.
+
+	Returns:
+	---------------
+	spectra : ndarray
+		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
+		the wavelngth and Stokes vector for each pixel in atmosphere cube.
+
+	Changes:
+	---------------
 	make fits header with additional info
 	"""
 	wavs = specs[0]["spectra"].wave
-	spectra = np.zeros((shape[0], shape[1], len(wavs), 5))
+	spectra = np.zeros((nx, ny, len(wavs), 5))
 	spectra[:,:,:,0] = wavs
 
 	for item in specs:
 		spec, idx, idy = item["spectra"], item["idx"], item["idy"]
 		spectra[idx,idy,:,1] = spec.imu[-1]
+		spectra[idx,idy,:,2] = spec.stokes_Q[-1]
+		spectra[idx,idy,:,3] = spec.stokes_U[-1]
+		spectra[idx,idy,:,4] = spec.stokes_V[-1]
 
 	primary = fits.PrimaryHDU(spectra)
-	# secondary = fits.ImageHDU(wavs)
-	# hdulist = fits.HDUList([primary, secondary])
 	hdulist = fits.HDUList([primary])
 	hdulist.writeto("spectra.fits", overwrite=True)
 
 	return spectra
 
-def ComputeRF(init):
+def compute_rfs(init):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	# InterpolateAtmos(init)
 	#--- get current iteration atmosphere
@@ -240,7 +302,8 @@ def ComputeRF(init):
 		nodes = init.nodes[par]
 		par_id = init.atm.par_id[par]
 		perturbation = delta[par]
-		if nodes!=[]:
+		# if nodes!=[]:
+		if nodes is not None:
 			print(par)
 			for zID in range(nz):
 

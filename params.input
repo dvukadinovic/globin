@@ -1,4 +1,4 @@
-# Note: currently unread parameters are commented out
+# Note: currently unsuported parameters are commented out
 
 #--- Initial atmosphere
 atmosphere = ../../Atmos/falc_2x2.fits
@@ -6,29 +6,27 @@ atmosphere = ../../Atmos/falc_2x2.fits
 # [start_x, end_x, start_y, end_y]
 # range = [0,1,0,1]
 
-#--- wavelength window
-# in nm
-lmin = 401.5
-lmax = 401.7
-# in mA
-step = 10
+#--- wavelength window (in Angstroms)
+lmin = 4015
+lmax = 4017
+step = 0.010
+# wave_file = "wave_grid"
 
-#--- MCMC parameters and Parallelisation
+#--- MCMC parameters and Parallelisation (in some future scenario)
 # n_walkers = 100
 # n_length = 1000
 n_threads = 2
 
-#--- Inversion
+#--- Inversion (wait for it...)
 #temp_nodes = -5, -4.3, -3, -1, -0.54, 0.32
-temp_nodes = 7
 
-#--- Levenberg-Marquardt parameters
+#--- Levenberg-Marquardt parameters (yet to come at scene)
 
-#--- Parameter regularization
+#--- Parameter regularization (way down the road)
 
-#--- Spatial coupling by PSF
+#--- Spatial coupling by PSF (way down the road; even possible?)
 
-#--- Parameters to be fitted
+#--- Parameters to be fitted (uh... be patient)
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters
 # 1 1 0 uniform -8 0
 # 5 1 1 uniform -8 0 -50 50
