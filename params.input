@@ -1,15 +1,19 @@
 # Note: currently unsuported parameters are commented out
 
-#--- Initial atmosphere
-atmosphere = ../../Atmos/falc_2x2.fits
-# first and last index in given atmospheric cube to be used for synthesis/inversion
-# [start_x, end_x, start_y, end_y]
-# range = [0,1,0,1]
+#--- Spectra to be fitted
+observation = obs.fits
+
+#--- Parameter nodes and values
+nodes_temp = -4.8, -4.3, -1, -0.5, 0.3
+nodes_temp_values = 3500, 4500, 5000, 6500, 8500
+
+nodes_vz = -3, -1, 0
+nodes_vz_values = 5, 1, 2.4
 
 #--- wavelength window (in Angstroms)
-lmin = 4015
-lmax = 4017
-step = 0.010
+wave_min = 4015
+wave_max = 4017
+wave_step = 0.010
 # wave_file = "wave_grid"
 
 #--- MCMC parameters and Parallelisation (in some future scenario)
@@ -17,8 +21,7 @@ step = 0.010
 # n_length = 1000
 n_threads = 2
 
-#--- Inversion (wait for it...)
-#temp_nodes = -5, -4.3, -3, -1, -0.54, 0.32
+
 
 #--- Levenberg-Marquardt parameters (yet to come at scene)
 
@@ -34,9 +37,14 @@ n_threads = 2
 # loggf = 1,2,4,6,8,10
 # lam = 1,2,3,4,5,10
 
-#--- Spectra to be fitted
-# spectrum = observed.fits
+# parameter bounds for each parameter and line
+# store it in an external file
 
+#--- Reference atmosphere (optional)
+# atmosphere = ../../Atmos/falc_2x2.fits
+# first and last index in given atmospheric cube to be used for synthesis/inversion
+# [start_x, end_x, start_y, end_y]
+# range = [0,1,0,1]
 
 #--- RH root folder path
 # rh_path = /media/dusan/storage/RH/rh

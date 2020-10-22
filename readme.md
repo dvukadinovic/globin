@@ -3,6 +3,18 @@
 Development version of code for inversion of atomic and atmospheric parameters
 simultaneously.
 
+## Synthesis
+
+For simple synthesis we requiere two parameters: atmosphere and number of
+threads for computations to use. Also, we are requiered and to write
+wavelength grid data on which we want to synthesise spectrum.
+
+## Inversion
+
+In inversion case we need observations, nodes and values of parameters in
+nodes. Wavelength grid is determined from observations (we assume that
+wavelength grid is stored with observations).
+
 ## Input files
 
 First of all, we use same input as RH code since the forward modeling is based
@@ -22,7 +34,8 @@ at highest mu?
 
 ## Buggs
 
-Many to come...
+When I am doing synthesis I am grabbing 'atm' object for synthesis. Rewrite
+function for synthesis to load only neccessary data. 
 
 ## Requierments
 

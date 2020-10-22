@@ -2,7 +2,7 @@
 Contributors:
 	Dusan Vukadinovic (DV)
 
-13/10/2020 : rewriten class 'Input'; we leave to user to read from given input
+13/10/2020 : rewriten class 'InputData'; we leave to user to read from given input
 			 files; 
 """
 
@@ -12,7 +12,9 @@ import multiprocessing as mp
 
 from . import rh
 from . import atmos
+from . import spec
 from . import invert
+from . import tools
 
 __all__ = ["rh", "atmos", "invert"]
 __name__ = "globin"
@@ -25,16 +27,18 @@ COMMENT_CHAR = "#"
 cwd = os.getcwd()
 
 #--- FAL C model (ref.): reference model if not given otherwise
-# falc = atmos.Atmosphere(__path__ + "/data/falc.dat")
+falc = atmos.Atmosphere(__path__ + "/data/falc.dat")
 
-class Input(object):
+class InputData(object):
 	"""
 	Class for storing input data parameters.
 	"""
 
 	def __init__(self):
-		# atmosphere
-		self.atm = None
+		# atmosphere (constructed from nodes) --> one which we invert
+		self.atm = atmos.Atmosphere()
+		# reference atmosphere
+		self.ref_atm = None
 		# number of threads to use
 		self.n_thread = 1
 		# wavelength grid parameters
@@ -46,13 +50,6 @@ class Input(object):
 		self.pool = None
 		# spectrum file name
 		self.spec_name = None
-		# parameter node position
-		# self.nodes = {"temp" : None,
-		# 			  "Bx"   : None,
-		# 			  "By"   : None,
-		# 			  "Bz"   : None,
-		# 			  "vz"   : None,
-		# 			  "vmic" : None}
 
 	# def __str__(self):
 	# 	pass
@@ -75,7 +72,7 @@ class Input(object):
 			File name for RH main input file. Default value is 'keyword.input'.
 		"""
 		self.globin_input = globin_input
-		self.rh_input = rh.input
+		self.rh_input = rh_input
 
 		#--- read 'parameters.input' file
 		lines = open(globin_input, "r").readlines()
@@ -88,34 +85,54 @@ class Input(object):
 				if line[0]!=COMMENT_CHAR:
 					line = line.split("=")
 					keyword, value = line
-					if keyword=="atmosphere":
+					if keyword=="observation":
+						self.obs = spec.Observation(value)
+						# set dimensions for atmosphere same as dimension of observations
+						self.atm.nx = self.obs.nx
+						self.atm.ny = self.obs.ny
+					elif keyword=="atmosphere":
 						atm_path = value
-						self.atm = atmos.Atmosphere(atm_path)
-					if keyword=="n_threads":
+						self.ref_atm = atmos.Atmosphere(atm_path)
+					elif keyword=="n_threads":
 						self.n_thread = int(value)
 						self.pool = mp.Pool(self.n_thread)
-					if keyword=="lmin":
+					elif keyword=="wave_min":
 						self.lmin = float(value) / 10 # from Angstroms to nm
-					if keyword=="lmax":
+					elif keyword=="wave_max":
 						self.lmax = float(value) / 10 # from Angstroms to nm
-					if keyword=="step":
+					elif keyword=="wave_step":
 						self.step = float(value) / 10 # from Angstroms to nm
-			# 		if keyword=="temp_nodes":
-			# 			if len(line[1].replace(" ",""))==1:
-			# 				num_of_nodes = int(line[1].replace(" ",""))
-			# 				try:
-			# 					logtau = self.atm.data[0,0,0]
-			# 				except AttributeError:
-			# 					print("Error: Must read first atmosphere to make nodes for temperature\n")
-			# 				idx = np.round(np.linspace(0, len(logtau)-1, num_of_nodes)).astype(int)
-			# 				self.nodes["temp"] = logtau[idx]
-			# 			else:
-			# 				aux = [float(item) for item in line[1].split(",")]
-		
-		
+					elif keyword=="nodes_temp":
+						self.atm.nodes["temp"] = read_nodes_and_values(line)
+					elif keyword=="nodes_temp_values":
+						values = read_nodes_and_values(line)
+						try:	
+							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
+							matrix[:,:] = values
+							self.atm.values["temp"] = matrix
+						except:
+							print("Can not store node values for parameter 'temp'.")
+							print("  Must read first observation file.")
+							sys.exit()
+					elif keyword=="nodes_vz":
+						self.atm.nodes["vz"] = read_nodes_and_values(line)
+					elif keyword=="nodes_vz_values":
+						values = read_nodes_and_values(line)
+						try:	
+							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
+							matrix[:,:] = values
+							self.atm.values["vz"] = matrix
+						except:
+							print("Can not store node values for parameter 'vz'.")
+							print("  Must read first observation file.")
+							sys.exit()
+					else:
+						# block for not supported keywords
+						print(f"Currently not supported keyword '{keyword}'")
+
 		# if user have not provided reference atmosphere we will assume FAL C model
-		# if self.atm is None:
-			# self.atm = falc
+		if self.ref_atm is None:
+			self.ref_atm = falc
 
 		#--- read 'keyword.input' file
 		lines = open(rh_input, "r").readlines()
@@ -129,5 +146,21 @@ class Input(object):
 				if keyword=="SPECTRUM_OUTPUT":
 					self.spec_name = line[1].replace(" ","")
 
-		self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+		if self.obs.wavelength is None:
+			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+		else:
+			self.wavelength = self.obs.wavelength
 		rh.write_wavs(self.wavelength, wave_file_path)
+
+def read_nodes_and_values(line, param=None):
+	if len(line[1].replace(" ",""))==1:
+		pass
+		num_of_nodes = int(line[1].replace(" ",""))
+		try:
+			logtau = self.atm.data[0,0,0]
+		except AttributeError:
+			print(f"Error: Must read first atmosphere to make nodes for {param}\n")
+		idx = np.round(np.linspace(0, len(logtau)-1, num_of_nodes)).astype(int)
+		self.nodes[param] = logtau[idx]
+	else:
+		return [float(item) for item in line[1].split(",")]

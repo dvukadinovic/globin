@@ -7,10 +7,12 @@ import sys
 import os
 
 #--- initialize input object and then read input files
-data = globin.Input()
-data.read_input_files()
+in_data = globin.InputData()
+in_data.read_input_files()
 
-spec = globin.atmos.compute_spectra(data)
+in_data.atm.build_from_nodes()
+
+# spec = globin.atmos.compute_spectra(in_data)
 
 #--- compute spectra
 # spec = globin.compute_spectra(atmosphere, n_thread=2)

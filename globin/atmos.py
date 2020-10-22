@@ -3,7 +3,7 @@ Contributors:
   Dusan Vukadinovic (DV)
 
 17/09/2020 : started writing the code (readme file, structuring)
-21/09/2020 : wrote down reading of atmos in .fits format and sent
+12/10/2020 : wrote down reading of atmos in .fits format and sent
 			 calculation to different process
 ##/10/2020 : rewriten class Atmosphere
 """
@@ -20,24 +20,52 @@ import copy
 import globin
 
 class Atmosphere(object):
-	def __init__(self, fpath, ftype=None, verbose=False):
+	"""	
+	Object class for atmospheric models.
+
+	We can read .fits file like cube with assumed shape of (nx, ny, npar, nz)
+	where npar=14. Order of parameters are like for RH (MULTI atmos type) where
+	after velocity we have magnetic field strength, inclination and azimuth. Last
+	6 parameters are Hydrogen number density for first six levels.
+
+	We distinguish different type of 'Atmopshere' bsaed on input mode. For .fits
+	file we call it 'cube' while for rest we call it 'single'.
+
+	"""
+	def __init__(self, fpath=None, verbose=False):
 		self.verbose = verbose
-		
-		# by file extension determine atmosphere type / format
-		if ftype is None:
+		# dictionary for nodes
+		self.nodes = {}
+		# dictionary for values of parameters in nodes; when we are inverting for
+		# cube atmosphere, each parameters in dictionary will be a matrix with
+		# dimensions (nx,ny,nnodes).
+		self.values = {}
+
+		self.nx = None
+		self.ny = None
+		self.npar = 14
+
+		self.logtau = np.linspace(-6, 1, num=71)
+		self.nz = len(self.logtau)
+
+		self.data = None
+
+		if fpath is not None:
+			# by file extension determine atmosphere type / format
 			ftype = fpath.split(".")[-1]
-		
-		# read atmosphere by the type
-		# if ftype=="dat" or ftype=="txt":
-		# 	pass
-		
-		# read fits / fit / cube type atmosphere
-		if ftype=="fits" or ftype=="fit" or ftype=="cube":
-			self.read_fits(fpath)
-		else:
-			print(f"Unsupported type '{ftype}' of atmosphere file.")
-			print(" Supported types are: .dat, .txt, .fit(s) / cube")
-			sys.exit()
+			
+			# read atmosphere by the type
+			if ftype=="dat" or ftype=="txt":
+				self.type = "spinor"
+				self.read_spinor(fpath)
+			# read fits / fit / cube type atmosphere
+			elif ftype=="fits" or ftype=="fit":
+				self.type = "multi"
+				self.read_fits(fpath)
+			else:
+				print(f"Unsupported type '{ftype}' of atmosphere file.")
+				print(" Supported types are: .dat, .txt, .fit(s)")
+				sys.exit()
 
 	def read_fits(self, fpath):
 		try:
@@ -70,8 +98,10 @@ class Atmosphere(object):
 
 		self.split_cube()
 
-	def read_spirno(self):
-		pass
+	def read_spinor(self, fpath):
+		self.data = np.loadtxt(fpath, skiprows=1).T
+		self.npar = self.data.shape[0]
+		self.nz = self.data.shape[1]
 
 	def read_sir(self):
 		pass
@@ -110,6 +140,45 @@ class Atmosphere(object):
 		if self.verbose:
 			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
+	def build_from_nodes(self):
+		"""
+		Here we build our atmosphere from node values.
+
+		We assume polynomial interpolation of quantities for given degree (given by
+		the number of nodes and limited by 3rd degree). Velocity and magnetic field
+		vector are interpolated independantly of any other parameter. Extrapolation
+		of these parameters to upper and lower boundary of atmosphere are taken as
+		constant from highest / lowest node in atmosphere.
+
+		Temeperature extrapolation in deeper atmosphere is assumed to have same
+		slope as in FAL C model (read when loading a package), and to upper boundary
+		it is extrapolated constantly as from highest node. From assumed temperature
+		and initial run (from which we have continuum opacity) we are solving HE for
+		electron and gas pressure iterativly. Few iterations should be enough (we
+		stop when change in electron density is retrieved with given accuracy).
+
+		Idea around this is based on Milic&vanNoort (2018) [SNAPI code] and for
+		interpolation look at de la Cruz Rodriguez&Piskunov (2013/2017?).
+
+		"""
+		from scipy.interpolate import interp1d
+		import matplotlib.pyplot as plt
+
+		if self.data is None:
+			try:
+				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+			except:
+				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
+		self.data[:,:,0,:] = self.logtau
+
+		#--- interpolate temperature pixel by pixel
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				x = self.nodes["temp"]
+				y = self.values["temp"][idx,idy]
+				y_new = globin.tools.bezier_spline(x, y, self.logtau, degree=3)
+				self.data[idx,idy,1,:] = y_new
+				
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type 
 	# into separate file and store them at 'fpath'.
@@ -149,6 +218,28 @@ def write_multi_atmosphere(atm, fpath):
 	globin.rh.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 def pool_distribute(arg):
+	"""
+	Function which executes what to be done on single thread in multicore
+    mashine.
+
+	Here we check if directory for given process exits ('pid_##') and copy all
+	input files there for smooth run of RH code. We change the atmosphere path to
+	path to pixel atmosphere for which we want to syntesise spectrum (and same
+	for magnetic field).
+
+	Also, if the directory has files from old runs, then too speed calculation we
+	use old J.
+
+	After the successful synthesis, we read and store spectrum in variable
+	'spec'.
+
+	Parameters:
+	---------------
+	atm_path : string
+		Atmosphere path located in directory 'atmospheres'.
+	spec_name : string
+		File name in which spectrum is written on a disk (read from keyword.input
+        file). """
 	start = time.time()
 
 	atm_path, spec_name = arg
@@ -200,13 +291,40 @@ def pool_distribute(arg):
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
 def compute_spectra(init, clean_dirs=False):
+	"""
+	Function which computes spectrum from input atmosphere. It will distribute
+	the calculation to number of threads given in 'init' and store the spectrum
+	in file 'spectra.fits'.
+
+	For each run we make log files which are stored in 'logs' directory.
+
+	Parameters:
+	---------------
+	init : Input object
+		Input class object. It must contain number of threads 'n_thread', list
+		of sliced atmospheres from cube 'atm_name_list' and name of the output
+		spectrum 'spec_name' read from 'keyword.input' file. Rest are dimension
+		of the cube ('nx' and 'ny') which are initiated from reading atmosphere
+		file. Also, when reading input we set Pool object for multi thread 
+		claculation of spectra.
+
+	clean_dirs : bool (optional)
+		Flag which controls if we should delete wroking directories after
+		finishing the synthesis. Default value is False.
+
+	Returns:
+	---------------
+	spec_cube : ndarray
+		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
+		the wavelength and Stokes vector for each pixel in atmosphere cube.
+	"""
+
 	n_thread = init.n_thread
 	atm_name_list = init.atm.atm_name_list
 	spec_name = init.spec_name
 
 	args = [[atm_name,spec_name] for atm_name in atm_name_list]
-	# args = [for i_,item in enumerate(args)]
-
+	
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists("logs"):
 		os.mkdir("logs")
@@ -249,7 +367,7 @@ def save_spectra(specs, nx, ny):
 	---------------
 	spectra : ndarray
 		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
-		the wavelngth and Stokes vector for each pixel in atmosphere cube.
+		the wavelength and Stokes vector for each pixel in atmosphere cube.
 
 	Changes:
 	---------------
@@ -272,6 +390,7 @@ def save_spectra(specs, nx, ny):
 
 	return spectra
 
+# to be rewriten; waiting for method 'build_from_nodes'
 def compute_rfs(init):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	# InterpolateAtmos(init)
@@ -330,3 +449,11 @@ def compute_rfs(init):
 	print("RF done!\n\n")
 
 	return rf
+
+def compute_rfs():
+	"""
+
+	1. build atmosphere from nodes
+	2. perturb parameters and calculate RFs for each
+
+	"""
