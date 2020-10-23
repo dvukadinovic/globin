@@ -10,9 +10,14 @@ import os
 in_data = globin.InputData()
 in_data.read_input_files()
 
-in_data.atm.build_from_nodes()
+# in_data.atm.build_from_nodes()
 
-# spec = globin.atmos.compute_spectra(in_data)
+spec = globin.atmos.compute_spectra(in_data)
+
+for i in range(2):
+	for j in range(2):
+		plt.plot(spec[i,j,:,0], spec[i,j,:,1])
+plt.show()
 
 #--- compute spectra
 # spec = globin.compute_spectra(atmosphere, n_thread=2)

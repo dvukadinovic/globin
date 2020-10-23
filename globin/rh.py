@@ -215,6 +215,10 @@ class Rhout:
             self.stokes_Q = read_xdr_var(data, ('d', ishape))
             self.stokes_U = read_xdr_var(data, ('d', ishape))
             self.stokes_V = read_xdr_var(data, ('d', ishape))
+        else:
+            self.stokes_Q = np.zeros(self.imu.shape)
+            self.stokes_U = np.zeros(self.imu.shape)
+            self.stokes_V = np.zeros(self.imu.shape)
         close_xdr(data, infile, verbose=self.verbose)
         # read as_rn, if it exists
         # if os.path.isfile('asrs.out'):

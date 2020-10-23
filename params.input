@@ -21,8 +21,6 @@ wave_step = 0.010
 # n_length = 1000
 n_threads = 2
 
-
-
 #--- Levenberg-Marquardt parameters (yet to come at scene)
 
 #--- Parameter regularization (way down the road)
@@ -41,7 +39,7 @@ n_threads = 2
 # store it in an external file
 
 #--- Reference atmosphere (optional)
-# atmosphere = ../../Atmos/falc_2x2.fits
+atmosphere = ../../Atmos/falc_2x2.fits
 # first and last index in given atmospheric cube to be used for synthesis/inversion
 # [start_x, end_x, start_y, end_y]
 # range = [0,1,0,1]

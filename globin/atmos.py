@@ -200,7 +200,7 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Ndep\n")
 	out.write(f"  {nz}\n")
 	out.write("*\n")
-	out.write("* lot tau    Temp[K]    n_e[m-3]    v_z[km/s]   v_turb[km/s]\n")
+	out.write("* log tau    Temp[K]    n_e[m-3]    v_z[km/s]   v_turb[km/s]\n")
 
 	for i_ in range(nz):
 		out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
@@ -255,21 +255,27 @@ def pool_distribute(arg):
 		set_old_J = False
 
 	lines = open(f"keyword.input", "r").readlines()
-	for i_, line in enumerate(lines):
-		if line.replace(" ","")[0]!=globin.COMMENT_CHAR:
-			line = line.rstrip("\n").split("=")
-			#--- change atmos path in 'keyword.input' file
-			if line[0].replace(" ","")=="ATMOS_FILE":
-				lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
-			#--- change path for magnetic field
-			if line[0].replace(" ","")=="":
-				lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
-			#--- set to read old J.dat file
-			if line[0].replace(" ","")=="STARTING_J":
-				if set_old_J:
-					lines[i_] = "  STARTING_J      = OLD_J\n"
-				else:
-					lines[i_] = "  STARTING_J      = NEW_J\n"
+				
+	for i_,line in enumerate(lines):
+		line = line.rstrip("\n").replace(" ","")
+		# skip blank lines
+		if len(line)>0:
+			# skip commented lines
+			if line[0]!=globin.COMMENT_CHAR:
+				line = line.split("=")
+				keyword, value = line
+				#--- change atmos path in 'keyword.input' file
+				if keyword=="ATMOS_FILE":
+					lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
+				#--- change path for magnetic field
+				elif keyword=="STOKES_INPUT":
+					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
+				#--- set to read old J.dat file
+				elif keyword=="STARTING_J":
+					if set_old_J:
+						lines[i_] = "  STARTING_J      = OLD_J\n"
+					else:
+						lines[i_] = "  STARTING_J      = NEW_J\n"
 
 	out = open(f"../pid_{pid}/keyword.input","w")
 	out.writelines(lines)
@@ -286,7 +292,7 @@ def pool_distribute(arg):
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+	print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
@@ -320,7 +326,7 @@ def compute_spectra(init, clean_dirs=False):
 	"""
 
 	n_thread = init.n_thread
-	atm_name_list = init.atm.atm_name_list
+	atm_name_list = init.ref_atm.atm_name_list
 	spec_name = init.spec_name
 
 	args = [[atm_name,spec_name] for atm_name in atm_name_list]
@@ -335,7 +341,7 @@ def compute_spectra(init, clean_dirs=False):
 	#--- distribute the process to threads
 	specs = init.pool.map(func=pool_distribute, iterable=args)
 
-	spec_cube = save_spectra(specs, init.atm.nx, init.atm.ny)
+	spec_cube = save_spectra(specs, init.ref_atm.nx, init.ref_atm.ny)
 
 	#--- delete thread directories (save them if you want to use previous run J)
 	if clean_dirs:

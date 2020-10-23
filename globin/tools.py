@@ -1,23 +1,37 @@
-"""
-Stolen from: https://towardsdatascience.com/b%C3%A9zier-interpolation-8033e9a262c2
-
-Thank you!
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 
 def get_func3(a,b,c,d):
-    return lambda t: np.power(1 - t, 3) * a + 3 * np.power(1 - t, 2) * t * b + 3 * (1 - t) * np.power(t, 2) * c + np.power(t, 3) * d
+    return lambda t: (1-t)*(1-t)*(1-t)*a + 3*(1-t)*(1-t)*t*b + 3*(1-t)*t*t*c + t*t*t*d
 
 def get_func2(a,b,c):
     return lambda t: (1-t)*(1-t)*a + t*t*c + 2*t*(1-t)*b
 
 def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
-    """
-    Po radu de la Cruz Rodirguez & Piskunov (2013) izracunavam izvode
-    polinoma u nodovima (x). Potom trazim Cubic Hermite Spline sa datim
-    cvornim tackama i sracunatim izvodima. Deluje pristojno.
+    """ 
+
+    Bezier spline interpolation based on paper by de la Cruz Rodirguez &
+    Piskunov (2013).
+
+    Parameters:
+    ---------------
+    x : ndarray
+        x-axis values of data points.
+    y : ndarray
+        y-axis values of data points.
+    xintp : ndarray
+        x values for which to calculate spline interpolation.
+    K0 : float, optional
+        derivative of spline at first point. Default 0.
+    Kn : float, optional
+        derivative of spline at last point. Default 0.
+    degree : int, optional
+        spline degree (k=2 quadratic or k=3 cubic). Default 3 (cubic interpolation).
+
+    Return:
+    ---------------
+    yintp : ndarray
+        interpolated values at 'xintp' positions.
     """
     n = len(x)
 
@@ -65,7 +79,6 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
             yintp[j] = y[-1]
 
     return yintp
-
 
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
