@@ -207,6 +207,7 @@ class InputData(object):
 						self.wave_grid = value
 					elif keyword=="nodes_temp":
 						self.atm.nodes["temp"] = read_nodes_and_values(line)
+						self.atm.free_par += len(self.atm.nodes["temp"])
 					elif keyword=="nodes_temp_values":
 						values = read_nodes_and_values(line)
 						try:	
@@ -219,6 +220,7 @@ class InputData(object):
 							sys.exit()
 					elif keyword=="nodes_vz":
 						self.atm.nodes["vz"] = read_nodes_and_values(line)
+						self.atm.free_par += len(self.atm.nodes["vz"])
 					elif keyword=="nodes_vz_values":
 						values = read_nodes_and_values(line)
 						try:	

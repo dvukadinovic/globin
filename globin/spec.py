@@ -1,5 +1,5 @@
-from astropy.io import fits
 import sys
+from astropy.io import fits
 
 class Observation(object):
 
@@ -25,6 +25,6 @@ class Observation(object):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
 		# we assume that wavelngth is same for every pixel in observation
-		# self.wavelength = hdu.data[0,0,:,0]
+		self.wavelength = hdu.data[0,0,:,0]
 		self.spec = hdu.data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]

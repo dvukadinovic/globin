@@ -52,6 +52,7 @@ class Atmosphere(object):
 		self.nx = None
 		self.ny = None
 		self.npar = 14
+		self.free_par = 0
 
 		self.logtau = np.linspace(-6, 1, num=71)
 		self.nz = len(self.logtau)
@@ -174,6 +175,8 @@ class Atmosphere(object):
 		import matplotlib.pyplot as plt
 		from scipy.interpolate import splev
 
+		# we fill here atmosphere with data which will not be interpolated for which
+		# we are not fitting; write it in smarter way! using reference atmosphere
 		if self.data is None:
 			try:
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
@@ -385,7 +388,7 @@ def compute_spectra(init, atmos, clean_dirs=False):
 
 	return spec_cube
 
-def save_spectra(specs, nx, ny):
+def save_spectra(specs, nx, ny, save=False):
 	"""
 	Function which takes 'specs' and save them in fits file format.
 
@@ -424,9 +427,10 @@ def save_spectra(specs, nx, ny):
 		spectra[idx,idy,:,3] = spec.stokes_U[-1]
 		spectra[idx,idy,:,4] = spec.stokes_V[-1]
 
-	primary = fits.PrimaryHDU(spectra)
-	hdulist = fits.HDUList([primary])
-	hdulist.writeto("spectra.fits", overwrite=True)
+	if save:
+		primary = fits.PrimaryHDU(spectra)
+		hdulist = fits.HDUList([primary])
+		hdulist.writeto("spectra.fits", overwrite=True)
 
 	return spectra
 
@@ -454,26 +458,17 @@ def compute_rfs(init):
 			 "Bz"   : 25/1e4, # G --> T
 			 "vz"   : 10/1e3, # m/s --> km/s
 			 "vmic" : 10/1e3} # m/s --> km/s
-	rf_par_id = {"temp" : 0,
-				"Bx"   : 1,
-				"By"   : 2,
-				"Bz"   : 3,
-				"vz"   : 4,
-				"vmic" : 5}
-	
-	# rf = np.zeros((atmos.nx, atmos.ny, atmos.nz, len(delta), len(spec[0,0,:,0]), 4))
-	rf = {}
 
-	for parameter in atmos.nodes:
+	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(spec[0,0,:,0]), 4))
+
+	free_par_ID = 0
+	for i_,parameter in enumerate(atmos.nodes):
 		parID = atmos.par_id[parameter]
-		# rf_parID = rf_par_id[parameter]
 
 		nodes = atmos.nodes[parameter]
 		values = atmos.values[parameter]
 		
 		perturbation = delta[parameter]
-		
-		rf[parameter] = np.zeros((atmos.nx, atmos.ny, len(nodes), len(spec[0,0,:,0]), 4))
 
 		for nodeID in range(len(nodes)):
 			zID = np.argmin(abs(logtau-nodes[nodeID]))
@@ -487,11 +482,10 @@ def compute_rfs(init):
 			
 			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
 			
-			# rf[:,:,zID,rf_parID,:,:] = diff / perturbation / dtau
-			rf[parameter][:,:,nodeID,:,:] = diff / perturbation / dtau
+			rf[:,:,free_par_ID,:,:] = diff / perturbation / dtau
+			free_par_ID += 1
 
 	# fits.writeto("rf.fits", rf, overwrite=True)
-
 	# print("RF done!\n\n")
 
-	return rf
+	return rf, spec[:,:,:,1:]

@@ -9,6 +9,9 @@ import os
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
+# globin.atmos.compute_spectra(in_data, in_data.atm, save=True)
+
+globin.invert.invert(in_data)
 
 #--- spectrum synthesis example
 # in_data.atm.build_from_nodes()
