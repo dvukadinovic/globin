@@ -7,6 +7,7 @@ Contributors:
 """
 
 import os
+import sys
 import numpy as np
 import multiprocessing as mp
 
@@ -16,7 +17,7 @@ from . import spec
 from . import invert
 from . import tools
 
-__all__ = ["rh", "atmos", "invert"]
+__all__ = ["rh", "atmos", "invert", "spec", "tools"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
@@ -26,8 +27,96 @@ COMMENT_CHAR = "#"
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
 
+#--- element abundances
+from scipy.constants import k
+from scipy.interpolate import splrep, splev
+
+K_BOLTZMAN = k
+abundance = np.loadtxt("../../Atoms/abundance.input", usecols=(1,), unpack=True)
+
+def hydrogen_lvl_pops(logtau, temp, pg, pe, nlvl=6):
+	"""
+	Redistribute hydrogen atoms in first nlvl-1. Last column
+	is reserved for proton number density.
+
+	Parameters:
+	---------------
+	logtau : ndarray
+		logarithm of optical depth.
+	temp : ndarray
+		temperature stratification in atmosphere.
+	pg : ndarray
+		gas pressure in CGS units (1D or 3D array).
+	pe : ndarray
+		electron pressure in CGS units (1D or 3D array).
+	nlvl : int (optional)
+		number of levels in hydrogen atom for which to calculate populations.
+		last index stores proton numbers.
+
+	Return:
+	---------------
+	popos : ndarray
+		populations of hydrogen levels + protons. Dimension is (nvlv, len(temp)).
+	tck : ndarray
+		Spline knots for spline evaulation in given depth points.
+	"""
+	nH = (pg-pe)/10 / K_BOLTZMAN/temp / np.sum(10**(abundance-12)) / 1e6
+	nH0 = nH / (1 + saha_phi(temp)/pe)
+	nprot = nH - nH0
+	
+	pops = np.zeros((nlvl, *nH.shape))
+	tcks = []
+
+	for lvl in range(nlvl-1):
+		e_lvl = 13.6*(1-1/(lvl+1)**2)
+		pops[lvl] = nH/2 * 2*(lvl+1)**2 * np.exp(-5040/temp * e_lvl)
+		tcks.append(splrep(logtau, pops[lvl]))
+	pops[-1] = nprot
+	tcks.append(splrep(logtau, nprot))
+
+	return pops, tcks
+
+def saha_phi(temp, u0=2, u1=1, Ej=13.6):
+	"""
+	Calculate Phi(T) function for Saha's equation in form:
+
+	n+/n0 = Phi(T)/Pe
+
+	All units are in cgs system.
+
+	Parameters:
+	---------------
+	temp : ndarray
+		temperature for which to calculate Phi(T) function
+	u0 : float (optional)
+		partition function of lower ionization stage. Default 2 (for H atom).
+	u1 : float (optional)
+		partition function of higher ionization stage.Default 1 (for H atom).
+	Ej : float (optional)
+		ionization energy of state in [eV]. Default 13.6 (for H atom).
+
+	Return:
+	---------------
+	Phi(T) : ndarray
+		value of Phi(T) function at every temperature
+	"""
+	return 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
+
 #--- FAL C model (ref.): reference model if not given otherwise
 falc = atmos.Atmosphere(__path__ + "/data/falc.dat")
+
+# Hydrogen level population + interpolation
+falc_hydrogen_pops, falc_hydrogen_lvls_tcks = hydrogen_lvl_pops(falc.data[0], falc.data[2], falc.data[3], falc.data[4])
+
+# electron concentration [m-3] + interpolation
+falc_ne = falc.data[4]/10/K_BOLTZMAN/falc.data[2] / 1e6
+ne_tck = splrep(falc.data[0], falc_ne)
+
+# temperature interpolation
+temp_tck = splrep(falc.data[0],falc.data[2])
+
+#--- polynomial degree for interpolation
+interp_degree = 3
 
 class InputData(object):
 	"""
@@ -45,7 +134,7 @@ class InputData(object):
 		self.lmin = None
 		self.lmax = None
 		self.step = None
-		self.wavs = None
+		self.wave_grid = None
 		# Pool object from multithread run
 		self.pool = None
 		# spectrum file name
@@ -71,6 +160,9 @@ class InputData(object):
 		rh_input : str (optional)	
 			File name for RH main input file. Default value is 'keyword.input'.
 		"""
+
+		global interp_degree
+
 		self.globin_input = globin_input
 		self.rh_input = rh_input
 
@@ -85,11 +177,20 @@ class InputData(object):
 				if line[0]!=COMMENT_CHAR:
 					line = line.split("=")
 					keyword, value = line
-					if keyword=="observation":
+					if keyword=="interp_degree":
+						interp_degree = int(value)
+						if (interp_degree!=2) and (interp_degree!=3):
+							sys.exit("Error: polynomial degree for interpolation is incorrect.\n  Valid values are 2 and 3.")
+					elif keyword=="mode":
+						self.mode = int(value)
+					elif keyword=="observation":
 						self.obs = spec.Observation(value)
 						# set dimensions for atmosphere same as dimension of observations
 						self.atm.nx = self.obs.nx
 						self.atm.ny = self.obs.ny
+						for idx in range(self.atm.nx):
+							for idy in range(self.atm.ny):
+								self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
 					elif keyword=="atmosphere":
 						atm_path = value
 						self.ref_atm = atmos.Atmosphere(atm_path)
@@ -102,6 +203,8 @@ class InputData(object):
 						self.lmax = float(value) / 10 # from Angstroms to nm
 					elif keyword=="wave_step":
 						self.step = float(value) / 10 # from Angstroms to nm
+					elif keyword=="wave_grid":
+						self.wave_grid = value
 					elif keyword=="nodes_temp":
 						self.atm.nodes["temp"] = read_nodes_and_values(line)
 					elif keyword=="nodes_temp_values":
@@ -147,7 +250,10 @@ class InputData(object):
 					self.spec_name = line[1].replace(" ","")
 
 		if self.obs.wavelength is None:
-			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+			if self.wave_grid is None:
+				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+			else:
+				self.wavelength = np.loadtxt(self.wave_file)
 		else:
 			self.wavelength = self.obs.wavelength
 		rh.write_wavs(self.wavelength, wave_file_path)

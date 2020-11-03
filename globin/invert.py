@@ -3,7 +3,6 @@ def invert():
 	As input we expect all data to be present :)
 
 	Our procedure steps are:
-		1. we do initial synthesis using reference atmosphere
 		2. we go to compute RFs (and build from nodes and solve SE equation)
 		3. arange RFs in global matrix and find the inverse (set the lambda)
 		4. estimate the next steps and calculate chi2

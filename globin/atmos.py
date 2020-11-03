@@ -40,6 +40,14 @@ class Atmosphere(object):
 		# cube atmosphere, each parameters in dictionary will be a matrix with
 		# dimensions (nx,ny,nnodes).
 		self.values = {}
+		
+		self.par_id = self.par_id = {"logtau" : 0,
+					   "temp"   : 1,
+					   "Bx"     : -1,
+					   "By"     : -1,
+					   "Bz"     : -1,
+					   "vz"     : 3,
+					   "vmic"   : 4,}
 
 		self.nx = None
 		self.ny = None
@@ -49,6 +57,9 @@ class Atmosphere(object):
 		self.nz = len(self.logtau)
 
 		self.data = None
+		self.header = None
+		self.path = None
+		self.atm_name_list = []
 
 		if fpath is not None:
 			# by file extension determine atmosphere type / format
@@ -79,7 +90,6 @@ class Atmosphere(object):
 		self.data = atmos.data
 		self.nx, self.ny, self.npar, self.nz = self.data.shape
 		self.path = fpath
-		self.atm_name_list = []
 
 		# type of atmosphere: are we reading MULTI, SPINOR or SIR format
 		# self.atm_type = self.header["TYPE"]
@@ -110,8 +120,7 @@ class Atmosphere(object):
 		pass
 
 	def get_atmos(self, idx, idy):
-		# return atmosphere from cube with given
-		# indices 'idx' and 'idy'.
+		# return atmosphere from cube with given indices 'idx' and 'idy'.
 		try:
 			return self.data[idx,idy]
 		except:
@@ -146,7 +155,7 @@ class Atmosphere(object):
 
 		We assume polynomial interpolation of quantities for given degree (given by
 		the number of nodes and limited by 3rd degree). Velocity and magnetic field
-		vector are interpolated independantly of any other parameter. Extrapolation
+		vectors are interpolated independantly of any other parameter. Extrapolation
 		of these parameters to upper and lower boundary of atmosphere are taken as
 		constant from highest / lowest node in atmosphere.
 
@@ -157,28 +166,52 @@ class Atmosphere(object):
 		electron and gas pressure iterativly. Few iterations should be enough (we
 		stop when change in electron density is retrieved with given accuracy).
 
-		Idea around this is based on Milic&vanNoort (2018) [SNAPI code] and for
-		interpolation look at de la Cruz Rodriguez&Piskunov (2013/2017?).
-
+		Idea around this is based on Milic & van Noort (2018) [SNAPI code] and for
+		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
+		STiC].
 		"""
-		from scipy.interpolate import interp1d
+
 		import matplotlib.pyplot as plt
+		from scipy.interpolate import splev
 
 		if self.data is None:
 			try:
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+				self.data[:,:,0,:] = self.logtau
+				# electron concentration (interpolate from FAL C model as initial value)
+				self.data[:,:,2,:] = splev(self.logtau, globin.ne_tck)
+				# hydrogen levels population (interpolate from FAL C model as initial
+				# value); when H atom is ACTIVE in RH atoms.input file, exact values are
+				# irrelevant
+				for lvlid in range(6):
+					self.data[:,:,8+lvlid,:] = splev(self.logtau, globin.falc_hydrogen_lvls_tcks[lvlid])
 			except:
 				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
-		self.data[:,:,0,:] = self.logtau
 
-		#--- interpolate temperature pixel by pixel
 		for idx in range(self.nx):
 			for idy in range(self.ny):
-				x = self.nodes["temp"]
-				y = self.values["temp"][idx,idy]
-				y_new = globin.tools.bezier_spline(x, y, self.logtau, degree=3)
-				self.data[idx,idy,1,:] = y_new
-				
+				for parameter in self.nodes:
+					x = self.nodes[parameter]
+					y = self.values[parameter][idx,idy]
+					if parameter=="temp":
+						Kn = splev(x[-1], globin.temp_tck, der=1)
+					else:
+						Kn = 0
+					y_new = globin.tools.bezier_spline(x, y, self.logtau, Kn=Kn, degree=globin.interp_degree)
+					self.data[idx,idy,self.par_id[parameter],:] = y_new
+
+					# plt.scatter(x,y)
+					# plt.plot(self.logtau, y_new)
+					# plt.show()
+
+				#--- save interpolated atmosphere to appropriate file
+				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
+
+	def write_atmosphere(self):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
+
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type 
 	# into separate file and store them at 'fpath'.
@@ -292,11 +325,11 @@ def pool_distribute(arg):
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
-def compute_spectra(init, clean_dirs=False):
+def compute_spectra(init, atmos, clean_dirs=False):
 	"""
 	Function which computes spectrum from input atmosphere. It will distribute
 	the calculation to number of threads given in 'init' and store the spectrum
@@ -313,7 +346,8 @@ def compute_spectra(init, clean_dirs=False):
 		of the cube ('nx' and 'ny') which are initiated from reading atmosphere
 		file. Also, when reading input we set Pool object for multi thread 
 		claculation of spectra.
-
+	atmos : Atmosphere object
+		Atmosphere object for which we compute spectra.
 	clean_dirs : bool (optional)
 		Flag which controls if we should delete wroking directories after
 		finishing the synthesis. Default value is False.
@@ -326,7 +360,7 @@ def compute_spectra(init, clean_dirs=False):
 	"""
 
 	n_thread = init.n_thread
-	atm_name_list = init.ref_atm.atm_name_list
+	atm_name_list = atmos.atm_name_list
 	spec_name = init.spec_name
 
 	args = [[atm_name,spec_name] for atm_name in atm_name_list]
@@ -396,70 +430,68 @@ def save_spectra(specs, nx, ny):
 
 	return spectra
 
-# to be rewriten; waiting for method 'build_from_nodes'
 def compute_rfs(init):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
-	# InterpolateAtmos(init)
-	#--- get current iteration atmosphere
 	atmos = init.atm
-	logtau = atmos.data[0,0,atmos.par_id["logtau"]]
+	atmos.build_from_nodes()
+
+	spec = compute_spectra(init, atmos)
+
+	# solve HS equation to get electron concentration
+	# and store data in atmos.data
+
+	#--- get current iteration atmosphere
+	logtau = atmos.logtau # atmos.data[0,0,atmos.par_id["logtau"]]
 	dtau = logtau[1] - logtau[0]
+
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 	model_minus = copy.deepcopy(atmos)
 
-	nz = init.atm.shape[-1]
 	delta = {"temp" : 1,
 			 "Bx"   : 25/1e4, # G --> T
 			 "By"   : 25/1e4, # G --> T
 			 "Bz"   : 25/1e4, # G --> T
 			 "vz"   : 10/1e3, # m/s --> km/s
 			 "vmic" : 10/1e3} # m/s --> km/s
+	rf_par_id = {"temp" : 0,
+				"Bx"   : 1,
+				"By"   : 2,
+				"Bz"   : 3,
+				"vz"   : 4,
+				"vmic" : 5}
 	
-	rf = np.zeros((atmos.shape[0], atmos.shape[1], atmos.shape[-1], len(delta), len(init.wavs), 4))
+	# rf = np.zeros((atmos.nx, atmos.ny, atmos.nz, len(delta), len(spec[0,0,:,0]), 4))
+	rf = {}
 
-	import matplotlib.pyplot as plt
+	for parameter in atmos.nodes:
+		parID = atmos.par_id[parameter]
+		# rf_parID = rf_par_id[parameter]
 
-	spec = ComputeSpectra(init)
+		nodes = atmos.nodes[parameter]
+		values = atmos.values[parameter]
+		
+		perturbation = delta[parameter]
+		
+		rf[parameter] = np.zeros((atmos.nx, atmos.ny, len(nodes), len(spec[0,0,:,0]), 4))
 
-	#-- compute RF for each atmospheric parameter for which we are inverting
-	for parID,par in enumerate(init.nodes):
-		nodes = init.nodes[par]
-		par_id = init.atm.par_id[par]
-		perturbation = delta[par]
-		# if nodes!=[]:
-		if nodes is not None:
-			print(par)
-			for zID in range(nz):
+		for nodeID in range(len(nodes)):
+			zID = np.argmin(abs(logtau-nodes[nodeID]))
+			
+			model_plus.data[:,:,parID,zID] = np.copy(atmos.data[:,:,parID,zID]) + perturbation
+			model_plus.write_atmosphere()
+			spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
 
-				model_plus.data[:,:,par_id,zID] = np.copy(atmos.data[:,:,par_id,zID]) + perturbation
-				model_plus.WriteAtmospheres()
-				spec_plus = ComputeSpectra(init, clean_dirs=False)
-				
-				model_minus.data[:,:,par_id,zID] = atmos.data[:,:,par_id,zID] - perturbation
-				model_minus.WriteAtmospheres()
-				spec_minus = ComputeSpectra(init, clean_dirs=False)
-				
-				# print(model_plus.data[:,:,par_id,zID])
-				# print(model_minus.data[:,:,par_id,zID])
-				
-				ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavs[0]))
-				ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavs[-1]))+1
-				
-				diff = spec_plus[:,:,ind_min:ind_max,1:] - spec_minus[:,:,ind_min:ind_max,1:]
+			# ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
+			# ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))+1
+			
+			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
+			
+			# rf[:,:,zID,rf_parID,:,:] = diff / perturbation / dtau
+			rf[parameter][:,:,nodeID,:,:] = diff / perturbation / dtau
 
-				rf[:,:,zID,parID,:,:] = diff / 2 / perturbation / dtau
+	# fits.writeto("rf.fits", rf, overwrite=True)
 
-	fits.writeto("rf.fits", rf, overwrite=True)
-
-	print("RF done!\n\n")
+	# print("RF done!\n\n")
 
 	return rf
-
-def compute_rfs():
-	"""
-
-	1. build atmosphere from nodes
-	2. perturb parameters and calculate RFs for each
-
-	"""

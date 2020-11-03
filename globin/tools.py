@@ -8,7 +8,7 @@ def get_func2(a,b,c):
     return lambda t: (1-t)*(1-t)*a + t*t*c + 2*t*(1-t)*b
 
 def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
-    """ 
+    """
 
     Bezier spline interpolation based on paper by de la Cruz Rodirguez &
     Piskunov (2013).
@@ -34,6 +34,8 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
         interpolated values at 'xintp' positions.
     """
     n = len(x)
+    x = np.round(x, 2)
+    # xintp = np.round(xintp, 2)
 
     curves = [0]*(n-1)
 
@@ -54,7 +56,7 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
             eta = alpha*d_0 + (1-alpha)*d_1
             y_prim[i] = d_0*d_1 / eta
 
-    u = np.linspace(0,1,11)
+    # construct curves for each segment
     for i in range(n-1):
         dx_0 = x[i+1] - x[i]
         if degree==2:
@@ -67,6 +69,7 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
             f = y[i+1] - dx_0/3 * y_prim[i+1]
             curves[i] = get_func3(y[i], e, f, y[i+1])
 
+    # evaluete spline at given points
     yintp = np.zeros(len(xintp))
     for j in range(len(xintp)):
         for k in range(n-1):
@@ -74,9 +77,9 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
                 u = (xintp[j] - x[k] ) / (x[k+1] - x[k])
                 yintp[j] = curves[k](u)
         if xintp[j]<x[0]:
-            yintp[j] = y[0]
-        if xintp[j]>x[-1]:
-            yintp[j] = y[-1]
+            yintp[j] = y[0] + y_prim[0]*(xintp[j] - x[0])
+        if xintp[j]>=x[-1]:
+            yintp[j] = y[-1] + y_prim[-1]*(xintp[j] - x[-1])
 
     return yintp
 
@@ -88,10 +91,15 @@ if __name__=="__main__":
 
     yintp = bezier_spline(x,y,xintp, degree=3)
 
-    plt.plot(x,y, "ro")
-    plt.plot(xintp,yintp,"k-")
+    plt.plot(x,y, "ro", label="knots")
+    plt.plot(xintp,yintp,"k-", label="Bezier-3")
 
     yintp = bezier_spline(x,y,xintp, degree=2)
-    plt.plot(xintp, yintp,"k--")
+    plt.plot(xintp, yintp,"k--", label="Bezier-2")
+
+    plt.xlabel("x")
+    plt.ylabel("y")
+
+    plt.legend()
 
     plt.show()

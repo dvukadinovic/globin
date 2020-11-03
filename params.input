@@ -1,5 +1,18 @@
 # Note: currently unsuported parameters are commented out
 
+# Running mode defines which parameters are neccessary to be read from input
+# file. Mode values: 
+#   0 --> synthesis
+#   1 --> pixel-by-pixel inversion
+#   2 --> PSF coupled inversion (van Noort 2012)
+#   3 --> global inversion (for fitting atomic data)
+# We are using it for sanity check.
+
+#--- General parameters
+n_threads = 2
+interp_degree = 3
+mode = 1
+
 #--- Spectra to be fitted
 observation = obs.fits
 
@@ -10,16 +23,21 @@ nodes_temp_values = 3500, 4500, 5000, 6500, 8500
 nodes_vz = -3, -1, 0
 nodes_vz_values = 5, 1, 2.4
 
+#--- Opacity function
+# of_lambda = 
+# of_values =
+# of_degree = 3
+# of_global = TRUE
+
 #--- wavelength window (in Angstroms)
 wave_min = 4015
 wave_max = 4017
 wave_step = 0.010
-# wave_file = "wave_grid"
+# wave_grid = wave.grid
 
 #--- MCMC parameters and Parallelisation (in some future scenario)
 # n_walkers = 100
 # n_length = 1000
-n_threads = 2
 
 #--- Levenberg-Marquardt parameters (yet to come at scene)
 

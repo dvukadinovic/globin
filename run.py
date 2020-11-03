@@ -10,31 +10,24 @@ import os
 in_data = globin.InputData()
 in_data.read_input_files()
 
+#--- spectrum synthesis example
 # in_data.atm.build_from_nodes()
+# spec = globin.atmos.compute_spectra(in_data, in_data.atm)
 
-spec = globin.atmos.compute_spectra(in_data)
-
-for i in range(2):
-	for j in range(2):
-		plt.plot(spec[i,j,:,0], spec[i,j,:,1])
-plt.show()
-
-#--- compute spectra
-# spec = globin.compute_spectra(atmosphere, n_thread=2)
-
-# init = globin.ReadInputFile()
-# specs = globin.atmos.ComputeSpectra(init, clean_dirs=False)
-# rf = globin.atmos.ComputeRF(init)
-sys.exit()
+# for i in range(2):
+# 	for j in range(2):
+# 		plt.plot(spec[i,j,:,0], spec[i,j,:,1])
+# plt.show()
 
 #--- RF clauclation test
+# rf = globin.atmos.compute_rfs(in_data)
+
 # rf = fits.open("rf.fits")[0].data
-# logtau = np.round(init.atm.data[0,0,0], 2)
-# wavs = np.round((init.wavs - 401.6)*10, 2)
+# logtau = np.round(in_data.atm.data[0,0,0], 2)
+# wavs = np.round((in_data.wavelength - 401.6)*10, 2)
 
 # xpos = np.arange(rf.shape[4])
 # ypos = np.arange(rf.shape[2])
-# # print(ypos)
 
 # fig, ax = plt.subplots(nrows=1, ncols=1)
 
