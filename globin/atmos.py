@@ -79,6 +79,13 @@ class Atmosphere(object):
 				print(" Supported types are: .dat, .txt, .fit(s)")
 				sys.exit()
 
+	def __deepcopy__(self, memo):
+		new = Atmosphere()
+		new.data = copy.deepcopy(self.data)
+		new.nx, new.ny, new.npar, new.nz = new.data.shape
+		new.atm_name_list = copy.deepcopy(self.atm_name_list)
+		return new
+
 	def read_fits(self, fpath):
 		try:
 			atmos = fits.open(fpath)[0]
@@ -94,15 +101,6 @@ class Atmosphere(object):
 
 		# type of atmosphere: are we reading MULTI, SPINOR or SIR format
 		# self.atm_type = self.header["TYPE"]
-
-		# parameter ID in atmosphere cube; what column is temperature and so on...
-		# self.par_id = {"logtau" : 0,
-		# 			   "temp"   : 1,
-		# 			   "Bx"     : -1,
-		# 			   "By"     : -1,
-		# 			   "Bz"     : -1,
-		# 			   "vz"     : 3,
-		# 			   "vmic"   : 4,}
 
 		print(f"Read atmosphere '{self.path}' with dimensions:")
 		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
@@ -435,6 +433,8 @@ def save_spectra(specs, nx, ny, save=False):
 	return spectra
 
 def compute_rfs(init):
+	import matplotlib.pyplot as plt
+
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
 	atmos.build_from_nodes()
@@ -450,7 +450,6 @@ def compute_rfs(init):
 
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
-	model_minus = copy.deepcopy(atmos)
 
 	delta = {"temp" : 1,
 			 "Bx"   : 25/1e4, # G --> T
@@ -472,18 +471,26 @@ def compute_rfs(init):
 
 		for nodeID in range(len(nodes)):
 			zID = np.argmin(abs(logtau-nodes[nodeID]))
-			
-			model_plus.data[:,:,parID,zID] = np.copy(atmos.data[:,:,parID,zID]) + perturbation
+
+			model_plus.data[:,:,parID,zID] += perturbation
 			model_plus.write_atmosphere()
 			spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
 
 			# ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
 			# ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))+1
 			
-			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
+			diff = spec_plus[:,:,:,1:]*1e8 - spec[:,:,:,1:]*1e8
+
+			# plt.plot(spec_plus[0,0,:,0], spec_plus[0,0,:,1])
+			# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+			# plt.xlim([401.5, 401.7])
+			# plt.show()
 			
 			rf[:,:,free_par_ID,:,:] = diff / perturbation / dtau
 			free_par_ID += 1
+			
+			# remove perturbation from data
+			model_plus.data[:,:,parID,zID] -= perturbation
 
 	# fits.writeto("rf.fits", rf, overwrite=True)
 	# print("RF done!\n\n")
