@@ -9,21 +9,22 @@
 # We are using it for sanity check.
 
 #--- General parameters
-n_threads = 2
+n_threads = 1
 interp_degree = 3
-mode = 1
+mode = 0
 
 #--- Spectra to be fitted
-observation = obs.fits
+observation = obs_vz0_B250.fits
+noise = 1e-3
 
 #--- Parameter nodes and values
-nodes_temp = -4.8, -4.3, -1, -0.5, 0.3
-nodes_temp_values = 3500, 4500, 5000, 6500, 8500
+nodes_temp = -3, -2, -1, 0
+nodes_temp_values = 4500, 4800, 5200, 6800
 
-nodes_vz = -3, -1, 0
-nodes_vz_values = 5, 1, 2.4
+#nodes_vz = -1
+#nodes_vz_values = 0.5
 
-#--- Opacity function
+#--- Opacity fudge
 # of_lambda = 
 # of_values =
 # of_degree = 3
@@ -40,6 +41,7 @@ wave_step = 0.010
 # n_length = 1000
 
 #--- Levenberg-Marquardt parameters (yet to come at scene)
+marq_lambda = 1e-1
 
 #--- Parameter regularization (way down the road)
 
@@ -57,7 +59,8 @@ wave_step = 0.010
 # store it in an external file
 
 #--- Reference atmosphere (optional)
-atmosphere = ../../Atmos/falc_2x2.fits
+atmosphere = ../../Atmos/falc_1x1.fits
+# atmosphere = ../../Atmos/falc_1x1_inverted_vz.fits
 # first and last index in given atmospheric cube to be used for synthesis/inversion
 # [start_x, end_x, start_y, end_y]
 # range = [0,1,0,1]

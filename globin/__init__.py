@@ -3,13 +3,19 @@ Contributors:
 	Dusan Vukadinovic (DV)
 
 13/10/2020 : rewriten class 'InputData'; we leave to user to read from given input
-			 files; 
+			 files;
+16/10/2020 : read input parameters from 'params.input' using regular expressions
+	
+	pattern = re.compile(f"^[^#\n]*({input_par})\s*=\s*(.*)", re.MULTILINE)
+	res = pattern.search(text)
+
 """
 
 import os
 import sys
 import numpy as np
 import multiprocessing as mp
+import re
 
 from . import rh
 from . import atmos
@@ -26,6 +32,12 @@ COMMENT_CHAR = "#"
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
+
+#--- pattern search with regular expressions
+pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
+def find_value_by_key(key,text):
+	value = pattern(key).search(text).group(2)
+	return value
 
 #--- element abundances
 from scipy.constants import k
@@ -139,6 +151,8 @@ class InputData(object):
 		self.pool = None
 		# spectrum file name
 		self.spec_name = None
+		# noise
+		self.noise = 1e-3
 
 	# def __str__(self):
 	# 	pass
@@ -150,6 +164,9 @@ class InputData(object):
 
 		We assume that parameters are given in format:
 			key = value
+
+		Before every comment we have symbol '#', except in line with 'key = value'
+		statement.
 
 		Parameters:
 		---------------
@@ -165,6 +182,31 @@ class InputData(object):
 
 		self.globin_input = globin_input
 		self.rh_input = rh_input
+
+		text = open(globin_input, "r").read()
+
+		#--- find first mode of operation
+		value = find_value_by_key("mode",text)
+		mode = int(value)
+		
+		#--- find number of threads
+		value = find_value_by_key("n_threads",text)
+		self.n_thread = int(value)
+		self.pool = mp.Pool(self.n_thread)
+
+		#--- define list of parameters for which to search through input file
+		req_parameters_for_synthesis = ["atmosphere","wave_min","wave_max","wave_step"]
+		opt_parameters_for_synthesis = ["noise","wave_grid"]
+		parameters_for_inversion_px_by_px = None
+		parameters_for_inversion_global = None
+
+		#--- get parameters for synthesis
+		if mode==0:
+			for par_name in req_parameters_for_synthesis:
+				value = find_value_by_key(par_name, text)
+
+
+		return 0
 
 		#--- read 'parameters.input' file
 		lines = open(globin_input, "r").readlines()
@@ -183,7 +225,7 @@ class InputData(object):
 							sys.exit("Error: polynomial degree for interpolation is incorrect.\n  Valid values are 2 and 3.")
 					elif keyword=="mode":
 						self.mode = int(value)
-					elif keyword=="observation":
+					elif keyword=="observation" and self.mode>0:
 						self.obs = spec.Observation(value)
 						# set dimensions for atmosphere same as dimension of observations
 						self.atm.nx = self.obs.nx
@@ -191,6 +233,8 @@ class InputData(object):
 						for idx in range(self.atm.nx):
 							for idy in range(self.atm.ny):
 								self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+					elif keyword=="noise":
+						self.noise = float(value)
 					elif keyword=="atmosphere":
 						atm_path = value
 						self.ref_atm = atmos.Atmosphere(atm_path)
@@ -205,10 +249,10 @@ class InputData(object):
 						self.step = float(value) / 10 # from Angstroms to nm
 					elif keyword=="wave_grid":
 						self.wave_grid = value
-					elif keyword=="nodes_temp":
+					elif keyword=="nodes_temp" and self.mode>0:
 						self.atm.nodes["temp"] = read_nodes_and_values(line)
 						self.atm.free_par += len(self.atm.nodes["temp"])
-					elif keyword=="nodes_temp_values":
+					elif keyword=="nodes_temp_values" and self.mode>0:
 						values = read_nodes_and_values(line)
 						try:	
 							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
@@ -218,10 +262,10 @@ class InputData(object):
 							print("Can not store node values for parameter 'temp'.")
 							print("  Must read first observation file.")
 							sys.exit()
-					elif keyword=="nodes_vz":
+					elif keyword=="nodes_vz" and self.mode>0:
 						self.atm.nodes["vz"] = read_nodes_and_values(line)
 						self.atm.free_par += len(self.atm.nodes["vz"])
-					elif keyword=="nodes_vz_values":
+					elif keyword=="nodes_vz_values" and self.mode>0:
 						values = read_nodes_and_values(line)
 						try:	
 							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
@@ -231,6 +275,8 @@ class InputData(object):
 							print("Can not store node values for parameter 'vz'.")
 							print("  Must read first observation file.")
 							sys.exit()
+					elif keyword=="marq_lambda":
+						self.marq_lambda = float(value)
 					else:
 						# block for not supported keywords
 						print(f"Currently not supported keyword '{keyword}'")
@@ -251,14 +297,14 @@ class InputData(object):
 				if keyword=="SPECTRUM_OUTPUT":
 					self.spec_name = line[1].replace(" ","")
 
-		if self.obs.wavelength is None:
-			if self.wave_grid is None:
-				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			else:
-				self.wavelength = np.loadtxt(self.wave_file)
+		# if self.obs.wavelength is None:
+		if self.wave_grid is None:
+			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 		else:
-			self.wavelength = self.obs.wavelength
-		rh.write_wavs(self.wavelength, wave_file_path)
+			self.wavelength = np.loadtxt(self.wave_file)
+		# else:
+			# self.wavelength = self.obs.wavelength
+		aux = rh.write_wavs(self.wavelength, wave_file_path)
 
 def read_nodes_and_values(line, param=None):
 	if len(line[1].replace(" ",""))==1:

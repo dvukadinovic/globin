@@ -5,6 +5,9 @@ comments
 *.ray
 *.fits
 *.input
+*.png
+*.jpg
+*.eps
 !params.input
 atmospheres/
 globin.egg-info/

@@ -758,7 +758,7 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
     XDR file with wavelength grid
     """
     if transform:
-        sigma_sq = (1e7/wavs)**2
+        sigma_sq = (1.0e7/wavs)**2
         fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
 
         ind = np.argmin(abs(wavs-vacuum_limit))

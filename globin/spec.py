@@ -24,6 +24,7 @@ class Observation(object):
 	def read_fits(self, fpath):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
+		self.data = hdu.data
 		# we assume that wavelngth is same for every pixel in observation
 		# self.wavelength = hdu.data[0,0,:,0]
 		self.spec = hdu.data[:,:,:,1:]
