@@ -11,21 +11,21 @@
 #--- General parameters
 n_threads = 1
 interp_degree = 3
-mode = 1
+mode = 0
 
 #--- Spectra to be fitted
 observation = obs_vz0_B250.fits
 noise = 1e-3
 
 #--- Output spectra
-spectrum = spec.fits
+spectrum = test.fits
 
 #--- Parameter nodes and values
-nodes_temp = -3, -2, -1, 0
-nodes_temp_values = 4500, 4800, 5200, 6800
+#nodes_temp = -3, -2, -1, 0
+#nodes_temp_values = 4500, 4800, 5200, 6800
 
-nodes_vz = -1.8,-0.8 
-nodes_vz_values = 0.5, 0.1
+nodes_vz = -1.8 
+nodes_vz_values = 0.5
 
 #--- Opacity fudge parameters
 # of_lambda = 

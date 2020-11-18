@@ -193,6 +193,7 @@ class Atmosphere(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parameter in self.nodes:
+
 					x = self.nodes[parameter]
 					y = self.values[parameter][idx,idy]
 					if parameter=="temp":
@@ -336,15 +337,16 @@ def pool_distribute(arg):
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
 	stdout = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	sp.run(f"cd ../pid_{pid}; ../rhf1d",
+	out = sp.run(f"cd ../pid_{pid}; ../rhf1d",
 			shell=True, stdout=stdout, stderr=sp.STDOUT)
+	print(out)
 	stdout.close()
 
 	spec = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+	print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
@@ -393,7 +395,7 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	#--- distribute the process to threads
 	specs = init.pool.map(func=pool_distribute, iterable=args)
 
-	spec_cube = save_spectra(specs, init.ref_atm.nx, init.ref_atm.ny, save=save)
+	spec_cube = save_spectra(specs, init.ref_atm.nx, init.ref_atm.ny, init.spectrum_path, save=save)
 
 	#--- delete thread directories (save them if you want to use previous run J)
 	if clean_dirs:
@@ -403,7 +405,7 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 
 	return spec_cube
 
-def save_spectra(specs, nx, ny, save=False):
+def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	"""
 	Function which takes 'specs' and save them in fits file format.
 
@@ -449,7 +451,7 @@ def save_spectra(specs, nx, ny, save=False):
 	if save:
 		primary = fits.PrimaryHDU(spectra)
 		hdulist = fits.HDUList([primary])
-		hdulist.writeto("spectra.fits", overwrite=True)
+		hdulist.writeto(fpath, overwrite=True)
 
 	return spectra
 

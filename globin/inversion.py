@@ -42,17 +42,19 @@ def invert(init):
 		
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		rf, synth = globin.atmos.compute_rfs(init)
+
+		print(rf.shape)
 		
 		# if i_==0:
 		# 	plt.plot(init.wavelength, synth[0,0,ind_min:ind_max,1])
 
-		# aux = rf[0,0,:,:,0]
+		aux = rf[0,0,:,:,0]
 
-		# plt.plot(synth[0,0,:,0], aux[0])
-		# # plt.plot(synth[0,0,:,0], aux[1])
-		# # plt.plot(synth[0,0,:,0], aux[2])
-		# plt.show()
-		# break
+		plt.plot(synth[0,0,:,0], aux[0])
+		# plt.plot(synth[0,0,:,0], aux[1])
+		# plt.plot(synth[0,0,:,0], aux[2])
+		plt.show()
+		break
 
 		diff = obs.spec[:,:,ind_min:ind_max] - synth[:,:,ind_min:ind_max,1:]
 

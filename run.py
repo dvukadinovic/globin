@@ -8,17 +8,19 @@ import sys
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
-# sys.exit()
+sys.exit()
+# list of all class variables
+# var = vars(in_data)
 
-# in_data.atm.build_from_nodes(in_data.ref_atm)
-# rf, spec = globin.atmos.compute_full_rf(in_data)
-# print(rf.shape)
-# rf = rf[0,0,0,:,:,0]
+# atmos = in_data.atm
+# atmos.build_from_nodes(in_data.ref_atm)
 
-# plt.imshow(rf, aspect="auto")
-# plt.show()
+spec = globin.compute_spectra(in_data, in_data.ref_atm)
 
-globin.invert(in_data)
+plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+plt.show()
+
+# globin.invert(in_data)
 sys.exit()
 
 #--- atmos compare

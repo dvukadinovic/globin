@@ -775,4 +775,4 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
     out.write(obj.get_buffer())
     out.close()
     # print(wavs)
-    # return wavs
+    return wavs
