@@ -2,6 +2,7 @@ analyse_spec.py
 comments
 *.out
 *.dat
+!globin/data/*.dat
 *.ray
 *.fits
 *.input

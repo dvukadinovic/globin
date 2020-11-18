@@ -8,7 +8,6 @@ import sys
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
-sys.exit()
 
 # in_data.atm.build_from_nodes(in_data.ref_atm)
 # rf, spec = globin.atmos.compute_full_rf(in_data)

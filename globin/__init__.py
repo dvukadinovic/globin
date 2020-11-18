@@ -183,30 +183,29 @@ class InputData(object):
 		self.globin_input = globin_input
 		self.rh_input = rh_input
 
-		text = open(globin_input, "r").read()
+		# text = open(globin_input, "r").read()
 
-		#--- find first mode of operation
-		value = find_value_by_key("mode",text)
-		mode = int(value)
+		# #--- find first mode of operation
+		# value = find_value_by_key("mode",text)
+		# mode = int(value)
 		
-		#--- find number of threads
-		value = find_value_by_key("n_threads",text)
-		self.n_thread = int(value)
-		self.pool = mp.Pool(self.n_thread)
+		# #--- find number of threads
+		# value = find_value_by_key("n_threads",text)
+		# self.n_thread = int(value)
+		# self.pool = mp.Pool(self.n_thread)
 
-		#--- define list of parameters for which to search through input file
-		req_parameters_for_synthesis = ["atmosphere","wave_min","wave_max","wave_step"]
-		opt_parameters_for_synthesis = ["noise","wave_grid"]
-		parameters_for_inversion_px_by_px = None
-		parameters_for_inversion_global = None
+		# #--- define list of parameters for which to search through input file
+		# req_parameters_for_synthesis = ["atmosphere","wave_min","wave_max","wave_step"]
+		# opt_parameters_for_synthesis = ["noise","wave_grid"]
+		# parameters_for_inversion_px_by_px = None
+		# parameters_for_inversion_global = None
 
-		#--- get parameters for synthesis
-		if mode==0:
-			for par_name in req_parameters_for_synthesis:
-				value = find_value_by_key(par_name, text)
+		# #--- get parameters for synthesis
+		# if mode==0:
+		# 	for par_name in req_parameters_for_synthesis:
+		# 		value = find_value_by_key(par_name, text)
 
-
-		return 0
+		# return 0
 
 		#--- read 'parameters.input' file
 		lines = open(globin_input, "r").readlines()

@@ -84,6 +84,7 @@ def invert(init):
 			# print(np.max(hessian))
 			# print(hessian)
 			proposed_steps = np.array(proposed_steps)
+			print(proposed_steps)
 			
 			atmos.values["vz"] += proposed_steps
 			# parameters += proposed_steps
@@ -131,8 +132,8 @@ def invert(init):
 	# plt.savefig("obs_vs_inverted.png")
 	plt.show()
 
-	plt.plot(np.log10(chi2))
-	plt.show()
+	# plt.plot(np.log10(chi2))
+	# plt.show()
 
 	#--- save inverted atmos
 	# atmos.save_cube()
