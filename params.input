@@ -17,14 +17,17 @@ mode = 1
 observation = obs_vz0_B250.fits
 noise = 1e-3
 
+#--- Output spectra
+spectrum = spec.fits
+
 #--- Parameter nodes and values
-# nodes_temp = -3, -2, -1, 0
-# nodes_temp_values = 4500, 4800, 5200, 6800
+nodes_temp = -3, -2, -1, 0
+nodes_temp_values = 4500, 4800, 5200, 6800
 
 nodes_vz = -1.8,-0.8 
 nodes_vz_values = 0.5, 0.1
 
-#--- Opacity fudge
+#--- Opacity fudge parameters
 # of_lambda = 
 # of_values =
 # of_degree = 3
@@ -36,16 +39,8 @@ wave_max = 4017
 wave_step = 0.010
 # wave_grid = wave.grid
 
-#--- MCMC parameters and Parallelisation (in some future scenario)
-# n_walkers = 100
-# n_length = 1000
-
 #--- Levenberg-Marquardt parameters (yet to come at scene)
 marq_lambda = 1e-5
-
-#--- Parameter regularization (way down the road)
-
-#--- Spatial coupling by PSF (way down the road; even possible?)
 
 #--- Parameters to be fitted (uh... be patient)
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters
@@ -65,5 +60,15 @@ atmosphere = ../../Atmos/falc_1x1.fits
 # [start_x, end_x, start_y, end_y]
 # range = [0,1,0,1]
 
+#============================= garbage =============================#
+
 #--- RH root folder path
 # rh_path = /media/dusan/storage/RH/rh
+
+#--- MCMC parameters and Parallelisation (in some future scenario)
+# n_walkers = 100
+# n_length = 1000
+
+#--- Parameter regularization (way down the road)
+
+#--- Spatial coupling by PSF (way down the road; even possible?)

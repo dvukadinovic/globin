@@ -8,6 +8,7 @@ import sys
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
+# sys.exit()
 
 # in_data.atm.build_from_nodes(in_data.ref_atm)
 # rf, spec = globin.atmos.compute_full_rf(in_data)
@@ -17,7 +18,7 @@ in_data.read_input_files()
 # plt.imshow(rf, aspect="auto")
 # plt.show()
 
-globin.invert.invert(in_data)
+globin.invert(in_data)
 sys.exit()
 
 #--- atmos compare

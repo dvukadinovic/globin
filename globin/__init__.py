@@ -4,10 +4,7 @@ Contributors:
 
 13/10/2020 : rewriten class 'InputData'; we leave to user to read from given input
 			 files;
-16/10/2020 : read input parameters from 'params.input' using regular expressions
-	
-	pattern = re.compile(f"^[^#\n]*({input_par})\s*=\s*(.*)", re.MULTILINE)
-	res = pattern.search(text)
+18/10/2020 : read input parameters from 'params.input' using regular expressions
 
 """
 
@@ -18,9 +15,9 @@ import multiprocessing as mp
 import re
 
 from . import rh
-from . import atmos
-from . import spec
-from . import invert
+from .atmos import Atmosphere, compute_rfs, write_multi_atmosphere
+from .spec import Observation
+from .invert import invert
 from . import tools
 
 __all__ = ["rh", "atmos", "invert", "spec", "tools"]
@@ -35,15 +32,24 @@ cwd = os.getcwd()
 
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
-def find_value_by_key(key,text):
-	value = pattern(key).search(text).group(2)
-	return value
 
-#--- element abundances
-from scipy.constants import k
+def find_value_by_key(key,text,key_type,default_val=None, conversion=str):
+	match = pattern(key).search(text)
+	if match:
+		value = match.group(2)
+		return conversion(value)
+	else:
+		if key_type=="required":
+			sys.exit(f"We are missing keyword '{key}' in input file.")
+		elif key_type=="default":
+			return default_val
+		elif key_type=="optional":
+			return None
+
+#===--- element abundances ---===#
+from scipy.constants import k as K_BOLTZMAN
 from scipy.interpolate import splrep, splev
 
-K_BOLTZMAN = k
 abundance = np.loadtxt("../../Atoms/abundance.input", usecols=(1,), unpack=True)
 
 def hydrogen_lvl_pops(logtau, temp, pg, pe, nlvl=6):
@@ -127,8 +133,10 @@ ne_tck = splrep(falc.data[0], falc_ne)
 # temperature interpolation
 temp_tck = splrep(falc.data[0],falc.data[2])
 
+#===--- end ---====#
+
 #--- polynomial degree for interpolation
-interp_degree = 3
+interp_degree = None
 
 class InputData(object):
 	"""
@@ -137,11 +145,11 @@ class InputData(object):
 
 	def __init__(self):
 		# atmosphere (constructed from nodes) --> one which we invert
-		self.atm = atmos.Atmosphere()
+		self.atm = Atmosphere()
 		# reference atmosphere
 		self.ref_atm = None
 		# number of threads to use
-		self.n_thread = 1
+		# self.n_thread = 1
 		# wavelength grid parameters
 		self.lmin = None
 		self.lmax = None
@@ -183,102 +191,162 @@ class InputData(object):
 		self.globin_input = globin_input
 		self.rh_input = rh_input
 
-		# text = open(globin_input, "r").read()
+		text = open(globin_input, "r").read()
 
-		# #--- find first mode of operation
-		# value = find_value_by_key("mode",text)
-		# mode = int(value)
+		#--- find first mode of operation
+		mode = find_value_by_key("mode",text,"required", conversion=int)
 		
-		# #--- find number of threads
-		# value = find_value_by_key("n_threads",text)
-		# self.n_thread = int(value)
-		# self.pool = mp.Pool(self.n_thread)
+		#--- find number of threads
+		self.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
+		self.pool = mp.Pool(self.n_thread)
 
-		# #--- define list of parameters for which to search through input file
-		# req_parameters_for_synthesis = ["atmosphere","wave_min","wave_max","wave_step"]
-		# opt_parameters_for_synthesis = ["noise","wave_grid"]
-		# parameters_for_inversion_px_by_px = None
-		# parameters_for_inversion_global = None
+		#--- get parameters for synthesis
+		if mode==0:
+			#--- required parameters
+			path_to_atmosphere = find_value_by_key("atmosphere", text, "required")
+			self.ref_atm = Atmosphere(path_to_atmosphere)
+			
+			#--- default parameters
+			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spec.fits")
+			
+			#--- optional parameters
+			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float)
+			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float)
+			self.step = find_value_by_key("wave_step", text, "optional", conversion=float)
+			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
+				self.wave_grid = find_value_by_key("wave_grid", text, "required")
 
-		# #--- get parameters for synthesis
-		# if mode==0:
-		# 	for par_name in req_parameters_for_synthesis:
-		# 		value = find_value_by_key(par_name, text)
+		#--- get parameters for inversion
+		if mode>=1:
+			#--- required parameters
+			path_to_observations = find_value_by_key("observation", text, "required")
+			self.obs = Observation(path_to_observations)
+			# set dimensions for atmosphere same as dimension of observations
+			self.atm.nx = self.obs.nx
+			self.atm.ny = self.obs.ny
+			for idx in range(self.atm.nx):
+				for idy in range(self.atm.ny):
+					self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+			
+			#--- default parameters
+			interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
+			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
+			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
+			
+			#--- optional parameters
+			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
+			self.ref_atm = Atmosphere(path_to_atmosphere)
+			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float)
+			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float)
+			self.step = find_value_by_key("wave_step", text, "optional", conversion=float)
+			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
+				self.wave_grid = find_value_by_key("wave_grid", text, "required")
 
-		# return 0
+			# nodes
+			nodes = find_value_by_key("nodes_temp", text, "optional")
+			values = find_value_by_key("nodes_temp_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["temp"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["temp"])
+
+				values = [float(item) for item in values.split(",")]
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
+					matrix[:,:] = values
+					self.atm.values["temp"] = matrix
+				except:
+					print("Can not store node values for parameter 'temp'.")
+					print("  Must read first observation file.")
+					sys.exit()
+
+			nodes = find_value_by_key("nodes_vz", text, "optional")
+			values = find_value_by_key("nodes_vz_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["vz"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["vz"])
+
+				values = [float(item) for item in values.split(",")]
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
+					matrix[:,:] = values
+					self.atm.values["vz"] = matrix
+				except:
+					print("Can not store node values for parameter 'vz'.")
+					print("  Must read first observation file.")
+					sys.exit()
 
 		#--- read 'parameters.input' file
-		lines = open(globin_input, "r").readlines()
+		# lines = open(globin_input, "r").readlines()
 
-		for line in lines:
-			line = line.rstrip("\n").replace(" ","")
-			# skip blank lines
-			if len(line)>0:
-				# skip commented lines
-				if line[0]!=COMMENT_CHAR:
-					line = line.split("=")
-					keyword, value = line
-					if keyword=="interp_degree":
-						interp_degree = int(value)
-						if (interp_degree!=2) and (interp_degree!=3):
-							sys.exit("Error: polynomial degree for interpolation is incorrect.\n  Valid values are 2 and 3.")
-					elif keyword=="mode":
-						self.mode = int(value)
-					elif keyword=="observation" and self.mode>0:
-						self.obs = spec.Observation(value)
-						# set dimensions for atmosphere same as dimension of observations
-						self.atm.nx = self.obs.nx
-						self.atm.ny = self.obs.ny
-						for idx in range(self.atm.nx):
-							for idy in range(self.atm.ny):
-								self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
-					elif keyword=="noise":
-						self.noise = float(value)
-					elif keyword=="atmosphere":
-						atm_path = value
-						self.ref_atm = atmos.Atmosphere(atm_path)
-					elif keyword=="n_threads":
-						self.n_thread = int(value)
-						self.pool = mp.Pool(self.n_thread)
-					elif keyword=="wave_min":
-						self.lmin = float(value) / 10 # from Angstroms to nm
-					elif keyword=="wave_max":
-						self.lmax = float(value) / 10 # from Angstroms to nm
-					elif keyword=="wave_step":
-						self.step = float(value) / 10 # from Angstroms to nm
-					elif keyword=="wave_grid":
-						self.wave_grid = value
-					elif keyword=="nodes_temp" and self.mode>0:
-						self.atm.nodes["temp"] = read_nodes_and_values(line)
-						self.atm.free_par += len(self.atm.nodes["temp"])
-					elif keyword=="nodes_temp_values" and self.mode>0:
-						values = read_nodes_and_values(line)
-						try:	
-							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
-							matrix[:,:] = values
-							self.atm.values["temp"] = matrix
-						except:
-							print("Can not store node values for parameter 'temp'.")
-							print("  Must read first observation file.")
-							sys.exit()
-					elif keyword=="nodes_vz" and self.mode>0:
-						self.atm.nodes["vz"] = read_nodes_and_values(line)
-						self.atm.free_par += len(self.atm.nodes["vz"])
-					elif keyword=="nodes_vz_values" and self.mode>0:
-						values = read_nodes_and_values(line)
-						try:	
-							matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
-							matrix[:,:] = values
-							self.atm.values["vz"] = matrix
-						except:
-							print("Can not store node values for parameter 'vz'.")
-							print("  Must read first observation file.")
-							sys.exit()
-					elif keyword=="marq_lambda":
-						self.marq_lambda = float(value)
-					else:
-						# block for not supported keywords
-						print(f"Currently not supported keyword '{keyword}'")
+		# for line in lines:
+		# 	line = line.rstrip("\n").replace(" ","")
+		# 	# skip blank lines
+		# 	if len(line)>0:
+		# 		# skip commented lines
+		# 		if line[0]!=COMMENT_CHAR:
+		# 			line = line.split("=")
+		# 			keyword, value = line
+		# 			if keyword=="interp_degree":
+		# 				interp_degree = int(value)
+		# 				if (interp_degree!=2) and (interp_degree!=3):
+		# 					sys.exit("Error: polynomial degree for interpolation is incorrect.\n  Valid values are 2 and 3.")
+		# 			elif keyword=="mode":
+		# 				self.mode = int(value)
+		# 			elif keyword=="observation" and self.mode>0:
+		# 				self.obs = spec.Observation(value)
+		# 				# set dimensions for atmosphere same as dimension of observations
+		# 				self.atm.nx = self.obs.nx
+		# 				self.atm.ny = self.obs.ny
+		# 				for idx in range(self.atm.nx):
+		# 					for idy in range(self.atm.ny):
+		# 						self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+		# 			elif keyword=="noise":
+		# 				self.noise = float(value)
+		# 			elif keyword=="atmosphere":
+		# 				atm_path = value
+		# 				self.ref_atm = atmos.Atmosphere(atm_path)
+		# 			elif keyword=="n_threads":
+		# 				self.n_thread = int(value)
+		# 				self.pool = mp.Pool(self.n_thread)
+		# 			elif keyword=="wave_min":
+		# 				self.lmin = float(value) / 10 # from Angstroms to nm
+		# 			elif keyword=="wave_max":
+		# 				self.lmax = float(value) / 10 # from Angstroms to nm
+		# 			elif keyword=="wave_step":
+		# 				self.step = float(value) / 10 # from Angstroms to nm
+		# 			elif keyword=="wave_grid":
+		# 				self.wave_grid = value
+		# 			elif keyword=="nodes_temp" and self.mode>0:
+		# 				self.atm.nodes["temp"] = read_nodes_and_values(line)
+		# 				self.atm.free_par += len(self.atm.nodes["temp"])
+		# 			elif keyword=="nodes_temp_values" and self.mode>0:
+		# 				values = read_nodes_and_values(line)
+		# 				try:	
+		# 					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
+		# 					matrix[:,:] = values
+		# 					self.atm.values["temp"] = matrix
+		# 				except:
+		# 					print("Can not store node values for parameter 'temp'.")
+		# 					print("  Must read first observation file.")
+		# 					sys.exit()
+		# 			elif keyword=="nodes_vz" and self.mode>0:
+		# 				self.atm.nodes["vz"] = read_nodes_and_values(line)
+		# 				self.atm.free_par += len(self.atm.nodes["vz"])
+		# 			elif keyword=="nodes_vz_values" and self.mode>0:
+		# 				values = read_nodes_and_values(line)
+		# 				try:	
+		# 					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
+		# 					matrix[:,:] = values
+		# 					self.atm.values["vz"] = matrix
+		# 				except:
+		# 					print("Can not store node values for parameter 'vz'.")
+		# 					print("  Must read first observation file.")
+		# 					sys.exit()
+		# 			elif keyword=="marq_lambda":
+		# 				self.marq_lambda = float(value)
+		# 			else:
+		# 				# block for not supported keywords
+		# 				print(f"Currently not supported keyword '{keyword}'")
 
 		# if user have not provided reference atmosphere we will assume FAL C model
 		if self.ref_atm is None:
@@ -307,7 +375,6 @@ class InputData(object):
 
 def read_nodes_and_values(line, param=None):
 	if len(line[1].replace(" ",""))==1:
-		pass
 		num_of_nodes = int(line[1].replace(" ",""))
 		try:
 			logtau = self.atm.data[0,0,0]

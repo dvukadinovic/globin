@@ -41,7 +41,7 @@ class Atmosphere(object):
 		# dimensions (nx,ny,nnodes).
 		self.values = {}
 		
-		self.par_id = self.par_id = {"logtau" : 0,
+		self.par_id = {"logtau" : 0,
 					   "temp"   : 1,
 					   "Bx"     : -1,
 					   "By"     : -1,
