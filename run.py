@@ -8,7 +8,7 @@ import sys
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
-sys.exit()
+
 # list of all class variables
 # var = vars(in_data)
 

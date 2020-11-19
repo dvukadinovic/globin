@@ -198,9 +198,9 @@ class InputData(object):
 			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spec.fits")
 			
 			#--- optional parameters
-			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float)
-			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float)
-			self.step = find_value_by_key("wave_step", text, "optional", conversion=float)
+			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
+			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
+			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
 			else:
@@ -229,9 +229,9 @@ class InputData(object):
 			# if user have not provided reference atmosphere we will assume FAL C model
 			if self.ref_atm is None:
 				self.ref_atm = falc
-			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float)
-			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float)
-			self.step = find_value_by_key("wave_step", text, "optional", conversion=float)
+			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
+			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
+			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
 			else:
@@ -286,10 +286,7 @@ class InputData(object):
 			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 		else:
 			self.wavelength = np.loadtxt(self.wave_grid_path)
-		print(wave_file_path)
-		print(self.wavelength)
-		out = write_wavs(self.wavelength, wave_file_path)
-		print(out)
+		write_wavs(self.wavelength, wave_file_path)
 
 def read_nodes_and_values(line, param=None):
 	if len(line[1].replace(" ",""))==1:

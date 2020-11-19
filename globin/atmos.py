@@ -339,7 +339,6 @@ def pool_distribute(arg):
 	stdout = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
 	out = sp.run(f"cd ../pid_{pid}; ../rhf1d",
 			shell=True, stdout=stdout, stderr=sp.STDOUT)
-	print(out)
 	stdout.close()
 
 	spec = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
