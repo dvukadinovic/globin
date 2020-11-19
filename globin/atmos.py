@@ -336,16 +336,26 @@ def pool_distribute(arg):
 
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
-	stdout = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	out_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
 	out = sp.run(f"cd ../pid_{pid}; ../rhf1d",
-			shell=True, stdout=stdout, stderr=sp.STDOUT)
-	stdout.close()
+			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	stdout = str(out.stdout,"utf-8").split("\n")
+	out_file.writelines(stdout)
+	out_file.close()
 
+	if out.returncode!=0:
+		print("*** RH error")
+		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).")
+		print()
+		for line in stdout[-5:]:
+			print("   ", line)
+		return None
+	
 	spec = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
 	spec.read_spectrum(spec_name)
 
 	dt = time.time() - start
-	print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
 	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
 
@@ -393,6 +403,15 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 
 	#--- distribute the process to threads
 	specs = init.pool.map(func=pool_distribute, iterable=args)
+	
+	#--- exit if all spectra returned from child process are None (failed synthesis)
+	kill = True
+	for item in specs:
+		kill = kill and (item is None)
+		if not kill:
+			break
+	if kill:
+		sys.exit("--> Spectrum synthesis on all pixels have failed!")
 
 	spec_cube = save_spectra(specs, init.ref_atm.nx, init.ref_atm.ny, init.spectrum_path, save=save)
 
@@ -406,7 +425,8 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 
 def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	"""
-	Function which takes 'specs' and save them in fits file format.
+	Get list of spectra computed for every pixel and store them in fits file.
+	Spectra for pixels which are not computed, we set to 0.
 
 	Parameters:
 	---------------
@@ -432,20 +452,20 @@ def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	---------------
 	make fits header with additional info
 	"""
-	wavs = specs[0]["spectra"].wave
-	spectra = np.zeros((nx, ny, len(wavs), 5))
-	spectra[:,:,:,0] = wavs
 
+	created_array = False
 	for item in specs:
-		spec, idx, idy = item["spectra"], item["idx"], item["idy"]
-		spectra[idx,idy,:,1] = spec.imu[-1]
-		spectra[idx,idy,:,2] = spec.stokes_Q[-1]
-		spectra[idx,idy,:,3] = spec.stokes_U[-1]
-		spectra[idx,idy,:,4] = spec.stokes_V[-1]
-
-	# import matplotlib.pyplot as plt
-	# plt.plot(wavs, spectra[idx,idy,:,4])
-	# plt.show()
+		if item is not None:
+			if not created_array:
+				wavs = item["spectra"].wave
+				spectra = np.zeros((nx, ny, len(wavs), 5))
+				spectra[:,:,:,0] = wavs
+				created_array = True
+			spec, idx, idy = item["spectra"], item["idx"], item["idy"]
+			spectra[idx,idy,:,1] = spec.imu[-1]
+			spectra[idx,idy,:,2] = spec.stokes_Q[-1]
+			spectra[idx,idy,:,3] = spec.stokes_U[-1]
+			spectra[idx,idy,:,4] = spec.stokes_V[-1]
 
 	if save:
 		primary = fits.PrimaryHDU(spectra)
