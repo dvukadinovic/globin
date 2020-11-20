@@ -11,20 +11,20 @@
 #--- General parameters
 n_threads = 1
 interp_degree = 3
-mode = 0
+mode = 1
 
 #--- Spectra to be fitted
-observation = obs_vz0_B250.fits
+observation = obs.fits
 noise = 1e-3
 
 #--- Output spectra
-spectrum = test.fits
+spectrum = obs.fits
 
 #--- Parameter nodes and values
 #nodes_temp = -3, -2, -1, 0
 #nodes_temp_values = 4500, 4800, 5200, 6800
 
-nodes_vz = -1.8 
+nodes_vz = -1.5
 nodes_vz_values = 0.5
 
 #--- Opacity fudge parameters
@@ -39,8 +39,8 @@ wave_max = 4017
 wave_step = 0.010
 # wave_grid = wave.grid
 
-#--- Levenberg-Marquardt parameters (yet to come at scene)
-marq_lambda = 1e-5
+#--- Levenberg-Marquardt parameters
+marq_lambda = 1e2
 
 #--- Parameters to be fitted (uh... be patient)
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters

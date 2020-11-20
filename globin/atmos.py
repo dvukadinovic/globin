@@ -307,7 +307,8 @@ def pool_distribute(arg):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 		set_old_J = False
 
-	lines = open(f"keyword.input", "r").readlines()
+	# lines = open(f"keyword.input", "r").readlines()
+	lines = open(globin.rh_input, "r").readlines()
 				
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -330,17 +331,17 @@ def pool_distribute(arg):
 					else:
 						lines[i_] = "  STARTING_J      = NEW_J\n"
 
-	out = open(f"../pid_{pid}/keyword.input","w")
+	out = open(f"../pid_{pid}/{globin.rh_input}","w")
 	out.writelines(lines)
 	out.close()
 
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
 	out_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd ../pid_{pid}; ../rhf1d",
+	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {globin.rh_input}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	stdout = str(out.stdout,"utf-8").split("\n")
-	out_file.writelines(stdout)
+	out_file.writelines(str(out.stdout, "utf-8"))
 	out_file.close()
 
 	if out.returncode!=0:

@@ -1,5 +1,6 @@
 import globin
 import numpy as np
+import sys
 
 def invert(init):
 	"""
@@ -11,6 +12,9 @@ def invert(init):
 		InputData object in which we have everything stored.
 	"""
 	import matplotlib.pyplot as plt
+
+	if init.mode==0:
+		sys.exit("Parameters for synthesis mode are read. We can not run inversion.\nChange mode before running again.\n")
 
 	obs = init.obs
 	atmos = init.atm
@@ -41,22 +45,17 @@ def invert(init):
 		print("Iteration: {:2}".format(i_+1))
 		
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
-		rf, synth = globin.atmos.compute_rfs(init)
+		rf, spec = globin.compute_rfs(init)
 
-		print(rf.shape)
-		
-		# if i_==0:
-		# 	plt.plot(init.wavelength, synth[0,0,ind_min:ind_max,1])
+		# print(rf.shape)
+		# aux = rf[0,0,:,ind_min:ind_max,0]
 
-		aux = rf[0,0,:,:,0]
+		# plt.plot(spec[0,0,ind_min:ind_max,0], aux[0])
+		# plt.plot(spec[0,0,:,0], aux[2])
+		# plt.show()
+		# break
 
-		plt.plot(synth[0,0,:,0], aux[0])
-		# plt.plot(synth[0,0,:,0], aux[1])
-		# plt.plot(synth[0,0,:,0], aux[2])
-		plt.show()
-		break
-
-		diff = obs.spec[:,:,ind_min:ind_max] - synth[:,:,ind_min:ind_max,1:]
+		diff = obs.spec[:,:,ind_min:ind_max] - spec[:,:,ind_min:ind_max,1:]
 
 		chi2_old = np.sum(diff*diff, axis=(2,3))
 
@@ -67,6 +66,7 @@ def invert(init):
 					for parID in range(Npar):
 						jacobian[idx,idy,:,parID] = rf[idx,idy,parID,ind_min:ind_max].flatten()
 
+		# is this correct? 
 		jacobian_t = jacobian.T
 		
 		# loop for Marquardt lambda correction
@@ -78,21 +78,18 @@ def invert(init):
 					if stop_flag[idx,idy]==0:
 						JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
 						hessian[idx,idy] = JTJ[idx,idy] + marquardt_lambda[idx,idy] * np.diag(JTJ[idx,idy])
-						# min_hes = np.max(hessian[idx,idy]) * svd_tolerance
 
 						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
 						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
 
-			# print(np.max(hessian))
-			# print(hessian)
 			proposed_steps = np.array(proposed_steps)
-			print(proposed_steps)
+			# print(proposed_steps)
 			
 			atmos.values["vz"] += proposed_steps
 			# parameters += proposed_steps
 			atmos.build_from_nodes(init.ref_atm)
 			
-			new_spec = globin.atmos.compute_spectra(init, atmos)
+			new_spec = globin.compute_spectra(init, atmos)
 
 			diff = obs.spec[:,:,ind_min:ind_max] - new_spec[:,:,ind_min:ind_max,1:]		
 			chi2_new = np.sum(diff*diff, axis=(2,3))
@@ -126,16 +123,5 @@ def invert(init):
 
 		print()
 
-	plt.plot(obs.data[0,0,ind_min:ind_max,0] - 401.6, obs.spec[0,0,ind_min:ind_max,0], label="observations")
-	plt.plot(new_spec[0,0,ind_min:ind_max,0] - 401.6, new_spec[0,0,ind_min:ind_max,1], label="inverted")
-	plt.xlabel(r"$\Delta \lambda$ [nm]")
-	plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-	plt.legend()
-	# plt.savefig("obs_vs_inverted.png")
-	plt.show()
-
-	# plt.plot(np.log10(chi2))
-	# plt.show()
-
 	#--- save inverted atmos
-	# atmos.save_cube()
+	atmos.save_cube()

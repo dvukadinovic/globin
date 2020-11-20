@@ -45,7 +45,7 @@ class Rhout:
         ''' Reads all the output data from a RH run.'''
         self.verbose = verbose
         self.fdir = fdir
-        # self.read_input('{0}/input.out'.format(fdir))
+        self.read_input('{0}/input.out'.format(fdir))
         self.read_geometry('{0}/geometry.out'.format(fdir))
         self.read_atmosphere('{0}/atmos.out'.format(fdir))
         # self.read_spectrum('{0}/spectrum.out'.format(fdir))
@@ -216,6 +216,7 @@ class Rhout:
             self.stokes_U = read_xdr_var(data, ('d', ishape))
             self.stokes_V = read_xdr_var(data, ('d', ishape))
         else:
+            print("No stokes... :(")
             self.stokes_Q = np.zeros(self.imu.shape)
             self.stokes_U = np.zeros(self.imu.shape)
             self.stokes_V = np.zeros(self.imu.shape)

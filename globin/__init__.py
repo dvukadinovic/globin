@@ -14,7 +14,7 @@ import numpy as np
 import multiprocessing as mp
 import re
 
-from .rh import write_wavs
+from .rh import write_wavs, Rhout
 from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere
 from .spec import Observation
 from .inversion import invert
@@ -138,6 +138,9 @@ temp_tck = splrep(falc.data[0],falc.data[2])
 #--- polynomial degree for interpolation
 interp_degree = None
 
+#--- name of RH input file
+rh_input = None
+
 class InputData(object):
 	"""
 	Class for storing input data parameters.
@@ -153,10 +156,10 @@ class InputData(object):
 	# def __str__(self):
 	# 	pass
 
-	def read_input_files(self, globin_input="params.input", rh_input="keyword.input"):
-		"""
-		Function which opens 'globin_input' file for reading
-		input data. Also, we read and input for RH given in file 'rh_input'.
+	def read_input_files(self, globin_input_name="params.input", rh_input_name="keyword.input"):
+		""" 
+
+		Read files 'globin_input_name' and 'rh_input_name' for input data.
 
 		We assume that parameters are given in format:
 			key = value
@@ -166,30 +169,32 @@ class InputData(object):
 
 		Parameters:
 		---------------
-		globin_input : str (optional)
+		globin_input_name : str (optional)
 			File name in which are stored input parameters. By default we read
 			from 'params.input' file.
 
-		rh_input : str (optional)	
+		rh_input_name : str (optional)	
 			File name for RH main input file. Default value is 'keyword.input'.
 		"""
 
 		global interp_degree
+		global rh_input
 
-		self.globin_input = globin_input
-		self.rh_input = rh_input
+		self.globin_input_name = globin_input_name
+		self.rh_input_name = rh_input_name
+		rh_input = rh_input_name
 
-		text = open(globin_input, "r").read()
+		text = open(globin_input_name, "r").read()
 
 		#--- find first mode of operation
-		mode = find_value_by_key("mode",text,"required", conversion=int)
+		self.mode = find_value_by_key("mode",text,"required", conversion=int)
 		
 		#--- find number of threads
 		self.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
 		self.pool = mp.Pool(self.n_thread)
 
 		#--- get parameters for synthesis
-		if mode==0:
+		if self.mode==0:
 			#--- required parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "required")
 			self.ref_atm = Atmosphere(path_to_atmosphere)
@@ -207,7 +212,7 @@ class InputData(object):
 				self.wave_grid_path = None
 
 		#--- get parameters for inversion
-		if mode>=1:
+		if self.mode>=1:
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")
 			self.obs = Observation(path_to_observations)
@@ -277,7 +282,7 @@ class InputData(object):
 					sys.exit()
 
 		#--- get parameters from RH input file
-		text = open(rh_input, "r").read()
+		text = open(rh_input_name, "r").read()
 
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")

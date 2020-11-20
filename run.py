@@ -12,32 +12,19 @@ in_data.read_input_files()
 # list of all class variables
 # var = vars(in_data)
 
-# atmos = in_data.atm
-# atmos.build_from_nodes(in_data.ref_atm)
+# spectrum synthesis
+# spec = globin.compute_spectra(in_data, in_data.ref_atm, False, False)
+# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+# plt.show()
 
-spec = globin.compute_spectra(in_data, in_data.ref_atm)
-
-plt.plot(spec[0,0,:,0], spec[0,0,:,1])
-plt.show()
-
+# inversion
 # globin.invert(in_data)
 sys.exit()
 
-#--- atmos compare
-# inverted = fits.open("inverted_atmos.fits")[0].data[0,0]
-# original = fits.open("../../Atmos/falc_1x1.fits")[0].data[0,0]
-# print(inverted.shape)
-# print(original.shape)
-
-# plt.plot(original[0], original[10])
-# plt.plot(inverted[0], inverted[10])
-# plt.show()
-
-# sys.exit()
 #--- spectrum synthesis example
-in_data.ref_atm.data[:,:,3,:] = -0.00068885
+in_data.ref_atm.data[:,:,3,:] = 0.00011746 #-0.00068885
 in_data.ref_atm.write_atmosphere()
-spec = globin.atmos.compute_spectra(in_data, in_data.ref_atm, save=False, clean_dirs=True)
+spec = globin.atmos.compute_spectra(in_data, in_data.ref_atm, save=False, clean_dirs=False)
 
 fix, axs = plt.subplots(nrows=2, ncols=2)
 
