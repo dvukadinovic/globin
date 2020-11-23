@@ -13,12 +13,12 @@ in_data.read_input_files()
 # var = vars(in_data)
 
 # spectrum synthesis
-# spec = globin.compute_spectra(in_data, in_data.ref_atm, False, False)
+# spec = globin.compute_spectra(in_data, in_data.ref_atm, True, True)
 # plt.plot(spec[0,0,:,0], spec[0,0,:,1])
 # plt.show()
 
 # inversion
-# globin.invert(in_data)
+globin.invert(in_data)
 sys.exit()
 
 #--- spectrum synthesis example

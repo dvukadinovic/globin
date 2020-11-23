@@ -443,6 +443,12 @@ def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	ny : ind
 		Number of pixels along y-axis in atmosphere cube.
 
+	fpath : string (optional)
+		Name of the output file. Default is "spectra.fits".
+
+	save : bool (optional)
+		Flag for saving the spectrum to disk. Default is False.
+
 	Returns:
 	---------------
 	spectra : ndarray

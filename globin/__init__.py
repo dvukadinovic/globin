@@ -227,6 +227,7 @@ class InputData(object):
 			interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
+			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
