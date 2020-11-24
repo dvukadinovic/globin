@@ -216,7 +216,6 @@ class Rhout:
             self.stokes_U = read_xdr_var(data, ('d', ishape))
             self.stokes_V = read_xdr_var(data, ('d', ishape))
         else:
-            # print("No stokes... :(")
             self.stokes_Q = np.zeros(self.imu.shape)
             self.stokes_U = np.zeros(self.imu.shape)
             self.stokes_V = np.zeros(self.imu.shape)

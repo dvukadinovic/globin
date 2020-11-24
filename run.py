@@ -12,59 +12,51 @@ in_data.read_input_files()
 # list of all class variables
 # var = vars(in_data)
 
-# spectrum synthesis
-# spec = globin.compute_spectra(in_data, in_data.ref_atm, True, True)
-# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
-# plt.show()
-
-# inversion
-globin.invert(in_data)
-sys.exit()
+#--- inversion
+globin.invert(in_data); sys.exit()
 
 #--- spectrum synthesis example
-in_data.ref_atm.data[:,:,3,:] = 0.00011746 #-0.00068885
-in_data.ref_atm.write_atmosphere()
-spec = globin.atmos.compute_spectra(in_data, in_data.ref_atm, save=False, clean_dirs=False)
+# spec = globin.compute_spectra(in_data, in_data.ref_atm, True, False)
 
-fix, axs = plt.subplots(nrows=2, ncols=2)
+# fix, axs = plt.subplots(nrows=2, ncols=2)
 
-for i in range(in_data.atm.nx):
-	for j in range(in_data.atm.ny):
-		# Stokes I
-		axs[0,0].set_title("Stokes I")
-		axs[0,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,0])
-		axs[0,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,1])
-		# Stokes Q
-		axs[0,1].set_title("Stokes Q")
-		axs[0,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,1])
-		axs[0,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,2])
-		# Stokes U
-		axs[1,0].set_title("Stokes U")
-		axs[1,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,2])
-		axs[1,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,3])
-		# Stokes V
-		axs[1,1].set_title("Stokes V")
-		axs[1,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,3])
-		axs[1,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,4])
+# for i in range(in_data.ref_atm.nx):
+# 	for j in range(in_data.ref_atm.ny):
+# 		# Stokes I
+# 		axs[0,0].set_title("Stokes I")
+# 		# axs[0,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,0])
+# 		axs[0,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,1])
+# 		# Stokes Q
+# 		axs[0,1].set_title("Stokes Q")
+# 		# axs[0,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,1])
+# 		axs[0,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,2])
+# 		# Stokes U
+# 		axs[1,0].set_title("Stokes U")
+# 		# axs[1,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,2])
+# 		axs[1,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,3])
+# 		# Stokes V
+# 		axs[1,1].set_title("Stokes V")
+# 		# axs[1,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,3])
+# 		axs[1,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,4])
 
-axs[1,0].set_xlabel(r"$\Delta \lambda$ [nm]")
-axs[1,1].set_xlabel(r"$\Delta \lambda$ [nm]")
-axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+# axs[1,0].set_xlabel(r"$\Delta \lambda$ [nm]")
+# axs[1,1].set_xlabel(r"$\Delta \lambda$ [nm]")
+# axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+# axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 
-axs[0,0].set_xlim([-0.1, 0.1])
-axs[0,1].set_xlim([-0.1, 0.1])
-axs[1,0].set_xlim([-0.1, 0.1])
-axs[1,1].set_xlim([-0.1, 0.1])
+# axs[0,0].set_xlim([-0.1, 0.1])
+# axs[0,1].set_xlim([-0.1, 0.1])
+# axs[1,0].set_xlim([-0.1, 0.1])
+# axs[1,1].set_xlim([-0.1, 0.1])
 
-plt.show()
+# plt.show()
 
-sys.exit()
+# sys.exit()
 
 #--- RF clauclation test
-rf = globin.atmos.compute_full_rf(in_data)
+# rf, _ = globin.atmos.compute_full_rf(in_data)
 
-# rf = fits.open("rf_temp_falc_2x2.fits")[0].data
+rf = fits.open("rf.fits")[0].data
 logtau = np.round(in_data.ref_atm.data[0,0,0], 2)
 wavs = np.round((in_data.wavelength - 401.6)*10, 2)
 
@@ -76,16 +68,24 @@ JT = J.T
 JTJ = np.dot(JT,J)
 
 lam = 1e-3
-H = JTJ + lam * np.diag(JTJ)
+H = JTJ
+np.fill_diagonal(H, np.diag(JTJ)*(1+lam))
 
-plt.imshow(H)
+# plt.imshow(np.linalg.inv(H))
+plt.imshow(np.log10(H))
 plt.show()
+sys.exit()
 
-fig, ax = plt.subplots(nrows=1, ncols=1)
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12,6))
 
-plt.imshow(J.T, aspect="auto")
-plt.setp(ax, xticks=xpos[::25], xticklabels=wavs[::25],
+plt.setp(axs, xticks=xpos[::25], xticklabels=wavs[::25],
     yticks=ypos[::3], yticklabels=logtau[::3])
-# plt.setp(ax, yticks=ypos[::3], yticklabels=logtau[::3])
-plt.colorbar()
+
+rf_temp = axs[0].imshow(rf[0,0,0,:,:,0], aspect="auto", cmap="gnuplot")
+plt.colorbar(rf_temp, ax=axs[0])
+
+vmax = np.max(np.abs(rf[0,0,1,:,:,0]))
+rf_vz = axs[1].imshow(rf[0,0,1,:,:,0], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
+plt.colorbar(rf_vz, ax=axs[1])
+
 plt.show()

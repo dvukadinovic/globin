@@ -86,6 +86,9 @@ class Atmosphere(object):
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
 		return new
 
+	def __str__(self):
+		pass
+
 	def read_fits(self, fpath):
 		try:
 			atmos = fits.open(fpath)[0]
@@ -302,7 +305,8 @@ def pool_distribute(arg):
 		Atmosphere path located in directory 'atmospheres'.
 	spec_name : string
 		File name in which spectrum is written on a disk (read from keyword.input
-        file). """
+        file).
+    """
 	start = time.time()
 
 	atm_path, spec_name = arg
@@ -469,7 +473,6 @@ def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	---------------
 	make fits header with additional info
 	"""
-
 	created_array = False
 	for item in specs:
 		if item is not None:
@@ -518,8 +521,6 @@ def compute_rfs(init):
 			 "vmic" : 10/1e3} # m/s --> km/s
 
 	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(spec[0,0,:,0]), 4))
-	# nw = len(init.wavelength)
-	# rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, nw, 4))
 
 	free_par_ID = 0
 	for i_,parameter in enumerate(atmos.nodes):
@@ -571,7 +572,6 @@ def compute_full_rf(init):
 
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
-	model_minus = copy.deepcopy(atmos)
 
 	delta = {"temp" : 1,
 			 "Bx"   : 25/1e4, # G --> T
@@ -580,28 +580,27 @@ def compute_full_rf(init):
 			 "vz"   : 10/1e3, # m/s --> km/s
 			 "vmic" : 10/1e3} # m/s --> km/s
 
-	rf = np.zeros((atmos.nx, atmos.ny, 1, atmos.nz, len(init.wavelength), 4))
+	rf = np.zeros((atmos.nx, atmos.ny, 2, atmos.nz, len(init.wavelength), 4))
 
-	parameter = "vz"
-	perturbation = delta[parameter]
-	parID = atmos.par_id[parameter]
+	for i_, parameter in enumerate(["temp", "vz"]):
+		perturbation = delta[parameter]
+		parID = atmos.par_id[parameter]
 
-	for zID in range(atmos.nz):
-		model_plus.data[:,:,parID,zID] += perturbation
-		model_plus.write_atmosphere()
-		spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
+		for zID in range(atmos.nz):
+			model_plus.data[:,:,parID,zID] += perturbation
+			model_plus.write_atmosphere()
+			spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
 
-		ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
-		ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))
-		
-		# diff = spec_plus[:,:,ind_min:ind_max,1:] - spec_minus[:,:,ind_min:ind_max,1:]
-		diff = spec_plus[:,:,ind_min:ind_max,1:] - spec[:,:,ind_min:ind_max,1:]
-		rf[:,:,0,zID,:,:] = diff / perturbation / dtau
-		
-		# remove perturbation from data
-		model_plus.data[:,:,parID,zID] -= perturbation
-		# model_minus.data[:,:,parID,zID] += perturbation
+			ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
+			ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))+1
+			
+			# diff = spec_plus[:,:,ind_min:ind_max,1:] - spec_minus[:,:,ind_min:ind_max,1:]
+			diff = spec_plus[:,:,ind_min:ind_max,1:] - spec[:,:,ind_min:ind_max,1:]
+			rf[:,:,i_,zID,:,:] = diff / perturbation # / dtau
+			
+			# remove perturbation from data
+			model_plus.data[:,:,parID,zID] -= perturbation
 
-	# fits.writeto("rf.fits", rf, overwrite=True)
+	fits.writeto("rf.fits", rf, overwrite=True)
 
 	return rf, spec

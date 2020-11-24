@@ -31,7 +31,7 @@ def invert(init):
 	Npar = atmos.free_par
 
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
-	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))
+	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
 
 	jacobian = np.zeros((obs.nx, obs.ny, Nw*4, Npar))
 	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar))
@@ -67,12 +67,15 @@ def invert(init):
 				for idy in range(obs.ny):
 					if stop_flag[idx,idy]==0:
 						JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
-						hessian[idx,idy] = JTJ[idx,idy]# + marquardt_lambda[idx,idy] * np.diag(JTJ[idx,idy])
+						hessian[idx,idy] = JTJ[idx,idy]
 						diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + marquardt_lambda[idx,idy])
 						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
 						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
 						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
-
+						# print(hessian[idx,idy])
+						# print(delta)
+						# print("LM parameter: ", marquardt_lambda[idx,idy])
+						# print()
 			# print(proposed_steps)
 
 			low_ind, up_ind = 0, 0
@@ -80,14 +83,14 @@ def invert(init):
 				low_ind += up_ind
 				up_ind += len(atmos.nodes[parID])
 				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind]
-				atmos.check_parameters()
+				# atmos.check_parameters()
 			print(atmos.values)
 
 			atmos.build_from_nodes(init.ref_atm)
 			new_spec = globin.compute_spectra(init, atmos)
 
-			diff = obs.spec[:,:,ind_min:ind_max] - new_spec[:,:,ind_min:ind_max,1:]		
-			chi2_new = np.sum(diff*diff, axis=(2,3))
+			new_diff = obs.spec[:,:,ind_min:ind_max] - new_spec[:,:,ind_min:ind_max,1:]		
+			chi2_new = np.sum(new_diff*new_diff, axis=(2,3))
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
@@ -99,7 +102,7 @@ def invert(init):
 								low_ind += up_ind
 								up_ind += len(atmos.nodes[parID])
 								atmos.values[parID] -= proposed_steps[:,:,low_ind:up_ind]
-								atmos.check_parameters()
+								# atmos.check_parameters()
 						else:
 							chi2[i_] = chi2_new[idx,idy]
 							marquardt_lambda[idx,idy] /= 10
@@ -117,7 +120,7 @@ def invert(init):
 		if marquardt_lambda[0,0]<=1e-5:
 			marquardt_lambda[0,0] = 1e-5
 
-		if marquardt_lambda[0,0]>=1e8:
+		if marquardt_lambda[0,0]>=1e10:
 			break
 
 		# if np.sum(stop_flag)==(obs.nx*obs.ny):
@@ -157,13 +160,13 @@ def invert(init):
 	axs[1,0].set_xlim([-0.1, 0.1])
 	axs[1,1].set_xlim([-0.1, 0.1])
 
-	plt.show()
-
+	plt.figure(2)
 	idx, idy = 0,0
-	parameter = "vz"
+	parameter = "temp"
 	x = atmos.nodes[parameter]
 	y = atmos.values[parameter][idx,idy]
 	if parameter=="temp":
+		from scipy.interpolate import splev
 		Kn = splev(x[-1], globin.temp_tck, der=1)
 	else:
 		Kn = 0
@@ -171,7 +174,7 @@ def invert(init):
 
 	plt.plot(x, y, "ro")
 	plt.plot(atmos.logtau, y_new, color="tab:blue")
-	plt.plot([min(atmos.logtau),max(atmos.logtau)], [0,0], "k-")
+	plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,1], "k-")
 	plt.xlabel(r"$\log \tau$")
 	plt.ylabel(r"$v_z$ [km/s]")
 	plt.show()

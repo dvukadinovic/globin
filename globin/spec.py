@@ -29,3 +29,6 @@ class Observation(object):
 		# self.wavelength = hdu.data[0,0,:,0]
 		self.spec = hdu.data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
+
+def plot_stokes():
+	pass
