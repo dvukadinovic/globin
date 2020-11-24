@@ -19,11 +19,11 @@ noise = 1e-3
 spectrum = obs.fits
 
 #--- Parameter nodes and values
-#nodes_temp = -3, -2, -1, 0
-#nodes_temp_values = 4500, 4800, 5200, 6800
+nodes_temp = -2, -1, 0
+nodes_temp_values = 4800, 5200, 6800
 
-nodes_vz = -2, -1, -0.5, 0
-nodes_vz_values = 1, 0.5, -0.1, 0
+#nodes_vz = -5, -2, -1,  0
+#nodes_vz_values = -0.2, 0, 1, -0.5
 
 #--- Opacity fudge parameters
 # of_lambda = 
@@ -38,8 +38,8 @@ wave_step = 0.010
 # wave_grid = wave.grid
 
 #--- Levenberg-Marquardt parameters
-marq_lambda = 1e-2
-max_iter = 30
+marq_lambda = 1e-3
+max_iter = 3
 
 #--- Parameters to be fitted (uh... be patient)
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters

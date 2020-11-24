@@ -232,6 +232,16 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 		hdulist.writeto("inverted_atmos.fits", overwrite=True)
 
+	def check_parameters(self):
+		for parID in self.values:
+			for i_ in range(len(self.nodes[parID])):
+				for idx in range(self.nx):
+					for idy in range(self.ny):
+						if self.values[parID][idx,idy,i_]<globin.limit_values[parID][0]:
+							self.values[parID][idx,idy,i_] = globin.limit_values[parID][0]
+						if self.values[parID][idx,idy,i_]>globin.limit_values[parID][1]:
+							self.values[parID][idx,idy,i_] = globin.limit_values[parID][1]
+
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type 
 	# into separate file and store them at 'fpath'.

@@ -27,6 +27,14 @@ __path__ = os.path.dirname(__file__)
 #--- comment character in files read by wrapper
 COMMENT_CHAR = "#"
 
+#--- limit values for atmospheric parameters
+limit_values = {"temp"    : [3000,10000], 
+				"vz"   : [-10, 10],
+				"Bx"   : [0, 5000],
+				"By"   : [0, 5000],
+				"Bz"   : [0, 5000],
+				"vmic" : [-10,10]}
+
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
 
