@@ -43,6 +43,7 @@ def invert(init):
 		print("Iteration: {:2}\n".format(i_+1))
 		
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
+		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec = globin.compute_rfs(init)
 
 		diff = obs.spec[:,:,ind_min:ind_max] - spec[:,:,ind_min:ind_max,1:]
@@ -160,24 +161,27 @@ def invert(init):
 	axs[1,0].set_xlim([-0.1, 0.1])
 	axs[1,1].set_xlim([-0.1, 0.1])
 
-	plt.figure(2)
 	idx, idy = 0,0
-	parameter = "temp"
-	x = atmos.nodes[parameter]
-	y = atmos.values[parameter][idx,idy]
-	if parameter=="temp":
-		from scipy.interpolate import splev
-		Kn = splev(x[-1], globin.temp_tck, der=1)
-	else:
-		Kn = 0
-	y_new = globin.tools.bezier_spline(x, y, atmos.logtau, Kn=Kn, degree=globin.interp_degree)
+	i_ = 0
+	for parameter in atmos.nodes:
+		plt.figure(2+i_)
+		x = atmos.nodes[parameter]
+		y = atmos.values[parameter][idx,idy]
+		if parameter=="temp":
+			from scipy.interpolate import splev
+			Kn = splev(x[-1], globin.temp_tck, der=1)
+		else:
+			Kn = 0
+		y_new = globin.tools.bezier_spline(x, y, atmos.logtau, Kn=Kn, degree=globin.interp_degree)
 
-	plt.plot(x, y, "ro")
-	plt.plot(atmos.logtau, y_new, color="tab:blue")
-	plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,1], "k-")
-	plt.xlabel(r"$\log \tau$")
-	plt.ylabel(r"$v_z$ [km/s]")
-	plt.show()
+		plt.plot(x, y, "ro")
+		plt.plot(atmos.logtau, y_new, color="tab:blue")
+		parID = atmos.par_id[parameter]
+		plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,parID], "k-")
+		plt.xlabel(r"$\log \tau$")
+		plt.ylabel(r"$v_z$ [km/s]")
+		plt.show()
+		i_ += 1
 
 	#--- save inverted atmos
 	# atmos.save_cube()

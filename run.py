@@ -72,20 +72,21 @@ H = JTJ
 np.fill_diagonal(H, np.diag(JTJ)*(1+lam))
 
 # plt.imshow(np.linalg.inv(H))
-plt.imshow(np.log10(H))
-plt.show()
-sys.exit()
+# plt.imshow(np.log10(H))
+# plt.show()
+# sys.exit()
 
 fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12,6))
 
 plt.setp(axs, xticks=xpos[::25], xticklabels=wavs[::25],
     yticks=ypos[::3], yticklabels=logtau[::3])
 
-rf_temp = axs[0].imshow(rf[0,0,0,:,:,0], aspect="auto", cmap="gnuplot")
+vmax = np.max(np.abs(rf[0,0,2,:,:,3]))
+rf_temp = axs[0].imshow(rf[0,0,2,:,:,3], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
 plt.colorbar(rf_temp, ax=axs[0])
 
-vmax = np.max(np.abs(rf[0,0,1,:,:,0]))
-rf_vz = axs[1].imshow(rf[0,0,1,:,:,0], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
+vmax = np.max(np.abs(rf[0,0,4,:,:,1]))
+rf_vz = axs[1].imshow(rf[0,0,4,:,:,1], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
 plt.colorbar(rf_vz, ax=axs[1])
 
 plt.show()

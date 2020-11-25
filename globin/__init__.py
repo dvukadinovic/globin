@@ -28,12 +28,12 @@ __path__ = os.path.dirname(__file__)
 COMMENT_CHAR = "#"
 
 #--- limit values for atmospheric parameters
-limit_values = {"temp"    : [3000,10000], 
-				"vz"   : [-10, 10],
-				"Bx"   : [0, 5000],
-				"By"   : [0, 5000],
-				"Bz"   : [0, 5000],
-				"vmic" : [-10,10]}
+limit_values = {"temp"  : [3000,10000], 
+				"vz"    : [-10, 10],
+				"mag"   : [1, 5000],
+				"gamma" : [-np.pi/2, np.pi/2],
+				"chi"   : [-np.pi, np.pi],
+				"vmic"  : [-10,10]}
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
@@ -289,6 +289,68 @@ class InputData(object):
 					print("Can not store node values for parameter 'vz'.")
 					print("  Must read first observation file.")
 					sys.exit()
+			
+			nodes = find_value_by_key("nodes_mag", text, "optional")
+			values = find_value_by_key("nodes_mag_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["mag"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["mag"])
+
+				values = [float(item) for item in values.split(",")]
+				if len(values)!=len(self.atm.nodes["mag"]):
+					sys.exit("Number of nodes and values for magnetic field are not the same!")
+
+				try:
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["mag"])))
+					matrix[:,:] = values
+					self.atm.values["mag"] = matrix / 1e4 # Gauss --> Tesla
+				except:
+					print("Can not store node values for parameter 'mag'.")
+					print("  Must read first observation file.")
+					sys.exit()
+
+			nodes = find_value_by_key("nodes_gamma", text, "optional")
+			values = find_value_by_key("nodes_gamma_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["gamma"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["gamma"])
+
+				values = [float(item) for item in values.split(",")]
+				if len(values)!=len(self.atm.nodes["gamma"]):
+					sys.exit("Number of nodes and values for magnetic field inclintion are not the same!")
+
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["gamma"])))
+					matrix[:,:] = np.deg2rad(values) # degree --> radians
+					self.atm.values["gamma"] = matrix
+				except:
+					print("Can not store node values for parameter 'gamma'.")
+					print("  Must read first observation file.")
+					sys.exit()
+
+			nodes = find_value_by_key("nodes_chi", text, "optional")
+			values = find_value_by_key("nodes_chi_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["chi"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["chi"])
+
+				values = [float(item) for item in values.split(",")]
+				if len(values)!=len(self.atm.nodes["chi"]):
+					sys.exit("Number of nodes and values for magnetic field azimuth are not the same!")
+
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["chi"])))
+					matrix[:,:] = np.deg2rad(values) # degree --> radians
+					self.atm.values["chi"] = matrix
+				except:
+					print("Can not store node values for parameter 'chi'.")
+					print("  Must read first observation file.")
+					sys.exit()
+
+			# missing nodes for micro-turbulent velocity
+			# macro-turbulent broadening (can be fit)
+			# instrument broadening
+			# strailight contribution
 
 		#--- get parameters from RH input file
 		text = open(rh_input_name, "r").read()

@@ -22,8 +22,17 @@ spectrum = obs.fits
 nodes_temp = -2, -1.7, -1, -0.3, 0.3
 nodes_temp_values = 4800, 4950, 5200, 6500, 7400
 
-#nodes_vz = -5, -1.8, -1.0, -0.3
-#nodes_vz_values = 0.5, 0.2, 0, 0
+nodes_vz = -5, -1.8, -1.0, -0.3
+nodes_vz_values = 0.5, 0.2, 0.1, 0.1
+
+#nodes_mag = -4, -2, 0
+#nodes_mag_values = 100, 200, 500
+
+#nodes_gamma = -4, -2, 0
+#nodes_gamma_values = 75, 30, 0
+
+#nodes_chi = -4, -2, 0
+#nodes_chi_values = 0, 10, 45
 
 #--- Opacity fudge parameters
 # of_lambda = 

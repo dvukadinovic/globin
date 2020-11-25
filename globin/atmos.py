@@ -43,11 +43,11 @@ class Atmosphere(object):
 		
 		self.par_id = {"logtau" : 0,
 					   "temp"   : 1,
-					   "Bx"     : -1,
-					   "By"     : -1,
-					   "Bz"     : -1,
 					   "vz"     : 3,
-					   "vmic"   : 4,}
+					   "vmic"   : 4,
+					   "mag"    : 5,
+					   "gamma"  : 6,
+					   "chi"    : 7}
 
 		self.nx = None
 		self.ny = None
@@ -176,36 +176,45 @@ class Atmosphere(object):
 		import matplotlib.pyplot as plt
 		from scipy.interpolate import splev
 
-		# we are not fitting; write it in smarter way! using reference atmosphere
-		if self.data is None:
 		# we fill here atmosphere with data which will not be interpolated for which
+		if self.data is None:
 			try:
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
 				self.data[:,:,0,:] = self.logtau
 				self.interpolate_atmosphere(ref_atm)
-				# # electron concentration (interpolate from FAL C model as initial value)
-				# self.data[:,:,2,:] = splev(self.logtau, globin.ne_tck)
-				# # hydrogen levels population (interpolate from FAL C model as initial
-				# # value); when H atom is ACTIVE in RH atoms.input file, exact values are
-				# # irrelevant
-				# for lvlid in range(6):
-				# 	self.data[:,:,8+lvlid,:] = splev(self.logtau, globin.falc_hydrogen_lvls_tcks[lvlid])
 			except:
 				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parameter in self.nodes:
+					K0, Kn = 0, 0
 
 					x = self.nodes[parameter]
 					y = self.values[parameter][idx,idy]
 					if parameter=="temp":
+						if len(x)>=2:
+							K0 = (y[1]-y[0]) / (x[1]-x[0])
+							if globin.limit_values["temp"][0]>(y[0] + K0 * (self.logtau[0]-x[0])):
+								K0 = (globin.limit_values["temp"][0] - y[0]) / (self.logtau[0] - x[0])
 						Kn = splev(x[-1], globin.temp_tck, der=1)
-					else:
-						Kn = 0
-					y_new = globin.tools.bezier_spline(x, y, self.logtau, Kn=Kn, degree=globin.interp_degree)
+					elif parameter=="vz":
+						if len(x)>=2:
+							K0 = (y[1]-y[0]) / (x[1]-x[0])
+							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+							if globin.limit_values["vz"][0]>(y[0] + K0 * (self.logtau[0]-x[0])):
+								K0 = (globin.limit_values["vz"][0] - y[0]) / (self.logtau[0] - x[0])
+							if globin.limit_values["vz"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
+								Kn = (globin.limit_values["vz"][1] - y[-1]) / (self.logtau[-1] - x[-1])
+					elif parameter=="mag":
+						if len(x)>=2:
+							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
+									Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
+					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
+					# plt.title(parameter)
 					# plt.scatter(x,y)
 					# plt.plot(self.logtau, y_new)
 					# plt.show()
@@ -513,12 +522,12 @@ def compute_rfs(init):
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 
-	delta = {"temp" : 1,
-			 "Bx"   : 25/1e4, # G --> T
-			 "By"   : 25/1e4, # G --> T
-			 "Bz"   : 25/1e4, # G --> T
-			 "vz"   : 10/1e3, # m/s --> km/s
-			 "vmic" : 10/1e3} # m/s --> km/s
+	delta = {"temp"  : 1,      # K
+			 "vz"    : 10/1e3, # m/s --> km/s
+			 "vmic"  : 10/1e3, # m/s --> km/s
+			 "mag"   : 25/1e4, # G --> T
+			 "gamma" : 0.01,   # rad
+			 "chi"   : 0.01}   # rad
 
 	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(spec[0,0,:,0]), 4))
 
@@ -573,16 +582,18 @@ def compute_full_rf(init):
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 
-	delta = {"temp" : 1,
-			 "Bx"   : 25/1e4, # G --> T
-			 "By"   : 25/1e4, # G --> T
-			 "Bz"   : 25/1e4, # G --> T
-			 "vz"   : 10/1e3, # m/s --> km/s
-			 "vmic" : 10/1e3} # m/s --> km/s
+	delta = {"temp"  : 1,      # K
+			 "vz"    : 10/1e3, # m/s --> km/s
+			 "vmic"  : 10/1e3, # m/s --> km/s
+			 "mag"   : 25/1e4, # G --> T
+			 "gamma" : 0.01,   # rad
+			 "chi"   : 0.01}   # rad
 
-	rf = np.zeros((atmos.nx, atmos.ny, 2, atmos.nz, len(init.wavelength), 4))
+	params = ["temp", "vz", "mag", "gamma", "chi"]
+	rf = np.zeros((atmos.nx, atmos.ny, len(params), atmos.nz, len(init.wavelength), 4))
 
-	for i_, parameter in enumerate(["temp", "vz"]):
+	for i_, parameter in enumerate(params):
+		print(parameter)
 		perturbation = delta[parameter]
 		parID = atmos.par_id[parameter]
 
