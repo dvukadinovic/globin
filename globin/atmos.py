@@ -82,8 +82,16 @@ class Atmosphere(object):
 	def __deepcopy__(self, memo):
 		new = Atmosphere()
 		new.data = copy.deepcopy(self.data)
-		new.nx, new.ny, new.npar, new.nz = new.data.shape
+		new.logtau = copy.deepcopy(self.logtau)
+		new.nx = copy.deepcopy(self.nx)
+		new.ny = copy.deepcopy(self.ny)
+		new.npar = copy.deepcopy(self.npar)
+		new.nz = copy.deepcopy(self.nz)
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
+		new.nodes = copy.deepcopy(self.nodes)
+		new.values = copy.deepcopy(self.values)
+		new.par_id = copy.deepcopy(self.par_id)
+		new.free_par = copy.deepcopy(self.free_par)
 		return new
 
 	def __str__(self):
@@ -244,7 +252,7 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 		hdulist.writeto("inverted_atmos.fits", overwrite=True)
 
-	def check_parameters(self):
+	def check_parameter_bounds(self):
 		for parID in self.values:
 			for i_ in range(len(self.nodes[parID])):
 				for idx in range(self.nx):
