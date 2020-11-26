@@ -20,7 +20,7 @@ def invert(init):
 
 	obs = init.obs
 	atmos = init.atm
-	corrected_atmos = copy.deepcopy(atmos)
+
 
 	print("Initial parameters: ", atmos.values)
 	print()
@@ -42,8 +42,18 @@ def invert(init):
 	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	
-	chi2 = np.zeros(init.max_iter)
+	if init.noise!=0:
+		StokesI_cont = obs.data[:,:,ind_min,1]
+		noise_lvl = init.noise * StokesI_cont
+		noise_scaling = np.sqrt(obs.data[:,:,ind_min:ind_max,1] / StokesI_cont)
+		noise = noise_lvl * noise_scaling
+		print(noise.shape)
+	else:
+		noise = np.ones((obs.nx, obs.ny, ind_max-ind_min))
+
+	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny))
 	N_search_for_lambda = 5
+	dof = 4 * (ind_max-ind_min)
 
 	for i_ in range(init.max_iter):
 		print("Iteration: {:2}\n".format(i_+1))
@@ -53,8 +63,13 @@ def invert(init):
 		rf, spec = globin.compute_rfs(init)
 
 		diff = obs.spec[:,:,ind_min:ind_max] - spec[:,:,ind_min:ind_max,1:]
-
-		chi2_old = np.sum(diff*diff, axis=(2,3))
+		diff[:,:,:] *= init.weights
+		rf[:,:,:,:,] *= init.weights
+		for s in range(4):
+			diff[:,:,:,s] /= noise
+			for parID in range(Npar):
+				rf[:,:,parID,ind_min:ind_max,s] /= noise
+		chi2_old = np.sum(diff*diff, axis=(2,3)) / dof
 
 		# Jacobian matrix
 		for idx in range(obs.nx):
@@ -80,60 +95,77 @@ def invert(init):
 						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
 						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
 			# print(proposed_steps[idx,idy])
-			# print(atmos.values)
 
-			old_parameters = atmos.values
+			old_parameters = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
 			for parID in atmos.values:
 				low_ind = up_ind
 				up_ind += len(atmos.nodes[parID])
 				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind]
-			# 	corrected_atmos.values[parID] = atmos.values[parID] + proposed_steps[:,:,low_ind:up_ind]
-			# corrected_atmos.check_parameter_bounds()
+			atmos.check_parameter_bounds()
 
-			# corrected_atmos.build_from_nodes(init.ref_atm)
-			# corrected_spec = globin.compute_spectra(init, corrected_atmos)
 			atmos.build_from_nodes(init.ref_atm)
 			corrected_spec = globin.compute_spectra(init, atmos)
 
-			new_diff = obs.spec[:,:,ind_min:ind_max] - corrected_spec[:,:,ind_min:ind_max,1:]		
-			chi2_new = np.sum(new_diff*new_diff, axis=(2,3))
+			new_diff = obs.spec[:,:,ind_min:ind_max] - corrected_spec[:,:,ind_min:ind_max,1:]
+			new_diff[:,:,:] *= init.weights
+			for s in range(4):
+				new_diff[:,:,:,s] /= noise
+			chi2_new = np.sum(new_diff*new_diff, axis=(2,3)) / dof
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
 					if stop_flag[idx,idy]==0:
 						if chi2_new[idx,idy] > chi2_old[idx,idy]:
 							LM_parameter[idx,idy] *= 10
-							low_ind, up_ind = 0, 0
-							for parID in atmos.values:
-								low_ind = up_ind
-								up_ind += len(atmos.nodes[parID])
-								atmos.values[parID] -= proposed_steps[:,:,low_ind:up_ind]
-							# atmos.values = old_parameters
+							atmos.values = old_parameters
 						else:
-							chi2[i_] = chi2_new[idx,idy]
+							chi2[i_,idx,idy] = chi2_new[idx,idy]
 							LM_parameter[idx,idy] /= 10
-							# atmos.values = corrected_atmos.values
 							break_loop = True
 			
 			# we do searching for best LM parameter only in first iteration
 			# aftwerwards, we only go one time through this loop
-			N_search_for_lambda = 5
+			N_search_for_lambda = 3
 
 			# if we have changed Marquardt parameter, we go for new RF estimation
-			if break_loop:
+			if break_loop or j_==N_search_for_lambda-1:
+				for idx in range(obs.nx):
+					for idy in range(obs.ny):		
+						chi2[i_] = chi2_new[idx,idy]
 				break
 
 		print(atmos.values)
-		print(LM_parameter[0,0])
-		# print(np.log10(chi2[i_]))
+		print(LM_parameter)
 
+		# if Marquardt parameter is to large, we break
 		if LM_parameter[0,0]<=1e-5:
 			LM_parameter[0,0] = 1e-5
-		if LM_parameter[0,0]>=1e10:
+		if LM_parameter[0,0]>=1e8:
+			print("\nToo large Marquardt parameter. We stop here.\n")
+			break
+
+		# sada imam reduced chi2 i lepo pada i ima smislene vrednosti, ~100, pa do 0 :)
+		# izmeni proveru chi2 kada je konvergirao
+
+		# we check if chi2 has converged for each pixel
+		# if yes, we set stop_flag to 1 (True)
+		# if (i_+1)>=5:
+		# 	for idx in range(obs.nx):
+		# 		for idy in range(obs.ny):
+		# 			relative_change = 1 - chi2[i_,idx,idy]/chi2[i_-1,idx,idy]
+		# 			if relative_change<init.chi2_tolerance:
+		# 				stop_flag[idx,idy] = 1
+
+		# if all pixels have converged, we stop inversion
+		if np.sum(stop_flag)==(obs.nx*obs.ny):
+			print("\nChi2 has converged for all pixels!\n")
 			break
 
 		print("--------------------------------------------------\n")
+
+	plt.plot(chi2[:,0,0])
+	plt.show()
 
 	fix, axs = plt.subplots(nrows=2, ncols=2)
 

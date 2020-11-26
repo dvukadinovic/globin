@@ -5,7 +5,7 @@ Contributors:
 17/09/2020 : started writing the code (readme file, structuring)
 12/10/2020 : wrote down reading of atmos in .fits format and sent
 			 calculation to different process
-##/10/2020 : rewriten class Atmosphere
+15/11/2020 : rewriten class Atmosphere
 """
 
 import subprocess as sp

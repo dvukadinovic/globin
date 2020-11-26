@@ -30,7 +30,7 @@ COMMENT_CHAR = "#"
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000,10000], 
 				"vz"    : [-10, 10],
-				"mag"   : [1, 5000],
+				"mag"   : [1/1e4, 5000/1e4],
 				"gamma" : [-np.pi/2, np.pi/2],
 				"chi"   : [-np.pi, np.pi],
 				"vmic"  : [-10,10]}
@@ -236,6 +236,13 @@ class InputData(object):
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
 			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
+			self.chi2_tolerance = find_value_by_key("chi2_tolerance", text, "default", 1e-2, float)
+			values = find_value_by_key("weights", text, "default", [1,1,1,1])
+			if type(values)==str:
+				values = values.split(",")
+				self.weights = [float(item) for item in values]
+			else:
+				self.weights = values
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
