@@ -3,17 +3,23 @@
 Development version of code for inversion of atomic and atmospheric parameters
 simultaneously.
 
+## Installation
+
+Install package in editable mode:
+
+'pip3 install -e /path/to/package'
+
 ## Synthesis
 
 For simple synthesis we requiere two parameters: atmosphere and number of
 threads for computations to use. Also, we are requiered and to write
-wavelength grid data on which we want to synthesise spectrum.
+wavelength grid data on which we want to synthesise spectrum (old).
 
 ## Inversion
 
 In inversion case we need observations, nodes and values of parameters in
 nodes. Wavelength grid is determined from observations (we assume that
-wavelength grid is stored with observations).
+wavelength grid is stored with observations; old).
 
 ## Input files
 
@@ -27,24 +33,36 @@ File is structured in following sections:
 	2. fitting parameters
 	3. input data files (spectra, atmosphere)
 
+(old)
+
+## ToDo
+
+* add stop criterion in inversion based on Chi2 values
+* add inversion for OF parameters
+* make test folder:
+	* for synthesis
+	* inversion of atmospheric parameters
+	* inversion of atmospheric + OF parameters
+* read atomic parameter line list
+* extend Atmosphere() to hold and AtomicLine() class
+* calculate RF for atomic parameters (log(gf) and wavelength)
+* invert for one line for log(gf)
+
 ## Rewritings
 
 Rewrite output routines from RH of output spectrum? To write out only spectrum
 at highest mu?
 
-## Buggs
-
-When I am doing synthesis I am grabbing 'atm' object for synthesis. Rewrite
-function for synthesis to load only neccessary data. 
-
 ## Requierments
 
 subprocess>=
 multiprocessing>=
-emcee>=
 astropy>=
 os>=
 sys>=
 time>=
 copy>=
-rh...
+numpy>=
+matplotlib>=
+time>=
+rh == io, xdrlib

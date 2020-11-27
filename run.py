@@ -12,11 +12,11 @@ in_data.read_input_files()
 # list of all class variables
 # var = vars(in_data)
 
-#--- inversion
+# --- inversion
 globin.invert(in_data); sys.exit()
 
 #--- spectrum synthesis example
-# spec = globin.compute_spectra(in_data, in_data.ref_atm, True, False)
+# spec = globin.compute_spectra(in_data, in_data.ref_atm, False, False)
 
 # fix, axs = plt.subplots(nrows=2, ncols=2)
 

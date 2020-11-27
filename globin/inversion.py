@@ -47,7 +47,6 @@ def invert(init):
 		noise_lvl = init.noise * StokesI_cont
 		noise_scaling = np.sqrt(obs.data[:,:,ind_min:ind_max,1] / StokesI_cont)
 		noise = noise_lvl * noise_scaling
-		print(noise.shape)
 	else:
 		noise = np.ones((obs.nx, obs.ny, ind_max-ind_min))
 
@@ -61,6 +60,7 @@ def invert(init):
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec = globin.compute_rfs(init)
+		rf = rf[:,:,:,ind_min:ind_max,:]
 
 		diff = obs.spec[:,:,ind_min:ind_max] - spec[:,:,ind_min:ind_max,1:]
 		diff[:,:,:] *= init.weights
@@ -68,7 +68,7 @@ def invert(init):
 		for s in range(4):
 			diff[:,:,:,s] /= noise
 			for parID in range(Npar):
-				rf[:,:,parID,ind_min:ind_max,s] /= noise
+				rf[:,:,parID,:,s] /= noise
 		chi2_old = np.sum(diff*diff, axis=(2,3)) / dof
 
 		# Jacobian matrix
@@ -76,7 +76,7 @@ def invert(init):
 			for idy in range(obs.ny):
 				if stop_flag[idx,idy]==0:
 					for parID in range(Npar):
-						jacobian[idx,idy,:,parID] = rf[idx,idy,parID,ind_min:ind_max].flatten()
+						jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
 
 		# is this correct? 
 		jacobian_t = jacobian.T
