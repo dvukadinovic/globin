@@ -9,6 +9,26 @@ import sys
 in_data = globin.InputData()
 in_data.read_input_files()
 
+# ref_atm = in_data.ref_atm
+# obs = in_data.obs
+# atmos = in_data.atm
+# # atmos.values["temp"] = np.array([[[4689.73, 5040.14, 6064.97, 7382.31]]])
+# # atmos.values["temp"] = np.array([[[4595, 5111, 5982, 7217]]])
+# atmos.values["temp"] = np.array([[[4632.3472, 5080.4663, 6002.3629, 7187.6837]]])
+# atmos.build_from_nodes(ref_atm)
+
+# # spec = globin.compute_spectra(in_data, atmos, False, False)
+
+# # plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
+# # plt.plot(in_data.wavelength, obs.data[0,0,:-1,1])
+
+# plt.figure(2)
+# plt.plot(ref_atm.data[0,0,0], ref_atm.data[0,0,1])
+# plt.plot(atmos.data[0,0,0], atmos.data[0,0,1])
+# plt.show()
+
+# sys.exit()
+
 # list of all class variables
 # var = vars(in_data)
 

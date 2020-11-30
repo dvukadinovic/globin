@@ -20,19 +20,19 @@ weights = 1,1,1,1
 spectrum = obs.fits
 
 #--- Parameter nodes and values
-#nodes_temp = -2.8, -1.2, -0.3, 0.3
-#nodes_temp_values = 4600, 5250, 6200, 7400
+nodes_temp = -2.3, -1.1, -0.3, 0.3
+nodes_temp_values = 4595, 5111, 5982, 7217
 
-nodes_vz = -0.3
-nodes_vz_values = -0.2
+nodes_vz = -2, -0.3
+nodes_vz_values = 0.5, -0.2
 
-nodes_mag = -1.8, -0.3
-nodes_mag_values = 100, 300
+#nodes_mag = -1.5, -0.5
+#nodes_mag_values = 1000, 300
 
-#nodes_gamma = -2, 0
+#nodes_gamma = -1.5, -0.5
 #nodes_gamma_values = 40, 50
 
-#nodes_chi = -2, 0
+#nodes_chi = -1.5, -0.5
 #nodes_chi_values = 40, 45
 
 #--- Opacity fudge parameters
@@ -48,9 +48,9 @@ wave_step = 0.010
 # wave_grid = wave.grid
 
 #--- Levenberg-Marquardt parameters
-marq_lambda = 1e-1
-max_iter = 30
-chi2_tolerance = 1e-4
+marq_lambda = 1e1
+max_iter = 40
+chi2_tolerance = 1e-3
 
 #--- Parameters to be fitted (uh... be patient)
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters

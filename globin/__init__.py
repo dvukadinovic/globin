@@ -128,18 +128,18 @@ from scipy.interpolate import splrep, splev
 # 	"""
 # 	return 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
 
-# #--- FAL C model (ref.): reference model if not given otherwise
-# falc = Atmosphere(__path__ + "/data/falc.dat")
+#--- FAL C model (ref.): reference model if not given otherwise
+falc = Atmosphere(__path__ + "/data/falc.dat")
 
-# # Hydrogen level population + interpolation
+# Hydrogen level population + interpolation
 # falc_hydrogen_pops, falc_hydrogen_lvls_tcks = hydrogen_lvl_pops(falc.data[0], falc.data[2], falc.data[3], falc.data[4])
 
-# # electron concentration [m-3] + interpolation
+# electron concentration [m-3] + interpolation
 # falc_ne = falc.data[4]/10/K_BOLTZMAN/falc.data[2] / 1e6
 # ne_tck = splrep(falc.data[0], falc_ne)
 
-# # temperature interpolation
-# temp_tck = splrep(falc.data[0],falc.data[2])
+# temperature interpolation
+temp_tck = splrep(falc.data[0],falc.data[2])
 
 #===--- end ---====#
 
@@ -240,9 +240,9 @@ class InputData(object):
 			values = find_value_by_key("weights", text, "default", [1,1,1,1])
 			if type(values)==str:
 				values = values.split(",")
-				self.weights = [float(item) for item in values]
+				self.weights = np.array([float(item) for item in values])
 			else:
-				self.weights = values
+				self.weights = np.array(values)
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
