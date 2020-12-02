@@ -9,22 +9,20 @@ import sys
 in_data = globin.InputData()
 in_data.read_input_files()
 
-# ref_atm = in_data.ref_atm
-# obs = in_data.obs
+#--- create atmos from nodes
 # atmos = in_data.atm
-# # atmos.values["temp"] = np.array([[[4689.73, 5040.14, 6064.97, 7382.31]]])
-# # atmos.values["temp"] = np.array([[[4595, 5111, 5982, 7217]]])
-# atmos.values["temp"] = np.array([[[4632.3472, 5080.4663, 6002.3629, 7187.6837]]])
-# atmos.build_from_nodes(ref_atm)
+# obs = in_data.obs
+# atmos.build_from_nodes(in_data.ref_atm)
 
-# # spec = globin.compute_spectra(in_data, atmos, False, False)
+# spec, atm = globin.compute_spectra(in_data, atmos, True, True)
 
-# # plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
-# # plt.plot(in_data.wavelength, obs.data[0,0,:-1,1])
+# new_atmos = globin.Atmosphere()
+# new_atmos.data = atm
+# globin.visualize.plot_atmosphere(new_atmos)
+# new_atmos.save_cube("atmosphere_from_nodes.fits")
 
-# plt.figure(2)
-# plt.plot(ref_atm.data[0,0,0], ref_atm.data[0,0,1])
-# plt.plot(atmos.data[0,0,0], atmos.data[0,0,1])
+# plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
+# plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
 # plt.show()
 
 # sys.exit()
@@ -74,8 +72,11 @@ globin.invert(in_data); sys.exit()
 # sys.exit()
 
 #--- RF clauclation test
-# rf, _ = globin.atmos.compute_full_rf(in_data)
+# rf,_,_ = globin.atmos.compute_full_rf(in_data)
 
+# sys.exit()
+
+# RFs shape : (nx, ny, npar, nz, nw, 4)
 rf = fits.open("rf.fits")[0].data
 logtau = np.round(in_data.ref_atm.data[0,0,0], 2)
 wavs = np.round((in_data.wavelength - 401.6)*10, 2)
@@ -83,30 +84,59 @@ wavs = np.round((in_data.wavelength - 401.6)*10, 2)
 xpos = np.arange(rf.shape[4])
 ypos = np.arange(rf.shape[3])
 
-J = rf[0,0,0,:,:,0].T
-JT = J.T
-JTJ = np.dot(JT,J)
+rf = rf[0,0]
 
-lam = 1e-3
-H = JTJ
-np.fill_diagonal(H, np.diag(JTJ)*(1+lam))
+fig = plt.figure(figsize=(12,12))
 
-# plt.imshow(np.linalg.inv(H))
-# plt.imshow(np.log10(H))
-# plt.show()
-# sys.exit()
+sid = 0
+for sid in range(4):
+	#--- RF plot for Temperature
+	matrix = rf[0,:,:,sid]
+	vmax = np.max(np.abs(matrix))
 
-fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(12,6))
+	if sid>0:
+		cmap, vmax, vmin = "seismic", vmax, -vmax
+	else:
+		cmap, vmax, vmin = "gnuplot", vmax, 0
 
-plt.setp(axs, xticks=xpos[::25], xticklabels=wavs[::25],
-    yticks=ypos[::3], yticklabels=logtau[::3])
+	# plt.subplot(4,3,sid*3+1)
+	# if sid==0:
+	# 	plt.title("Temperature RF")
+	# plt.imshow(matrix, aspect="auto", cmap=cmap, vmax=vmax, vmin=vmin)
+	# plt.xticks(xpos[::50], wavs[::50])
+	# plt.yticks(ypos[::5], logtau[::5])
+	# plt.ylim([65,21])
+	# plt.colorbar()
 
-vmax = np.max(np.abs(rf[0,0,2,:,:,3]))
-rf_temp = axs[0].imshow(rf[0,0,2,:,:,3], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
-plt.colorbar(rf_temp, ax=axs[0])
+	#--- RF plot for magnetic field strength
+	# matrix = rf[2,:,:,sid]
+	matrix = rf[3,:,:,sid]
+	vmax = np.max(np.abs(matrix))
 
-vmax = np.max(np.abs(rf[0,0,4,:,:,1]))
-rf_vz = axs[1].imshow(rf[0,0,4,:,:,1], aspect="auto", cmap="bwr", vmax=vmax, vmin=-vmax)
-plt.colorbar(rf_vz, ax=axs[1])
+	plt.subplot(4,3,sid*3+2)
+	if sid==0:
+		# plt.title("Magnetic field RF")
+		plt.title("Inclination")
+	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+	plt.xticks(xpos[::50], wavs[::50])
+	plt.yticks(ypos[::5], logtau[::5])
+	plt.ylim([65,21])
+	plt.colorbar()
 
+	# #--- RF plot for vertical velocity
+	# matrix = rf[1,:,:,sid]
+	matrix = rf[4,:,:,sid]
+	vmax = np.max(np.abs(matrix))
+	
+	plt.subplot(4,3,sid*3+3)
+	if sid==0:
+		# plt.title("Vertical velocity RF")
+		plt.title("Azimuth")
+	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+	plt.xticks(xpos[::50], wavs[::50])
+	plt.yticks(ypos[::5], logtau[::5])
+	plt.ylim([65,21])
+	plt.colorbar()
+
+# plt.savefig("rf_from_nodes.png")
 plt.show()

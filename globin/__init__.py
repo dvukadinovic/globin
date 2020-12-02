@@ -19,6 +19,7 @@ from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosph
 from .spec import Observation
 from .inversion import invert
 from . import tools
+from . import visualize
 
 __all__ = ["rh", "atmos", "invert", "spec", "tools"]
 __name__ = "globin"
@@ -159,7 +160,7 @@ class InputData(object):
 		self.atm = Atmosphere()
 		# reference atmosphere
 		self.ref_atm = None
-		self.spectrum_path = "spec.fits"
+		self.spectrum_path = "spectrum.fits"
 
 	# def __str__(self):
 	# 	pass
@@ -208,7 +209,7 @@ class InputData(object):
 			self.ref_atm = Atmosphere(path_to_atmosphere)
 			
 			#--- default parameters
-			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spec.fits")
+			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
 			
 			#--- optional parameters
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
@@ -364,6 +365,7 @@ class InputData(object):
 
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
+		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
 
 		if self.wave_grid_path is None:
 			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)

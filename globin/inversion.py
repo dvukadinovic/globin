@@ -4,69 +4,6 @@ import copy
 
 import globin
 
-def search_best_lambda(init, chi2_old, obs, atmos, diff, jacobian, jacobian_t, LM_parameter, noise, N_search_for_lambda, ind_min, ind_max):
-	stop_flag = np.zeros((obs.nx, obs.ny))
-	proposed_steps = np.zeros((obs.nx, obs.ny))
-	dof = 4 * (ind_max-ind_min)
-
-	for j_ in range(N_search_for_lambda):
-		# solve LM equation for new parameter steps
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				if stop_flag[idx,idy]==0:
-					JTJ = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
-					hessian = JTJ
-					diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
-					np.fill_diagonal(hessian, diagonal_elements)
-					delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
-					proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian), delta)
-		# print(proposed_steps[idx,idy])
-
-		old_parameters = copy.deepcopy(atmos.values)
-		low_ind, up_ind = 0, 0
-		for parID in atmos.values:
-			low_ind = up_ind
-			up_ind += len(atmos.nodes[parID])
-			atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind]
-		atmos.check_parameter_bounds()
-
-		atmos.build_from_nodes(init.ref_atm)
-		corrected_spec = globin.compute_spectra(init, atmos)
-
-		new_diff = obs.spec[:,:,ind_min:ind_max] - corrected_spec[:,:,ind_min:ind_max,1:]
-		new_diff[:,:,:] *= init.weights
-		for s in range(4):
-			new_diff[:,:,:,s] /= noise
-		chi2_new = np.sum(new_diff*new_diff, axis=(2,3)) / dof
-
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				if stop_flag[idx,idy]==0:
-					if chi2_new[idx,idy] > chi2_old[idx,idy]:
-						LM_parameter[idx,idy] *= 10
-						atmos.values = old_parameters
-					else:
-						chi2[i_,idx,idy] = chi2_new[idx,idy]
-						LM_parameter[idx,idy] /= 10
-						break_loop = True
-
-		# if we have changed Marquardt parameter, we go for new RF estimation
-		if break_loop:
-			break
-
-def multiply_matrices(A,B):
-	"""
-	Multiply matrices elemnt-wise.
-
-	Here A is differnece between observed and computed spectra or response
-	functions.
-
-	Matrix B is weights (4 values for 4 Stokes components) or wavelength
-	dependent noise (nx, ny, nw).
-	"""
-	shape = A.shape
-
-
 def invert(init):
 	"""
 	As input we expect all data to be present :)
@@ -84,8 +21,8 @@ def invert(init):
 	obs = init.obs
 	atmos = init.atm
 
-	# print("Initial parameters: ", atmos.values)
-	# print()
+	print("Initial parameters: ", atmos.values)
+	print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny)) * init.marq_lambda
 	svd_tolerance = 1e-4 # not used currently
@@ -96,10 +33,12 @@ def invert(init):
 	Nw = len(init.wavelength)
 	Npar = atmos.free_par
 
+	if Npar==0:
+		sys.exit("We do not have any parameters to fit.\n   We exit.\n")
+
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
 	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
-	Nw = ind_max - ind_min
 
 	# matrices for solveing LS equation
 	jacobian = np.zeros((obs.nx, obs.ny, Nw*4, Npar))
@@ -107,29 +46,34 @@ def invert(init):
 	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	
 	# casting noise and weights in appropriate dimensions
-	noise_for_diff = np.zeros((obs.nx, obs.ny, ind_max-ind_min, 4))
-	noise_for_rf = np.zeros((obs.nx, obs.ny, Npar, ind_max-ind_min, 4))
-	weights_for_diff = np.ones((obs.nx, obs.ny, ind_max-ind_min, 4))
-	weights_for_rf = np.ones((obs.nx, obs.ny, Npar, ind_max-ind_min, 4))
+	noise_for_chi2 = np.zeros((obs.nx, obs.ny, Nw, 4))
+	noise_scale_for_diff = np.zeros((obs.nx, obs.ny, Nw, 4))
+	noise_scale_for_rf = np.zeros((obs.nx, obs.ny, Npar, Nw, 4))
+	
+	weights_for_diff = np.ones((obs.nx, obs.ny, Nw, 4))
+	weights_for_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4))
 
+	noise = np.ones((obs.nx, obs.ny, Nw))
+	noise_scaling = np.ones((obs.nx, obs.ny, Nw))
 	if init.noise!=0:
 		StokesI_cont = obs.data[:,:,ind_min,1]
 		noise_lvl = init.noise * StokesI_cont
-		noise_scaling = np.sqrt(obs.data[:,:,ind_min:ind_max,1] / StokesI_cont)
-		noise = noise_lvl * noise_scaling
-	else:
-		noise = np.ones((obs.nx, obs.ny, ind_max-ind_min))
+		for idx in range(obs.nx):
+			for idy in range(obs.ny):
+				noise_scaling[idx,idy] = np.sqrt(obs.data[idx,idy,ind_min:ind_max,1] / StokesI_cont[idx,idy])
+				noise[idx,idy] = noise_lvl[idx,idy] * noise_scaling[idx,idy]
 
 	for i_ in range(4):
-		noise_for_diff[:,:,:,i_] = noise
+		noise_for_chi2[:,:,:,i_] = noise
+		noise_scale_for_diff[:,:,:,i_] = noise_scaling
 		weights_for_diff[:,:,:,i_] = init.weights[i_]
 		for j_ in range(Npar):
-			noise_for_rf[:,:,j_,:,i_] = noise
+			noise_scale_for_rf[:,:,j_,:,i_] = noise_scaling
 			weights_for_rf[:,:,j_,:,i_] = init.weights[i_]
 
 	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny))
 	N_search_for_lambda = 5
-	dof = 4 * (ind_max-ind_min)
+	dof = np.count_nonzero(init.weights) * (Nw)
 
 	itter = 0
 	for i_ in range(init.max_iter):
@@ -137,13 +81,39 @@ def invert(init):
 		
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
-		rf, spec = globin.compute_rfs(init)
-		rf = rf[:,:,:,ind_min:ind_max,:]
+		rf, spec, atm = globin.compute_rfs(init)
 
-		diff = obs.spec[:,:,ind_min:ind_max] - spec[:,:,ind_min:ind_max,1:]
-		diff *= weights_for_diff / noise_for_diff
-		rf *= weights_for_rf / noise_for_rf
-		chi2_old = np.sum(diff*diff, axis=(2,3)) / dof
+		# atmos.build_from_nodes(init.ref_atm)
+		# plt.figure(1)
+		# plt.plot(atm[0,0,0], atm[0,0,1]-atmos.data[0,0,1])
+		
+		# plt.figure(2)
+		# plt.plot(atmos.data[0,0,0], np.log10(atm[0,0,2]) - np.log10(atmos.data[0,0,2]))
+
+		# plt.figure(3)
+		# plt.plot(atm[0,0,0], atm[0,0,3]-atmos.data[0,0,3])
+
+		# plt.figure(4)
+		# plt.plot(atm[0,0,0], atm[0,0,4]-atmos.data[0,0,4])
+
+		# plt.figure(5)
+		# plt.plot(atm[0,0,0], atm[0,0,6]-atmos.data[0,0,6])
+
+		# plt.figure(6)
+		# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+		# plt.plot(obs.data[0,0,:,0], obs.data[0,0,:,1])
+		
+		# plt.plot(rf[0,0,:,:,0].T)
+
+		# plt.show()
+
+		diff = obs.spec - spec[:,:,:,1:]
+		diff *= weights_for_diff
+		chi2_old = np.sum(diff*diff / noise_for_chi2 / noise_for_chi2, axis=(2,3)) / dof
+		diff *= 1/noise_scale_for_diff
+		# chi2_old = np.sum(diff*diff, axis=(2,3)) / dof
+		
+		rf *= weights_for_rf / noise_scale_for_rf
 
 		# Jacobian matrix
 		for idx in range(obs.nx):
@@ -183,11 +153,12 @@ def invert(init):
 			atmos.check_parameter_bounds()
 
 			atmos.build_from_nodes(init.ref_atm)
-			corrected_spec = globin.compute_spectra(init, atmos)
+			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
 
-			new_diff = obs.spec[:,:,ind_min:ind_max] - corrected_spec[:,:,ind_min:ind_max,1:]
-			new_diff *= weights_for_diff / noise_for_diff
-			chi2_new = np.sum(new_diff*new_diff, axis=(2,3)) / dof
+			new_diff = obs.spec - corrected_spec[:,:,:,1:]
+			new_diff *= weights_for_diff
+			chi2_new = np.sum(new_diff*new_diff / noise_for_chi2 / noise_for_chi2, axis=(2,3)) / dof	
+			# chi2_new = np.sum(new_diff*new_diff, axis=(2,3)) / dof	
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
@@ -239,13 +210,13 @@ def invert(init):
 						print("chi2 smaller than 1")
 						stop_flag[idx,idy] = 1
 
-			# if all pixels have converged, we stop inversion
-			if np.sum(stop_flag)==(obs.nx*obs.ny):
-				break
+		# if all pixels have converged, we stop inversion
+		if np.sum(stop_flag)==(obs.nx*obs.ny):
+			break
 
 		print("\n--------------------------------------------------\n")
 
-	fname = "invert_temp_vz"
+	fname = "invert_temp_vz_mag"
 
 	if init.noise!=0:
 		noise = int(abs(np.log10(init.noise)))

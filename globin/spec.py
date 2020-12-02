@@ -30,5 +30,15 @@ class Observation(object):
 		self.spec = hdu.data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 
+class Spectrum(object):
+	"""
+
+	Custom class for storing computed spectra object. It is rebuilt from RH
+	class.
+
+	"""
+	def __init__(self):
+		self.data = None
+
 def plot_stokes():
 	pass

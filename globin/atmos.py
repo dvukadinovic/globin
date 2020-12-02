@@ -43,6 +43,7 @@ class Atmosphere(object):
 		
 		self.par_id = {"logtau" : 0,
 					   "temp"   : 1,
+					   "ne"     : 2,
 					   "vz"     : 3,
 					   "vmic"   : 4,
 					   "mag"    : 5,
@@ -92,6 +93,7 @@ class Atmosphere(object):
 		new.values = copy.deepcopy(self.values)
 		new.par_id = copy.deepcopy(self.par_id)
 		new.free_par = copy.deepcopy(self.free_par)
+	
 		return new
 
 	def __str__(self):
@@ -247,10 +249,10 @@ class Atmosphere(object):
 					fun = interp1d(x_old, ref_atm.data[idx,idy,parID])
 					self.data[idx,idy,parID] = fun(x_new)
 
-	def save_cube(self):
+	def save_cube(self, fpath="inverted_atmos.fits"):
 		primary = fits.PrimaryHDU(self.data)
 		hdulist = fits.HDUList([primary])
-		hdulist.writeto("inverted_atmos.fits", overwrite=True)
+		hdulist.writeto(fpath, overwrite=True)
 
 	def check_parameter_bounds(self):
 		for parID in self.values:
@@ -299,6 +301,38 @@ def write_multi_atmosphere(atm, fpath):
 
 	# store now and magnetic field vector
 	globin.rh.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
+
+def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
+	Nw = len(wavelength)
+	spectra = np.zeros((Nx, Ny, Nw, 5))
+	atmospheres = np.zeros((Nx, Ny, 14, Nz))
+	for item in lista:
+		if item is not None:
+			rh_obj, idx, idy = item.values()
+
+			ind_min = np.argmin(abs(rh_obj.wave - wavelength[0]))
+			ind_max = np.argmin(abs(rh_obj.wave - wavelength[-1]))+1
+
+			# Stokes vector
+			spectra[idx,idy,:,0] = wavelength
+			spectra[idx,idy,:,1] = rh_obj.imu[-1][ind_min:ind_max]
+			spectra[idx,idy,:,2] = rh_obj.stokes_Q[-1][ind_min:ind_max]
+			spectra[idx,idy,:,3] = rh_obj.stokes_U[-1][ind_min:ind_max]
+			spectra[idx,idy,:,4] = rh_obj.stokes_V[-1][ind_min:ind_max]
+
+			# Atmospheres
+			atmospheres[idx,idy,0] = np.log10(rh_obj.geometry["tau500"])
+			atmospheres[idx,idy,1] = rh_obj.atmos["T"]
+			atmospheres[idx,idy,2] = rh_obj.atmos["n_elec"] / 1e6 # [1/cm3 --> 1/m3]
+			atmospheres[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  # [m/s --> km/s]
+			atmospheres[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  # [m/s --> km/s]
+			atmospheres[idx,idy,5] = rh_obj.atmos["B"]# * 1e4      # [T --> G]
+			atmospheres[idx,idy,6] = rh_obj.atmos["gamma_B"]  # [rad --> deg]
+			atmospheres[idx,idy,7] = rh_obj.atmos["chi_B"]    # [rad --> deg]
+			for i_ in range(rh_obj.atmos['nhydr']):
+				atmospheres[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
+
+	return spectra, atmospheres 
 
 def pool_distribute(arg):
 	"""
@@ -356,11 +390,11 @@ def pool_distribute(arg):
 				elif keyword=="STOKES_INPUT":
 					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
 				#--- set to read old J.dat file
-				elif keyword=="STARTING_J":
-					if set_old_J:
-						lines[i_] = "  STARTING_J      = OLD_J\n"
-					else:
-						lines[i_] = "  STARTING_J      = NEW_J\n"
+				# elif keyword=="STARTING_J":
+				# 	if set_old_J:
+				# 		lines[i_] = "  STARTING_J      = OLD_J\n"
+				# 	else:
+				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
 
 	out = open(f"../pid_{pid}/{globin.rh_input}","w")
 	out.writelines(lines)
@@ -368,13 +402,13 @@ def pool_distribute(arg):
 
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
-	out_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
 	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {globin.rh_input}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	stdout = str(out.stdout,"utf-8").split("\n")
-	out_file.writelines(str(out.stdout, "utf-8"))
-	out_file.close()
+	log_file.writelines(str(out.stdout, "utf-8"))
+	log_file.close()
 
+	stdout = str(out.stdout,"utf-8").split("\n")
 	if out.returncode!=0:
 		print("*** RH error")
 		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).")
@@ -383,13 +417,13 @@ def pool_distribute(arg):
 			print("   ", line)
 		return None
 	
-	spec = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
-	spec.read_spectrum(spec_name)
+	rh_obj = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
+	rh_obj.read_spectrum(spec_name)
 
 	dt = time.time() - start
 	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 	
-	return {"spectra":spec, "idx":int(idx), "idy":int(idy)}
+	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
 def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	"""
@@ -434,51 +468,49 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	specs = init.pool.map(func=pool_distribute, iterable=args)
+	rh_obj_list = init.pool.map(func=pool_distribute, iterable=args)
 	
 	#--- exit if all spectra returned from child process are None (failed synthesis)
 	kill = True
-	for item in specs:
+	for item in rh_obj_list:
 		kill = kill and (item is None)
 		if not kill:
 			break
 	if kill:
 		sys.exit("--> Spectrum synthesis on all pixels have failed!")
+	
+	#--- extract data cubes of spectra and atmospheres from finished synthesis
+	spectra, atmospheres = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz, init.wavelength)
 
-	spec_cube = save_spectra(specs, init.ref_atm.nx, init.ref_atm.ny, init.spectrum_path, save=save)
+	#--- save spectral cube to fits file
+	if save:
+		save_spectra(spectra, init.spectrum_path)
 
 	#--- delete thread directories (save them if you want to use previous run J)
 	if clean_dirs:
 		for threadID in range(n_thread):
-			sp.run(f"rm -r ../pid_{threadID+1}",
+			out = sp.run(f"rm -r ../pid_{threadID+1}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+			if out.returncode!=0:
+				print(f"error whilw removing directory '../pid_{threadID+1}'")
 
-	return spec_cube
+	return spectra, atmospheres
 
-def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
+def save_spectra(spectra, fpath="spectra.fits"):
 	"""
 	Get list of spectra computed for every pixel and store them in fits file.
 	Spectra for pixels which are not computed, we set to 0.
 
 	Parameters:
 	---------------
-	specs : list
+	spectra : list
 		List of dictionaries with fields 'spectra', 'idx' and 'idy'.
 		Spectrum in dictionary is Rhout() class object and 'idx' and 'idy'
 		are pixel positions in the atmosphere cube to which given spectrum
 		coresponds.
 
-	nx : int
-		Number of pixels along x-axis in atmosphere cube.
-
-	ny : ind
-		Number of pixels along y-axis in atmosphere cube.
-
 	fpath : string (optional)
 		Name of the output file. Default is "spectra.fits".
-
-	save : bool (optional)
-		Flag for saving the spectrum to disk. Default is False.
 
 	Returns:
 	---------------
@@ -490,41 +522,19 @@ def save_spectra(specs, nx, ny, fpath="spectra.fits", save=False):
 	---------------
 	make fits header with additional info
 	"""
-	created_array = False
-	for item in specs:
-		if item is not None:
-			if not created_array:
-				wavs = item["spectra"].wave
-				spectra = np.zeros((nx, ny, len(wavs), 5))
-				spectra[:,:,:,0] = wavs
-				created_array = True
-			spec, idx, idy = item["spectra"], item["idx"], item["idy"]
-			spectra[idx,idy,:,1] = spec.imu[-1]
-			spectra[idx,idy,:,2] = spec.stokes_Q[-1]
-			spectra[idx,idy,:,3] = spec.stokes_U[-1]
-			spectra[idx,idy,:,4] = spec.stokes_V[-1]
-
-	if save:
-		primary = fits.PrimaryHDU(spectra)
-		hdulist = fits.HDUList([primary])
-		hdulist.writeto(fpath, overwrite=True)
-
-	return spectra
+	primary = fits.PrimaryHDU(spectra)
+	hdulist = fits.HDUList([primary])
+	hdulist.writeto(fpath, overwrite=True)
 
 def compute_rfs(init):
-	import matplotlib.pyplot as plt
-
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
 	atmos.build_from_nodes(init.ref_atm)
 
-	spec = compute_spectra(init, atmos)
-
-	# solve HS equation to get electron concentration
-	# and store data in atmos.data
+	spec, atm = compute_spectra(init, atmos, False, True)
 
 	#--- get current iteration atmosphere
-	logtau = atmos.logtau # atmos.data[0,0,atmos.par_id["logtau"]]
+	logtau = atmos.logtau
 	dtau = logtau[1] - logtau[0]
 
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
@@ -534,33 +544,38 @@ def compute_rfs(init):
 			 "vz"    : 10/1e3, # m/s --> km/s
 			 "vmic"  : 10/1e3, # m/s --> km/s
 			 "mag"   : 25/1e4, # G --> T
-			 "gamma" : 0.01,   # rad
-			 "chi"   : 0.01}   # rad
+			 "gamma" : 0.001,  # rad
+			 "chi"   : 0.001}  # rad
 
-	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(spec[0,0,:,0]), 4))
+	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(init.wavelength), 4))
+
+	import matplotlib.pyplot as plt
 
 	free_par_ID = 0
 	for i_,parameter in enumerate(atmos.nodes):
 		parID = atmos.par_id[parameter]
 
 		nodes = atmos.nodes[parameter]
+		# print(nodes)
 		values = atmos.values[parameter]
 		
 		perturbation = delta[parameter]
 
 		for nodeID in range(len(nodes)):
-			zID = np.argmin(abs(logtau-nodes[nodeID]))
+			zID = np.argmin(np.abs(logtau-nodes[nodeID]))
 
 			model_plus.data[:,:,parID,zID] += perturbation
 			model_plus.write_atmosphere()
-			spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
+			spec_plus,_ = compute_spectra(init, model_plus, clean_dirs=True)
 
-			# ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
-			# ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))+1
-			# ind_max = ind_min + nw
-			
-			# diff = spec_plus[:,:,ind_min:ind_max,1:] - spec[:,:,ind_min:ind_max,1:]
 			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
+
+			# plt.plot(diff[0,0,:,0])
+
+			# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+			# plt.plot(spec_plus[0,0,:,0], spec_plus[0,0,:,1])
+
+			# plt.show()
 
 			rf[:,:,free_par_ID,:,:] = diff / perturbation # / dtau
 			free_par_ID += 1
@@ -568,24 +583,15 @@ def compute_rfs(init):
 			# remove perturbation from data
 			model_plus.data[:,:,parID,zID] -= perturbation
 
-	# fits.writeto("rf.fits", rf, overwrite=True)
-	# print("RF done!\n\n")
-
-	return rf, spec# [:,:,:,1:]
+	return rf, spec, atm
 
 def compute_full_rf(init):
-	import matplotlib.pyplot as plt
-
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.ref_atm
-	spec = compute_spectra(init, atmos)
+	spec, atm = compute_spectra(init, atmos)
 
-	# solve HS equation to get electron concentration
-	# and store data in atmos.data
-
-	#--- get current iteration atmosphere
-	logtau = atmos.logtau # atmos.data[0,0,atmos.par_id["logtau"]]
-	dtau = logtau[1] - logtau[0]
+	# globin.visualize.plot_atmosphere(atmos)
+	# return 0,0,0
 
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
@@ -594,11 +600,13 @@ def compute_full_rf(init):
 			 "vz"    : 10/1e3, # m/s --> km/s
 			 "vmic"  : 10/1e3, # m/s --> km/s
 			 "mag"   : 25/1e4, # G --> T
-			 "gamma" : 0.01,   # rad
-			 "chi"   : 0.01}   # rad
+			 "gamma" : 0.001,   # rad
+			 "chi"   : 0.001}   # rad
 
 	params = ["temp", "vz", "mag", "gamma", "chi"]
 	rf = np.zeros((atmos.nx, atmos.ny, len(params), atmos.nz, len(init.wavelength), 4))
+
+	import matplotlib.pyplot as plt
 
 	for i_, parameter in enumerate(params):
 		print(parameter)
@@ -608,18 +616,30 @@ def compute_full_rf(init):
 		for zID in range(atmos.nz):
 			model_plus.data[:,:,parID,zID] += perturbation
 			model_plus.write_atmosphere()
-			spec_plus = compute_spectra(init, model_plus, clean_dirs=False)
+			spec_plus,_ = compute_spectra(init, model_plus, clean_dirs=False)
 
-			ind_min = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[0]))
-			ind_max = np.argmin(abs(spec_plus[0,0,:,0] - init.wavelength[-1]))+1
-			
-			# diff = spec_plus[:,:,ind_min:ind_max,1:] - spec_minus[:,:,ind_min:ind_max,1:]
-			diff = spec_plus[:,:,ind_min:ind_max,1:] - spec[:,:,ind_min:ind_max,1:]
+			# plt.plot(atmos.data[0,0,0], atmos.data[0,0,parID])
+			# plt.plot(model_plus.data[0,0,0], model_plus.data[0,0,parID])
+			# plt.show()
+
+			# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+			# plt.plot(spec_plus[0,0,:,0], spec_plus[0,0,:,1])
+			# plt.show()
+
+			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
+
+			# plt.plot(diff[0,0,:,0])
+			# plt.show()
+
 			rf[:,:,i_,zID,:,:] = diff / perturbation # / dtau
 			
 			# remove perturbation from data
 			model_plus.data[:,:,parID,zID] -= perturbation
 
+	# plt.imshow(rf[0,0,0,:,:,0], aspect="auto")
+	# plt.colorbar()
+	# plt.show()
+
 	fits.writeto("rf.fits", rf, overwrite=True)
 
-	return rf, spec
+	return rf, spec, atm
