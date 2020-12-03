@@ -13,7 +13,7 @@ mode = 1
 
 #--- Spectra to be fitted
 observation = obs_from_nodes.fits
-noise = 1e-2
+noise = 1e-8
 weights = 1,1,1,1
 
 #--- Output spectra
@@ -29,8 +29,8 @@ nodes_vz_values = -1, 0
 nodes_mag = -2, -0.5
 nodes_mag_values = 100, 300
 
-#nodes_gamma = 0
-#nodes_gamma_values = 90
+nodes_gamma = 0
+nodes_gamma_values = 90
 
 #nodes_chi = 0
 #nodes_chi_values = 10

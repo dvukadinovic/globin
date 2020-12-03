@@ -74,7 +74,7 @@ globin.invert(in_data); sys.exit()
 #--- RF clauclation test
 # rf,_,_ = globin.atmos.compute_full_rf(in_data)
 
-# sys.exit()
+globin.visualize.plot_atmosphere(in_data.ref_atm)
 
 # RFs shape : (nx, ny, npar, nz, nw, 4)
 rf = fits.open("rf.fits")[0].data
@@ -86,7 +86,9 @@ ypos = np.arange(rf.shape[3])
 
 rf = rf[0,0]
 
-fig = plt.figure(figsize=(12,12))
+fig = plt.figure(figsize=(20,14))
+
+nrows, ncols = 4, 5
 
 sid = 0
 for sid in range(4):
@@ -99,44 +101,66 @@ for sid in range(4):
 	else:
 		cmap, vmax, vmin = "gnuplot", vmax, 0
 
-	# plt.subplot(4,3,sid*3+1)
-	# if sid==0:
-	# 	plt.title("Temperature RF")
-	# plt.imshow(matrix, aspect="auto", cmap=cmap, vmax=vmax, vmin=vmin)
-	# plt.xticks(xpos[::50], wavs[::50])
-	# plt.yticks(ypos[::5], logtau[::5])
-	# plt.ylim([65,21])
-	# plt.colorbar()
-
-	#--- RF plot for magnetic field strength
-	# matrix = rf[2,:,:,sid]
-	matrix = rf[3,:,:,sid]
-	vmax = np.max(np.abs(matrix))
-
-	plt.subplot(4,3,sid*3+2)
+	plt.subplot(nrows,ncols,sid*ncols+1)
 	if sid==0:
-		# plt.title("Magnetic field RF")
-		plt.title("Inclination")
-	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+		plt.title("T [K]")
+	plt.imshow(matrix, aspect="auto", cmap=cmap, vmax=vmax, vmin=vmin)
 	plt.xticks(xpos[::50], wavs[::50])
-	plt.yticks(ypos[::5], logtau[::5])
+	plt.yticks(ypos[::10], logtau[::10])
 	plt.ylim([65,21])
 	plt.colorbar()
 
-	# #--- RF plot for vertical velocity
-	# matrix = rf[1,:,:,sid]
+	#--- RF plot for vertical velocity
+	matrix = rf[1,:,:,sid]
+	vmax = np.max(np.abs(matrix))
+
+	plt.subplot(nrows,ncols,sid*ncols+2)
+	if sid==0:
+		plt.title(r"$v_z$ [km/s]")
+	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+	plt.xticks(xpos[::50], wavs[::50])
+	plt.yticks(ypos[::10], logtau[::10])
+	plt.ylim([65,21])
+	plt.colorbar()
+
+	#--- RF plot for magnetic field
+	matrix = rf[2,:,:,sid]
+	vmax = np.max(np.abs(matrix))
+	
+	plt.subplot(nrows,ncols,sid*ncols+3)
+	if sid==0:
+		plt.title("B [T]")
+	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+	plt.xticks(xpos[::50], wavs[::50])
+	plt.yticks(ypos[::10], logtau[::10])
+	plt.ylim([65,21])
+	plt.colorbar()
+
+	#--- RF plot for inclination
+	matrix = rf[3,:,:,sid]
+	vmax = np.max(np.abs(matrix))
+	
+	plt.subplot(nrows,ncols,sid*ncols+4)
+	if sid==0:
+		plt.title(r"$\gamma$ [rad]")
+	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
+	plt.xticks(xpos[::50], wavs[::50])
+	plt.yticks(ypos[::10], logtau[::10])
+	plt.ylim([65,21])
+	plt.colorbar()
+
+	#--- RF plot for azimuth
 	matrix = rf[4,:,:,sid]
 	vmax = np.max(np.abs(matrix))
 	
-	plt.subplot(4,3,sid*3+3)
+	plt.subplot(nrows,ncols,sid*ncols+5)
 	if sid==0:
-		# plt.title("Vertical velocity RF")
-		plt.title("Azimuth")
+		plt.title(r"$\chi$ [rad]")
 	plt.imshow(matrix, aspect="auto", cmap="seismic", vmax=vmax, vmin=-vmax)
 	plt.xticks(xpos[::50], wavs[::50])
-	plt.yticks(ypos[::5], logtau[::5])
+	plt.yticks(ypos[::10], logtau[::10])
 	plt.ylim([65,21])
 	plt.colorbar()
 
-# plt.savefig("rf_from_nodes.png")
-plt.show()
+plt.savefig("rf_from_nodes.png")
+# plt.show()
