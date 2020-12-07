@@ -161,7 +161,7 @@ class Atmosphere(object):
 		if self.verbose:
 			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-	def build_from_nodes(self, ref_atm):
+	def build_from_nodes(self, ref_atm, interp_degree):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -221,7 +221,7 @@ class Atmosphere(object):
 							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
 									Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
+					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
 					# plt.title(parameter)
@@ -300,7 +300,7 @@ def write_multi_atmosphere(atm, fpath):
 	out.close()
 
 	# store now and magnetic field vector
-	globin.rh.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
+	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 	Nw = len(wavelength)
@@ -360,7 +360,7 @@ def pool_distribute(arg):
     """
 	start = time.time()
 
-	atm_path, spec_name = arg
+	atm_path, spec_name, rh_input = arg
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
@@ -373,7 +373,7 @@ def pool_distribute(arg):
 		set_old_J = False
 
 	# lines = open(f"keyword.input", "r").readlines()
-	lines = open(globin.rh_input, "r").readlines()
+	lines = open(rh_input, "r").readlines()
 				
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -396,14 +396,14 @@ def pool_distribute(arg):
 				# 	else:
 				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
 
-	out = open(f"../pid_{pid}/{globin.rh_input}","w")
+	out = open(f"../pid_{pid}/{rh_input}","w")
 	out.writelines(lines)
 	out.close()
 
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {globin.rh_input}",
+	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {rh_input}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	log_file.writelines(str(out.stdout, "utf-8"))
 	log_file.close()
@@ -458,8 +458,9 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	n_thread = init.n_thread
 	atm_name_list = atmos.atm_name_list
 	spec_name = init.spec_name
+	rh_input = init.rh_input_name
 
-	args = [[atm_name,spec_name] for atm_name in atm_name_list]
+	args = [[atm_name,spec_name,rh_input] for atm_name in atm_name_list]
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists("logs"):
 		os.mkdir("logs")
@@ -529,7 +530,7 @@ def save_spectra(spectra, fpath="spectra.fits"):
 def compute_rfs(init):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
-	atmos.build_from_nodes(init.ref_atm)
+	atmos.build_from_nodes(init.init.interp_degree)
 
 	spec, atm = compute_spectra(init, atmos, False, True)
 
@@ -540,13 +541,6 @@ def compute_rfs(init):
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 
-	delta = {"temp"  : 1,      # K
-			 "vz"    : 10/1e3, # m/s --> km/s
-			 "vmic"  : 10/1e3, # m/s --> km/s
-			 "mag"   : 25/1e4, # G --> T
-			 "gamma" : 0.001,  # rad
-			 "chi"   : 0.001}  # rad
-
 	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(init.wavelength), 4))
 
 	import matplotlib.pyplot as plt
@@ -556,10 +550,9 @@ def compute_rfs(init):
 		parID = atmos.par_id[parameter]
 
 		nodes = atmos.nodes[parameter]
-		# print(nodes)
 		values = atmos.values[parameter]
 		
-		perturbation = delta[parameter]
+		perturbation = globin.delta[parameter]
 
 		for nodeID in range(len(nodes)):
 			zID = np.argmin(np.abs(logtau-nodes[nodeID]))
@@ -596,13 +589,6 @@ def compute_full_rf(init):
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 
-	delta = {"temp"  : 1,      # K
-			 "vz"    : 10/1e3, # m/s --> km/s
-			 "vmic"  : 10/1e3, # m/s --> km/s
-			 "mag"   : 25/1e4, # G --> T
-			 "gamma" : 0.001,   # rad
-			 "chi"   : 0.001}   # rad
-
 	params = ["temp", "vz", "mag", "gamma", "chi"]
 	rf = np.zeros((atmos.nx, atmos.ny, len(params), atmos.nz, len(init.wavelength), 4))
 
@@ -610,7 +596,7 @@ def compute_full_rf(init):
 
 	for i_, parameter in enumerate(params):
 		print(parameter)
-		perturbation = delta[parameter]
+		perturbation = globin.delta[parameter]
 		parID = atmos.par_id[parameter]
 
 		for zID in range(atmos.nz):

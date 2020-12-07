@@ -83,30 +83,6 @@ def invert(init):
 		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec, atm = globin.compute_rfs(init)
 
-		# atmos.build_from_nodes(init.ref_atm)
-		# plt.figure(1)
-		# plt.plot(atm[0,0,0], atm[0,0,1]-atmos.data[0,0,1])
-		
-		# plt.figure(2)
-		# plt.plot(atmos.data[0,0,0], np.log10(atm[0,0,2]) - np.log10(atmos.data[0,0,2]))
-
-		# plt.figure(3)
-		# plt.plot(atm[0,0,0], atm[0,0,3]-atmos.data[0,0,3])
-
-		# plt.figure(4)
-		# plt.plot(atm[0,0,0], atm[0,0,4]-atmos.data[0,0,4])
-
-		# plt.figure(5)
-		# plt.plot(atm[0,0,0], atm[0,0,6]-atmos.data[0,0,6])
-
-		# plt.figure(6)
-		# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
-		# plt.plot(obs.data[0,0,:,0], obs.data[0,0,:,1])
-		
-		# plt.plot(rf[0,0,:,:,0].T)
-
-		# plt.show()
-
 		diff = obs.spec - spec[:,:,:,1:]
 		diff *= weights_for_diff
 		chi2_old = np.sum(diff*diff / noise_for_chi2 / noise_for_chi2 * init.wav_weight*init.wav_weight, axis=(2,3)) / dof
@@ -151,7 +127,7 @@ def invert(init):
 				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind]
 			atmos.check_parameter_bounds()
 
-			atmos.build_from_nodes(init.ref_atm)
+			atmos.build_from_nodes(init.ref_atm, init.interp_degree)
 			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
 
 			new_diff = obs.spec - corrected_spec[:,:,:,1:]
