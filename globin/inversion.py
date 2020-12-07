@@ -90,14 +90,19 @@ def invert(init):
 		jacobian = np.moveaxis(jacobian, 2, 3)
 		jacobian_t = jacobian.T
 
+		#--- some gymnastic with indices of matrices
+		#--- here ij are pixel IDs, mkn can be indices
+		#--- over wavelngth of parameters for inversion
 		# JT dot J pixel-by-pixel
-		# hessian = np.einsum("mkji,ijkn->ijmn", jacobian_t, jacobian)
-		# # get diagonal elements from hessian matrix
-		# diagonal_elements = np.einsum("ijkk->ijk", hessian)
-		# print(diagonal_elements.shape)
-		# print(LM_parameter.shape)
-
-		# sys.exit()
+		hessian = np.einsum("mkji,ijkn->ijmn", jacobian_t, jacobian)
+		# get diagonal elements from hessian matrix
+		diagonal_elements = np.einsum("ijkk->ijk", hessian)
+		# diagonal elements indices for each axis
+		indx, indy, indp1, indp2 = np.where(hessian==diagonal_elements)
+		# set diagonal element values
+		hessian[indx,indy,indp1,indp2] = np.einsum("ijk,ij->ijk", diagonal_elements, 1+LM_parameter)
+		# JT dot diff pixel-by-pixel
+		delta = np.einsum("lkji,ijk->ijl", jacobian_t, diff.reshape(obs.nx, obs.ny,4*Nw))
 
 		# loop for Marquardt lambda correction
 		break_loop = False
@@ -107,12 +112,13 @@ def invert(init):
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
 					if stop_flag[idx,idy]==0:
-						JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
-						hessian[idx,idy] = JTJ[idx,idy]
-						diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
-						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
-						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
-						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
+						# JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
+						# hessian[idx,idy] = JTJ[idx,idy]
+						# diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
+						# np.fill_diagonal(hessian[idx,idy], diagonal_elements)
+						# delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
+						# proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
+						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta[idx,idy])
 
 			# sys.exit("Done!")
 
