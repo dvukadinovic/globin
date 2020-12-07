@@ -1,0 +1,19 @@
+--- Temperature [K]
+nodes = -2.2, -1.1, 0.3
+values = 4800, 5500, 7300
+
+--- vertical velocity [km/s]
+nodes = -2, -0.5
+values = 1, -0.5
+
+--- magnetic field strength [G]
+nodes = -2, -0.5
+values = 300, 1000
+
+--- inclination [deg]
+nodes = 0
+values = 45
+
+--- azimuth [deg]
+nodes = 0
+values = 45

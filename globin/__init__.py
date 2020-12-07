@@ -193,6 +193,14 @@ class InputData(object):
 		self.rh_input_name = rh_input_name
 		rh_input = rh_input_name
 
+		#--- get parameters from RH input file
+		text = open(rh_input_name, "r").read()
+
+		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
+		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
+		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
+
+		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
 
 		#--- find first mode of operation
@@ -256,8 +264,19 @@ class InputData(object):
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				self.wavelength = np.loadtxt(self.wave_grid_path)
 			else:
-				self.wave_grid_path = None
+				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+			write_wavs(self.wavelength, wave_file_path)
+			fpath = find_value_by_key("rf_weights", text, "optional")
+			self.wav_weight = np.ones((len(self.wavelength),4))
+			if fpath is not None:
+				lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
+				if len(lam)==len(self.wavelength):
+					self.wav_weight[:,0] = wI
+					self.wav_weight[:,1] = wQ
+					self.wav_weight[:,2] = wU
+					self.wav_weight[:,3] = wV
 
 			#--- nodes
 			nodes = find_value_by_key("nodes_temp", text, "optional")
@@ -360,18 +379,11 @@ class InputData(object):
 			# instrument broadening
 			# strailight contribution
 
-		#--- get parameters from RH input file
-		text = open(rh_input_name, "r").read()
-
-		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
-		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
-		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
-
-		if self.wave_grid_path is None:
-			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-		else:
-			self.wavelength = np.loadtxt(self.wave_grid_path)
-		write_wavs(self.wavelength, wave_file_path)
+		# if self.wave_grid_path is None:
+		# 	self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+		# else:
+		# 	self.wavelength = np.loadtxt(self.wave_grid_path)
+		# write_wavs(self.wavelength, wave_file_path)
 
 def read_nodes_and_values(line, param=None):
 	if len(line[1].replace(" ",""))==1:

@@ -74,7 +74,7 @@ globin.invert(in_data); sys.exit()
 #--- RF clauclation test
 # rf,_,_ = globin.atmos.compute_full_rf(in_data)
 
-globin.visualize.plot_atmosphere(in_data.ref_atm)
+# globin.visualize.plot_atmosphere(in_data.ref_atm)
 
 # RFs shape : (nx, ny, npar, nz, nw, 4)
 rf = fits.open("rf.fits")[0].data
@@ -86,6 +86,30 @@ ypos = np.arange(rf.shape[3])
 
 rf = rf[0,0]
 
+par_scale = [5000, 1, 0.1, 1, 1]
+
+weight = np.zeros((len(in_data.wavelength),5))
+weight[:,0] = in_data.wavelength
+
+for i_ in range(5):
+	rf[i_] *= par_scale[i_]
+
+par_rf = np.abs(rf)
+weight[:,1:] = np.sum(par_rf, axis=(0,1))
+
+from scipy.integrate import simps
+
+for i_ in range(1,5):
+	const = simps(weight[:,i_], in_data.wavelength)
+	weight[:,i_] /= const
+
+# plt.plot(weight[:,1:])
+# plt.show()
+
+np.savetxt("rf_weights", weight, fmt="%6.3f\t%5.2f\t%5.2f\t%5.2f\t%5.2f")
+
+sys.exit()
+
 fig = plt.figure(figsize=(20,14))
 
 nrows, ncols = 4, 5
@@ -93,7 +117,7 @@ nrows, ncols = 4, 5
 sid = 0
 for sid in range(4):
 	#--- RF plot for Temperature
-	matrix = rf[0,:,:,sid]
+	matrix = rf[0,:,:,sid] * par_scale[0]
 	vmax = np.max(np.abs(matrix))
 
 	if sid>0:
@@ -111,7 +135,7 @@ for sid in range(4):
 	plt.colorbar()
 
 	#--- RF plot for vertical velocity
-	matrix = rf[1,:,:,sid]
+	matrix = rf[1,:,:,sid] * par_scale[1]
 	vmax = np.max(np.abs(matrix))
 
 	plt.subplot(nrows,ncols,sid*ncols+2)
@@ -124,7 +148,7 @@ for sid in range(4):
 	plt.colorbar()
 
 	#--- RF plot for magnetic field
-	matrix = rf[2,:,:,sid]
+	matrix = rf[2,:,:,sid] * par_scale[2]
 	vmax = np.max(np.abs(matrix))
 	
 	plt.subplot(nrows,ncols,sid*ncols+3)
@@ -137,7 +161,7 @@ for sid in range(4):
 	plt.colorbar()
 
 	#--- RF plot for inclination
-	matrix = rf[3,:,:,sid]
+	matrix = rf[3,:,:,sid] * par_scale[3]
 	vmax = np.max(np.abs(matrix))
 	
 	plt.subplot(nrows,ncols,sid*ncols+4)
@@ -150,7 +174,7 @@ for sid in range(4):
 	plt.colorbar()
 
 	#--- RF plot for azimuth
-	matrix = rf[4,:,:,sid]
+	matrix = rf[4,:,:,sid] * par_scale[4]
 	vmax = np.max(np.abs(matrix))
 	
 	plt.subplot(nrows,ncols,sid*ncols+5)

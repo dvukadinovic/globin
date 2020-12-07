@@ -109,7 +109,7 @@ def invert(init):
 
 		diff = obs.spec - spec[:,:,:,1:]
 		diff *= weights_for_diff
-		chi2_old = np.sum(diff*diff / noise_for_chi2 / noise_for_chi2, axis=(2,3)) / dof
+		chi2_old = np.sum(diff*diff / noise_for_chi2 / noise_for_chi2 * init.wav_weight*init.wav_weight, axis=(2,3)) / dof
 		diff *= 1/noise_scale_for_diff
 		
 		rf *= weights_for_rf / noise_scale_for_rf
@@ -156,7 +156,7 @@ def invert(init):
 
 			new_diff = obs.spec - corrected_spec[:,:,:,1:]
 			new_diff *= weights_for_diff
-			chi2_new = np.sum(new_diff*new_diff / noise_for_chi2 / noise_for_chi2, axis=(2,3)) / dof
+			chi2_new = np.sum(new_diff*new_diff / noise_for_chi2 / noise_for_chi2 * init.wav_weight*init.wav_weight, axis=(2,3)) / dof
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
@@ -214,7 +214,7 @@ def invert(init):
 
 		print("\n--------------------------------------------------\n")
 
-	fname = "invert_temp_vz_mag_gamma"
+	fname = "results/invert_temp_vz_mag_gamma"
 
 	if init.noise!=0:
 		noise = int(abs(np.log10(init.noise)))
