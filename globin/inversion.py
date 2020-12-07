@@ -26,9 +26,7 @@ def invert(init):
 	print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny)) * init.marq_lambda
-	svd_tolerance = 1e-4 # not used currently
-
-	# flags those pixels whose chi2 converged; not used currently
+	# flags those pixels whose chi2 converged
 	stop_flag = np.zeros((obs.nx, obs.ny))
 
 	Nw = len(init.wavelength)
@@ -42,7 +40,8 @@ def invert(init):
 	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
 
 	# matrices for solveing LS equation
-	jacobian = np.zeros((obs.nx, obs.ny, Nw*4, Npar))
+	# jacobian = np.zeros((obs.nx, obs.ny, Nw*4, Npar))
+	jacobian = np.zeros((obs.nx, obs.ny, Npar, Nw*4))
 	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	
@@ -87,15 +86,18 @@ def invert(init):
 		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 		diff /= noise_stokes_scale
 
-		# Jacobian matrix
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				if stop_flag[idx,idy]==0:
-					for parID in range(Npar):
-						jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
-
-		# is this correct? 
+		jacobian = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
+		jacobian = np.moveaxis(jacobian, 2, 3)
 		jacobian_t = jacobian.T
+
+		# JT dot J pixel-by-pixel
+		# hessian = np.einsum("mkji,ijkn->ijmn", jacobian_t, jacobian)
+		# # get diagonal elements from hessian matrix
+		# diagonal_elements = np.einsum("ijkk->ijk", hessian)
+		# print(diagonal_elements.shape)
+		# print(LM_parameter.shape)
+
+		# sys.exit()
 
 		# loop for Marquardt lambda correction
 		break_loop = False
@@ -111,6 +113,8 @@ def invert(init):
 						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
 						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
 						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
+
+			# sys.exit("Done!")
 
 			old_parameters = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
@@ -163,7 +167,7 @@ def invert(init):
 		if (itter)>=3:
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
-					# need to got -2 and -1 because I already rised itter by 1 
+					# need to get -2 and -1 because I already rised itter by 1 
 					# when chi2 list was updated.
 					relative_change = abs(chi2[itter-2,idx,idy]/chi2[itter-1,idx,idy] - 1)
 					# print(relative_change)

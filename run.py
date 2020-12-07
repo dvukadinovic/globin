@@ -31,7 +31,7 @@ in_data.read_input_files()
 # var = vars(in_data)
 
 #--- inversion
-globin.invert(in_data)
+globin.invert(in_data); sys.exit()
 
 #--- analysis of the inverted data
 # atm = fits.open("results/inverted_atmos.fits")[0].data[0,0]
