@@ -15,7 +15,7 @@ mode = 1
 observation = obs_from_nodes.fits
 noise = 1e-4
 weights = 1,1,1,1
-rf_weights = rf_weights
+#rf_weights = rf_weights
 
 #--- Output spectra
 #spectrum = obs.fits

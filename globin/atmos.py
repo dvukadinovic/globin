@@ -530,7 +530,7 @@ def save_spectra(spectra, fpath="spectra.fits"):
 def compute_rfs(init):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
-	atmos.build_from_nodes(init.init.interp_degree)
+	atmos.build_from_nodes(init.ref_atm,init.interp_degree)
 
 	spec, atm = compute_spectra(init, atmos, False, True)
 
@@ -548,6 +548,8 @@ def compute_rfs(init):
 	free_par_ID = 0
 	for i_,parameter in enumerate(atmos.nodes):
 		parID = atmos.par_id[parameter]
+
+		parameter_scale = globin.parameter_scale[parameter]
 
 		nodes = atmos.nodes[parameter]
 		values = atmos.values[parameter]
@@ -570,7 +572,7 @@ def compute_rfs(init):
 
 			# plt.show()
 
-			rf[:,:,free_par_ID,:,:] = diff / perturbation # / dtau
+			rf[:,:,free_par_ID,:,:] = diff / perturbation * parameter_scale # / dtau
 			free_par_ID += 1
 			
 			# remove perturbation from data

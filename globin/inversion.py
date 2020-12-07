@@ -117,14 +117,13 @@ def invert(init):
 						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
 						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
 						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
-			# print(proposed_steps[idx,idy])
 
 			old_parameters = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
 			for parID in atmos.values:
 				low_ind = up_ind
 				up_ind += len(atmos.nodes[parID])
-				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind]
+				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
 			atmos.check_parameter_bounds()
 
 			atmos.build_from_nodes(init.ref_atm, init.interp_degree)
@@ -190,7 +189,7 @@ def invert(init):
 
 		print("\n--------------------------------------------------\n")
 
-	fname = "results/invert_temp_vz_mag_gamma"
+	fname = "results"
 
 	if init.noise!=0:
 		noise = int(abs(np.log10(init.noise)))
@@ -260,7 +259,7 @@ def invert(init):
 		x = atmos.nodes[parameter]
 		y = atmos.values[parameter][idx,idy]
 		
-		atmos.build_from_nodes(init.ref_atm)
+		atmos.build_from_nodes(init.ref_atm, init.interp_degree)
 
 		parID = atmos.par_id[parameter]
 		plt.plot(x, y*fact, "ro")

@@ -6,6 +6,7 @@ import re
 
 from .atmos import Atmosphere
 from .spec import Observation
+from .rh import write_wavs
 
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)

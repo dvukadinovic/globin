@@ -15,3 +15,4 @@ logs/
 globin/__pycache__/
 to_do
 invert_*/
+results/

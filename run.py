@@ -6,6 +6,7 @@ import numpy as np
 import sys
 
 #--- initialize input object and then read input files
+sys.exit()
 in_data = globin.InputData()
 in_data.read_input_files()
 
