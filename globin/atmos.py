@@ -121,6 +121,7 @@ class Atmosphere(object):
 		self.split_cube()
 
 	def read_spinor(self, fpath):
+		# need to transform read data into MULTI atmos type: 12 params
 		self.data = np.loadtxt(fpath, skiprows=1).T
 		self.npar = self.data.shape[0]
 		self.nz = self.data.shape[1]
@@ -188,12 +189,12 @@ class Atmosphere(object):
 
 		# we fill here atmosphere with data which will not be interpolated for which
 		if self.data is None:
-			try:
-				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-				self.data[:,:,0,:] = self.logtau
-				self.interpolate_atmosphere(ref_atm)
-			except:
-				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
+			# try:
+			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+			self.data[:,:,0,:] = self.logtau
+			self.interpolate_atmosphere(ref_atm)
+			# except:
+			# 	sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -241,12 +242,23 @@ class Atmosphere(object):
 		from scipy.interpolate import interp1d
 
 		x_new = self.logtau
-		x_old = ref_atm.data[0,0,0]
+		shape = ref_atm.data.shape
+		# data cubes have dimension (nx,ny,npar,dpth)
+		if len(shape)==4:
+			x_old = ref_atm.data[0,0,0]
+		# 1D atmospheres have dimension (npar,ndpth)
+		elif len(shape)==2:
+			x_old = ref_atm.data[0]
+		else:
+			sys.exit("\n\natmos.interpolate_atmosphere --> Not recognized dimension of reference atmosphere.\n\n")
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parID in range(1,self.npar):
-					fun = interp1d(x_old, ref_atm.data[idx,idy,parID])
+					if len(shape)==4:	
+						fun = interp1d(x_old, ref_atm.data[idx,idy,parID])
+					elif len(shape)==2:
+						fun = interp1d(x_old, ref_atm.data[parID])
 					self.data[idx,idy,parID] = fun(x_new)
 
 	def save_cube(self, fpath="inverted_atmos.fits"):

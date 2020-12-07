@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import copy
+import time
 
 import globin
 
@@ -34,7 +35,7 @@ def invert(init):
 	Npar = atmos.free_par
 
 	if Npar==0:
-		sys.exit("We do not have any parameters to fit.\n   We exit.\n")
+		sys.exit("There is no parameters to fit.\n   We exit.\n")
 
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
@@ -45,35 +46,29 @@ def invert(init):
 	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar))
 	
-	# casting noise and weights in appropriate dimensions
-	noise_for_chi2 = np.zeros((obs.nx, obs.ny, Nw, 4))
-	noise_scale_for_diff = np.zeros((obs.nx, obs.ny, Nw, 4))
-	noise_scale_for_rf = np.zeros((obs.nx, obs.ny, Npar, Nw, 4))
-	
-	weights_for_diff = np.ones((obs.nx, obs.ny, Nw, 4))
-	weights_for_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4))
+	# casting noise in appropriate dimensions
+	noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4))
+	noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
+	noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4))
 
-	noise = np.ones((obs.nx, obs.ny, Nw))
-	noise_scaling = np.ones((obs.nx, obs.ny, Nw))
 	if init.noise!=0:
 		StokesI_cont = obs.data[:,:,ind_min,1]
 		noise_lvl = init.noise * StokesI_cont
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				noise_scaling[idx,idy] = np.sqrt(obs.data[idx,idy,ind_min:ind_max,1] / StokesI_cont[idx,idy])
-				noise[idx,idy] = noise_lvl[idx,idy] * noise_scaling[idx,idy]
-
-	for i_ in range(4):
-		noise_for_chi2[:,:,:,i_] = noise
-		noise_scale_for_diff[:,:,:,i_] = noise_scaling
-		weights_for_diff[:,:,:,i_] = init.weights[i_]
-		for j_ in range(Npar):
-			noise_scale_for_rf[:,:,j_,:,i_] = noise_scaling
-			weights_for_rf[:,:,j_,:,i_] = init.weights[i_]
+		# noise_wavelength = (nx,ny,nw)
+		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
+		# noise = (nx,ny,nw)
+		noise = (noise_lvl * noise_wavelength.T).T
+		for sID in range(4):
+			noise_stokes_scale[:,:,:,sID] = noise_wavelength
+			noise_stokes[:,:,:,sID] = noise
+			for pID in range(Npar):
+				noise_scale_rf[:,:,pID,:,sID] = noise_stokes_scale[:,:,:,sID]
 
 	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny))
 	N_search_for_lambda = 5
-	dof = np.count_nonzero(init.weights) * (Nw)
+	dof = np.count_nonzero(init.weights) * Nw
+
+	start = time.time()
 
 	itter = 0
 	for i_ in range(init.max_iter):
@@ -82,13 +77,15 @@ def invert(init):
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec, atm = globin.compute_rfs(init)
+		
+		#--- scale RFs with weights and noise scale
+		rf *= init.weights
+		rf /= noise_scale_rf
 
 		diff = obs.spec - spec[:,:,:,1:]
-		diff *= weights_for_diff
-		chi2_old = np.sum(diff*diff / noise_for_chi2 / noise_for_chi2 * init.wav_weight*init.wav_weight, axis=(2,3)) / dof
-		diff *= 1/noise_scale_for_diff
-		
-		rf *= weights_for_rf / noise_scale_for_rf
+		diff *= init.weights
+		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+		diff /= noise_stokes_scale
 
 		# Jacobian matrix
 		for idx in range(obs.nx):
@@ -100,9 +97,6 @@ def invert(init):
 		# is this correct? 
 		jacobian_t = jacobian.T
 
-		# if (i_+1)==1:
-		# 	search_best_lambda()
-		
 		# loop for Marquardt lambda correction
 		break_loop = False
 		proposed_steps = np.zeros((obs.nx, obs.ny, Npar))
@@ -130,8 +124,8 @@ def invert(init):
 			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
 
 			new_diff = obs.spec - corrected_spec[:,:,:,1:]
-			new_diff *= weights_for_diff
-			chi2_new = np.sum(new_diff*new_diff / noise_for_chi2 / noise_for_chi2 * init.wav_weight*init.wav_weight, axis=(2,3)) / dof
+			new_diff *= init.weights
+			chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
@@ -169,6 +163,8 @@ def invert(init):
 		if (itter)>=3:
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
+					# need to got -2 and -1 because I already rised itter by 1 
+					# when chi2 list was updated.
 					relative_change = abs(chi2[itter-2,idx,idy]/chi2[itter-1,idx,idy] - 1)
 					# print(relative_change)
 					# print(chi2[itter-1,idx,idy])
@@ -190,6 +186,12 @@ def invert(init):
 		print("\n--------------------------------------------------\n")
 
 	fname = "results"
+
+	atmos.build_from_nodes(init.ref_atm, init.interp_degree)
+	atmos.save_cube(f"{fname}/inverted_atmos.fits")
+
+	init.spectrum_path = f"{fname}/inverted_spectra.fits"
+	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
 
 	if init.noise!=0:
 		noise = int(abs(np.log10(init.noise)))
@@ -239,7 +241,12 @@ def invert(init):
 	plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
 	
 	#--- inverted params comparison with expected values
-	out_file = open("{:s}/inverted_parameters_n{:1d}".format(fname,noise), "w")
+	out_file = open("{:s}/output.log".format(fname,noise), "w")
+
+	end = time.time() - start
+	print("Finished in: {0}\n".format(end))
+
+	out_file.write("Run time: {:10.1f}\n\n".format(end))
 	
 	idx, idy = 0,0
 	i_ = 0
@@ -249,6 +256,7 @@ def invert(init):
 			  "mag"   : r"B [G]",
 			  "gamma" : r"$\gamma$ [deg]",
 			  "chi"   : r"$\chi$ [deg]"}
+	out_file.write("\n     #===--- inverted parameters ---===#\n\n")
 	for parameter in atmos.nodes:
 		if parameter=="mag":
 			fact = 1e4
@@ -258,8 +266,6 @@ def invert(init):
 		plt.figure(2+i_)
 		x = atmos.nodes[parameter]
 		y = atmos.values[parameter][idx,idy]
-		
-		atmos.build_from_nodes(init.ref_atm, init.interp_degree)
 
 		parID = atmos.par_id[parameter]
 		plt.plot(x, y*fact, "ro")
@@ -271,12 +277,13 @@ def invert(init):
 		plt.close()
 		i_ += 1
 
-		out_file.writelines([f"# {parameter} [km/s]\n"])
+		out_file.writelines("# " + labels[parameter] + "\n")
 		for i_ in range(len(x)):
 			out_file.write("{:2.1f}    {:5.4f}\n".format(x[i_], y[i_]*fact))
 	
-	out_file.close()
-	# plt.show()
+	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
+	out_file.write(init.params_input)
+	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
+	out_file.write(init.rh_input)
 
-	#--- save inverted atmos
-	# atmos.save_cube()
+	out_file.close()

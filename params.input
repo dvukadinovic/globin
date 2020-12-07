@@ -15,7 +15,7 @@ mode = 1
 observation = obs_from_nodes.fits
 noise = 1e-4
 weights = 1,1,1,1
-#rf_weights = rf_weights
+rf_weights = rf_weights
 
 #--- Output spectra
 #spectrum = obs.fits
@@ -50,7 +50,7 @@ wave_step = 0.010
 
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e2
-max_iter = 40
+max_iter = 2
 chi2_tolerance = 1e-3
 
 #--- Parameters to be fitted (uh... be patient)

@@ -5,6 +5,7 @@ Contributors:
 13/10/2020 : rewriten class 'InputData'; we leave to user to read from given input
 			 files;
 18/10/2020 : read input parameters from 'params.input' using regular expressions
+07/12/2020 : moved 'InputData' class into 'input.py' file
 
 """
 
@@ -20,7 +21,7 @@ from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosph
 from .spec import Observation
 from .inversion import invert
 from . import tools
-from . import visualize
+from .visualize import plot_atmosphere, show
 
 __all__ = ["rh", "atmos", "invert", "spec", "tools"]
 __name__ = "globin"

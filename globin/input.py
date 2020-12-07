@@ -8,6 +8,8 @@ from .atmos import Atmosphere
 from .spec import Observation
 from .rh import write_wavs
 
+import globin
+
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
 
@@ -65,6 +67,7 @@ class InputData(object):
 		
 		#--- get parameters from RH input file
 		text = open(rh_input_name, "r").read()
+		self.rh_input = text
 
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
@@ -72,6 +75,7 @@ class InputData(object):
 
 		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
+		self.params_input = text
 
 		#--- find first mode of operation
 		self.mode = find_value_by_key("mode",text,"required", conversion=int)
@@ -125,10 +129,11 @@ class InputData(object):
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
-			self.ref_atm = Atmosphere(path_to_atmosphere)
+			if path_to_atmosphere is not None:
+				self.ref_atm = Atmosphere(path_to_atmosphere)
 			# if user have not provided reference atmosphere we will assume FAL C model
-			if self.ref_atm is None:
-				self.ref_atm = falc
+			else:
+				self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
@@ -139,14 +144,14 @@ class InputData(object):
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, wave_file_path)
 			fpath = find_value_by_key("rf_weights", text, "optional")
-			self.wav_weight = np.ones((len(self.wavelength),4))
+			self.wavs_weight = np.ones((len(self.wavelength),4))
 			if fpath is not None:
 				lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
 				if len(lam)==len(self.wavelength):
-					self.wav_weight[:,0] = wI
-					self.wav_weight[:,1] = wQ
-					self.wav_weight[:,2] = wU
-					self.wav_weight[:,3] = wV
+					self.wavs_weight[:,0] = wI
+					self.wavs_weight[:,1] = wQ
+					self.wavs_weight[:,2] = wU
+					self.wavs_weight[:,3] = wV
 
 			#--- nodes
 			nodes = find_value_by_key("nodes_temp", text, "optional")

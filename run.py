@@ -6,7 +6,6 @@ import numpy as np
 import sys
 
 #--- initialize input object and then read input files
-sys.exit()
 in_data = globin.InputData()
 in_data.read_input_files()
 
@@ -31,8 +30,25 @@ in_data.read_input_files()
 # list of all class variables
 # var = vars(in_data)
 
-# --- inversion
-globin.invert(in_data); sys.exit()
+#--- inversion
+globin.invert(in_data)
+
+#--- analysis of the inverted data
+# atm = fits.open("results/inverted_atmos.fits")[0].data[0,0]
+# print(atm.shape)
+
+# plt.plot(atm[0], atm[1])
+# plt.show()
+
+atm = globin.Atmosphere("results/inverted_atmos.fits")
+globin.plot_atmosphere(atm)
+
+globin.show()
+
+# spec = fits.open("results/inverted_spectra.fits")[0].data[0,0]
+# print(spec.shape)
+
+sys.exit()
 
 #--- spectrum synthesis example
 # spec = globin.compute_spectra(in_data, in_data.ref_atm, False, False)

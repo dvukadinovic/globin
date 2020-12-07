@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import globin
-
 def plot_atmosphere(atmos, idx=0, idy=0):
 	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
@@ -36,5 +34,6 @@ def plot_atmosphere(atmos, idx=0, idy=0):
 	plt.xlabel(r"$\log \tau$")
 
 	plt.savefig("atmosphere_from_nodes.png")
-	
+
+def show():	
 	plt.show()
