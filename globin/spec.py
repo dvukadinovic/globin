@@ -1,5 +1,6 @@
 import sys
 from astropy.io import fits
+import numpy as np
 
 class Observation(object):
 
@@ -24,10 +25,10 @@ class Observation(object):
 	def read_fits(self, fpath):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
-		self.data = hdu.data
+		self.data = np.array(hdu.data, dtype=np.float64)
 		# we assume that wavelngth is same for every pixel in observation
 		# self.wavelength = hdu.data[0,0,:,0]
-		self.spec = hdu.data[:,:,:,1:]
+		self.spec = np.array(hdu.data[:,:,:,1:], dtype=np.float64)
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 
 class Spectrum(object):

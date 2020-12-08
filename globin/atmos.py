@@ -108,7 +108,7 @@ class Atmosphere(object):
 			sys.exit()
 		
 		self.header = atmos.header
-		self.data = atmos.data
+		self.data = np.array(atmos.data, dtype=np.float64)
 		self.nx, self.ny, self.npar, self.nz = self.data.shape
 		self.path = fpath
 
@@ -122,7 +122,7 @@ class Atmosphere(object):
 
 	def read_spinor(self, fpath):
 		# need to transform read data into MULTI atmos type: 12 params
-		self.data = np.loadtxt(fpath, skiprows=1).T
+		self.data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
 		self.npar = self.data.shape[0]
 		self.nz = self.data.shape[1]
 
@@ -189,12 +189,12 @@ class Atmosphere(object):
 
 		# we fill here atmosphere with data which will not be interpolated for which
 		if self.data is None:
-			# try:
-			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-			self.data[:,:,0,:] = self.logtau
-			self.interpolate_atmosphere(ref_atm)
-			# except:
-			# 	sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
+			try:
+				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+				self.data[:,:,0,:] = self.logtau
+				self.interpolate_atmosphere(ref_atm)
+			except:
+				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -316,8 +316,8 @@ def write_multi_atmosphere(atm, fpath):
 
 def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 	Nw = len(wavelength)
-	spectra = np.zeros((Nx, Ny, Nw, 5))
-	atmospheres = np.zeros((Nx, Ny, 14, Nz))
+	spectra = np.zeros((Nx, Ny, Nw, 5), dtype=np.float64)
+	atmospheres = np.zeros((Nx, Ny, 14, Nz), dtype=np.float64)
 	for item in lista:
 		if item is not None:
 			rh_obj, idx, idy = item.values()
@@ -505,7 +505,7 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 			out = sp.run(f"rm -r ../pid_{threadID+1}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 			if out.returncode!=0:
-				print(f"error whilw removing directory '../pid_{threadID+1}'")
+				print(f"error while removing directory '../pid_{threadID+1}'")
 
 	return spectra, atmospheres
 
@@ -553,7 +553,7 @@ def compute_rfs(init):
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 
-	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(init.wavelength), 4))
+	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(init.wavelength), 4), dtype=np.float64)
 
 	import matplotlib.pyplot as plt
 

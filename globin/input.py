@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import multiprocessing as mp
 import re
+import copy
 
 from .atmos import Atmosphere
 from .spec import Observation
@@ -99,8 +100,10 @@ class InputData(object):
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				self.wavelength = np.loadtxt(self.wave_grid_path)
 			else:
-				self.wave_grid_path = None
+				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+			write_wavs(self.wavelength, wave_file_path)
 
 		#--- get parameters for inversion
 		if self.mode>=1:
@@ -123,9 +126,9 @@ class InputData(object):
 			values = find_value_by_key("weights", text, "default", [1,1,1,1])
 			if type(values)==str:
 				values = values.split(",")
-				self.weights = np.array([float(item) for item in values])
+				self.weights = np.array([float(item) for item in values], dtype=np.float64)
 			else:
-				self.weights = np.array(values)
+				self.weights = np.array(values, dtype=np.float64)
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
@@ -165,9 +168,9 @@ class InputData(object):
 					sys.exit("Number of nodes and values for temperature are not the same!")
 				
 				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])))
-					matrix[:,:] = values
-					self.atm.values["temp"] = matrix
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])), dtype=np.float64)
+					matrix[:,:] = copy.deepcopy(values)
+					self.atm.values["temp"] = copy.deepcopy(matrix)
 				except:
 					print("Can not store node values for parameter 'temp'.")
 					print("  Must read first observation file.")
@@ -184,9 +187,9 @@ class InputData(object):
 					sys.exit("Number of nodes and values for vertical velocity are not the same!")
 
 				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])))
-					matrix[:,:] = values
-					self.atm.values["vz"] = matrix
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])), dtype=np.float64)
+					matrix[:,:] = copy.deepcopy(values)
+					self.atm.values["vz"] = copy.deepcopy(matrix)
 				except:
 					print("Can not store node values for parameter 'vz'.")
 					print("  Must read first observation file.")
@@ -203,9 +206,9 @@ class InputData(object):
 					sys.exit("Number of nodes and values for magnetic field are not the same!")
 
 				try:
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["mag"])))
-					matrix[:,:] = values
-					self.atm.values["mag"] = matrix / 1e4 # Gauss --> Tesla
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["mag"])), dtype=np.float64)
+					matrix[:,:] = copy.deepcopy(values)
+					self.atm.values["mag"] = copy.deepcopy(matrix) / 1e4 # Gauss --> Tesla
 				except:
 					print("Can not store node values for parameter 'mag'.")
 					print("  Must read first observation file.")
@@ -222,9 +225,9 @@ class InputData(object):
 					sys.exit("Number of nodes and values for magnetic field inclintion are not the same!")
 
 				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["gamma"])))
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["gamma"])), dtype=np.float64)
 					matrix[:,:] = np.deg2rad(values) # degree --> radians
-					self.atm.values["gamma"] = matrix
+					self.atm.values["gamma"] = copy.deepcopy(matrix)
 				except:
 					print("Can not store node values for parameter 'gamma'.")
 					print("  Must read first observation file.")
@@ -241,9 +244,9 @@ class InputData(object):
 					sys.exit("Number of nodes and values for magnetic field azimuth are not the same!")
 
 				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["chi"])))
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["chi"])), dtype=np.float64)
 					matrix[:,:] = np.deg2rad(values) # degree --> radians
-					self.atm.values["chi"] = matrix
+					self.atm.values["chi"] = copy.deepcopy(matrix)
 				except:
 					print("Can not store node values for parameter 'chi'.")
 					print("  Must read first observation file.")

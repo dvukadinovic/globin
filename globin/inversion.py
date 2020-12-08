@@ -25,9 +25,9 @@ def invert(init):
 	print("Initial parameters: ", atmos.values)
 	print()
 
-	LM_parameter = np.ones((obs.nx, obs.ny)) * init.marq_lambda
+	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * init.marq_lambda
 	# flags those pixels whose chi2 converged
-	stop_flag = np.zeros((obs.nx, obs.ny))
+	stop_flag = np.zeros((obs.nx, obs.ny), dtype=np.float64)
 
 	Nw = len(init.wavelength)
 	Npar = atmos.free_par
@@ -39,16 +39,15 @@ def invert(init):
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
 	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
 
-	# matrices for solveing LS equation
-	# jacobian = np.zeros((obs.nx, obs.ny, Nw*4, Npar))
-	jacobian = np.zeros((obs.nx, obs.ny, Npar, Nw*4))
-	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar))
-	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar))
+	# matrices
+	jacobian = np.zeros((obs.nx, obs.ny, 4*Nw, Npar), dtype=np.float64)
+	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar), dtype=np.float64)
+	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar), dtype=np.float64)
 	
 	# casting noise in appropriate dimensions
-	noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4))
-	noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
-	noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4))
+	noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4), dtype=np.float64)
+	noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
+	noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
 	if init.noise!=0:
 		StokesI_cont = obs.data[:,:,ind_min,1]
@@ -80,53 +79,93 @@ def invert(init):
 		#--- scale RFs with weights and noise scale
 		rf *= init.weights
 		rf /= noise_scale_rf
-
+		
 		diff = obs.spec - spec[:,:,:,1:]
 		diff *= init.weights
 		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 		diff /= noise_stokes_scale
 
-		jacobian = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
-		jacobian = np.moveaxis(jacobian, 2, 3)
+		for idx in range(obs.nx):
+			for idy in range(obs.ny):
+				if stop_flag[idx,idy]==0:
+					for parID in range(Npar):
+						jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
 		jacobian_t = jacobian.T
+
+		J = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
+		J = np.moveaxis(J, 2, 3)
+		# J = np.random.random((2,3,4*Nw,Npar)) * 1e-22
+		JT = np.einsum("ijlk", J)
 
 		#--- some gymnastic with indices of matrices
 		#--- here ij are pixel IDs, mkn can be indices
 		#--- over wavelngth of parameters for inversion
 		# JT dot J pixel-by-pixel
-		hessian = np.einsum("mkji,ijkn->ijmn", jacobian_t, jacobian)
+		JTJ_new = np.einsum("...ij,...jk", JT, J)
+		min_elm = np.min(np.abs(JTJ_new))
+		np.around(JTJ_new, decimals=np.int(np.log10(min_elm))+13)
+
+		# JTJ_dot = np.dot(JT[0,0],J[0,0])
+		# elm = np.sum(JT[0,0,0] * J[0,0,:,0])
+		
+		# print(elm, elm.dtype)
+		# print(JTJ_dot[0,0], JTJ_dot[0,0].dtype)
+		# print(JTJ_new[0,0,0,0], JTJ_new[0,0,0,0].dtype)
+
+		# print(elm==JTJ_dot[0,0])
+		# print(np.around(elm, decimals=48)==np.around(JTJ_dot[0,0], decimals=48))
+
+		# print(JTJ_new[0,0]==np.dot(JT[0,0],J[0,0]))
+
+		# sys.exit()
+
 		# get diagonal elements from hessian matrix
-		diagonal_elements = np.einsum("ijkk->ijk", hessian)
-		# diagonal elements indices for each axis
-		indx, indy, indp1, indp2 = np.where(hessian==diagonal_elements)
-		# set diagonal element values
-		hessian[indx,indy,indp1,indp2] = np.einsum("ijk,ij->ijk", diagonal_elements, 1+LM_parameter)
-		# JT dot diff pixel-by-pixel
-		delta = np.einsum("lkji,ijk->ijl", jacobian_t, diff.reshape(obs.nx, obs.ny,4*Nw))
+		diagonal_elements = np.einsum("ijkk->ijk", JTJ_new)
+		# min_elm = np.min(np.abs(diagonal_elements))
+		# np.around(diagonal_elements, decimals=np.int(np.log10(min_elm))+13)
+		# # diagonal elements indices for each axis
+		# indx, indy, indp1, indp2 = np.where(JTJ_new==diagonal_elements)
+		# # set diagonal element values
+		# hessian_new = copy.deepcopy(JTJ_new)
+		# hessian_new[indx,indy,indp1,indp2] = np.einsum("...k,...", diagonal_elements, 1+LM_parameter)
+		# # JT dot diff pixel-by-pixel
+		# delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
 
 		# loop for Marquardt lambda correction
 		break_loop = False
 		proposed_steps = np.zeros((obs.nx, obs.ny, Npar))
+		proposed_steps_new = np.zeros((obs.nx, obs.ny, Npar))
 		for j_ in range(N_search_for_lambda):
 			# solve LM equation for new parameter steps
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
 					if stop_flag[idx,idy]==0:
 						# JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
-						# hessian[idx,idy] = JTJ[idx,idy]
-						# diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
-						# np.fill_diagonal(hessian[idx,idy], diagonal_elements)
-						# delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
-						# proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
-						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta[idx,idy])
+						JTJ[idx,idy] = np.dot(jacobian_t[:,:,idy,idx], jacobian[idx,idy])
+						min_elm = np.min(np.abs(JTJ))
+						np.around(JTJ, decimals=np.int(np.log10(min_elm))+13)
+						hessian[idx,idy] = JTJ[idx,idy]
+						diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
+						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
+						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
+						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
+						# proposed_steps_new[idx,idy] = np.dot(np.linalg.inv(hessian_new[idx,idy]), delta_new[idx,idy])
 
-			# sys.exit("Done!")
+			print(JTJ[0,0]==JTJ_new[0,0])
+			print()
+			print(JTJ[0,0])
+			print()
+			print(JTJ_new[0,0])
+
+			sys.exit()
 
 			old_parameters = copy.deepcopy(atmos.values)
+			new_set = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
 			for parID in atmos.values:
 				low_ind = up_ind
 				up_ind += len(atmos.nodes[parID])
+				new_set[parID] += proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
 				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
 			atmos.check_parameter_bounds()
 
@@ -153,10 +192,13 @@ def invert(init):
 			# aftwerwards, we only go one time through this loop
 			N_search_for_lambda = 1
 
+			init.atm = atmos
+
 			# if we have changed Marquardt parameter, we go for new RF estimation
 			if break_loop:
 				break
 
+		print(new_set)
 		print(atmos.values)
 		print(LM_parameter)
 
