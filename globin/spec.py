@@ -23,12 +23,16 @@ class Observation(object):
 			self.read_fits(fpath)
 
 	def read_fits(self, fpath):
+		from scipy.constants import c as LIGHT_SPEED
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
 		self.data = np.array(hdu.data, dtype=np.float64)
 		# we assume that wavelngth is same for every pixel in observation
-		# self.wavelength = hdu.data[0,0,:,0]
+		self.wavelength = hdu.data[0,0,:,0]
+		fact = 1 # LIGHT_SPEED / (self.wavelength*1e-9)**2
 		self.spec = np.array(hdu.data[:,:,:,1:], dtype=np.float64)
+		for sID in range(4):
+			self.spec[:,:,:,sID] *= fact
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 
 class Spectrum(object):

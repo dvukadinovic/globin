@@ -315,6 +315,11 @@ def write_multi_atmosphere(atm, fpath):
 	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
+	from scipy.constants import c as LIGHT_SPEED
+	import matplotlib.pyplot as plt
+
+	fact = 1 # LIGHT_SPEED / (wavelength*1e-9)**2
+
 	Nw = len(wavelength)
 	spectra = np.zeros((Nx, Ny, Nw, 5), dtype=np.float64)
 	atmospheres = np.zeros((Nx, Ny, 14, Nz), dtype=np.float64)
@@ -327,10 +332,10 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 
 			# Stokes vector
 			spectra[idx,idy,:,0] = wavelength
-			spectra[idx,idy,:,1] = rh_obj.imu[-1][ind_min:ind_max]
-			spectra[idx,idy,:,2] = rh_obj.stokes_Q[-1][ind_min:ind_max]
-			spectra[idx,idy,:,3] = rh_obj.stokes_U[-1][ind_min:ind_max]
-			spectra[idx,idy,:,4] = rh_obj.stokes_V[-1][ind_min:ind_max]
+			spectra[idx,idy,:,1] = rh_obj.imu[-1][ind_min:ind_max] * fact
+			spectra[idx,idy,:,2] = rh_obj.stokes_Q[-1][ind_min:ind_max] * fact
+			spectra[idx,idy,:,3] = rh_obj.stokes_U[-1][ind_min:ind_max] * fact
+			spectra[idx,idy,:,4] = rh_obj.stokes_V[-1][ind_min:ind_max] * fact
 
 			# Atmospheres
 			atmospheres[idx,idy,0] = np.log10(rh_obj.geometry["tau500"])
@@ -338,7 +343,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 			atmospheres[idx,idy,2] = rh_obj.atmos["n_elec"] / 1e6 # [1/cm3 --> 1/m3]
 			atmospheres[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  # [m/s --> km/s]
 			atmospheres[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  # [m/s --> km/s]
-			atmospheres[idx,idy,5] = rh_obj.atmos["B"]# * 1e4      # [T --> G]
+			atmospheres[idx,idy,5] = rh_obj.atmos["B"]# * 1e4      # [T]
 			atmospheres[idx,idy,6] = rh_obj.atmos["gamma_B"]  # [rad --> deg]
 			atmospheres[idx,idy,7] = rh_obj.atmos["chi_B"]    # [rad --> deg]
 			for i_ in range(rh_obj.atmos['nhydr']):
@@ -540,6 +545,8 @@ def save_spectra(spectra, fpath="spectra.fits"):
 	hdulist.writeto(fpath, overwrite=True)
 
 def compute_rfs(init):
+	import matplotlib.pyplot as plt
+
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
 	atmos.build_from_nodes(init.ref_atm,init.interp_degree)
@@ -554,8 +561,6 @@ def compute_rfs(init):
 	model_plus = copy.deepcopy(atmos)
 
 	rf = np.zeros((atmos.nx, atmos.ny, atmos.free_par, len(init.wavelength), 4), dtype=np.float64)
-
-	import matplotlib.pyplot as plt
 
 	free_par_ID = 0
 	for i_,parameter in enumerate(atmos.nodes):
@@ -589,6 +594,9 @@ def compute_rfs(init):
 			
 			# remove perturbation from data
 			model_plus.data[:,:,parID,zID] -= perturbation
+
+	# plt.plot(init.wavelength, rf[0,0,:3,:,0].T)
+	# plt.show()
 
 	return rf, spec, atm
 

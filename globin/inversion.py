@@ -62,7 +62,7 @@ def invert(init):
 			for pID in range(Npar):
 				noise_scale_rf[:,:,pID,:,sID] = noise_stokes_scale[:,:,:,sID]
 
-	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny))
+	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny), dtype=np.float64)
 	N_search_for_lambda = 5
 	dof = np.count_nonzero(init.weights) * Nw
 
@@ -85,88 +85,61 @@ def invert(init):
 		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 		diff /= noise_stokes_scale
 
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				if stop_flag[idx,idy]==0:
-					for parID in range(Npar):
-						jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
-		jacobian_t = jacobian.T
-
+		"""
+		Gymnastics with indices and solving equation for
+		next step parameters.
+		"""
 		J = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
 		J = np.moveaxis(J, 2, 3)
-		# J = np.random.random((2,3,4*Nw,Npar)) * 1e-22
+		# JT = (nx,ny,npar,4*nw)
 		JT = np.einsum("ijlk", J)
 
-		#--- some gymnastic with indices of matrices
-		#--- here ij are pixel IDs, mkn can be indices
-		#--- over wavelngth of parameters for inversion
-		# JT dot J pixel-by-pixel
+		# JTJ = (nx,ny,npar,npar)
 		JTJ_new = np.einsum("...ij,...jk", JT, J)
-		min_elm = np.min(np.abs(JTJ_new))
-		np.around(JTJ_new, decimals=np.int(np.log10(min_elm))+13)
-
-		# JTJ_dot = np.dot(JT[0,0],J[0,0])
-		# elm = np.sum(JT[0,0,0] * J[0,0,:,0])
-		
-		# print(elm, elm.dtype)
-		# print(JTJ_dot[0,0], JTJ_dot[0,0].dtype)
-		# print(JTJ_new[0,0,0,0], JTJ_new[0,0,0,0].dtype)
-
-		# print(elm==JTJ_dot[0,0])
-		# print(np.around(elm, decimals=48)==np.around(JTJ_dot[0,0], decimals=48))
-
-		# print(JTJ_new[0,0]==np.dot(JT[0,0],J[0,0]))
-
-		# sys.exit()
-
 		# get diagonal elements from hessian matrix
-		diagonal_elements = np.einsum("ijkk->ijk", JTJ_new)
-		# min_elm = np.min(np.abs(diagonal_elements))
-		# np.around(diagonal_elements, decimals=np.int(np.log10(min_elm))+13)
-		# # diagonal elements indices for each axis
-		# indx, indy, indp1, indp2 = np.where(JTJ_new==diagonal_elements)
-		# # set diagonal element values
-		# hessian_new = copy.deepcopy(JTJ_new)
-		# hessian_new[indx,indy,indp1,indp2] = np.einsum("...k,...", diagonal_elements, 1+LM_parameter)
-		# # JT dot diff pixel-by-pixel
-		# delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
+		diagonal_elements = np.einsum("...kk->...k", JTJ_new)
+		# diagonal elements indices for each axis
+		indx, indy, indp1, indp2 = np.where(JTJ_new==diagonal_elements)
+		# hessian = (nx,ny,npar,npar)
+		hessian_new = copy.deepcopy(JTJ_new)
+		# multiply with LM parameter
+		hessian_new[indx,indy,indp1,indp2] = diagonal_elements * (1 + LM_parameter)
+		# delta = (nx,ny,npar)
+		delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
+		# proposed_steps = (nx,ny,npar)
+		proposed_steps_new = np.linalg.solve(hessian_new, delta_new)
 
-		# loop for Marquardt lambda correction
-		break_loop = False
-		proposed_steps = np.zeros((obs.nx, obs.ny, Npar))
-		proposed_steps_new = np.zeros((obs.nx, obs.ny, Npar))
+		#--- old pixel-by-pixel calculation using for loops
+		# # loop for Marquardt lambda correction
+		# for idx in range(obs.nx):
+		# 	for idy in range(obs.ny):
+		# 		if stop_flag[idx,idy]==0:
+		# 			for parID in range(Npar):
+		# 				jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
+		# jacobian_t = jacobian.T
+		
+		# break_loop = False
+		# proposed_steps = np.zeros((obs.nx, obs.ny, Npar), dtype=np.float64)
 		for j_ in range(N_search_for_lambda):
-			# solve LM equation for new parameter steps
-			for idx in range(obs.nx):
-				for idy in range(obs.ny):
-					if stop_flag[idx,idy]==0:
-						# JTJ[idx,idy] = np.dot(jacobian_t[:,:,idx,idy], jacobian[idx,idy])
-						JTJ[idx,idy] = np.dot(jacobian_t[:,:,idy,idx], jacobian[idx,idy])
-						min_elm = np.min(np.abs(JTJ))
-						np.around(JTJ, decimals=np.int(np.log10(min_elm))+13)
-						hessian[idx,idy] = JTJ[idx,idy]
-						diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
-						np.fill_diagonal(hessian[idx,idy], diagonal_elements)
-						delta = np.dot(jacobian_t[:,:,idx,idy], diff[idx,idy].flatten())
-						proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
-						# proposed_steps_new[idx,idy] = np.dot(np.linalg.inv(hessian_new[idx,idy]), delta_new[idx,idy])
-
-			print(JTJ[0,0]==JTJ_new[0,0])
-			print()
-			print(JTJ[0,0])
-			print()
-			print(JTJ_new[0,0])
-
-			sys.exit()
+		# 	# solve LM equation for new parameter steps
+		# 	for idx in range(obs.nx):
+		# 		for idy in range(obs.ny):
+		# 			if stop_flag[idx,idy]==0:
+		# 				JTJ[idx,idy] = np.dot(jacobian_t[:,:,idy,idx], jacobian[idx,idy])
+		# 				hessian[idx,idy] = JTJ[idx,idy]
+		# 				diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
+		# 				np.fill_diagonal(hessian[idx,idy], diagonal_elements)
+		# 				delta = np.dot(jacobian_t[:,:,idy,idx], diff[idx,idy].flatten())
+		# 				proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
 
 			old_parameters = copy.deepcopy(atmos.values)
-			new_set = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
 			for parID in atmos.values:
 				low_ind = up_ind
 				up_ind += len(atmos.nodes[parID])
-				new_set[parID] += proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
-				atmos.values[parID] += proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
+				step = proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
+				step = np.around(step, decimals=8)
+				atmos.values[parID] += step
 			atmos.check_parameter_bounds()
 
 			atmos.build_from_nodes(init.ref_atm, init.interp_degree)
@@ -198,7 +171,7 @@ def invert(init):
 			if break_loop:
 				break
 
-		print(new_set)
+		print()
 		print(atmos.values)
 		print(LM_parameter)
 
