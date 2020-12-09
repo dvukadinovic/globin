@@ -87,6 +87,23 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 
     return yintp
 
+def construct_atmosphere_from_nods(in_data):
+    atmos = in_data.atm
+    obs = in_data.obs
+    atmos.build_from_nodes(in_data.ref_atm, in_data.interp_degree)
+
+    spec, atm = globin.compute_spectra(in_data, atmos, True, True)
+
+    new_atmos = globin.Atmosphere()
+    new_atmos.data = atm
+    globin.visualize.plot_atmosphere(new_atmos)
+    # globin.visualize.show()
+    new_atmos.save_cube("atmosphere_from_nodes.fits")
+
+    # plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
+    # plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
+    # plt.show()
+
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
     x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])

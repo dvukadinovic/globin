@@ -9,6 +9,8 @@ def invert(init):
 	"""
 	As input we expect all data to be present :)
 
+	Pixel-by-pixel inversion of atmospheric parameters.
+
 	Parameters:
 	---------------
 	init : InputData
@@ -26,8 +28,13 @@ def invert(init):
 	print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * init.marq_lambda
-	# flags those pixels whose chi2 converged
-	stop_flag = np.zeros((obs.nx, obs.ny), dtype=np.float64)
+	# flags those pixels whose chi2 converged:
+	#   1 -> we do inversion
+	#   0 -> we converged
+	# with flag we multiply the proposed steps, in that case for those pixles
+	# in which we converged we will not change parameters, but, the calculations
+	# will be done, as well as RFs... Find smarter way around it.
+	stop_flag = np.ones((obs.nx, obs.ny), dtype=np.float64)
 
 	Nw = len(init.wavelength)
 	Npar = atmos.free_par
@@ -38,29 +45,24 @@ def invert(init):
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
 	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
-
-	# matrices
-	jacobian = np.zeros((obs.nx, obs.ny, 4*Nw, Npar), dtype=np.float64)
-	JTJ = np.zeros((obs.nx, obs.ny, Npar, Npar), dtype=np.float64)
-	hessian = np.zeros((obs.nx, obs.ny, Npar, Npar), dtype=np.float64)
 	
-	# casting noise in appropriate dimensions
-	noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4), dtype=np.float64)
-	noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
-	noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
-
 	if init.noise!=0:
 		StokesI_cont = obs.data[:,:,ind_min,1]
 		noise_lvl = init.noise * StokesI_cont
-		# noise_wavelength = (nx,ny,nw)
+		# noise_wavelength = (nx, ny, nw)
 		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
-		# noise = (nx,ny,nw)
+		# noise = (nx, ny, nw)
 		noise = (noise_lvl * noise_wavelength.T).T
-		for sID in range(4):
-			noise_stokes_scale[:,:,:,sID] = noise_wavelength
-			noise_stokes[:,:,:,sID] = noise
-			for pID in range(Npar):
-				noise_scale_rf[:,:,pID,:,sID] = noise_stokes_scale[:,:,:,sID]
+		# noise_stokes_scale = (nx, ny, nw, 4)
+		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
+		# noise_stokes = (nx, ny, nw, 4)
+		noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
+		# noies_scale_rf = (nx, ny, npar, nw, 4)
+		noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
+	else:
+		noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4), dtype=np.float64)
+		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
+		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
 	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny), dtype=np.float64)
 	N_search_for_lambda = 5
@@ -86,52 +88,31 @@ def invert(init):
 		diff /= noise_stokes_scale
 
 		"""
-		Gymnastics with indices and solving equation for
+		Gymnastics with indices for solving LM equations for
 		next step parameters.
 		"""
 		J = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
+		# J = (nx, ny, 4*nw, npar)
 		J = np.moveaxis(J, 2, 3)
-		# JT = (nx,ny,npar,4*nw)
+		# JT = (nx, ny, npar, 4*nw)
 		JT = np.einsum("ijlk", J)
-
-		# JTJ = (nx,ny,npar,npar)
+		# JTJ = (nx, ny, npar, npar)
 		JTJ_new = np.einsum("...ij,...jk", JT, J)
 		# get diagonal elements from hessian matrix
 		diagonal_elements = np.einsum("...kk->...k", JTJ_new)
 		# diagonal elements indices for each axis
 		indx, indy, indp1, indp2 = np.where(JTJ_new==diagonal_elements)
-		# hessian = (nx,ny,npar,npar)
-		hessian_new = copy.deepcopy(JTJ_new)
+		# hessian = (nx, ny, npar, npar)
+		H_new = copy.deepcopy(JTJ_new)
 		# multiply with LM parameter
-		hessian_new[indx,indy,indp1,indp2] = diagonal_elements * (1 + LM_parameter)
-		# delta = (nx,ny,npar)
+		H_new[indx,indy,indp1,indp2] = diagonal_elements * (1 + LM_parameter)
+		# delta = (nx, ny, npar)
 		delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
-		# proposed_steps = (nx,ny,npar)
-		proposed_steps_new = np.linalg.solve(hessian_new, delta_new)
-
-		#--- old pixel-by-pixel calculation using for loops
-		# # loop for Marquardt lambda correction
-		# for idx in range(obs.nx):
-		# 	for idy in range(obs.ny):
-		# 		if stop_flag[idx,idy]==0:
-		# 			for parID in range(Npar):
-		# 				jacobian[idx,idy,:,parID] = rf[idx,idy,parID].flatten()
-		# jacobian_t = jacobian.T
+		# proposed_steps = (nx, ny, npar)
+		proposed_steps_new = np.linalg.solve(H_new, delta_new)
 		
-		# break_loop = False
-		# proposed_steps = np.zeros((obs.nx, obs.ny, Npar), dtype=np.float64)
+		break_loop = False
 		for j_ in range(N_search_for_lambda):
-		# 	# solve LM equation for new parameter steps
-		# 	for idx in range(obs.nx):
-		# 		for idy in range(obs.ny):
-		# 			if stop_flag[idx,idy]==0:
-		# 				JTJ[idx,idy] = np.dot(jacobian_t[:,:,idy,idx], jacobian[idx,idy])
-		# 				hessian[idx,idy] = JTJ[idx,idy]
-		# 				diagonal_elements = np.diag(JTJ[idx,idy]) * (1 + LM_parameter[idx,idy])
-		# 				np.fill_diagonal(hessian[idx,idy], diagonal_elements)
-		# 				delta = np.dot(jacobian_t[:,:,idy,idx], diff[idx,idy].flatten())
-		# 				proposed_steps[idx,idy] = np.dot(np.linalg.inv(hessian[idx,idy]), delta)
-
 			old_parameters = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
 			for parID in atmos.values:
@@ -139,6 +120,8 @@ def invert(init):
 				up_ind += len(atmos.nodes[parID])
 				step = proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
 				step = np.around(step, decimals=8)
+				# we do not perturb parameters of those pixels which converged
+				step = np.einsum("...i,...->...i", step, stop_flag)
 				atmos.values[parID] += step
 			atmos.check_parameter_bounds()
 
@@ -151,7 +134,7 @@ def invert(init):
 
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
-					if stop_flag[idx,idy]==0:
+					if stop_flag[idx,idy]==1:
 						if chi2_new[idx,idy] > chi2_old[idx,idy]:
 							LM_parameter[idx,idy] *= 10
 							atmos.values = old_parameters
@@ -171,7 +154,6 @@ def invert(init):
 			if break_loop:
 				break
 
-		print()
 		print(atmos.values)
 		print(LM_parameter)
 
@@ -181,7 +163,7 @@ def invert(init):
 				if LM_parameter[idx,idy]<=1e-5:
 					LM_parameter[idx,idy] = 1e-5
 				if LM_parameter[idx,idy]>=1e8:
-					stop_flag[idx,idy] = 1
+					stop_flag[idx,idy] = 0
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 1 (True)
@@ -191,21 +173,19 @@ def invert(init):
 					# need to get -2 and -1 because I already rised itter by 1 
 					# when chi2 list was updated.
 					relative_change = abs(chi2[itter-2,idx,idy]/chi2[itter-1,idx,idy] - 1)
-					# print(relative_change)
-					# print(chi2[itter-1,idx,idy])
 					if relative_change<init.chi2_tolerance:
 						print(relative_change)
 						print(chi2[itter-2,idx,idy])
 						print(chi2[itter-1,idx,idy])
 						print("chi2 relative change is smaller than given value.")
-						stop_flag[idx,idy] = 1
+						stop_flag[idx,idy] = 0
 					if chi2[itter-1,idx,idy] < 1 and init.noise!=0:
 						print(chi2[itter, idx, idy])
 						print("chi2 smaller than 1")
-						stop_flag[idx,idy] = 1
+						stop_flag[idx,idy] = 0
 
 		# if all pixels have converged, we stop inversion
-		if np.sum(stop_flag)==(obs.nx*obs.ny):
+		if np.sum(stop_flag)==0:#(obs.nx*obs.ny):
 			break
 
 		print("\n--------------------------------------------------\n")
@@ -275,9 +255,9 @@ def invert(init):
 	
 	idx, idy = 0,0
 	i_ = 0
-	fact = 1
 	labels = {"temp"  : r"T [K]",
 			  "vz"    : r"$v_z$ [km/s]",
+			  "vmic"  : r"$v_{mic}$ [km/s]",
 			  "mag"   : r"B [G]",
 			  "gamma" : r"$\gamma$ [deg]",
 			  "chi"   : r"$\chi$ [deg]"}
@@ -285,8 +265,10 @@ def invert(init):
 	for parameter in atmos.nodes:
 		if parameter=="mag":
 			fact = 1e4
-		if parameter=="gamma" or parameter=="chi":
+		elif parameter=="gamma" or parameter=="chi":
 			fact = 180/np.pi
+		else:
+			fact = 1
 
 		plt.figure(2+i_)
 		x = atmos.nodes[parameter]

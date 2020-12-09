@@ -10,21 +10,7 @@ in_data = globin.InputData()
 in_data.read_input_files()
 
 #--- create atmos from nodes
-# atmos = in_data.atm
-# obs = in_data.obs
-# atmos.build_from_nodes(in_data.ref_atm)
-
-# spec, atm = globin.compute_spectra(in_data, atmos, True, True)
-
-# new_atmos = globin.Atmosphere()
-# new_atmos.data = atm
-# globin.visualize.plot_atmosphere(new_atmos)
-# new_atmos.save_cube("atmosphere_from_nodes.fits")
-
-# plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
-# plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
-# plt.show()
-
+# globin.tools.construct_atmosphere_from_nods(in_data)
 # sys.exit()
 
 # list of all class variables

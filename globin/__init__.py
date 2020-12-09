@@ -33,9 +33,9 @@ COMMENT_CHAR = "#"
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000,10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [-10,10],				# [km/s]
+				"vmic"  : [0,10],				# [km/s]
 				"mag"   : [1/1e4, 5000/1e4],	# [T]
-				"gamma" : [-np.pi/2, np.pi/2],	# [rad]
+				"gamma" : [0, np.pi],			# [rad]
 				"chi"   : [-np.pi, np.pi]}		# [rad]
 
 #--- parameter scale for RFs

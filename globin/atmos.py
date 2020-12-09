@@ -199,6 +199,7 @@ class Atmosphere(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parameter in self.nodes:
+					# K0, Kn by default; True for vmic, gamma and chi
 					K0, Kn = 0, 0
 
 					x = self.nodes[parameter]
@@ -222,6 +223,7 @@ class Atmosphere(object):
 							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
 									Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
+					
 					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 

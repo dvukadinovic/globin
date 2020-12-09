@@ -252,6 +252,25 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
+			nodes = find_value_by_key("nodes_vmic", text, "optional")
+			values = find_value_by_key("nodes_vmic_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["vmic"] = [float(item) for item in nodes.split(",")]
+				self.atm.free_par += len(self.atm.nodes["vmic"])
+
+				values = [float(item) for item in values.split(",")]
+				if len(values)!=len(self.atm.nodes["vmic"]):
+					sys.exit("Number of nodes and values for vertical velocity are not the same!")
+
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vmic"])), dtype=np.float64)
+					matrix[:,:] = copy.deepcopy(values)
+					self.atm.values["vmic"] = copy.deepcopy(matrix)
+				except:
+					print("Can not store node values for parameter 'vmic'.")
+					print("  Must read first observation file.")
+					sys.exit()
+
 			# missing nodes for micro-turbulent velocity
 			# macro-turbulent broadening (can be fit)
 			# instrument broadening
