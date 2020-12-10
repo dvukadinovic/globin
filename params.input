@@ -9,21 +9,21 @@
 #--- General parameters
 n_threads = 1
 interp_degree = 3
-mode = 3
+mode = 1
 
 #--- Spectra to be fitted
 observation = obs_from_nodes.fits
 noise = 1e-4
 weights = 5,1,1,5
 #rf_weights = rf_weights
-vmac = -1
+vmac = 0.0
 
 #--- Output spectra
 #spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
-#nodes_temp = -2.2, -1.1, 0.3
-#nodes_temp_values = 4500, 5700, 7500
+nodes_temp = -2.2, -1.1, 0.3
+nodes_temp_values = 4500, 5700, 7500
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = -1, 0

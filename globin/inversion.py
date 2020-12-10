@@ -48,6 +48,12 @@ def invert_pxl_by_pxl(init):
 	# this is number of local parameters only (we are doing pxl-by-pxl)
 	Npar = atmos.n_local_pars
 
+	# indices of diagonal elements of Hessian matrix
+	x = np.arange(atmos.nx)
+	y = np.arange(atmos.ny)
+	p = np.arange(Npar)
+	X,Y,P = np.meshgrid(x,y,p, indexing="ij")
+
 	if Npar==0:
 		sys.exit("There is no parameters to fit.\n   We exit.\n")
 
@@ -73,13 +79,14 @@ def invert_pxl_by_pxl(init):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
-	chi2 = np.zeros((init.max_iter, obs.nx, obs.ny), dtype=np.float64)
-	N_search_for_lambda = 5
+	# chi2 = [[[]]*atmos.ny]*atmos.nx
+	chi2 = np.zeros((atmos.nx, atmos.ny, init.max_iter))
+	N_search_for_lambda = 1
 	dof = np.count_nonzero(init.weights) * Nw - Npar
 
 	start = time.time()
 
-	itter = 0
+	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 	for i_ in range(init.max_iter):
 		print("Iteration: {:2}\n".format(i_+1))
 		
@@ -109,12 +116,10 @@ def invert_pxl_by_pxl(init):
 		JTJ_new = np.einsum("...ij,...jk", JT, J)
 		# get diagonal elements from hessian matrix
 		diagonal_elements = np.einsum("...kk->...k", JTJ_new)
-		# diagonal elements indices for each axis
-		indx, indy, indp1, indp2 = np.where(JTJ_new==diagonal_elements)
 		# hessian = (nx, ny, npar, npar)
 		H_new = copy.deepcopy(JTJ_new)
 		# multiply with LM parameter
-		H_new[indx,indy,indp1,indp2] = diagonal_elements * (1 + LM_parameter)
+		H_new[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
 		# delta = (nx, ny, npar)
 		delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
 		# proposed_steps = (nx, ny, npar)
@@ -148,10 +153,10 @@ def invert_pxl_by_pxl(init):
 							LM_parameter[idx,idy] *= 10
 							atmos.values = old_parameters
 						else:
-							chi2[itter,idx,idy] = chi2_new[idx,idy]
-							itter += 1
+							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
 							LM_parameter[idx,idy] /= 10
-							break_loop = True
+							itter[idx,idy] += 1
+							# break_loop = True
 			
 			# we do searching for best LM parameter only in first iteration
 			# aftwerwards, we only go one time through this loop
@@ -176,20 +181,21 @@ def invert_pxl_by_pxl(init):
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 1 (True)
-		if (itter)>=3:
-			for idx in range(obs.nx):
-				for idy in range(obs.ny):
+		for idx in range(obs.nx):
+			for idy in range(obs.ny):
+				it_no = itter[idx,idy]
+				if it_no>=5:
 					# need to get -2 and -1 because I already rised itter by 1 
 					# when chi2 list was updated.
-					relative_change = abs(chi2[itter-2,idx,idy]/chi2[itter-1,idx,idy] - 1)
+					relative_change = abs(chi2[idx,idy,it_no-2]/chi2[idx,idy,it_no-1] - 1)
 					if relative_change<init.chi2_tolerance:
 						print(relative_change)
-						print(chi2[itter-2,idx,idy])
-						print(chi2[itter-1,idx,idy])
+						print(chi2[idx,idy,it_no-2])
+						print(chi2[idx,idy,it_no-1])
 						print("chi2 relative change is smaller than given value.")
 						stop_flag[idx,idy] = 0
-					if chi2[itter-1,idx,idy] < 1 and init.noise!=0:
-						print(chi2[itter, idx, idy])
+					if chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
+						print(chi2[idx,idy,it_no-1])
 						print("chi2 smaller than 1")
 						stop_flag[idx,idy] = 0
 
@@ -213,8 +219,11 @@ def invert_pxl_by_pxl(init):
 		noise = 0
 
 	#--- chi2 plot
-	itt_num = np.arange(0,itter)
-	plt.plot(itt_num+1, np.log10(chi2[:itter,0,0]), c="k")
+	for idx in range(atmos.nx):
+		for idy in range(atmos.ny):
+			it_no = itter[idx,idy]
+			itt_num = np.arange(0,it_no)
+			plt.plot(itt_num+1, np.log10(chi2[idx,idy,:it_no]), c="k")
 	plt.xlabel("Iteration")
 	plt.ylabel(r"$\log (\chi^2)$")
 	plt.savefig("{:s}/chi2_n{:1d}.png".format(fname,noise))
