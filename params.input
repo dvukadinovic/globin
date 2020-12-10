@@ -3,35 +3,36 @@
 #   0 --> synthesis
 #   1 --> pixel-by-pixel inversion
 #   2 --> PSF coupled inversion (van Noort 2012)
-#   3 --> global inversion (for fitting atomic data)
+#   3 --> global inversion (for fitting atomic data and macro velocity)
 # We are using it for sanity check.
 
 #--- General parameters
 n_threads = 1
 interp_degree = 3
-mode = 1
+mode = 3
 
 #--- Spectra to be fitted
 observation = obs_from_nodes.fits
 noise = 1e-4
 weights = 5,1,1,5
 #rf_weights = rf_weights
+vmac = -1
 
 #--- Output spectra
 #spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
-nodes_temp = -2.2, -1.1, 0.3
-nodes_temp_values = 4500, 5700, 7500
+#nodes_temp = -2.2, -1.1, 0.3
+#nodes_temp_values = 4500, 5700, 7500
 
-nodes_vz = -2, -0.5
-nodes_vz_values = -1, 0
+#nodes_vz = -2, -0.5
+#nodes_vz_values = -1, 0
 
-nodes_vmic = 0
-nodes_vmic_values = 2
+#nodes_vmic = 0
+#nodes_vmic_values = 2
 
-nodes_mag = -2, -0.5
-nodes_mag_values = 100, 300
+#nodes_mag = -2, -0.5
+#nodes_mag_values = 100, 300
 
 #nodes_gamma = 0
 #nodes_gamma_values = 90
@@ -56,7 +57,13 @@ marq_lambda = 1e2
 max_iter = 40
 chi2_tolerance = 1e-3
 
-#--- Parameters to be fitted (uh... be patient)
+#--- Line parameters
+line_no_loggf = 11, 15
+line_loggf = -2, -4
+
+line_no_dlam = 1,15
+line_dlam = -10, 5
+
 # lineNo fit_loggf fit_lambda piror_dist distribution_parameters
 # 1 1 0 uniform -8 0
 # 5 1 1 uniform -8 0 -50 50

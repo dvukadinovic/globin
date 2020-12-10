@@ -26,11 +26,14 @@ class Observation(object):
 		from scipy.constants import c as LIGHT_SPEED
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
-		self.data = np.array(hdu.data, dtype=np.float64)
+		data = np.array(hdu.data, dtype=np.float64)
+		self.data = np.zeros((1,2,*data.shape[2:]))
+		self.data[:,0] = data
+		self.data[:,1] = data
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = hdu.data[0,0,:,0]
 		fact = 1 # LIGHT_SPEED / (self.wavelength*1e-9)**2
-		self.spec = np.array(hdu.data[:,:,:,1:], dtype=np.float64)
+		self.spec = self.data[:,:,:,1:]
 		for sID in range(4):
 			self.spec[:,:,:,sID] *= fact
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]

@@ -34,6 +34,7 @@ COMMENT_CHAR = "#"
 limit_values = {"temp"  : [3000,10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
 				"vmic"  : [0,10],				# [km/s]
+				"vmac"  : [0.1,5],				# [km/s]
 				"mag"   : [1/1e4, 5000/1e4],	# [T]
 				"gamma" : [0, np.pi],			# [rad]
 				"chi"   : [-np.pi, np.pi]}		# [rad]
@@ -42,17 +43,19 @@ limit_values = {"temp"  : [3000,10000], 		# [K]
 parameter_scale = {"temp"   : 5000,	# [K]
 				   "vz"     : 1,	# [km/s]
 				   "vmic"   : 1,	# [km/s]
+				   "vmac"   : 1,    # [km/s]
 				   "mag"    : 0.1,	# [T]
 				   "gamma"  : 1,	# [rad]
 				   "chi"    : 1}	# [rad]
 
 #--- parameter perturbations for calculating RFs
-delta = {"temp"  : 1,      # K
-		 "vz"    : 10/1e3, # m/s --> km/s
-		 "vmic"  : 10/1e3, # m/s --> km/s
-		 "mag"   : 25/1e4, # G --> T
-		 "gamma" : 0.001,  # rad
-		 "chi"   : 0.001}  # rad
+delta = {"temp"  : 1,		# K
+		 "vz"    : 10/1e3,	# m/s --> km/s
+		 "vmic"  : 10/1e3,	# m/s --> km/s
+		 "vmac"  : 10/1e3,	# m/s --> km/s
+		 "mag"   : 25/1e4,	# G --> T
+		 "gamma" : 0.001,	# rad
+		 "chi"   : 0.001}	# rad
 
 
 #--- curent working directory: one from which we imported 'globin'
@@ -60,6 +63,7 @@ cwd = os.getcwd()
 
 #===--- element abundances ---===#
 from scipy.constants import k as K_BOLTZMAN
+from scipy.constants import c as LIGHT_SPEED
 from scipy.interpolate import splrep, splev
 
 #--- FAL C model (ref.): reference model if not given otherwise
@@ -80,7 +84,7 @@ temp_tck = splrep(falc.data[0],falc.data[2])
 #===--- end ---====#
 
 #--- polynomial degree for interpolation
-# interp_degree = None
+interp_degree = None
 
 #--- name of RH input file
 # rh_input = None

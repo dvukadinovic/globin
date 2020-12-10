@@ -33,11 +33,7 @@ class InputData(object):
 	"""
 
 	def __init__(self):
-		# atmosphere (constructed from nodes) --> one which we invert
-		self.atm = Atmosphere()
-		# reference atmosphere
-		self.ref_atm = None
-		self.spectrum_path = "spectrum.fits"
+		pass
 
 	# def __str__(self):
 	# 	pass
@@ -62,7 +58,6 @@ class InputData(object):
 		rh_input_name : str (optional)	
 			File name for RH main input file. Default value is 'keyword.input'.
 		"""
-
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
 		
@@ -89,7 +84,7 @@ class InputData(object):
 		if self.mode==0:
 			#--- required parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "required")
-			self.ref_atm = Atmosphere(path_to_atmosphere)
+			self.atm = Atmosphere(path_to_atmosphere)
 			
 			#--- default parameters
 			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
@@ -104,9 +99,13 @@ class InputData(object):
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, wave_file_path)
+			self.atm.vmac = abs(find_value_by_key("vmac", text, "optional", conversion=float))
 
 		#--- get parameters for inversion
 		if self.mode>=1:
+			# initialize container for atmosphere which we invert
+			self.atm = Atmosphere()
+
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")
 			self.obs = Observation(path_to_observations)
@@ -119,6 +118,7 @@ class InputData(object):
 			
 			#--- default parameters
 			self.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
+			globin.interp_degree = self.interp_degree
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
 			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
@@ -155,14 +155,18 @@ class InputData(object):
 					self.wavs_weight[:,1] = wQ
 					self.wavs_weight[:,2] = wU
 					self.wavs_weight[:,3] = wV
+			self.atm.vmac = find_value_by_key("vmac", text, "optional", conversion=float)
+			# if macroturbulent velocity is negative, we fit for it
+			if self.atm.vmac<=0:
+				self.atm.vmac = abs(self.atm.vmac)
+				self.atm.global_pars["vmac"] = self.atm.vmac
 
 			#--- nodes
 			nodes = find_value_by_key("nodes_temp", text, "optional")
 			values = find_value_by_key("nodes_temp_values", text, "optional")
 			if (nodes is not None) and (values is not None):
 				self.atm.nodes["temp"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["temp"])
-
+				
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["temp"]):
 					sys.exit("Number of nodes and values for temperature are not the same!")
@@ -180,8 +184,7 @@ class InputData(object):
 			values = find_value_by_key("nodes_vz_values", text, "optional")
 			if (nodes is not None) and (values is not None):
 				self.atm.nodes["vz"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["vz"])
-
+				
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["vz"]):
 					sys.exit("Number of nodes and values for vertical velocity are not the same!")
@@ -194,13 +197,30 @@ class InputData(object):
 					print("Can not store node values for parameter 'vz'.")
 					print("  Must read first observation file.")
 					sys.exit()
+
+			nodes = find_value_by_key("nodes_vmic", text, "optional")
+			values = find_value_by_key("nodes_vmic_values", text, "optional")
+			if (nodes is not None) and (values is not None):
+				self.atm.nodes["vmic"] = [float(item) for item in nodes.split(",")]
+				
+				values = [float(item) for item in values.split(",")]
+				if len(values)!=len(self.atm.nodes["vmic"]):
+					sys.exit("Number of nodes and values for vertical velocity are not the same!")
+
+				try:	
+					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vmic"])), dtype=np.float64)
+					matrix[:,:] = copy.deepcopy(values)
+					self.atm.values["vmic"] = copy.deepcopy(matrix)
+				except:
+					print("Can not store node values for parameter 'vmic'.")
+					print("  Must read first observation file.")
+					sys.exit()
 			
 			nodes = find_value_by_key("nodes_mag", text, "optional")
 			values = find_value_by_key("nodes_mag_values", text, "optional")
 			if (nodes is not None) and (values is not None):
 				self.atm.nodes["mag"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["mag"])
-
+				
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["mag"]):
 					sys.exit("Number of nodes and values for magnetic field are not the same!")
@@ -218,8 +238,7 @@ class InputData(object):
 			values = find_value_by_key("nodes_gamma_values", text, "optional")
 			if (nodes is not None) and (values is not None):
 				self.atm.nodes["gamma"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["gamma"])
-
+				
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["gamma"]):
 					sys.exit("Number of nodes and values for magnetic field inclintion are not the same!")
@@ -237,8 +256,7 @@ class InputData(object):
 			values = find_value_by_key("nodes_chi_values", text, "optional")
 			if (nodes is not None) and (values is not None):
 				self.atm.nodes["chi"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["chi"])
-
+				
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["chi"]):
 					sys.exit("Number of nodes and values for magnetic field azimuth are not the same!")
@@ -252,26 +270,16 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
-			nodes = find_value_by_key("nodes_vmic", text, "optional")
-			values = find_value_by_key("nodes_vmic_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["vmic"] = [float(item) for item in nodes.split(",")]
-				self.atm.free_par += len(self.atm.nodes["vmic"])
-
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["vmic"]):
-					sys.exit("Number of nodes and values for vertical velocity are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vmic"])), dtype=np.float64)
-					matrix[:,:] = copy.deepcopy(values)
-					self.atm.values["vmic"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'vmic'.")
-					print("  Must read first observation file.")
-					sys.exit()
-
-			# missing nodes for micro-turbulent velocity
-			# macro-turbulent broadening (can be fit)
-			# instrument broadening
+			# instrument broadening: R or instrument profile provided
 			# strailight contribution
+
+			self.atm.n_local_pars = 0
+			for pID in self.atm.nodes:
+				self.atm.n_local_pars += len(self.atm.nodes[pID])
+
+			self.atm.n_global_pars = 0
+			for pID in self.atm.global_pars:
+				if type(self.atm.global_pars[pID])==float:
+					self.atm.n_global_pars += 1
+				else:
+					self.atm.n_global_pars += len(self.atm.global_pars[pID])
