@@ -3,7 +3,6 @@ from astropy.io import fits
 import numpy as np
 
 class Observation(object):
-
 	"""
 	Class object for storing observations.
 
@@ -12,7 +11,7 @@ class Observation(object):
 	row in last axis is reserved for wavelength and rest 4 are for Stokes vector.
 	"""
 
-	def __init__(self, fpath):
+	def __init__(self, fpath, atm_range=[0,None,0,None]):
 		ftype = fpath.split(".")[-1]
 		self.wavelength = None
 		
@@ -20,22 +19,21 @@ class Observation(object):
 			sys.exit("Currently unsupported type of observation file.")
 
 		if ftype=="fits" or ftype=="fit":
-			self.read_fits(fpath)
+			self.read_fits(fpath, atm_range)
 
-	def read_fits(self, fpath):
+	def read_fits(self, fpath, atm_range):
 		from scipy.constants import c as LIGHT_SPEED
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
-		data = np.array(hdu.data, dtype=np.float64)
-		self.data = np.zeros((1,2,*data.shape[2:]))
-		self.data[:,0] = data
-		self.data[:,1] = data
+		xmin, xmax, ymin, ymax = atm_range
+		self.data = np.array(hdu.data[xmin:xmax,ymin:ymax], dtype=np.float64)
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = hdu.data[0,0,:,0]
 		fact = 1 # LIGHT_SPEED / (self.wavelength*1e-9)**2
 		self.spec = self.data[:,:,:,1:]
 		for sID in range(4):
 			self.spec[:,:,:,sID] *= fact
+			self.data[:,:,:,1+sID] *= fact
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 
 class Spectrum(object):

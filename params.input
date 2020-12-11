@@ -7,23 +7,23 @@
 # We are using it for sanity check.
 
 #--- General parameters
-n_threads = 1
+n_threads = 6
 interp_degree = 3
-mode = 1
+mode = 3
 
 #--- Spectra to be fitted
-observation = obs_from_nodes.fits
+observation = obs_2x3_from_nodes.fits
 noise = 1e-4
-weights = 5,1,1,5
+weights = 5,1,1,1
 #rf_weights = rf_weights
-vmac = 0.0
+vmac = 0.5
 
 #--- Output spectra
 #spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
-nodes_temp = -2.2, -1.1, 0.3
-nodes_temp_values = 4500, 5700, 7500
+#nodes_temp = -2.2, -1.1, 0.3
+#nodes_temp_values = 4500, 5700, 7500
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = -1, 0
@@ -64,23 +64,10 @@ line_loggf = -2, -4
 line_no_dlam = 1,15
 line_dlam = -10, 5
 
-# lineNo fit_loggf fit_lambda piror_dist distribution_parameters
-# 1 1 0 uniform -8 0
-# 5 1 1 uniform -8 0 -50 50
-
-# loggf = 1,2,4,6,8,10
-# lam = 1,2,3,4,5,10
-
-# parameter bounds for each parameter and line
-# store it in an external file
-
 #--- Reference atmosphere (optional)
 #atmosphere = ../../Atmos/falc_1x1.fits
-atmosphere = atmosphere_from_nodes.fits
-
-# first and last index in given atmospheric cube to be used for synthesis/inversion
-# [start_x, end_x, start_y, end_y]
-# range = [0,1,0,1]
+atmosphere = atmosphere_2x3_from_nodes.fits
+range = 0,2,0,3
 
 #============================= garbage =============================#
 

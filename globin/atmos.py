@@ -33,7 +33,7 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
-	def __init__(self, fpath=None, verbose=False):
+	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None]):
 		self.verbose = verbose
 		# dictionary for nodes
 		self.nodes = {}
@@ -75,7 +75,7 @@ class Atmosphere(object):
 			# read fits / fit / cube type atmosphere
 			elif ftype=="fits" or ftype=="fit":
 				self.type = "multi"
-				self.read_fits(fpath)
+				self.read_fits(fpath, atm_range)
 			else:
 				print(f"Unsupported type '{ftype}' of atmosphere file.")
 				print(" Supported types are: .dat, .txt, .fit(s)")
@@ -103,7 +103,7 @@ class Atmosphere(object):
 	def __str__(self):
 		pass
 
-	def read_fits(self, fpath):
+	def read_fits(self, fpath, atm_range):
 		try:
 			atmos = fits.open(fpath)[0]
 		except:
@@ -112,10 +112,9 @@ class Atmosphere(object):
 			sys.exit()
 		
 		self.header = atmos.header
-		data = np.array(atmos.data, dtype=np.float64)
-		self.data = np.zeros((1,2,self.npar, self.nz))
-		self.data[:,0] = data
-		self.data[:,1] = data
+		self.data = np.array(atmos.data, dtype=np.float64)
+		xmin, xmax, ymin, ymax = atm_range
+		self.data = self.data[xmin:xmax, ymin:ymax]
 		self.nx, self.ny, self.npar, self.nz = self.data.shape
 		self.path = fpath
 
@@ -169,7 +168,7 @@ class Atmosphere(object):
 		if self.verbose:
 			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-	def build_from_nodes(self, ref_atm, interp_degree):
+	def build_from_nodes(self, ref_atm):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -231,7 +230,7 @@ class Atmosphere(object):
 							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
 									Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
 					
-					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=interp_degree)
+					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
 					# plt.title(parameter)
@@ -392,7 +391,7 @@ def pool_distribute(arg):
     """
 	start = time.time()
 
-	atm_path, spec_name, rh_input = arg
+	atm_path, spec_name = arg
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
@@ -405,7 +404,7 @@ def pool_distribute(arg):
 		set_old_J = False
 
 	# lines = open(f"keyword.input", "r").readlines()
-	lines = open(rh_input, "r").readlines()
+	lines = open(globin.rh_input_name, "r").readlines()
 				
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -428,14 +427,14 @@ def pool_distribute(arg):
 				# 	else:
 				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
 
-	out = open(f"../pid_{pid}/{rh_input}","w")
+	out = open(f"../pid_{pid}/{globin.rh_input_name}","w")
 	out.writelines(lines)
 	out.close()
 
 	aux = atm_path.split("_")
 	idx, idy = aux[1], aux[2]
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {rh_input}",
+	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	log_file.writelines(str(out.stdout, "utf-8"))
 	log_file.close()
@@ -490,9 +489,8 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	n_thread = init.n_thread
 	atm_name_list = atmos.atm_name_list
 	spec_name = init.spec_name
-	rh_input = init.rh_input_name
-
-	args = [[atm_name,spec_name,rh_input] for atm_name in atm_name_list]
+	
+	args = [[atm_name,spec_name] for atm_name in atm_name_list]
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists("logs"):
 		os.mkdir("logs")
@@ -517,16 +515,17 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	
 	# broaden the spectra with macro-turbulent velocity (if given)
 	if atmos.vmac is not None:
-		mean_lam = (init.lmax + init.lmin)/2
 		if "vmac" in atmos.global_pars:
-			sigma = atmos.global_pars["vmac"]*1e3 / globin.LIGHT_SPEED * mean_lam / init.step
+			vmac = atmos.global_pars["vmac"]
 		else:
-			sigma = atmos.vmac*1e3 / globin.LIGHT_SPEED * mean_lam / init.step
+			vmac = atmos.vmac
+		mean_lam = (init.lmax + init.lmin)/2
+		sigma = vmac*1e3 / globin.LIGHT_SPEED * mean_lam / init.step
 		spectra[:,:,1:,:] = gaussian_filter(spectra[:,:,1:,:], [0,0,sigma,0])
 		
 	#--- save spectral cube to fits file
 	if save:
-		save_spectra(spectra, init.spectrum_path)
+		save_spectra(spectra, globin.spectrum_path)
 
 	#--- delete thread directories (save them if you want to use previous run J)
 	if clean_dirs:
@@ -573,7 +572,7 @@ def compute_rfs(init, local=True):
 
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.atm
-	atmos.build_from_nodes(init.ref_atm,init.interp_degree)
+	atmos.build_from_nodes(init.ref_atm)
 
 	spec, atm = compute_spectra(init, atmos, False, False)
 
@@ -628,6 +627,7 @@ def compute_rfs(init, local=True):
 	if not local:
 		#--- loop through global parameters and calculate RFs
 		for parameter in atmos.global_pars:
+			# print(parameter)
 			parameter_scale = globin.parameter_scale[parameter]
 			perturbation = globin.delta[parameter]
 
@@ -635,6 +635,15 @@ def compute_rfs(init, local=True):
 			spec_plus,_ = compute_spectra(init, model_plus, clean_dirs=False)
 
 			diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
+
+			# plt.plot(init.wavelength, diff[0,0])
+			# plt.plot(init.wavelength, diff[0,1])
+			# plt.show()
+
+			# plt.plot(init.wavelength, spec[0,0,:,1])
+			# plt.plot(init.wavelength, spec_plus[0,0,:,1])
+			# plt.show()
+
 			rf[:,:,free_par_ID,:,:] = diff / perturbation * parameter_scale
 			model_plus.global_pars[parameter] -= perturbation
 			free_par_ID += 1

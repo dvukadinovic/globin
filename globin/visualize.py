@@ -5,8 +5,6 @@ def plot_atmosphere(atmos, idx=0, idy=0):
 	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
 
-	fig = plt.figure(figsize=(12,14))
-
 	nrows, ncols = 4, 2
 
 	plt.subplot(nrows, ncols, 1)
@@ -41,6 +39,37 @@ def plot_atmosphere(atmos, idx=0, idy=0):
 	plt.xlabel(r"$\log \tau$")
 
 	# plt.savefig("atmosphere_from_nodes.png")
+
+def plot_spectra(inv, axs, idx=0, idy=0):
+
+	# Stokes I
+	axs[0,0].set_title("Stokes I")
+	# axs[0,0].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,0])
+	axs[0,0].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,0])
+	# Stokes Q
+	axs[0,1].set_title("Stokes Q")
+	# axs[0,1].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,1])
+	axs[0,1].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,1])
+	# Stokes U
+	axs[1,0].set_title("Stokes U")
+	# axs[1,0].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,2])
+	axs[1,0].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,2])
+	# Stokes V
+	axs[1,1].set_title("Stokes V")
+	# axs[1,1].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,3])
+	axs[1,1].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,3])
+
+	axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+	axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+	axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+	axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+
+	axs[0,0].set_xlim([-1, 1])
+	axs[0,1].set_xlim([-1, 1])
+	axs[1,0].set_xlim([-1, 1])
+	axs[1,1].set_xlim([-1, 1])
+	
+	# plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
 
 def show():	
 	plt.show()

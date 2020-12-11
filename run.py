@@ -17,19 +17,29 @@ in_data.read_input_files()
 # var = vars(in_data)
 
 #--- inversion
-globin.invert(in_data); sys.exit()
+globin.invert(in_data)#; sys.exit()
 
 #--- analysis of the inverted data
-# atm = fits.open("results/inverted_atmos.fits")[0].data[0,0]
-# print(atm.shape)
+xmin, xmax, ymin, ymax = in_data.atm_range
 
-# plt.plot(atm[0], atm[1])
-# plt.show()
+inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
+atm = globin.Atmosphere("atmosphere_2x3_from_nodes.fits", atm_range=in_data.atm_range)
 
-atm = globin.Atmosphere("results/inverted_atmos.fits")
-globin.plot_atmosphere(atm)
+inv = globin.Observation("results/inverted_spectra.fits")
+obs = globin.Observation("obs_2x3_from_nodes.fits", atm_range=in_data.atm_range)
 
-globin.show()
+for idx in range(inv_atm.nx):
+	for idy in range(inv_atm.ny):
+
+		globin.plot_atmosphere(atm, idx=idx, idy=idy)
+		globin.plot_atmosphere(inv_atm, idx=idx, idy=idy)
+		globin.show()
+
+		fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
+
+		globin.plot_spectra(obs, axs, idx=idx, idy=idy)
+		globin.plot_spectra(inv, axs, idx=idx, idy=idy)
+		globin.show()
 
 # spec = fits.open("results/inverted_spectra.fits")[0].data[0,0]
 # print(spec.shape)

@@ -67,7 +67,7 @@ def invert_pxl_by_pxl(init):
 		# noise_wavelength = (nx, ny, nw)
 		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
 		# noise = (nx, ny, nw)
-		noise = (noise_lvl * noise_wavelength.T).T
+		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 		# noise_stokes_scale = (nx, ny, nw, 4)
 		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
 		# noise_stokes = (nx, ny, nw, 4)
@@ -79,7 +79,6 @@ def invert_pxl_by_pxl(init):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
-	# chi2 = [[[]]*atmos.ny]*atmos.nx
 	chi2 = np.zeros((atmos.nx, atmos.ny, init.max_iter))
 	N_search_for_lambda = 1
 	dof = np.count_nonzero(init.weights) * Nw - Npar
@@ -107,7 +106,7 @@ def invert_pxl_by_pxl(init):
 		Gymnastics with indices for solving LM equations for
 		next step parameters.
 		"""
-		J = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw)
+		J = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw)
 		# J = (nx, ny, 4*nw, npar)
 		J = np.moveaxis(J, 2, 3)
 		# JT = (nx, ny, npar, 4*nw)
@@ -121,11 +120,11 @@ def invert_pxl_by_pxl(init):
 		# multiply with LM parameter
 		H_new[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
 		# delta = (nx, ny, npar)
-		delta_new = np.einsum("...pw,...w", JT, diff.reshape(obs.nx, obs.ny, 4*Nw))
+		delta_new = np.einsum("...pw,...w", JT, diff.reshape(atmos.nx, atmos.ny, 4*Nw))
 		# proposed_steps = (nx, ny, npar)
 		proposed_steps_new = np.linalg.solve(H_new, delta_new)
 		
-		break_loop = False
+		break_loop = True
 		for j_ in range(N_search_for_lambda):
 			old_parameters = copy.deepcopy(atmos.values)
 			low_ind, up_ind = 0, 0
@@ -133,25 +132,30 @@ def invert_pxl_by_pxl(init):
 				low_ind = up_ind
 				up_ind += len(atmos.nodes[parID])
 				step = proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
-				step = np.around(step, decimals=8)
+				# step = np.around(step, decimals=8)
 				# we do not perturb parameters of those pixels which converged
 				step = np.einsum("...i,...->...i", step, stop_flag)
+				# print(step)
 				atmos.values[parID] += step
 			atmos.check_parameter_bounds()
 
-			atmos.build_from_nodes(init.ref_atm, init.interp_degree)
+			atmos.build_from_nodes(init.ref_atm)
 			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
 
 			new_diff = obs.spec - corrected_spec[:,:,:,1:]
 			new_diff *= init.weights
 			chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 
-			for idx in range(obs.nx):
-				for idy in range(obs.ny):
+			# print(np.log10(chi2_new), np.log10(chi2_old))
+
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
 					if stop_flag[idx,idy]==1:
+						# print(f"  [{idx},{idy}] --> {np.log10(chi2_new[idx,idy])} ? {np.log10(chi2_old[idx,idy])}")
 						if chi2_new[idx,idy] > chi2_old[idx,idy]:
 							LM_parameter[idx,idy] *= 10
-							atmos.values = old_parameters
+							for parID in old_parameters:
+								atmos.values[parID][idx,idy] = old_parameters[parID][idx,idy]
 						else:
 							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
 							LM_parameter[idx,idy] /= 10
@@ -172,8 +176,8 @@ def invert_pxl_by_pxl(init):
 		print(LM_parameter)
 
 		# if Marquardt parameter is to large, we break
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
 				if LM_parameter[idx,idy]<=1e-5:
 					LM_parameter[idx,idy] = 1e-5
 				if LM_parameter[idx,idy]>=1e8:
@@ -181,36 +185,39 @@ def invert_pxl_by_pxl(init):
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 1 (True)
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				it_no = itter[idx,idy]
-				if it_no>=5:
-					# need to get -2 and -1 because I already rised itter by 1 
-					# when chi2 list was updated.
-					relative_change = abs(chi2[idx,idy,it_no-2]/chi2[idx,idy,it_no-1] - 1)
-					if relative_change<init.chi2_tolerance:
-						print(relative_change)
-						print(chi2[idx,idy,it_no-2])
-						print(chi2[idx,idy,it_no-1])
-						print("chi2 relative change is smaller than given value.")
-						stop_flag[idx,idy] = 0
-					if chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
-						print(chi2[idx,idy,it_no-1])
-						print("chi2 smaller than 1")
-						stop_flag[idx,idy] = 0
-
-		# if all pixels have converged, we stop inversion
-		if np.sum(stop_flag)==0:#(obs.nx*obs.ny):
-			break
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				if stop_flag[idx,idy]==1:
+					it_no = itter[idx,idy]
+					if it_no>=5:
+						# need to get -2 and -1 because I already rised itter by 1 
+						# when chi2 list was updated.
+						relative_change = abs(chi2[idx,idy,it_no-2]/chi2[idx,idy,it_no-1] - 1)
+						if relative_change<init.chi2_tolerance:
+							# print(relative_change)
+							# print(chi2[idx,idy,it_no-2])
+							# print(chi2[idx,idy,it_no-1])
+							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
+							stop_flag[idx,idy] = 0
+						if chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
+							# print(chi2[idx,idy,it_no-1])
+							print(f"--> [{idx},{idy}] : chi2 smaller than 1")
+							stop_flag[idx,idy] = 0
 
 		print("\n--------------------------------------------------\n")
+		
+		# if all pixels have converged, we stop inversion
+		if np.sum(stop_flag)==0:
+			break
 
 	fname = "results"
 
-	atmos.build_from_nodes(init.ref_atm, init.interp_degree)
+	print(chi2[...,:8])
+
+	atmos.build_from_nodes(init.ref_atm)
 	atmos.save_cube(f"{fname}/inverted_atmos.fits")
 
-	init.spectrum_path = f"{fname}/inverted_spectra.fits"
+	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
 
 	if init.noise!=0:
@@ -231,43 +238,43 @@ def invert_pxl_by_pxl(init):
 	# plt.show()
 
 	#--- Stokes vector plot
-	fix, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
+	# fix, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
 
-	for i in range(atmos.nx):
-		for j in range(atmos.ny):
-			# Stokes I
-			axs[0,0].set_title("Stokes I")
-			axs[0,0].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,0])
-			axs[0,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,1])
-			# Stokes Q
-			axs[0,1].set_title("Stokes Q")
-			axs[0,1].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,1])
-			axs[0,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,2])
-			# Stokes U
-			axs[1,0].set_title("Stokes U")
-			axs[1,0].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,2])
-			axs[1,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,3])
-			# Stokes V
-			axs[1,1].set_title("Stokes V")
-			axs[1,1].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,3])
-			axs[1,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,4])
+	# for i in range(atmos.nx):
+	# 	for j in range(atmos.ny):
+	# 		# Stokes I
+	# 		axs[0,0].set_title("Stokes I")
+	# 		axs[0,0].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,0])
+	# 		axs[0,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,1])
+	# 		# Stokes Q
+	# 		axs[0,1].set_title("Stokes Q")
+	# 		axs[0,1].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,1])
+	# 		axs[0,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,2])
+	# 		# Stokes U
+	# 		axs[1,0].set_title("Stokes U")
+	# 		axs[1,0].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,2])
+	# 		axs[1,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,3])
+	# 		# Stokes V
+	# 		axs[1,1].set_title("Stokes V")
+	# 		axs[1,1].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,3])
+	# 		axs[1,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,4])
 
-	axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-	axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+	# axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+	# axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+	# axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+	# axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 
-	axs[0,0].set_xlim([-1, 1])
-	axs[0,1].set_xlim([-1, 1])
-	axs[1,0].set_xlim([-1, 1])
-	axs[1,1].set_xlim([-1, 1])
-	plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
+	# axs[0,0].set_xlim([-1, 1])
+	# axs[0,1].set_xlim([-1, 1])
+	# axs[1,0].set_xlim([-1, 1])
+	# axs[1,1].set_xlim([-1, 1])
+	# plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
 	
 	#--- inverted params comparison with expected values
 	out_file = open("{:s}/output.log".format(fname,noise), "w")
 
 	end = time.time() - start
-	print("Finished in: {0}\n".format(end))
+	print("\nFinished in: {0}\n".format(end))
 
 	out_file.write("Run time: {:10.1f}\n\n".format(end))
 	
@@ -288,19 +295,19 @@ def invert_pxl_by_pxl(init):
 		else:
 			fact = 1
 
-		plt.figure(2+i_)
-		x = atmos.nodes[parameter]
-		y = atmos.values[parameter][idx,idy]
+	# 	plt.figure(2+i_)
+	# 	x = atmos.nodes[parameter]
+	# 	y = atmos.values[parameter][idx,idy]
 
-		parID = atmos.par_id[parameter]
-		plt.plot(x, y*fact, "ro")
-		plt.plot(atmos.logtau, atmos.data[0,0,parID]*fact, color="tab:blue")
-		plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,parID]*fact, "k-")
-		plt.xlabel(r"$\log \tau$")
-		plt.ylabel(labels[parameter])
-		plt.savefig("{:s}/{:s}_n{:1d}.png".format(fname,parameter,noise))
-		plt.close()
-		i_ += 1
+	# 	parID = atmos.par_id[parameter]
+	# 	plt.plot(x, y*fact, "ro")
+	# 	plt.plot(atmos.logtau, atmos.data[0,0,parID]*fact, color="tab:blue")
+	# 	plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,parID]*fact, "k-")
+	# 	plt.xlabel(r"$\log \tau$")
+	# 	plt.ylabel(labels[parameter])
+	# 	plt.savefig("{:s}/{:s}_n{:1d}.png".format(fname,parameter,noise))
+	# 	plt.close()
+	# 	i_ += 1
 
 		out_file.writelines("# " + labels[parameter] + "\n")
 		for i_ in range(len(x)):
@@ -350,7 +357,7 @@ def invert_global(init):
 		# noise_wavelength = (nx, ny, nw)
 		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
 		# noise = (nx, ny, nw)
-		noise = (noise_lvl * noise_wavelength.T).T
+		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 		# noise_stokes_scale = (nx, ny, nw, 4)
 		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
 		# noise_stokes = (nx, ny, nw, 4)
@@ -377,12 +384,6 @@ def invert_global(init):
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec, atm = globin.compute_rfs(init, local=False)
-
-		"""
-		!!!
-		By hand I truned atmosphere and spectra into (nx,ny) = (1,2) shape!
-		!!!
-		"""
 		
 		#--- scale RFs with weights and noise scale
 		rf *= init.weights
@@ -448,7 +449,7 @@ def invert_global(init):
 				atmos.global_pars[parID] += step
 			atmos.check_parameter_bounds()
 
-			atmos.build_from_nodes(init.ref_atm, init.interp_degree)
+			atmos.build_from_nodes(init.ref_atm)
 			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
 
 			new_diff = obs.spec - corrected_spec[:,:,:,1:]
@@ -508,13 +509,13 @@ def invert_global(init):
 
 		print("\n--------------------------------------------------\n")
 
-	# fname = "results"
+	fname = "results"
 
-	# atmos.build_from_nodes(init.ref_atm, init.interp_degree)
-	# atmos.save_cube(f"{fname}/inverted_atmos.fits")
+	atmos.build_from_nodes(init.ref_atm)
+	atmos.save_cube(f"{fname}/inverted_atmos.fits")
 
-	# init.spectrum_path = f"{fname}/inverted_spectra.fits"
-	# inverted_spectra = globin.compute_spectra(init, atmos, True, True)
+	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
+	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
 
 	# if init.noise!=0:
 	# 	noise = int(abs(np.log10(init.noise)))

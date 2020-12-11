@@ -21,7 +21,7 @@ from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosph
 from .spec import Observation
 from .inversion import invert
 from . import tools
-from .visualize import plot_atmosphere, show
+from .visualize import plot_atmosphere, plot_spectra, show
 
 __all__ = ["rh", "atmos", "invert", "spec", "tools"]
 __name__ = "globin"
@@ -52,7 +52,7 @@ parameter_scale = {"temp"   : 5000,	# [K]
 delta = {"temp"  : 1,		# K
 		 "vz"    : 10/1e3,	# m/s --> km/s
 		 "vmic"  : 10/1e3,	# m/s --> km/s
-		 "vmac"  : 10/1e3,	# m/s --> km/s
+		 "vmac"  : 1/1e3,	# m/s --> km/s
 		 "mag"   : 25/1e4,	# G --> T
 		 "gamma" : 0.001,	# rad
 		 "chi"   : 0.001}	# rad
@@ -87,4 +87,7 @@ temp_tck = splrep(falc.data[0],falc.data[2])
 interp_degree = None
 
 #--- name of RH input file
-# rh_input = None
+rh_input_name = None
+
+#--- spectrum name from synthesis
+spectrum_path = None

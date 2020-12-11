@@ -60,7 +60,8 @@ class InputData(object):
 		"""
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
-		
+		globin.rh_input_name = rh_input_name
+
 		#--- get parameters from RH input file
 		text = open(rh_input_name, "r").read()
 		self.rh_input = text
@@ -78,7 +79,6 @@ class InputData(object):
 		
 		#--- find number of threads
 		self.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
-		self.pool = mp.Pool(self.n_thread)
 
 		#--- get parameters for synthesis
 		if self.mode==0:
@@ -87,7 +87,7 @@ class InputData(object):
 			self.atm = Atmosphere(path_to_atmosphere)
 			
 			#--- default parameters
-			self.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
+			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
 			
 			#--- optional parameters
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
@@ -106,9 +106,21 @@ class InputData(object):
 			# initialize container for atmosphere which we invert
 			self.atm = Atmosphere()
 
+			# determine which observations from cube to take into consideration
+			aux = find_value_by_key("range", text, "default", [0,None,0,None])
+			self.atm_range = []
+			if type(aux)==str:
+				for item in aux.split(","):
+					if item is None or int(item)==-1:
+						self.atm_range.append(None)
+					elif item is not None:
+						self.atm_range.append(int(item))
+			else:
+				self.atm_range = aux
+			
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")
-			self.obs = Observation(path_to_observations)
+			self.obs = Observation(path_to_observations, self.atm_range)
 			# set dimensions for atmosphere same as dimension of observations
 			self.atm.nx = self.obs.nx
 			self.atm.ny = self.obs.ny
@@ -133,7 +145,7 @@ class InputData(object):
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
 			if path_to_atmosphere is not None:
-				self.ref_atm = Atmosphere(path_to_atmosphere)
+				self.ref_atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
 			# if user have not provided reference atmosphere we will assume FAL C model
 			else:
 				self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
@@ -157,7 +169,7 @@ class InputData(object):
 					self.wavs_weight[:,3] = wV
 			self.atm.vmac = find_value_by_key("vmac", text, "optional", conversion=float)
 			# if macroturbulent velocity is negative, we fit for it
-			if self.atm.vmac<=0:
+			if self.atm.vmac<0:
 				self.atm.vmac = abs(self.atm.vmac)
 				self.atm.global_pars["vmac"] = self.atm.vmac
 
@@ -270,9 +282,13 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
-			# instrument broadening: R or instrument profile provided
-			# strailight contribution
+			#--- if we have more threads than atmospheres, reduce the number of used threads
+			if self.n_thread > self.atm.nx*self.atm.ny:
+				self.n_thread = self.atm.nx*self.atm.ny
+				print(f"\n\nWarning: reduced the number of threads to {self.n_thread}.\n\n")
+			self.pool = mp.Pool(self.n_thread)
 
+			#--- determine number of local and global parameters
 			self.atm.n_local_pars = 0
 			for pID in self.atm.nodes:
 				self.atm.n_local_pars += len(self.atm.nodes[pID])
@@ -283,3 +299,7 @@ class InputData(object):
 					self.atm.n_global_pars += 1
 				else:
 					self.atm.n_global_pars += len(self.atm.global_pars[pID])
+
+			#--- missing parameters
+			# instrument broadening: R or instrument profile provided
+			# strailight contribution

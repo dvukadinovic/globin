@@ -5,7 +5,7 @@ comments
 *.dat
 !globin/data/*.dat
 *.ray
-*.fits
+#*.fits
 *.png
 *.jpg
 *.eps

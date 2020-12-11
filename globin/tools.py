@@ -1,6 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+import globin
+
 def get_func3(a,b,c,d):
     return lambda t: (1-t)*(1-t)*(1-t)*a + 3*(1-t)*(1-t)*t*b + 3*(1-t)*t*t*c + t*t*t*d
 
@@ -90,19 +92,87 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 def construct_atmosphere_from_nods(in_data):
     atmos = in_data.atm
     obs = in_data.obs
-    atmos.build_from_nodes(in_data.ref_atm, in_data.interp_degree)
+    print(atmos.values)
 
+    atmos.values["temp"] = np.zeros((2,3,3))
+    atmos.values["temp"][0,0] = [4500,5500,7300]
+    atmos.values["temp"][0,1] = [4400,5400,7200]
+    atmos.values["temp"][0,2] = [4000,5400,7500]
+    atmos.values["temp"][1,0] = [4500,5600,7500]
+    atmos.values["temp"][1,1] = [4800,5300,7600]
+    atmos.values["temp"][1,2] = [4200,5200,7400]
+
+    atmos.values["vz"] = np.zeros((2,3,2))
+    atmos.values["vz"][0,0] = [1,-0.5]
+    atmos.values["vz"][0,1] = [0.5,0.1]
+    atmos.values["vz"][0,2] = [0,0]
+    atmos.values["vz"][1,0] = [0.75,-0.1]
+    atmos.values["vz"][1,1] = [-1,0]
+    atmos.values["vz"][1,2] = [-1.2,0.5]
+
+    atmos.values["vmic"] = np.zeros((2,3,1))
+    atmos.values["vmic"][0,0] = [0.0]
+    atmos.values["vmic"][0,1] = [0.25]
+    atmos.values["vmic"][0,2] = [0.50]
+    atmos.values["vmic"][1,0] = [0.75]
+    atmos.values["vmic"][1,1] = [1.0]
+    atmos.values["vmic"][1,2] = [1.25]
+
+    atmos.values["mag"] = np.zeros((2,3,2))
+    atmos.values["mag"][0,0] = [100,250]
+    atmos.values["mag"][0,1] = [0,0]
+    atmos.values["mag"][0,2] = [500,1500]
+    atmos.values["mag"][1,0] = [300,350]
+    atmos.values["mag"][1,1] = [2000,2500]
+    atmos.values["mag"][1,2] = [250,500]
+    atmos.values["mag"] /= 1e4 # [G --> T]
+
+    atmos.values["gamma"] = np.zeros((2,3,1))
+    atmos.values["gamma"][0,0] = [70]
+    atmos.values["gamma"][0,1] = [45]
+    atmos.values["gamma"][0,2] = [10]
+    atmos.values["gamma"][1,0] = [30]
+    atmos.values["gamma"][1,1] = [60]
+    atmos.values["gamma"][1,2] = [0]
+    atmos.values["gamma"] *= np.pi/180 # [deg --> rad]
+
+    atmos.values["chi"] = np.zeros((2,3,1))
+    atmos.values["chi"][0,0] = [0]
+    atmos.values["chi"][0,1] = [30]
+    atmos.values["chi"][0,2] = [45]
+    atmos.values["chi"][1,0] = [60]
+    atmos.values["chi"][1,1] = [90]
+    atmos.values["chi"][1,2] = [130]
+    atmos.values["chi"] *= np.pi/180 # [deg --> rad]
+
+    atmos.nx = 2
+    atmos.ny = 3
+
+    atmos.atm_name_list = []
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            name = f"atmospheres/atm_{idx}_{idy}"
+            atmos.atm_name_list.append(name)
+
+    atmos.build_from_nodes(in_data.ref_atm)
+
+    globin.spectrum_path = "obs_2x3_from_nodes.fits"
     spec, atm = globin.compute_spectra(in_data, atmos, True, True)
 
+    # fig = plt.figure(figsize=(12,14))
     new_atmos = globin.Atmosphere()
     new_atmos.data = atm
-    globin.visualize.plot_atmosphere(new_atmos)
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         globin.visualize.plot_atmosphere(new_atmos, idx, idy)
     # globin.visualize.show()
-    new_atmos.save_cube("atmosphere_from_nodes.fits")
+    new_atmos.save_cube("atmosphere_2x3_from_nodes.fits")
 
-    # plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
-    # plt.plot(spec[0,0,:-1,0], spec[0,0,:-1,1])
-    # plt.show()
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            # plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
+            plt.plot(spec[idx,idy,:-1,0], spec[idx,idy,:-1,1])
+    plt.show()
 
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
