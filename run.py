@@ -41,48 +41,7 @@ for idx in range(inv_atm.nx):
 		globin.plot_spectra(inv, axs, idx=idx, idy=idy)
 		globin.show()
 
-# spec = fits.open("results/inverted_spectra.fits")[0].data[0,0]
-# print(spec.shape)
-
 sys.exit()
-
-#--- spectrum synthesis example
-# spec = globin.compute_spectra(in_data, in_data.ref_atm, False, False)
-
-# fix, axs = plt.subplots(nrows=2, ncols=2)
-
-# for i in range(in_data.ref_atm.nx):
-# 	for j in range(in_data.ref_atm.ny):
-# 		# Stokes I
-# 		axs[0,0].set_title("Stokes I")
-# 		# axs[0,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,0])
-# 		axs[0,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,1])
-# 		# Stokes Q
-# 		axs[0,1].set_title("Stokes Q")
-# 		# axs[0,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,1])
-# 		axs[0,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,2])
-# 		# Stokes U
-# 		axs[1,0].set_title("Stokes U")
-# 		# axs[1,0].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,2])
-# 		axs[1,0].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,3])
-# 		# Stokes V
-# 		axs[1,1].set_title("Stokes V")
-# 		# axs[1,1].plot(in_data.obs.data[0,0,:,0] - 401.6, in_data.obs.spec[0,0,:,3])
-# 		axs[1,1].plot(spec[i,j,:,0] - 401.6, spec[i,j,:,4])
-
-# axs[1,0].set_xlabel(r"$\Delta \lambda$ [nm]")
-# axs[1,1].set_xlabel(r"$\Delta \lambda$ [nm]")
-# axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-# axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-
-# axs[0,0].set_xlim([-0.1, 0.1])
-# axs[0,1].set_xlim([-0.1, 0.1])
-# axs[1,0].set_xlim([-0.1, 0.1])
-# axs[1,1].set_xlim([-0.1, 0.1])
-
-# plt.show()
-
-# sys.exit()
 
 #--- RF clauclation test
 # rf,_,_ = globin.atmos.compute_full_rf(in_data)

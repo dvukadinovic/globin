@@ -419,12 +419,12 @@ def invert_global(init):
 		H = copy.deepcopy(JTJ)
 		diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 		np.fill_diagonal(H, diagonal_elements)
+		plt.imshow(np.log10(H), aspect="auto")
+		plt.colorbar()
+		plt.show()
 		delta = np.dot(JT, diff.flatten())
 		proposed_steps = np.linalg.solve(H, delta)
 		
-		# plt.imshow(H, aspect="auto")
-		# plt.colorbar()
-		# plt.show()
 
 		break_loop = False
 		for j_ in range(N_search_for_lambda):

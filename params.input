@@ -22,8 +22,8 @@ vmac = 0.5
 #spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
-#nodes_temp = -2.2, -1.1, 0.3
-#nodes_temp_values = 4500, 5700, 7500
+nodes_temp = -2.2, -1.1, 0.3
+nodes_temp_values = 4500, 5700, 7500
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = -1, 0
@@ -67,7 +67,7 @@ line_dlam = -10, 5
 #--- Reference atmosphere (optional)
 #atmosphere = ../../Atmos/falc_1x1.fits
 atmosphere = atmosphere_2x3_from_nodes.fits
-range = 0,2,0,3
+#range = 0,2,0,3
 
 #============================= garbage =============================#
 
