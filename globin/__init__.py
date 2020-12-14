@@ -21,9 +21,10 @@ from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosph
 from .spec import Observation
 from .inversion import invert
 from . import tools
-from .visualize import plot_atmosphere, plot_spectra, show
+from .tools import save_chi2, bezier_spline
+from .visualize import plot_atmosphere, plot_spectra, plot_chi2, show
 
-__all__ = ["rh", "atmos", "invert", "spec", "tools"]
+__all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
@@ -56,6 +57,24 @@ delta = {"temp"  : 1,		# K
 		 "mag"   : 25/1e4,	# G --> T
 		 "gamma" : 0.001,	# rad
 		 "chi"   : 0.001}	# rad
+
+#--- full names of parameters (for FITS header)
+parameter_name = {"temp"   : "Temperature",
+				   "vz"     : "Vertical_velocity",
+				   "vmic"   : "Microturbulent_velocity",
+				   "vmac"   : "Macroturbulent_velocity",
+				   "mag"    : "Magnetic_field_strength",
+				   "gamma"  : "Inclination",
+				   "chi"    : "Azimuth"}
+
+#--- parameter units (for FITS header)
+parameter_unit = {"temp"   : "K",
+				   "vz"     : "km/s",
+				   "vmic"   : "km/s",
+				   "vmac"   : "km/s",
+				   "mag"    : "T",
+				   "gamma"  : "rad",
+				   "chi"    : "rad"}
 
 
 #--- curent working directory: one from which we imported 'globin'

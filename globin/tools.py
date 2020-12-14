@@ -174,6 +174,13 @@ def construct_atmosphere_from_nods(in_data):
             plt.plot(spec[idx,idy,:-1,0], spec[idx,idy,:-1,1])
     plt.show()
 
+def save_chi2(chi2, fpath="chi2.fits"):
+    from astropy.io import fits
+
+    primary = fits.PrimaryHDU(chi2)
+    hdulist = fits.HDUList([primary])
+    hdulist.writeto(fpath, overwrite=True)
+
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
     x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])

@@ -230,7 +230,7 @@ class Atmosphere(object):
 							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
 									Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
 					
-					y_new = globin.tools.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
+					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
 					# plt.title(parameter)
@@ -269,9 +269,33 @@ class Atmosphere(object):
 						fun = interp1d(x_old, ref_atm.data[parID])
 					self.data[idx,idy,parID] = fun(x_new)
 
-	def save_cube(self, fpath="inverted_atmos.fits"):
+	def save_atmosphere(self, fpath="inverted_atmos.fits"):
 		primary = fits.PrimaryHDU(self.data)
+		primary.name = "Atmosphere"
+
+		primary.header.comments["NAXIS1"] = "depth points"
+		primary.header.comments["NAXIS2"] = "number of parameters"
+		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
+		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
+
 		hdulist = fits.HDUList([primary])
+		
+		for parameter in self.nodes:
+			matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
+			matrix[0] *= self.nodes[parameter]
+			matrix[1] = self.values[parameter]
+			
+			par_hdu = fits.ImageHDU(matrix)
+			par_hdu.name = globin.parameter_name[parameter]
+			
+			par_hdu.header["unit"] = globin.parameter_unit[parameter]
+			par_hdu.header.comments["NAXIS1"] = "number of nodes"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "1 - node values | 2 - parameter values"
+
+			hdulist.append(par_hdu)
+
 		hdulist.writeto(fpath, overwrite=True)
 
 	def check_parameter_bounds(self):

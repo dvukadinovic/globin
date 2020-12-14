@@ -11,6 +11,8 @@ def invert(init):
 	elif init.mode==1:
 		invert_pxl_by_pxl(init)
 	elif init.mode==3:
+		# if we have global parameters
+		# if not, redirect to invert_pxl_by_pxl
 		invert_global(init)
 	else:
 		print(f"Not supported mode {init.mode} currently.")
@@ -80,7 +82,7 @@ def invert_pxl_by_pxl(init):
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, init.max_iter))
-	N_search_for_lambda = 1
+	N_search_for_lambda = 5
 	dof = np.count_nonzero(init.weights) * Nw - Npar
 
 	start = time.time()
@@ -210,108 +212,23 @@ def invert_pxl_by_pxl(init):
 		if np.sum(stop_flag)==0:
 			break
 
-	fname = "results"
-
-	print(chi2[...,:8])
+	fname = "results/standard_inv"
 
 	atmos.build_from_nodes(init.ref_atm)
-	atmos.save_cube(f"{fname}/inverted_atmos.fits")
+	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
 
-	if init.noise!=0:
-		noise = int(abs(np.log10(init.noise)))
-	else:
-		noise = 0
-
-	#--- chi2 plot
-	for idx in range(atmos.nx):
-		for idy in range(atmos.ny):
-			it_no = itter[idx,idy]
-			itt_num = np.arange(0,it_no)
-			plt.plot(itt_num+1, np.log10(chi2[idx,idy,:it_no]), c="k")
-	plt.xlabel("Iteration")
-	plt.ylabel(r"$\log (\chi^2)$")
-	plt.savefig("{:s}/chi2_n{:1d}.png".format(fname,noise))
-	plt.close()
-	# plt.show()
-
-	#--- Stokes vector plot
-	# fix, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
-
-	# for i in range(atmos.nx):
-	# 	for j in range(atmos.ny):
-	# 		# Stokes I
-	# 		axs[0,0].set_title("Stokes I")
-	# 		axs[0,0].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,0])
-	# 		axs[0,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,1])
-	# 		# Stokes Q
-	# 		axs[0,1].set_title("Stokes Q")
-	# 		axs[0,1].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,1])
-	# 		axs[0,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,2])
-	# 		# Stokes U
-	# 		axs[1,0].set_title("Stokes U")
-	# 		axs[1,0].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,2])
-	# 		axs[1,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,3])
-	# 		# Stokes V
-	# 		axs[1,1].set_title("Stokes V")
-	# 		axs[1,1].plot((obs.data[i,j,:,0] - 401.6)*10, obs.spec[i,j,:,3])
-	# 		axs[1,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,4])
-
-	# axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	# axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	# axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-	# axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-
-	# axs[0,0].set_xlim([-1, 1])
-	# axs[0,1].set_xlim([-1, 1])
-	# axs[1,0].set_xlim([-1, 1])
-	# axs[1,1].set_xlim([-1, 1])
-	# plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
+	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
-	#--- inverted params comparison with expected values
-	out_file = open("{:s}/output.log".format(fname,noise), "w")
-
 	end = time.time() - start
 	print("\nFinished in: {0}\n".format(end))
 
+	#--- inverted params comparison with expected values
+	out_file = open("{:s}/output.log".format(fname), "w")
+
 	out_file.write("Run time: {:10.1f}\n\n".format(end))
-	
-	idx, idy = 0,0
-	i_ = 0
-	labels = {"temp"  : r"T [K]",
-			  "vz"    : r"$v_z$ [km/s]",
-			  "vmic"  : r"$v_{mic}$ [km/s]",
-			  "mag"   : r"B [G]",
-			  "gamma" : r"$\gamma$ [deg]",
-			  "chi"   : r"$\chi$ [deg]"}
-	out_file.write("\n     #===--- inverted parameters ---===#\n\n")
-	for parameter in atmos.nodes:
-		if parameter=="mag":
-			fact = 1e4
-		elif parameter=="gamma" or parameter=="chi":
-			fact = 180/np.pi
-		else:
-			fact = 1
-
-	# 	plt.figure(2+i_)
-	# 	x = atmos.nodes[parameter]
-	# 	y = atmos.values[parameter][idx,idy]
-
-	# 	parID = atmos.par_id[parameter]
-	# 	plt.plot(x, y*fact, "ro")
-	# 	plt.plot(atmos.logtau, atmos.data[0,0,parID]*fact, color="tab:blue")
-	# 	plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,parID]*fact, "k-")
-	# 	plt.xlabel(r"$\log \tau$")
-	# 	plt.ylabel(labels[parameter])
-	# 	plt.savefig("{:s}/{:s}_n{:1d}.png".format(fname,parameter,noise))
-	# 	plt.close()
-	# 	i_ += 1
-
-		out_file.writelines("# " + labels[parameter] + "\n")
-		for i_ in range(len(x)):
-			out_file.write("{:2.1f}    {:5.4f}\n".format(x[i_], y[i_]*fact))
 
 	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 	out_file.write(init.params_input)
@@ -345,7 +262,7 @@ def invert_global(init):
 	Npar = atmos.n_local_pars + atmos.n_global_pars
 
 	if Npar==0:
-		sys.exit("There is no parameters to fit.\n   We exit.\n")
+		sys.exit("There are no parameters to fit.\n   We exit.\n")
 
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
@@ -407,14 +324,15 @@ def invert_global(init):
 		J = np.zeros((4*Nw*(atmos.nx*atmos.ny), atmos.n_local_pars*(atmos.nx*atmos.ny) + atmos.n_global_pars))
 
 		l = 4*Nw
-		start = time.time()
+		n_atmosphere = 0
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				low = (idx+idy)*l
+				low = n_atmosphere*l
 				up = low + l 
-				ll = (idx+idy)*atmos.n_local_pars
+				ll = n_atmosphere*atmos.n_local_pars
 				uu = ll + atmos.n_local_pars
 				J[low:up,ll:uu] = aux[idx,idy,:,:atmos.n_local_pars]
+				n_atmosphere += 1
 
 		for gID in range(atmos.n_global_pars):
 			J[:,uu+gID] = aux[:,:,:,atmos.n_local_pars+gID].flatten()
@@ -424,13 +342,12 @@ def invert_global(init):
 		H = copy.deepcopy(JTJ)
 		diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 		np.fill_diagonal(H, diagonal_elements)
-		plt.imshow(np.log10(H), aspect="auto")
-		plt.colorbar()
-		plt.show()
+		# plt.imshow(np.log10(H), aspect="auto")
+		# plt.colorbar()
+		# plt.show()
 		delta = np.dot(JT, diff.flatten())
 		proposed_steps = np.linalg.solve(H, delta)
 		
-
 		break_loop = False
 		for j_ in range(N_search_for_lambda):
 			old_parameters = copy.deepcopy(atmos.values)
@@ -514,110 +431,33 @@ def invert_global(init):
 
 		print("\n--------------------------------------------------\n")
 
-	fname = "results"
+	fname = "results/global_inv"
 
 	atmos.build_from_nodes(init.ref_atm)
-	atmos.save_cube(f"{fname}/inverted_atmos.fits")
+	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
 
-	# if init.noise!=0:
-	# 	noise = int(abs(np.log10(init.noise)))
-	# else:
-	# 	noise = 0
-
-	# #--- chi2 plot
-	# itt_num = np.arange(0,itter)
-	# plt.plot(itt_num+1, np.log10(chi2[:itter,0,0]), c="k")
-	# plt.xlabel("Iteration")
-	# plt.ylabel(r"$\log (\chi^2)$")
-	# plt.savefig("{:s}/chi2_n{:1d}.png".format(fname,noise))
-	# plt.close()
-	# # plt.show()
-
-	# #--- Stokes vector plot
-	# fix, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
-
-	# for i in range(atmos.nx):
-	# 	for j in range(atmos.ny):
-	# 		# Stokes I
-	# 		axs[0,0].set_title("Stokes I")
-	# 		axs[0,0].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,0])
-	# 		axs[0,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,1])
-	# 		# Stokes Q
-	# 		axs[0,1].set_title("Stokes Q")
-	# 		axs[0,1].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,1])
-	# 		axs[0,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,2])
-	# 		# Stokes U
-	# 		axs[1,0].set_title("Stokes U")
-	# 		axs[1,0].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,2])
-	# 		axs[1,0].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,3])
-	# 		# Stokes V
-	# 		axs[1,1].set_title("Stokes V")
-	# 		axs[1,1].plot((obs.data[0,0,:,0] - 401.6)*10, obs.spec[0,0,:,3])
-	# 		axs[1,1].plot((corrected_spec[i,j,:,0] - 401.6)*10, corrected_spec[i,j,:,4])
-
-	# axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	# axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	# axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-	# axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-
-	# axs[0,0].set_xlim([-1, 1])
-	# axs[0,1].set_xlim([-1, 1])
-	# axs[1,0].set_xlim([-1, 1])
-	# axs[1,1].set_xlim([-1, 1])
-	# plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
+	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
-	# #--- inverted params comparison with expected values
-	# out_file = open("{:s}/output.log".format(fname,noise), "w")
+	end = time.time() - start
+	print("Finished in: {0}\n".format(end))
 
-	# end = time.time() - start
-	# print("Finished in: {0}\n".format(end))
+	#--- inverted params comparison with expected values
+	out_file = open("{:s}/output.log".format(fname), "w")
 
-	# out_file.write("Run time: {:10.1f}\n\n".format(end))
-	
-	# idx, idy = 0,0
-	# i_ = 0
-	# labels = {"temp"  : r"T [K]",
-	# 		  "vz"    : r"$v_z$ [km/s]",
-	# 		  "vmic"  : r"$v_{mic}$ [km/s]",
-	# 		  "mag"   : r"B [G]",
-	# 		  "gamma" : r"$\gamma$ [deg]",
-	# 		  "chi"   : r"$\chi$ [deg]"}
-	# out_file.write("\n     #===--- inverted parameters ---===#\n\n")
-	# for parameter in atmos.nodes:
-	# 	if parameter=="mag":
-	# 		fact = 1e4
-	# 	elif parameter=="gamma" or parameter=="chi":
-	# 		fact = 180/np.pi
-	# 	else:
-	# 		fact = 1
+	out_file.write("Run time: {:10.1f}\n\n".format(end))
 
-	# 	plt.figure(2+i_)
-	# 	x = atmos.nodes[parameter]
-	# 	y = atmos.values[parameter][idx,idy]
+	out_file.write("\n\n     #===--- Global parameters ---===#\n\n")
 
-	# 	parID = atmos.par_id[parameter]
-	# 	plt.plot(x, y*fact, "ro")
-	# 	plt.plot(atmos.logtau, atmos.data[0,0,parID]*fact, color="tab:blue")
-	# 	plt.plot(init.ref_atm.data[idx,idy,0], init.ref_atm.data[idx,idy,parID]*fact, "k-")
-	# 	plt.xlabel(r"$\log \tau$")
-	# 	plt.ylabel(labels[parameter])
-	# 	plt.savefig("{:s}/{:s}_n{:1d}.png".format(fname,parameter,noise))
-	# 	plt.close()
-	# 	i_ += 1
+	for par in atmos.global_pars:
+		for i_ in range(len(atmos.global_pars[par])):
+			out_file.write("{:s}    {:4.3f}\n".format(par, atmos.global_pars[par][i_]))
 
-	# 	out_file.writelines("# " + labels[parameter] + "\n")
-	# 	for i_ in range(len(x)):
-	# 		out_file.write("{:2.1f}    {:5.4f}\n".format(x[i_], y[i_]*fact))
-	# out_file.write("\n     #===--- inverted global parameters ---===#\n\n")
-	# for parameter in atmos.global_pars:
-	# 	out_file.write("{:5}    {:6.2f}\n".format(parameter, atmos.global_pars[parameter]))
-	
-	# out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-	# out_file.write(init.params_input)
-	# out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-	# out_file.write(init.rh_input)
+	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
+	out_file.write(init.params_input)
+	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
+	out_file.write(init.rh_input)
 
-	# out_file.close()
+	out_file.close()

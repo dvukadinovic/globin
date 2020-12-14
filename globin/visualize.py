@@ -1,75 +1,92 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_atmosphere(atmos, idx=0, idy=0):
+import globin
+
+fact = {"temp"  : 1,
+		"vz"    : 1,
+		"vmic"  : 1,
+		"mag"   : 1e4,
+		"gamma" : 180/np.pi,
+		"chi"   : 180/np.pi}
+
+unit = {"temp"  : "K",
+		"vz"    : "km/s",
+		"vmic"  : "km/s",
+		"mag"   : "G",
+		"gamma" : "deg",
+		"chi"   : "deg"}
+
+def plot_atmosphere(atmos, parameters, idx=0, idy=0):
 	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
 
-	nrows, ncols = 4, 2
+	n_plots = len(parameters)
+	if n_plots==1:
+		ncols = 1
+		nrows = 1
+	else:
+		ncols = 2
+		nrows = int(np.ceil(n_plots/ncols))
 
-	plt.subplot(nrows, ncols, 1)
-	plt.plot(logtau, cube[1])
-	plt.ylabel("T [K]")
+	for k_ in range(n_plots):	
+		parID = atmos.par_id[parameters[k_]]
 
-	plt.subplot(nrows, ncols, 2)
-	plt.plot(logtau, np.log10(cube[2]))
-	plt.ylabel(r"$\log (n_e)$ [m$^{-3}$]")
-	
-	plt.subplot(nrows, ncols, 3)
-	plt.plot(logtau, cube[3])
-	plt.ylabel("$v_z$ [km/s]")
+		plt.subplot(nrows, ncols, k_+1)
 
-	plt.subplot(nrows, ncols, 4)
-	plt.plot(logtau, cube[5]*1e4)
-	plt.ylabel("B [G]")
+		plt.plot(logtau, cube[parID]*fact[parameters[k_]])
+		plt.xlabel(r"$\log \tau$")
+		plt.ylabel(f"{globin.parameter_name[parameters[k_]]} [{unit[parameters[k_]]}]")
 
-	plt.subplot(nrows, ncols, 5)
-	plt.plot(logtau, cube[6] * 180/np.pi)
-	plt.ylabel(r"$\gamma$ [$^\circ$]")
-	plt.xlabel(r"$\log \tau$")
-
-	plt.subplot(nrows, ncols, 6)
-	plt.plot(logtau, cube[7] * 180/np.pi)
-	plt.ylabel(r"$\chi$ [$^\circ$]")
-	plt.xlabel(r"$\log \tau$")
-
-	plt.subplot(nrows, ncols, 7)
-	plt.plot(logtau, cube[4])
-	plt.ylabel(r"$v_{mic}$ [km/s]")
-	plt.xlabel(r"$\log \tau$")
-
-	# plt.savefig("atmosphere_from_nodes.png")
-
-def plot_spectra(inv, axs, idx=0, idy=0):
+def plot_spectra(inv, idx=0, idy=0):
 
 	# Stokes I
-	axs[0,0].set_title("Stokes I")
-	# axs[0,0].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,0])
-	axs[0,0].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,0])
+	plt.subplot(2,2,1)
+	plt.title("Stokes I")
+	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,0])
+	plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+	plt.xlim([-1, 1])
 	# Stokes Q
-	axs[0,1].set_title("Stokes Q")
-	# axs[0,1].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,1])
-	axs[0,1].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,1])
+	plt.subplot(2,2,2)
+	plt.title("Stokes Q")
+	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,1])
+	plt.xlim([-1, 1])
 	# Stokes U
-	axs[1,0].set_title("Stokes U")
-	# axs[1,0].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,2])
-	axs[1,0].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,2])
+	plt.subplot(2,2,3)
+	plt.title("Stokes U")
+	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,2])
+	plt.xlim([-1, 1])
+	plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
+	plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 	# Stokes V
-	axs[1,1].set_title("Stokes V")
-	# axs[1,1].plot((obs.data[idx,idy,:,0] - 401.6)*10, obs.spec[idx,idy,:,3])
-	axs[1,1].plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,3])
+	plt.subplot(2,2,4)
+	plt.title("Stokes V")
+	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,3])
+	plt.xlim([-1, 1])
+	plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 
-	axs[1,0].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	axs[1,1].set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-	axs[0,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-	axs[1,0].set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-
-	axs[0,0].set_xlim([-1, 1])
-	axs[0,1].set_xlim([-1, 1])
-	axs[1,0].set_xlim([-1, 1])
-	axs[1,1].set_xlim([-1, 1])
+def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
+	fig = plt.figure(figsize=(12,10))
 	
-	# plt.savefig("{:s}/stokes_vector_n{:1d}.png".format(fname,noise))
+	if chi2.ndim==3:	
+		nx, ny, niter = chi2.shape
+		for idx in range(nx):
+			for idy in range(ny):
+				inds_non_zero = np.nonzero(chi2[idx,idy])[0]
+				plt.plot(chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
+	elif chi2.ndim==1:
+		niter = chi2.shape
+		inds_non_zero = np.nonzero(chi2)[0]
+		plt.plot(chi2[inds_non_zero])
+
+	plt.xlabel("Iteration", fontsize=14)
+	plt.ylabel(r"$\chi^2$", fontsize=14)
+	plt.xticks(fontsize=12)
+	plt.yticks(fontsize=12)
+	if log_scale:
+		plt.yscale("log")
+	plt.legend(fontsize=12)
+	plt.savefig(fpath)
 
 def show():	
 	plt.show()

@@ -14,32 +14,41 @@ in_data.read_input_files()
 # sys.exit()
 
 # list of all class variables
-# var = vars(in_data)
+# var = vars(in_data.atm.nodes)
+# print(list(in_data.atm.nodes))
+
+# sys.exit()
 
 #--- inversion
 globin.invert(in_data)#; sys.exit()
 
 #--- analysis of the inverted data
-xmin, xmax, ymin, ymax = in_data.atm_range
-
-inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
+inv_atm = globin.Atmosphere("results/global_inv/inverted_atmos.fits")
 atm = globin.Atmosphere("atmosphere_2x3_from_nodes.fits", atm_range=in_data.atm_range)
 
-inv = globin.Observation("results/inverted_spectra.fits")
+inv = globin.Observation("results/global_inv/inverted_spectra.fits")
 obs = globin.Observation("obs_2x3_from_nodes.fits", atm_range=in_data.atm_range)
+
+chi2 = fits.open("results/global_inv/chi2.fits")[0].data
+globin.plot_chi2(chi2, "results/global_inv/chi2.png", True)
+
+lista = list(in_data.atm.nodes)
 
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
+		fig = plt.figure(figsize=(12,10))
+		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
+		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy)
+		plt.savefig(f"results/global_inv/atm_vs_inv_{idx}_{idy}.png")
+		plt.close()
+		# globin.show()
 
-		globin.plot_atmosphere(atm, idx=idx, idy=idy)
-		globin.plot_atmosphere(inv_atm, idx=idx, idy=idy)
-		globin.show()
-
-		fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(12,10))
-
-		globin.plot_spectra(obs, axs, idx=idx, idy=idy)
-		globin.plot_spectra(inv, axs, idx=idx, idy=idy)
-		globin.show()
+		fig = plt.figure(figsize=(12,10))
+		globin.plot_spectra(obs, idx=idx, idy=idy)
+		globin.plot_spectra(inv, idx=idx, idy=idy)
+		plt.savefig(f"results/global_inv/obs_vs_inv_{idx}_{idy}.png")
+		plt.close()
+		# globin.show()
 
 sys.exit()
 
