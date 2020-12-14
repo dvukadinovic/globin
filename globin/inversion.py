@@ -384,6 +384,11 @@ def invert_global(init):
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
 		rf, spec, atm = globin.compute_rfs(init, local=False)
+
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+		# 		plt.plot(rf[idx,idy,1,:,0])
+		# 		plt.show()
 		
 		#--- scale RFs with weights and noise scale
 		rf *= init.weights

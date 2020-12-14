@@ -7,7 +7,7 @@
 # We are using it for sanity check.
 
 #--- General parameters
-n_threads = 6
+n_threads = 2
 interp_degree = 3
 mode = 3
 
