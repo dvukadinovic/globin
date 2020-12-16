@@ -7,16 +7,16 @@
 # We are using it for sanity check.
 
 #--- General parameters
-n_threads = 6
+n_threads = 1
 interp_degree = 3
 mode = 3
 
 #--- Spectra to be fitted
 observation = obs_2x3_from_nodes.fits
 noise = 1e-4
-weights = 5,1,1,5
-rf_weights = rf_weights
-vmac = 0.5
+weights = 1,1,1,1
+#rf_weights = rf_weights
+vmac = -1.5
 
 #--- Output spectra
 #spectrum = obs.fits
@@ -54,15 +54,17 @@ wave_step = 0.010
 
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e-2
-max_iter = 100
+max_iter = 200
 chi2_tolerance = 1e-3
 
 #--- Line parameters
-line_num_loggf = 11, 15
-line_loggf = -2, -4
+#line_num_loggf = 11, 15
+#line_loggf = -2, -4
 
-line_num_dlam = 1,15
-line_dlam = -10, 5
+#line_num_dlam = 1,15
+#line_dlam = -10, 5
+
+line_pars = line_pars
 
 #--- Reference atmosphere (optional)
 #atmosphere = ../../Atmos/falc_1x1.fits

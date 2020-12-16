@@ -156,7 +156,7 @@ def construct_atmosphere_from_nods(in_data):
 
     atmos.build_from_nodes(in_data.ref_atm)
 
-    globin.spectrum_path = "obs_2x3_from_nodes.fits"
+    globin.spectrum_path = "obs_high_vmac.fits"
     spec, atm = globin.compute_spectra(in_data, atmos, True, True)
 
     # fig = plt.figure(figsize=(12,14))
@@ -166,7 +166,7 @@ def construct_atmosphere_from_nods(in_data):
     #     for idy in range(atmos.ny):
     #         globin.visualize.plot_atmosphere(new_atmos, idx, idy)
     # globin.visualize.show()
-    new_atmos.save_cube("atmosphere_2x3_from_nodes.fits")
+    new_atmos.save_cube("atmosphere_high_mac.fits")
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):

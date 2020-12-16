@@ -9,9 +9,11 @@ import sys
 in_data = globin.InputData()
 in_data.read_input_files()
 
+sys.exit()
+
 #--- create atmos from nodes
-# globin.tools.construct_atmosphere_from_nods(in_data)
-# sys.exit()
+globin.tools.construct_atmosphere_from_nods(in_data)
+sys.exit()
 
 # list of all class variables
 # var = vars(in_data.atm.nodes)
@@ -23,14 +25,14 @@ in_data.read_input_files()
 globin.invert(in_data)#; sys.exit()
 
 #--- analysis of the inverted data
-inv_atm = globin.Atmosphere("results/global_inv/inverted_atmos.fits")
+inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
 atm = globin.Atmosphere("atmosphere_2x3_from_nodes.fits", atm_range=in_data.atm_range)
 
-inv = globin.Observation("results/global_inv/inverted_spectra.fits")
+inv = globin.Observation("results/inverted_spectra.fits")
 obs = globin.Observation("obs_2x3_from_nodes.fits", atm_range=in_data.atm_range)
 
-chi2 = fits.open("results/global_inv/chi2.fits")[0].data
-globin.plot_chi2(chi2, "results/global_inv/chi2.png", True)
+chi2 = fits.open("results/chi2.fits")[0].data
+globin.plot_chi2(chi2, "results/chi2.png", True)
 
 lista = list(in_data.atm.nodes)
 
@@ -39,14 +41,14 @@ for idx in range(inv_atm.nx):
 		fig = plt.figure(figsize=(12,10))
 		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
 		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy)
-		plt.savefig(f"results/global_inv/atm_vs_inv_{idx}_{idy}.png")
+		plt.savefig(f"results/atm_vs_inv_{idx}_{idy}.png")
 		plt.close()
 		# globin.show()
 
 		fig = plt.figure(figsize=(12,10))
 		globin.plot_spectra(obs, idx=idx, idy=idy)
 		globin.plot_spectra(inv, idx=idx, idy=idy)
-		plt.savefig(f"results/global_inv/obs_vs_inv_{idx}_{idy}.png")
+		plt.savefig(f"results/obs_vs_inv_{idx}_{idy}.png")
 		plt.close()
 		# globin.show()
 

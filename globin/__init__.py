@@ -35,7 +35,7 @@ COMMENT_CHAR = "#"
 limit_values = {"temp"  : [3000,10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
 				"vmic"  : [0,10],				# [km/s]
-				"vmac"  : [0.1,5],				# [km/s]
+				"vmac"  : [0,5],				# [km/s]
 				"mag"   : [1/1e4, 5000/1e4],	# [T]
 				"gamma" : [0, np.pi],			# [rad]
 				"chi"   : [-np.pi, np.pi]}		# [rad]
@@ -53,7 +53,7 @@ parameter_scale = {"temp"   : 5000,	# [K]
 delta = {"temp"  : 1,		# K
 		 "vz"    : 10/1e3,	# m/s --> km/s
 		 "vmic"  : 10/1e3,	# m/s --> km/s
-		 "vmac"  : 1/1e3,	# m/s --> km/s
+		 "vmac"  : 10/1e3,	# m/s --> km/s
 		 "mag"   : 25/1e4,	# G --> T
 		 "gamma" : 0.001,	# rad
 		 "chi"   : 0.001}	# rad
@@ -69,12 +69,12 @@ parameter_name = {"temp"   : "Temperature",
 
 #--- parameter units (for FITS header)
 parameter_unit = {"temp"   : "K",
-				   "vz"     : "km/s",
-				   "vmic"   : "km/s",
-				   "vmac"   : "km/s",
-				   "mag"    : "T",
-				   "gamma"  : "rad",
-				   "chi"    : "rad"}
+				  "vz"     : "km/s",
+				  "vmic"   : "km/s",
+				  "vmac"   : "km/s",
+				  "mag"    : "T",
+				  "gamma"  : "rad",
+				  "chi"    : "rad"}
 
 
 #--- curent working directory: one from which we imported 'globin'

@@ -212,7 +212,7 @@ def invert_pxl_by_pxl(init):
 		if np.sum(stop_flag)==0:
 			break
 
-	fname = "results/standard_inv"
+	fname = "results"
 
 	atmos.build_from_nodes(init.ref_atm)
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
@@ -342,9 +342,9 @@ def invert_global(init):
 		H = copy.deepcopy(JTJ)
 		diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 		np.fill_diagonal(H, diagonal_elements)
-		# plt.imshow(np.log10(H), aspect="auto")
-		# plt.colorbar()
-		# plt.show()
+		plt.imshow(np.log10(H), aspect="auto")
+		plt.colorbar()
+		plt.show()
 		delta = np.dot(JT, diff.flatten())
 		proposed_steps = np.linalg.solve(H, delta)
 		
@@ -431,7 +431,7 @@ def invert_global(init):
 
 		print("\n--------------------------------------------------\n")
 
-	fname = "results/global_inv"
+	fname = "results"
 
 	atmos.build_from_nodes(init.ref_atm)
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")

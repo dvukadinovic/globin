@@ -69,6 +69,7 @@ class InputData(object):
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
 		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
+		RLK_linelist = find_value_by_key("KURUCZ_DATA", text, "optional")
 
 		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
@@ -282,6 +283,20 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
+			#--- line parameters to be fit
+			line_par_path = find_value_by_key("line_pars", text, "optional")
+			if line_par_path:
+				self.read_line_parameters(line_par_path)
+
+			#--- Kurucz line list for given spectral region
+			if RLK_linelist:
+				lines = open(RLK_linelist, "r").readlines()
+
+				for line in lines:
+					line = line.rstrip("\n").strip(" ")
+					if line[0]!=globin.COMMENT_CHAR:
+						RLK_lines = read_RLK_lines(line)
+
 			#--- if we have more threads than atmospheres, reduce the number of used threads
 			if self.n_thread > self.atm.nx*self.atm.ny:
 				self.n_thread = self.atm.nx*self.atm.ny
@@ -303,3 +318,48 @@ class InputData(object):
 			#--- missing parameters
 			# instrument broadening: R or instrument profile provided
 			# strailight contribution
+
+	def read_line_parameters(self, fpath):
+		lines = open(fpath, "r").readlines()
+
+		loggf_lineNo = []
+		dlam_lineNo = []
+
+		loggf_init = []
+		dlam_init = []
+
+		loggf_min, loggf_max = [], []
+		dlam_min, dlam_max = [], []
+
+		for line in lines:
+			line = list(filter(None,line.rstrip("\n").split(" ")))
+			if line[0]=="loggf":
+				loggf_lineNo.append(float(line[1]))
+				loggf_init.append(float(line[2]))
+				loggf_min.append(float(line[3]))
+				loggf_min.append(float(line[4]))
+			elif line[0]=="dlam":
+				dlam_lineNo.append(float(line[1]))
+				dlam_init.append(float(line[2]))
+				dlam_min.append(float(line[3]))
+				dlam_min.append(float(line[4]))
+
+class Line(object):
+
+	def __init__(self, lineNo=None, lam0=None, loggf=None):
+		self.lineNo = lineNo
+		self.lam0 = lam0
+		self.loggf = loggf
+
+def read_RLK_lines(fpath):
+	lines = open(fpath, "r").readlines()
+
+	RLK_lines = []
+
+	for i_, line in enumerate(lines):
+		loggf = float(line[0:10])
+		lam0 = float(line[10:18])
+
+		RLK_lines.append(Line(i_+1, lam0, loggf))
+
+	return RLK_lines
