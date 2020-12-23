@@ -89,7 +89,9 @@ class InputData(object):
 			
 			#--- default parameters
 			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
-			
+			vmac = abs(find_value_by_key("vmac", text, "default", default_val=0, conversion=float))
+			self.atm.vmac = vmac*1e3 # [m/s]
+
 			#--- optional parameters
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
@@ -97,10 +99,14 @@ class InputData(object):
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
 				self.wavelength = np.loadtxt(self.wave_grid_path)
+				self.lmin = min(self.wavelength)
+				self.lmax = max(self.wavelength)
+				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, wave_file_path)
-			self.atm.vmac = abs(find_value_by_key("vmac", text, "optional", conversion=float))
+			# standard deviation of Gaussian kernel for macro broadening
+			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
 		#--- get parameters for inversion
 		if self.mode>=1:
@@ -118,7 +124,7 @@ class InputData(object):
 						self.atm_range.append(int(item))
 			else:
 				self.atm_range = aux
-			
+		
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")
 			self.obs = Observation(path_to_observations, self.atm_range)
@@ -130,18 +136,21 @@ class InputData(object):
 					self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
 			
 			#--- default parameters
-			self.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
-			globin.interp_degree = self.interp_degree
+			globin.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
 			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
 			self.chi2_tolerance = find_value_by_key("chi2_tolerance", text, "default", 1e-2, float)
-			values = find_value_by_key("weights", text, "default", [1,1,1,1])
+			values = find_value_by_key("weights", text, "default", np.array([1,1,1,1], dtype=np.float64))
 			if type(values)==str:
 				values = values.split(",")
 				self.weights = np.array([float(item) for item in values], dtype=np.float64)
-			else:
-				self.weights = np.array(values, dtype=np.float64)
+			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
+			self.atm.vmac = vmac*1e3 # [m/s]
+			# if macro-turbulent velocity is negative, we fit for it
+			if self.atm.vmac<0:
+				self.atm.vmac = abs(self.atm.vmac)
+				self.atm.global_pars["vmac"] = self.atm.vmac
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
@@ -153,12 +162,16 @@ class InputData(object):
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
-			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
+			if (self.step is None) and (self.lmin is None) and (self.lmax is None):
 				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
 				self.wavelength = np.loadtxt(self.wave_grid_path)
+				self.lmin = min(self.wavelength)
+				self.lmax = max(self.wavelength)
+				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, wave_file_path)
+
 			fpath = find_value_by_key("rf_weights", text, "optional")
 			self.wavs_weight = np.ones((len(self.wavelength),4))
 			if fpath is not None:
@@ -168,11 +181,8 @@ class InputData(object):
 					self.wavs_weight[:,1] = wQ
 					self.wavs_weight[:,2] = wU
 					self.wavs_weight[:,3] = wV
-			self.atm.vmac = find_value_by_key("vmac", text, "optional", conversion=float)
-			# if macroturbulent velocity is negative, we fit for it
-			if self.atm.vmac<0:
-				self.atm.vmac = abs(self.atm.vmac)
-				self.atm.global_pars["vmac"] = self.atm.vmac
+			# standard deviation of Gaussian kernel for macro broadening
+			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
 			#--- nodes
 			nodes = find_value_by_key("nodes_temp", text, "optional")
@@ -183,7 +193,7 @@ class InputData(object):
 				values = [float(item) for item in values.split(",")]
 				if len(values)!=len(self.atm.nodes["temp"]):
 					sys.exit("Number of nodes and values for temperature are not the same!")
-				
+
 				try:	
 					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])), dtype=np.float64)
 					matrix[:,:] = copy.deepcopy(values)

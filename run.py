@@ -9,27 +9,24 @@ import sys
 in_data = globin.InputData()
 in_data.read_input_files()
 
-sys.exit()
-
 #--- create atmos from nodes
-globin.tools.construct_atmosphere_from_nods(in_data)
+globin.construct_atmosphere_from_nods(in_data)
 sys.exit()
-
-# list of all class variables
-# var = vars(in_data.atm.nodes)
-# print(list(in_data.atm.nodes))
-
-# sys.exit()
 
 #--- inversion
-globin.invert(in_data)#; sys.exit()
+globin.invert(in_data)
+# sys.exit()
 
 #--- analysis of the inverted data
+xmin,_, ymin,_ = in_data.atm_range
+
 inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
-atm = globin.Atmosphere("atmosphere_2x3_from_nodes.fits", atm_range=in_data.atm_range)
+# atm = globin.Atmosphere("atmosphere_2x3_from_nodes.fits", atm_range=in_data.atm_range)
+atm = in_data.ref_atm
 
 inv = globin.Observation("results/inverted_spectra.fits")
-obs = globin.Observation("obs_2x3_from_nodes.fits", atm_range=in_data.atm_range)
+# obs = globin.Observation("obs_high_vmac.fits", atm_range=in_data.atm_range)
+obs = in_data.obs
 
 chi2 = fits.open("results/chi2.fits")[0].data
 globin.plot_chi2(chi2, "results/chi2.png", True)
@@ -39,14 +36,14 @@ lista = list(in_data.atm.nodes)
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
 		fig = plt.figure(figsize=(12,10))
-		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
+		globin.plot_atmosphere(atm, parameters=lista, idx=idx+xmin, idy=idy+ymin)
 		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy)
 		plt.savefig(f"results/atm_vs_inv_{idx}_{idy}.png")
 		plt.close()
 		# globin.show()
 
 		fig = plt.figure(figsize=(12,10))
-		globin.plot_spectra(obs, idx=idx, idy=idy)
+		globin.plot_spectra(obs, idx=idx+xmin, idy=idy+ymin)
 		globin.plot_spectra(inv, idx=idx, idy=idy)
 		plt.savefig(f"results/obs_vs_inv_{idx}_{idy}.png")
 		plt.close()
@@ -55,7 +52,22 @@ for idx in range(inv_atm.nx):
 sys.exit()
 
 #--- RF clauclation test
-# rf,_,_ = globin.atmos.compute_full_rf(in_data)
+rf,_,_ = globin.atmos.compute_full_rf(in_data,loc_params=["temp"])
+
+rf = rf[0,0]
+
+# print(rf[1,0,:,0])
+
+plt.figure(1)
+plt.plot(rf[1,0,:,0])
+
+plt.figure(2)
+plt.imshow(rf[0,:,:,0], aspect="auto", cmap="gnuplot")
+plt.colorbar()
+
+plt.show()
+
+sys.exit()
 
 # globin.visualize.plot_atmosphere(in_data.ref_atm)
 

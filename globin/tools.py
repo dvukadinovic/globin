@@ -1,5 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import copy
+import sys
+from scipy.ndimage import gaussian_filter
 
 import globin
 
@@ -91,8 +94,8 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 
 def construct_atmosphere_from_nods(in_data):
     atmos = in_data.atm
-    obs = in_data.obs
-    print(atmos.values)
+
+    # print(atmos.values)
 
     atmos.values["temp"] = np.zeros((2,3,3))
     atmos.values["temp"][0,0] = [4500,5500,7300]
@@ -101,6 +104,12 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["temp"][1,0] = [4500,5600,7500]
     atmos.values["temp"][1,1] = [4800,5300,7600]
     atmos.values["temp"][1,2] = [4200,5200,7400]
+    # atmos.values["temp"][0,0] = [4500,5500,7300]
+    # atmos.values["temp"][0,1] = [4500,5500,7300]
+    # atmos.values["temp"][0,2] = [4500,5500,7300]
+    # atmos.values["temp"][1,0] = [4500,5500,7300]
+    # atmos.values["temp"][1,1] = [4500,5500,7300]
+    # atmos.values["temp"][1,2] = [4500,5500,7300]
 
     atmos.values["vz"] = np.zeros((2,3,2))
     atmos.values["vz"][0,0] = [1,-0.5]
@@ -109,6 +118,12 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["vz"][1,0] = [0.75,-0.1]
     atmos.values["vz"][1,1] = [-1,0]
     atmos.values["vz"][1,2] = [-1.2,0.5]
+    # atmos.values["vz"][0,0] = [0,0]
+    # atmos.values["vz"][0,1] = [0,0]
+    # atmos.values["vz"][0,2] = [0,0]
+    # atmos.values["vz"][1,0] = [0,0]
+    # atmos.values["vz"][1,1] = [0,0]
+    # atmos.values["vz"][1,2] = [0,0]
 
     atmos.values["vmic"] = np.zeros((2,3,1))
     atmos.values["vmic"][0,0] = [0.0]
@@ -117,6 +132,12 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["vmic"][1,0] = [0.75]
     atmos.values["vmic"][1,1] = [1.0]
     atmos.values["vmic"][1,2] = [1.25]
+    # atmos.values["vmic"][0,0] = [0.0]
+    # atmos.values["vmic"][0,1] = [0.0]
+    # atmos.values["vmic"][0,2] = [0.0]
+    # atmos.values["vmic"][1,0] = [0.0]
+    # atmos.values["vmic"][1,1] = [0.0]
+    # atmos.values["vmic"][1,2] = [0.0]
 
     atmos.values["mag"] = np.zeros((2,3,2))
     atmos.values["mag"][0,0] = [100,250]
@@ -126,6 +147,13 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["mag"][1,1] = [2000,2500]
     atmos.values["mag"][1,2] = [250,500]
     atmos.values["mag"] /= 1e4 # [G --> T]
+    # atmos.values["mag"][0,0] = [-500]
+    # atmos.values["mag"][0,1] = [500]
+    # atmos.values["mag"][0,2] = [500]
+    # atmos.values["mag"][1,0] = [500]
+    # atmos.values["mag"][1,1] = [500]
+    # atmos.values["mag"][1,2] = [500]
+    atmos.values["mag"] /= 1e4 # [G --> T]
 
     atmos.values["gamma"] = np.zeros((2,3,1))
     atmos.values["gamma"][0,0] = [70]
@@ -134,6 +162,12 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["gamma"][1,0] = [30]
     atmos.values["gamma"][1,1] = [60]
     atmos.values["gamma"][1,2] = [0]
+    # atmos.values["gamma"][0,0] = [0]
+    # atmos.values["gamma"][0,1] = [0]
+    # atmos.values["gamma"][0,2] = [180]
+    # atmos.values["gamma"][1,0] = [45]
+    # atmos.values["gamma"][1,1] = [45]
+    # atmos.values["gamma"][1,2] = [45]
     atmos.values["gamma"] *= np.pi/180 # [deg --> rad]
 
     atmos.values["chi"] = np.zeros((2,3,1))
@@ -143,6 +177,12 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["chi"][1,0] = [60]
     atmos.values["chi"][1,1] = [90]
     atmos.values["chi"][1,2] = [130]
+    # atmos.values["chi"][0,0] = [0]
+    # atmos.values["chi"][0,1] = [0]
+    # atmos.values["chi"][0,2] = [0]
+    # atmos.values["chi"][1,0] = [0]
+    # atmos.values["chi"][1,1] = [45]
+    # atmos.values["chi"][1,2] = [90]
     atmos.values["chi"] *= np.pi/180 # [deg --> rad]
 
     atmos.nx = 2
@@ -156,23 +196,33 @@ def construct_atmosphere_from_nods(in_data):
 
     atmos.build_from_nodes(in_data.ref_atm)
 
-    globin.spectrum_path = "obs_high_vmac.fits"
-    spec, atm = globin.compute_spectra(in_data, atmos, True, True)
+    spec, _ = globin.compute_spectra(in_data, atmos, False, True)
+    globin.atmos.broaden_spectra(spec, atmos)
+    globin.spectrum_path = "obs_2x3_from_nodes.fits"
+    globin.atmos.save_spectra(spec, globin.spectrum_path)
 
     # fig = plt.figure(figsize=(12,14))
-    new_atmos = globin.Atmosphere()
-    new_atmos.data = atm
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
-    #         globin.visualize.plot_atmosphere(new_atmos, idx, idy)
-    # globin.visualize.show()
-    new_atmos.save_cube("atmosphere_high_mac.fits")
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            globin.visualize.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
+    globin.visualize.show()
+    atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
+
+    # print(spec[0,0,:,0])
+
+    spec = globin.spec.Observation(globin.spectrum_path)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
-            # plt.plot(obs.data[0,0,:-1,0], obs.data[0,0,:-1,1])
-            plt.plot(spec[idx,idy,:-1,0], spec[idx,idy,:-1,1])
-    plt.show()
+            fig = plt.figure(figsize=(12,10))
+            globin.plot_spectra(spec, idx=idx, idy=idy)
+            gamma = atmos.values["gamma"][idx,idy][0] * 180/np.pi
+            chi = atmos.values["chi"][idx,idy][0] * 180/np.pi
+            mag = atmos.values["mag"][idx,idy][0] * 1e4
+            plt.show()
+            # plt.savefig("results/mag_field_test/stokes_m{:04.0f}_g{:03.0f}_a{:03.0f}.png".format(mag,gamma,chi))
+    # plt.savefig(f"results/mag_field_test/stokes_gamma_compare.png")
+    # plt.show()
 
 def save_chi2(chi2, fpath="chi2.fits"):
     from astropy.io import fits

@@ -1,6 +1,7 @@
 import sys
 from astropy.io import fits
 import numpy as np
+from scipy.ndimage import gaussian_filter
 
 class Observation(object):
 	"""

@@ -2,6 +2,7 @@ import numpy as np
 import sys
 import copy
 import time
+from scipy.ndimage import gaussian_filter
 
 import globin
 
@@ -87,22 +88,24 @@ def invert_pxl_by_pxl(init):
 
 	start = time.time()
 
+	updated_pars = True
 	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 	for i_ in range(init.max_iter):
 		print("Iteration: {:2}\n".format(i_+1))
 		
 		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 		#               spec.shape = (nx, ny, Nw, 5)
-		rf, spec, atm = globin.compute_rfs(init, local=True)
-		
-		#--- scale RFs with weights and noise scale
-		rf *= init.weights
-		rf /= noise_scale_rf
+		if updated_pars:
+			rf, spec, atm = globin.compute_rfs(init, atmos)
+			
+			#--- scale RFs with weights and noise scale
+			rf *= init.weights
+			rf /= noise_scale_rf
 
-		diff = obs.spec - spec[:,:,:,1:]
-		diff *= init.weights
-		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
-		diff /= noise_stokes_scale
+			diff = obs.spec - spec[:,:,:,1:]
+			diff *= init.weights
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+			diff /= noise_stokes_scale
 
 		"""
 		Gymnastics with indices for solving LM equations for
@@ -158,10 +161,12 @@ def invert_pxl_by_pxl(init):
 							LM_parameter[idx,idy] *= 10
 							for parID in old_parameters:
 								atmos.values[parID][idx,idy] = old_parameters[parID][idx,idy]
+							updated_pars = False
 						else:
 							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
 							LM_parameter[idx,idy] /= 10
 							itter[idx,idy] += 1
+							updated_pars = True
 							# break_loop = True
 			
 			# we do searching for best LM parameter only in first iteration
@@ -267,7 +272,7 @@ def invert_global(init):
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
 	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
-	
+
 	if init.noise!=0:
 		StokesI_cont = obs.data[:,:,ind_min,1]
 		noise_lvl = init.noise * StokesI_cont
@@ -286,150 +291,186 @@ def invert_global(init):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
-	LM_parameter = init.marq_lambda
 	chi2 = np.zeros(init.max_iter, dtype=np.float64)
-	N_search_for_lambda = 5
+	LM_parameter = init.marq_lambda
 	dof = np.count_nonzero(init.weights) * Nw - Npar
 
 	start = time.time()
 
+	break_flag = False
+	updated_parameters = True
+	num_failed = 0
+
 	itter = 0
-	stop_flag = False
-	for i_ in range(init.max_iter):
-		print("Iteration: {:2}\n".format(i_+1))
+	while itter<init.max_iter:
 		
-		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
-		#               spec.shape = (nx, ny, Nw, 5)
-		rf, spec, atm = globin.compute_rfs(init, local=False)
+		#--- if we updated parameters, recaluclate RF and referent spectra
+		if updated_parameters:
+			print("Iteration: {:2}\n".format(itter+1))
+			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
+			#               spec.shape = (nx, ny, Nw, 5)
+			rf, spec, _ = globin.compute_rfs(init, atmos)
 
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-		# 		plt.plot(rf[idx,idy,1,:,0])
-		# 		plt.show()
-		
-		#--- scale RFs with weights and noise scale
-		rf *= init.weights
-		rf /= noise_scale_rf
+			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		for pID in range(Npar):
+			# 			for sID in range(4):
+			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
+			# 		for sID in range(4):
+			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 
-		diff = obs.spec - spec[:,:,:,1:]
-		diff *= init.weights
-		chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
-		diff /= noise_stokes_scale
-		
-		# print(diff.shape)
+			# plt.imshow(rf[0,1,-1,:,:], aspect="auto")
+			# plt.show()
+			# sys.exit()
 
-		aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw)
-		aux = np.moveaxis(aux, 2, 3)
-		
-		J = np.zeros((4*Nw*(atmos.nx*atmos.ny), atmos.n_local_pars*(atmos.nx*atmos.ny) + atmos.n_global_pars))
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		for parID in range(Npar):
+			# 			plt.figure(parID+1)
+			# 			plt.plot(rf[idx,idy,parID,:,0])# / spec[idx,idy,ind_min,1])
+			# 		plt.show()
+					# plt.subplot(2,2,1)
+					# plt.plot(init.wavelength, spec[idx,idy,:,1])
+					# plt.plot(init.wavelength, obs.spec[idx,idy,:,0])
 
-		l = 4*Nw
-		n_atmosphere = 0
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				low = n_atmosphere*l
-				up = low + l 
-				ll = n_atmosphere*atmos.n_local_pars
-				uu = ll + atmos.n_local_pars
-				J[low:up,ll:uu] = aux[idx,idy,:,:atmos.n_local_pars]
-				n_atmosphere += 1
+					# plt.subplot(2,2,2)
+					# plt.plot(init.wavelength, spec[idx,idy,:,2])
+					# plt.plot(init.wavelength, obs.spec[idx,idy,:,1])
 
-		for gID in range(atmos.n_global_pars):
-			J[:,uu+gID] = aux[:,:,:,atmos.n_local_pars+gID].flatten()
 
-		JT = J.T
-		JTJ = np.dot(JT,J)
+					# plt.subplot(2,2,3)
+					# plt.plot(init.wavelength, spec[idx,idy,:,3])
+					# plt.plot(init.wavelength, obs.spec[idx,idy,:,2])
+
+
+					# plt.subplot(2,2,4)
+					# plt.plot(init.wavelength, spec[idx,idy,:,4])
+					# plt.plot(init.wavelength, obs.spec[idx,idy,:,3])
+					# plt.show()
+			
+			# scale RFs with weights and noise scale
+			rf *= init.weights
+			rf /= noise_scale_rf
+
+			# calculate difference between observation and synthesis
+			diff = obs.spec - spec[:,:,:,1:]
+			diff *= init.weights
+
+			# calculate chi2
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+			# chi2_old = np.sum(diff**2)
+			diff /= noise_stokes_scale
+
+			# make Jacobian matrix and fill with RF values
+			aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+			
+			J = np.zeros((4*Nw*(atmos.nx*atmos.ny), atmos.n_local_pars*(atmos.nx*atmos.ny) + atmos.n_global_pars))
+			flatted_diff = np.zeros(atmos.nx*atmos.ny*Nw*4)
+
+			l = 4*Nw
+			n_atmosphere = 0
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					low = n_atmosphere*l
+					up = low + l 
+					ll = n_atmosphere*atmos.n_local_pars
+					uu = ll + atmos.n_local_pars
+					J[low:up,ll:uu] = aux[idx,idy,:atmos.n_local_pars].T
+					flatted_diff[low:up] = diff[idx,idy].flatten(order="F")
+					n_atmosphere += 1
+
+			n_atmosphere = 0
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					low = n_atmosphere*l
+					up = low+l
+					for gID in range(atmos.n_global_pars):
+						J[low:up,uu+gID] = aux[idx,idy,atmos.n_local_pars+gID].T
+					n_atmosphere += 1
+
+			JT = J.T
+			JTJ = np.dot(JT,J)
+			delta = np.dot(JT, flatted_diff)
+
+			# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
+			# It produces expected results. Checked with (1,1), (1,2) and (2,2) FoV sizes.
+
 		H = copy.deepcopy(JTJ)
 		diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 		np.fill_diagonal(H, diagonal_elements)
-		plt.imshow(np.log10(H), aspect="auto")
-		plt.colorbar()
-		plt.show()
-		delta = np.dot(JT, diff.flatten())
 		proposed_steps = np.linalg.solve(H, delta)
+
+		# print(proposed_steps)
+
+		# plt.imshow(np.linalg.inv(H), aspect="auto")
+		# plt.colorbar()
+		# plt.show()
+		# sys.exit()
 		
-		break_loop = False
-		for j_ in range(N_search_for_lambda):
-			old_parameters = copy.deepcopy(atmos.values)
-			old_global_pars = copy.deepcopy(atmos.global_pars)
-			low_ind, up_ind = 0, 0
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					for parID in atmos.values:
-						low_ind = up_ind
-						up_ind += len(atmos.nodes[parID])
-						step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
-						step = np.around(step, decimals=8)
-						# we do not perturb parameters of those pixels which converged
-						atmos.values[parID][idx,idy] += step
-			for parID in atmos.global_pars:
-				low_ind = up_ind
-				up_ind += 1
-				step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
-				step = np.around(step, decimals=8)
-				# we do not perturb parameters of those pixels which converged
-				atmos.global_pars[parID] += step
-			atmos.check_parameter_bounds()
+		old_parameters = copy.deepcopy(atmos.values)
+		old_global_pars = copy.deepcopy(atmos.global_pars)
+		atmos.update_parameters(proposed_steps)
+		atmos.check_parameter_bounds()
 
-			atmos.build_from_nodes(init.ref_atm)
-			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
+		atmos.build_from_nodes(init.ref_atm)
+		corrected_spec,_ = globin.compute_spectra(init, atmos, False, False)
+		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
 
-			new_diff = obs.spec - corrected_spec[:,:,:,1:]
-			new_diff *= init.weights
-			chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+		new_diff = obs.spec - corrected_spec[:,:,:,1:]
+		new_diff *= init.weights
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+		# chi2_new = np.sum(new_diff**2)
 
-			if chi2_new > chi2_old:
-				LM_parameter *= 10
-				atmos.values = old_parameters
-				atmos.global_pars = old_global_pars
-			else:
-				chi2[itter] = chi2_new
-				itter += 1
-				LM_parameter /= 10
-				break_loop = True
-			
-			# we do searching for best LM parameter only in first iteration
-			# aftwerwards, we only go one time through this loop
-			N_search_for_lambda = 1
-
-			init.atm = atmos
-
-			# if we have changed Marquardt parameter, we go for new RF estimation
-			if break_loop:
-				break
-
-		print(atmos.values)
-		print(atmos.global_pars)
-		print(LM_parameter)
+		if chi2_new > chi2_old:
+			LM_parameter *= 10
+			atmos.values = old_parameters
+			atmos.global_pars = old_global_pars
+			updated_parameters = False
+			num_failed += 1
+		else:
+			chi2[itter] = chi2_new
+			LM_parameter /= 10
+			updated_parameters = True
+			itter += 1
+			break_loop = True
+			num_failed = 0
+			J = 0
+			JTJ = 0
+			delta = 0
+			aux = 0
 
 		# if Marquardt parameter is to large, we break
 		if LM_parameter<=1e-5:
 			LM_parameter = 1e-5
 		if LM_parameter>=1e8:
-			stop_flag = True
+			# break_flag = True
+			pass
+		
+		if updated_parameters:
+			print(atmos.values)
+			print(atmos.global_pars)
+			print(LM_parameter)
+			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
-		# if yes, we set stop_flag to True
+		# if yes, we set break_flag to True
+		# we do not check for chi2 convergence until 5th iteration
 		if (itter)>=3:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
 			relative_change = abs(chi2[itter-2]/chi2[itter-1] - 1)
 			if relative_change<init.chi2_tolerance:
-				print(relative_change)
-				print(chi2[itter-2])
-				print(chi2[itter-1])
 				print("chi2 relative change is smaller than given value.")
-				stop_flag = True
+				break_flag = True
 			if chi2[itter-1] < 1 and init.noise!=0:
-				print(chi2[itter])
 				print("chi2 smaller than 1")
-				stop_flag = True
+				break_flag = True
 
 		# if all pixels have converged, we stop inversion
-		if stop_flag:
+		if break_flag or num_failed==10:
 			break
-
-		print("\n--------------------------------------------------\n")
 
 	fname = "results"
 
@@ -437,7 +478,17 @@ def invert_global(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
+	inverted_spectra,_ = globin.compute_spectra(init, atmos, False, True)
+	if "vmac" in atmos.global_pars:
+		vmac = atmos.global_pars["vmac"]
+	else:
+		vmac = atmos.vmac
+	mean_lam = (init.lmax + init.lmin)/2
+	sigma = vmac*1e3 / globin.LIGHT_SPEED * mean_lam / init.step
+
+	# inverted_spectra = gaussian_filter(inverted_spectra, [0,0,sigma,0], mode="reflect")
+	globin.atmos.broaden_spectra(inverted_spectra, atmos)
+	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
 
 	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
