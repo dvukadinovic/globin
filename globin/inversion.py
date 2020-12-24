@@ -90,13 +90,28 @@ def invert_pxl_by_pxl(init):
 
 	updated_pars = True
 	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
-	for i_ in range(init.max_iter):
-		print("Iteration: {:2}\n".format(i_+1))
-		
-		# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
-		#               spec.shape = (nx, ny, Nw, 5)
+	# for i_ in range(init.max_iter):
+	# we iterate until one of the pixels reach maximum numbre of iterations
+	# other pixels will be blocked at max itteration earlier than or 
+	# will stop due to convergence criterium
+	while np.min(itter) < init.max_iter:
+		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_pars:
+			print("Iteration (min): {:2}\n".format(np.min(itter)+1))
+			
+			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
+			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, atm = globin.compute_rfs(init, atmos)
+
+			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		for pID in range(Npar):
+			# 			for sID in range(4):
+			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
+			# 		for sID in range(4):
+			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			#--- scale RFs with weights and noise scale
 			rf *= init.weights
@@ -107,80 +122,73 @@ def invert_pxl_by_pxl(init):
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
-		"""
-		Gymnastics with indices for solving LM equations for
-		next step parameters.
-		"""
-		J = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw)
-		# J = (nx, ny, 4*nw, npar)
-		J = np.moveaxis(J, 2, 3)
-		# JT = (nx, ny, npar, 4*nw)
-		JT = np.einsum("ijlk", J)
-		# JTJ = (nx, ny, npar, npar)
-		JTJ_new = np.einsum("...ij,...jk", JT, J)
-		# get diagonal elements from hessian matrix
-		diagonal_elements = np.einsum("...kk->...k", JTJ_new)
+			"""
+			Gymnastics with indices for solving LM equations for
+			next step parameters.
+			"""
+			J = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+			# J = (nx, ny, 4*nw, npar)
+			J = np.moveaxis(J, 2, 3)
+			# JT = (nx, ny, npar, 4*nw)
+			JT = np.einsum("ijlk", J)
+			# JTJ = (nx, ny, npar, npar)
+			JTJ = np.einsum("...ij,...jk", JT, J)
+			# get diagonal elements from hessian matrix
+			diagonal_elements = np.einsum("...kk->...k", JTJ)
+			# reshaped array of differences between computed and observed spectra
+			# flatted_diff = (nx, ny, 4*Nw)
+			flatted_diff = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
+
+			# This was tested with arrays filled with hand and 
+			# checked if the array manipulations return what we expect
+			# and it does
+
 		# hessian = (nx, ny, npar, npar)
-		H_new = copy.deepcopy(JTJ_new)
+		H = copy.deepcopy(JTJ)
 		# multiply with LM parameter
-		H_new[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
+		H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
 		# delta = (nx, ny, npar)
-		delta_new = np.einsum("...pw,...w", JT, diff.reshape(atmos.nx, atmos.ny, 4*Nw))
+		delta = np.einsum("...pw,...w", JT, flatted_diff)
 		# proposed_steps = (nx, ny, npar)
-		proposed_steps_new = np.linalg.solve(H_new, delta_new)
-		
-		break_loop = True
-		for j_ in range(N_search_for_lambda):
-			old_parameters = copy.deepcopy(atmos.values)
-			low_ind, up_ind = 0, 0
-			for parID in atmos.values:
-				low_ind = up_ind
-				up_ind += len(atmos.nodes[parID])
-				step = proposed_steps_new[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
-				# step = np.around(step, decimals=8)
-				# we do not perturb parameters of those pixels which converged
-				step = np.einsum("...i,...->...i", step, stop_flag)
-				# print(step)
-				atmos.values[parID] += step
-			atmos.check_parameter_bounds()
+		proposed_steps = np.linalg.solve(H, delta)
 
-			atmos.build_from_nodes(init.ref_atm)
-			corrected_spec,_ = globin.compute_spectra(init, atmos, False, True)
+		old_parameters = copy.deepcopy(atmos.values)
+		low_ind, up_ind = 0, 0
+		for parID in atmos.values:
+			low_ind = up_ind
+			up_ind += len(atmos.nodes[parID])
+			step = proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
+			# step = np.around(step, decimals=8)
+			# we do not perturb parameters of those pixels which converged
+			step = np.einsum("...i,...->...i", step, stop_flag)
+			# print(step)
+			atmos.values[parID] += step
+		atmos.check_parameter_bounds()
 
-			new_diff = obs.spec - corrected_spec[:,:,:,1:]
-			new_diff *= init.weights
-			chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+		atmos.build_from_nodes(init.ref_atm)
+		corrected_spec,_ = globin.compute_spectra(init, atmos)
+		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
 
-			# print(np.log10(chi2_new), np.log10(chi2_old))
+		new_diff = obs.spec - corrected_spec[:,:,:,1:]
+		new_diff *= init.weights
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if stop_flag[idx,idy]==1:
-						# print(f"  [{idx},{idy}] --> {np.log10(chi2_new[idx,idy])} ? {np.log10(chi2_old[idx,idy])}")
-						if chi2_new[idx,idy] > chi2_old[idx,idy]:
-							LM_parameter[idx,idy] *= 10
-							for parID in old_parameters:
-								atmos.values[parID][idx,idy] = old_parameters[parID][idx,idy]
-							updated_pars = False
-						else:
-							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
-							LM_parameter[idx,idy] /= 10
-							itter[idx,idy] += 1
-							updated_pars = True
-							# break_loop = True
-			
-			# we do searching for best LM parameter only in first iteration
-			# aftwerwards, we only go one time through this loop
-			N_search_for_lambda = 1
+		# print(np.log10(chi2_new), np.log10(chi2_old))
 
-			init.atm = atmos
-
-			# if we have changed Marquardt parameter, we go for new RF estimation
-			if break_loop:
-				break
-
-		print(atmos.values)
-		print(LM_parameter)
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				if stop_flag[idx,idy]==1:
+					# print(f"  [{idx},{idy}] --> {np.log10(chi2_new[idx,idy])} ? {np.log10(chi2_old[idx,idy])}")
+					if chi2_new[idx,idy] > chi2_old[idx,idy]:
+						LM_parameter[idx,idy] *= 10
+						for parID in old_parameters:
+							atmos.values[parID][idx,idy] = old_parameters[parID][idx,idy]
+						updated_pars = False
+					else:
+						chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
+						LM_parameter[idx,idy] /= 10
+						itter[idx,idy] += 1
+						updated_pars = True
 
 		# if Marquardt parameter is to large, we break
 		for idx in range(atmos.nx):
@@ -189,6 +197,11 @@ def invert_pxl_by_pxl(init):
 					LM_parameter[idx,idy] = 1e-5
 				if LM_parameter[idx,idy]>=1e8:
 					stop_flag[idx,idy] = 0
+
+		if updated_pars:
+			print(atmos.values)
+			print(LM_parameter)
+			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 1 (True)
@@ -201,9 +214,6 @@ def invert_pxl_by_pxl(init):
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-2]/chi2[idx,idy,it_no-1] - 1)
 						if relative_change<init.chi2_tolerance:
-							# print(relative_change)
-							# print(chi2[idx,idy,it_no-2])
-							# print(chi2[idx,idy,it_no-1])
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
 							stop_flag[idx,idy] = 0
 						if chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
@@ -211,7 +221,6 @@ def invert_pxl_by_pxl(init):
 							print(f"--> [{idx},{idy}] : chi2 smaller than 1")
 							stop_flag[idx,idy] = 0
 
-		print("\n--------------------------------------------------\n")
 		
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
@@ -223,7 +232,9 @@ def invert_pxl_by_pxl(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra = globin.compute_spectra(init, atmos, True, True)
+	inverted_spectra,_ = globin.compute_spectra(init, atmos, False, True)
+	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
+	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
 
 	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
@@ -246,7 +257,7 @@ def invert_global(init):
 	"""
 	As input we expect all data to be present :)
 
-	Pixel-by-pixel inversion of atmospheric parameters.
+	Glonal inversion of atmospheric and atomic parameters.
 
 	Parameters:
 	---------------
@@ -303,10 +314,10 @@ def invert_global(init):
 
 	itter = 0
 	while itter<init.max_iter:
-		
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
 			print("Iteration: {:2}\n".format(itter+1))
+			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, _ = globin.compute_rfs(init, atmos)
@@ -360,7 +371,6 @@ def invert_global(init):
 
 			# calculate chi2
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
-			# chi2_old = np.sum(diff**2)
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -402,16 +412,17 @@ def invert_global(init):
 		np.fill_diagonal(H, diagonal_elements)
 		proposed_steps = np.linalg.solve(H, delta)
 
-		# print(proposed_steps)
+		# print(np.linalg.eigvals(H))
 
 		# plt.imshow(np.linalg.inv(H), aspect="auto")
 		# plt.colorbar()
 		# plt.show()
+
 		# sys.exit()
 		
 		old_parameters = copy.deepcopy(atmos.values)
 		old_global_pars = copy.deepcopy(atmos.global_pars)
-		atmos.update_parameters(proposed_steps)
+		atmos.update_parameters(proposed_steps, itter)
 		atmos.check_parameter_bounds()
 
 		atmos.build_from_nodes(init.ref_atm)
@@ -421,7 +432,6 @@ def invert_global(init):
 		new_diff = obs.spec - corrected_spec[:,:,:,1:]
 		new_diff *= init.weights
 		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
-		# chi2_new = np.sum(new_diff**2)
 
 		if chi2_new > chi2_old:
 			LM_parameter *= 10
@@ -434,20 +444,14 @@ def invert_global(init):
 			LM_parameter /= 10
 			updated_parameters = True
 			itter += 1
-			break_loop = True
 			num_failed = 0
-			J = 0
-			JTJ = 0
-			delta = 0
-			aux = 0
 
 		# if Marquardt parameter is to large, we break
 		if LM_parameter<=1e-5:
 			LM_parameter = 1e-5
 		if LM_parameter>=1e8:
-			# break_flag = True
-			pass
-		
+			break_flag = True
+
 		if updated_parameters:
 			print(atmos.values)
 			print(atmos.global_pars)
@@ -456,7 +460,7 @@ def invert_global(init):
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set break_flag to True
-		# we do not check for chi2 convergence until 5th iteration
+		# we do not check for chi2 convergence until 3rd iteration
 		if (itter)>=3:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
@@ -469,7 +473,7 @@ def invert_global(init):
 				break_flag = True
 
 		# if all pixels have converged, we stop inversion
-		if break_flag or num_failed==10:
+		if break_flag or (num_failed==10 and itter>=3):
 			break
 
 	fname = "results"
@@ -479,15 +483,7 @@ def invert_global(init):
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 	inverted_spectra,_ = globin.compute_spectra(init, atmos, False, True)
-	if "vmac" in atmos.global_pars:
-		vmac = atmos.global_pars["vmac"]
-	else:
-		vmac = atmos.vmac
-	mean_lam = (init.lmax + init.lmin)/2
-	sigma = vmac*1e3 / globin.LIGHT_SPEED * mean_lam / init.step
-
-	# inverted_spectra = gaussian_filter(inverted_spectra, [0,0,sigma,0], mode="reflect")
-	globin.atmos.broaden_spectra(inverted_spectra, atmos)
+	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
 	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
 
 	globin.save_chi2(chi2, f"{fname}/chi2.fits")
@@ -495,7 +491,7 @@ def invert_global(init):
 	end = time.time() - start
 	print("Finished in: {0}\n".format(end))
 
-	#--- inverted params comparison with expected values
+	#--- make a log file (copy input files + inverted global parameters)
 	out_file = open("{:s}/output.log".format(fname), "w")
 
 	out_file.write("Run time: {:10.1f}\n\n".format(end))

@@ -114,7 +114,7 @@ class InputData(object):
 			self.atm = Atmosphere()
 
 			# determine which observations from cube to take into consideration
-			aux = find_value_by_key("range", text, "default", [0,None,0,None])
+			aux = find_value_by_key("range", text, "default", [1,None,1,None])
 			self.atm_range = []
 			if type(aux)==str:
 				for item in aux.split(","):
@@ -124,6 +124,9 @@ class InputData(object):
 						self.atm_range.append(int(item))
 			else:
 				self.atm_range = aux
+			# we count from zero, but let user count from 1
+			self.atm_range[0] -= 1
+			self.atm_range[2] -= 1
 		
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")

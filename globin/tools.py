@@ -146,7 +146,6 @@ def construct_atmosphere_from_nods(in_data):
     atmos.values["mag"][1,0] = [300,350]
     atmos.values["mag"][1,1] = [2000,2500]
     atmos.values["mag"][1,2] = [250,500]
-    atmos.values["mag"] /= 1e4 # [G --> T]
     # atmos.values["mag"][0,0] = [-500]
     # atmos.values["mag"][0,1] = [500]
     # atmos.values["mag"][0,2] = [500]
@@ -184,21 +183,14 @@ def construct_atmosphere_from_nods(in_data):
     # atmos.values["chi"][1,1] = [45]
     # atmos.values["chi"][1,2] = [90]
     atmos.values["chi"] *= np.pi/180 # [deg --> rad]
-
-    atmos.nx = 2
-    atmos.ny = 3
-
-    atmos.atm_name_list = []
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            name = f"atmospheres/atm_{idx}_{idy}"
-            atmos.atm_name_list.append(name)
-
+ 
     atmos.build_from_nodes(in_data.ref_atm)
+
+    print("vmac: ", atmos.vmac/1e3)
 
     spec, _ = globin.compute_spectra(in_data, atmos, False, True)
     globin.atmos.broaden_spectra(spec, atmos)
-    globin.spectrum_path = "obs_2x3_from_nodes.fits"
+    globin.spectrum_path = "obs_2x3_from_nodes_normed.fits"
     globin.atmos.save_spectra(spec, globin.spectrum_path)
 
     # fig = plt.figure(figsize=(12,14))
