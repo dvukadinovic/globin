@@ -8,6 +8,7 @@ import sys
 #--- initialize input object and then read input files
 in_data = globin.InputData()
 in_data.read_input_files()
+# sys.exit()
 
 #--- create atmos from nodes
 # globin.construct_atmosphere_from_nods(in_data)

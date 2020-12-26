@@ -216,10 +216,14 @@ def invert_pxl_by_pxl(init):
 						if relative_change<init.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
 							stop_flag[idx,idy] = 0
-						if chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
+						elif chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
 							# print(chi2[idx,idy,it_no-1])
 							print(f"--> [{idx},{idy}] : chi2 smaller than 1")
 							stop_flag[idx,idy] = 0
+					# if given pixel iteration number has reached the maximum number of iterations
+					# we stop the convergence for given pixel
+					if it_no==init.max_iter-1:
+						stop_flag[idx,idy] = 0
 
 		
 		# if all pixels have converged, we stop inversion
@@ -345,17 +349,12 @@ def invert_global(init):
 					# plt.subplot(2,2,1)
 					# plt.plot(init.wavelength, spec[idx,idy,:,1])
 					# plt.plot(init.wavelength, obs.spec[idx,idy,:,0])
-
 					# plt.subplot(2,2,2)
 					# plt.plot(init.wavelength, spec[idx,idy,:,2])
 					# plt.plot(init.wavelength, obs.spec[idx,idy,:,1])
-
-
 					# plt.subplot(2,2,3)
 					# plt.plot(init.wavelength, spec[idx,idy,:,3])
 					# plt.plot(init.wavelength, obs.spec[idx,idy,:,2])
-
-
 					# plt.subplot(2,2,4)
 					# plt.plot(init.wavelength, spec[idx,idy,:,4])
 					# plt.plot(init.wavelength, obs.spec[idx,idy,:,3])
@@ -424,6 +423,8 @@ def invert_global(init):
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps, itter)
 		atmos.check_parameter_bounds()
+		init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
+								   atmos.global_pars["dlam"], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes(init.ref_atm)
 		corrected_spec,_ = globin.compute_spectra(init, atmos, False, False)
@@ -450,6 +451,7 @@ def invert_global(init):
 		if LM_parameter<=1e-5:
 			LM_parameter = 1e-5
 		if LM_parameter>=1e8:
+			print("Upper limit in LM_parameter. We break\n")
 			break_flag = True
 
 		if updated_parameters:
@@ -457,6 +459,7 @@ def invert_global(init):
 			print(atmos.global_pars)
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
+			# sys.exit()
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set break_flag to True
@@ -466,14 +469,18 @@ def invert_global(init):
 			# when chi2 list was updated.
 			relative_change = abs(chi2[itter-2]/chi2[itter-1] - 1)
 			if relative_change<init.chi2_tolerance:
-				print("chi2 relative change is smaller than given value.")
+				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
 			if chi2[itter-1] < 1 and init.noise!=0:
-				print("chi2 smaller than 1")
+				print("chi2 smaller than 1\n")
 				break_flag = True
 
 		# if all pixels have converged, we stop inversion
-		if break_flag or (num_failed==10 and itter>=3):
+		if break_flag:
+			break
+
+		if (num_failed==10 and itter>=3):
+			print("Failed 10 times to fix the LM parameter. We break.\n")
 			break
 
 	fname = "results"
@@ -499,8 +506,12 @@ def invert_global(init):
 	out_file.write("\n\n     #===--- Global parameters ---===#\n\n")
 
 	for par in atmos.global_pars:
-		for i_ in range(len(atmos.global_pars[par])):
-			out_file.write("{:s}    {:4.3f}\n".format(par, atmos.global_pars[par][i_]))
+		if par=="vmac":
+			for i_ in range(len(atmos.global_pars[par])):
+				out_file.write("{:s}    {: 4.3f}\n".format(par, atmos.global_pars[par][i_]))
+		else:
+			for i_ in range(len(atmos.global_pars[par])):
+				out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
 
 	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 	out_file.write(init.params_input)

@@ -69,7 +69,7 @@ class InputData(object):
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
 		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
-		RLK_linelist = find_value_by_key("KURUCZ_DATA", text, "optional")
+		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
 
 		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
@@ -153,7 +153,7 @@ class InputData(object):
 			# if macro-turbulent velocity is negative, we fit for it
 			if self.atm.vmac<0:
 				self.atm.vmac = abs(self.atm.vmac)
-				self.atm.global_pars["vmac"] = self.atm.vmac
+				self.atm.global_pars["vmac"] = np.array([self.atm.vmac])
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
@@ -297,18 +297,54 @@ class InputData(object):
 					sys.exit()
 
 			#--- line parameters to be fit
-			line_par_path = find_value_by_key("line_pars", text, "optional")
+			line_par_path = find_value_by_key("line_parameters", text, "optional")
+
 			if line_par_path:
-				self.read_line_parameters(line_par_path)
+				# if we provided line parameters for fit, read those parameters
+				loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max = read_line_parameters(line_par_path)
+				# if we have log(gf) init values read, set them in global_pars variable
+				self.atm.line_no = {}
+				if len(loggf_init)>0:
+					self.atm.global_pars["loggf"] = np.array(loggf_init)
+					self.atm.line_no["loggf"] = np.array(loggf_lineNo)
+					globin.limit_values["loggf"] = loggf_min_max
+				else:
+					self.atm.global_pars["loggf"] = []
+					self.atm.line_no["loggf"] = []
+				# if we have dlam init values read, set them in global_pars variable
+				if len(dlam_init)>0:
+					self.atm.global_pars["dlam"] = np.array(dlam_init)
+					self.atm.line_no["dlam"] = np.array(dlam_lineNo)
+					globin.limit_values["dlam"] = dlam_min_max
+				else:
+					self.atm.global_pars["dlam"] = []
+					self.atm.line_no["dlam"] = []
 
-			#--- Kurucz line list for given spectral region
-			if RLK_linelist:
-				lines = open(RLK_linelist, "r").readlines()
+				#--- Kurucz line list for given spectral region
+				if RLK_linelist_path:
+					linelist_path = find_value_by_key("linelist", text, "required")
+					self.RLK_text_lines, self.RLK_lines = read_RLK_lines(linelist_path)
 
-				for line in lines:
-					line = line.rstrip("\n").strip(" ")
-					if line[0]!=globin.COMMENT_CHAR:
-						RLK_lines = read_RLK_lines(line)
+					# go through RLK file and find the uncommented line
+					# with path to atomic line files of Kurucz format
+					lines = open(RLK_linelist_path, "r").readlines()
+					for line in lines:
+						line = line.rstrip("\n").strip(" ")
+						# find the first uncommented line and break
+						if line[0]!=globin.COMMENT_CHAR:
+							self.RLK_path = line
+							break
+
+					# write down perturbed values
+					self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
+											   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
+					# sys.exit()
+				else:
+					print("No path to kurucz.input file.")
+					# print("There is no Kurucz line list file to write to.")
+					# print("If you want to invert for line parameters, you need to set")
+					# print("path to file where Kurucz line lists are (kurucz.input file).")
+					sys.exit()
 
 			#--- if we have more threads than atmospheres, reduce the number of used threads
 			if self.n_thread > self.atm.nx*self.atm.ny:
@@ -323,39 +359,52 @@ class InputData(object):
 
 			self.atm.n_global_pars = 0
 			for pID in self.atm.global_pars:
-				if type(self.atm.global_pars[pID])==float:
-					self.atm.n_global_pars += 1
-				else:
-					self.atm.n_global_pars += len(self.atm.global_pars[pID])
+				self.atm.n_global_pars += len(self.atm.global_pars[pID])
 
 			#--- missing parameters
 			# instrument broadening: R or instrument profile provided
 			# strailight contribution
 
-	def read_line_parameters(self, fpath):
-		lines = open(fpath, "r").readlines()
+	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
+		out = open(self.RLK_path, "w")
+		# out = open("test_RLK_file", "w")
+		linelist = self.RLK_text_lines
 
-		loggf_lineNo = []
-		dlam_lineNo = []
+		for no,val in zip(loggf_no, loggf_val):
+			character_list = list(linelist[no])
+			character_list[10:17] = "{: 7.3f}".format(val)
+			linelist[no] = ''.join(character_list)
+		for no,val in zip(dlam_no, dlam_val):
+			character_list = list(linelist[no])
+			# Note! Formating from Kurucz is F11.4, but here I used 10.4 since
+			# this one gives correct number of characters as input array. RH needs
+			# 160 character line, and I toke out one character from the 
+			# beginning of the line. That is why we need here 10.4 format.
+			character_list[0:10] = "{: 10.4f}".format(val/1e4 + self.RLK_lines[no].lam0)
+			linelist[no] = ''.join(character_list)
 
-		loggf_init = []
-		dlam_init = []
+		out.writelines(linelist)
+		out.close()
 
-		loggf_min, loggf_max = [], []
-		dlam_min, dlam_max = [], []
+	def write_line_par(self, par_val, par_no, parameter):
+		out = open(self.RLK_path, "w")
+		linelist = self.RLK_text_lines
 
-		for line in lines:
-			line = list(filter(None,line.rstrip("\n").split(" ")))
-			if line[0]=="loggf":
-				loggf_lineNo.append(float(line[1]))
-				loggf_init.append(float(line[2]))
-				loggf_min.append(float(line[3]))
-				loggf_min.append(float(line[4]))
-			elif line[0]=="dlam":
-				dlam_lineNo.append(float(line[1]))
-				dlam_init.append(float(line[2]))
-				dlam_min.append(float(line[3]))
-				dlam_min.append(float(line[4]))
+		if parameter=="loggf":
+			character_list = list(linelist[par_no])
+			character_list[10:17] = "{: 7.3f}".format(par_val)
+			linelist[par_no] = ''.join(character_list)
+		if parameter=="dlam":
+			character_list = list(linelist[par_no])
+			# Note! Formating from Kurucz is F11.4, but here I used 10.4 since
+			# this one gives correct number of characters as input array. RH needs
+			# 160 character line, and I toke out one character from the 
+			# beginning of the line. That is why we need here 10.4 format.
+			character_list[0:10] = "{: 10.4f}".format(par_val/1e4 + self.RLK_lines[par_no].lam0)
+			linelist[par_no] = ''.join(character_list)
+
+		out.writelines(linelist)
+		out.close()
 
 class Line(object):
 
@@ -364,15 +413,51 @@ class Line(object):
 		self.lam0 = lam0
 		self.loggf = loggf
 
+	def __str__(self):
+		return "<LineNo: {}, lam0: {}, loggf: {}>".format(self.lineNo, self.lam0, self.loggf)
+
 def read_RLK_lines(fpath):
 	lines = open(fpath, "r").readlines()
-
+	
 	RLK_lines = []
 
 	for i_, line in enumerate(lines):
-		loggf = float(line[0:10])
-		lam0 = float(line[10:18])
+		lam0 = float(line[0:10])
+		loggf = float(line[10:17])
 
 		RLK_lines.append(Line(i_+1, lam0, loggf))
 
-	return RLK_lines
+	return lines, RLK_lines
+
+def read_line_parameters(fpath):
+		lines = open(fpath, "r").readlines()
+
+		loggf_lineNo = []
+		dlam_lineNo = []
+
+		loggf_init = []
+		dlam_init = []
+
+		loggf_min_max = np.array([], dtype=np.float64)
+		dlam_min_max = np.array([], dtype=np.float64)
+
+		for line in lines:
+			line = list(filter(None,line.rstrip("\n").split(" ")))
+			if line[0]=="loggf":
+				# substract 1 since we are counting from 0 here
+				loggf_lineNo.append(int(line[1])-1)
+				loggf_init.append(float(line[2]))
+				loggf_min_max = np.append( loggf_min_max, np.array( [float(line[3]), float(line[4])] ) )
+			elif line[0]=="dlam":
+				# substract 1 since we are counting from 0 here
+				dlam_lineNo.append(int(line[1])-1)
+				dlam_init.append(float(line[2]))
+				dlam_min_max = np.append( dlam_min_max, np.array( [float(line[3]), float(line[4])] ) )
+
+		# reshape into dimension aprpropriate for min/max check later
+		n_loggf = len(loggf_init)
+		loggf_min_max = np.reshape(loggf_min_max, (n_loggf,2))
+		n_dlam = len(dlam_init)
+		dlam_min_max = np.reshape(dlam_min_max, (n_dlam,2))
+		
+		return loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max

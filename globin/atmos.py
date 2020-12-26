@@ -329,14 +329,20 @@ class Atmosphere(object):
 						if self.values[parID][idx,idy,i_]>globin.limit_values[parID][1]:
 							self.values[parID][idx,idy,i_] = globin.limit_values[parID][1]
 		for parID in self.global_pars:
-			if self.global_pars[parID]<globin.limit_values[parID][0]:
-				self.global_pars[parID] = globin.limit_values[parID][0]
-			if self.global_pars[parID]>globin.limit_values[parID][1]:
-				self.global_pars[parID] = globin.limit_values[parID][1]
+			if parID=="vmac":
+				if self.global_pars[parID]<globin.limit_values[parID][0]:
+					self.global_pars[parID] = globin.limit_values[parID][0]
+				if self.global_pars[parID]>globin.limit_values[parID][1]:
+					self.global_pars[parID] = globin.limit_values[parID][1]
+			else:
+				for i_ in range(len(self.global_pars[parID])):
+					if self.global_pars[parID][i_]<globin.limit_values[parID][i_][0]:
+						self.global_pars[parID][i_] = globin.limit_values[parID][i_][0]
+					if self.global_pars[parID][i_]>globin.limit_values[parID][i_][1]:
+						self.global_pars[parID][i_] = globin.limit_values[parID][i_][1]
 
 	def update_parameters(self, proposed_steps, itter):
 		low_ind, up_ind = 0, 0
-		dlogtau = self.logtau[1] - self.logtau[0]
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parID in self.values:
@@ -344,12 +350,10 @@ class Atmosphere(object):
 					up_ind += len(self.nodes[parID])
 					nodes_logtau = np.asarray(self.nodes[parID], dtype=np.float64)
 					step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
-					# step /= (np.log(10)*dlogtau*10**(nodes_logtau))
-					# sys.exit()
 					self.values[parID][idx,idy] += step
 		for parID in self.global_pars:
 			low_ind = up_ind
-			up_ind += 1
+			up_ind += len(self.global_pars[parID])
 			step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
 			self.global_pars[parID] += step
 
@@ -723,8 +727,8 @@ def compute_rfs(init, atmos):
 
 			# plt.show()
 
-			rf[:,:,free_par_ID,:,:] = diff / perturbation * parameter_scale #/ (np.log(10)*dlogtau*10**(logtau[zID]))
-
+			# from Quintero Node et al. (2016), MNRAS, 459, 3363-3376
+			rf[:,:,free_par_ID,:,:] = diff / perturbation * parameter_scale / dlogtau # / np.log(10)
 			free_par_ID += 1
 
 			# remove perturbation from data
@@ -742,42 +746,40 @@ def compute_rfs(init, atmos):
 				phi = np.exp(-x**2/kernel_sigma**2)
 				# normalaizing the profile
 				phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-				kernel = phi*(2*x**2/kernel_sigma**2 - 1)
+				kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / init.step
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						for sID in range(1,5):
-							rf[idx,idy,free_par_ID,:,sID-1] = correlate1d(spec[idx,idy,:,sID], kernel)
-							rf[idx,idy,free_par_ID,:,sID-1] *= 1/atmos.global_pars["vmac"] * globin.parameter_scale["vmac"]
+						for sID in range(4):
+							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec[idx,idy,:,sID+1], kernel)
+							rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
+							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * init.step / atmos.global_pars["vmac"]
 				free_par_ID += 1
 			else:
-				pass
-				# parameter_scale = globin.parameter_scale[parameter]
-				# perturbation = globin.delta[parameter]
+				perturbation = globin.delta[parameter]
+				parameter_scale = globin.parameter_scale[parameter]
 
-				# model_plus.global_pars[parameter] += perturbation/2
-				# spec_plus,_ = compute_spectra(init, model_plus, False, False, True)
+				for parID in range(len(atmos.global_pars[parameter])):
+					line_no = atmos.line_no[parameter][parID]
+					value = copy.deepcopy(atmos.global_pars[parameter][parID])
+					
+					# positive perturbation
+					value += perturbation
+					init.write_line_par(value, line_no, parameter)
+					spec_plus,_ = compute_spectra(init, atmos)
+					spec_plus = broaden_spectra(spec_plus, atmos)
 
-				# model_minus.global_pars[parameter] -= perturbation/2
-				# spec_minus,_ = compute_spectra(init, model_minus, False, False, True)
+					# negative perturbation
+					value -= 2*perturbation
+					init.write_line_par(value, line_no, parameter)
+					spec_minus,_ = compute_spectra(init, atmos)
+					spec_minus = broaden_spectra(spec_minus, atmos)
 
-				# # diff = spec_plus[:,:,:,1:] - spec[:,:,:,1:]
-				# diff = spec_plus[:,:,:,1:] - spec_minus[:,:,:,1:]
-
-				# # plt.plot(init.wavelength, diff[0,0])
-				# # plt.plot(init.wavelength, diff[0,1])
-				# # plt.show()
-
-				# # plt.plot(init.wavelength, spec[0,0,:,1])
-				# # plt.plot(init.wavelength, spec_plus[0,0,:,1])
-				# # plt.show()
-
-				# rf[:,:,free_par_ID,:,:] = diff / perturbation * parameter_scale
-				# model_plus.global_pars[parameter] -= perturbation/2
-				# model_minus.global_pars[parameter] += perturbation/2
-				# free_par_ID += 1
+					diff = spec_plus[:,:,:,1:] - spec_minus[:,:,:,1:]
+					rf[:,:,free_par_ID,:,:] = diff / (2*perturbation) * parameter_scale
+					free_par_ID += 1
 
 	#--- broaden the spectra
 	broaden_spectra(spec, atmos)

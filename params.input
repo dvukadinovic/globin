@@ -9,7 +9,7 @@
 #--- General parameters
 n_threads = 3
 interp_degree = 3
-mode = 1
+mode = 3
 
 #--- Spectra to be fitted
 #observation = obs_high_vmac.fits
@@ -26,8 +26,8 @@ vmac = 0.75
 nodes_temp = -2.2, -1.1, 0.3
 nodes_temp_values = 4200, 5600, 7300
 
-nodes_vz = -2, -0.5
-nodes_vz_values = 0, 0
+#nodes_vz = -2, -0.5
+#nodes_vz_values = 0, 0
 
 #nodes_vmic = 0
 #nodes_vmic_values = 2
@@ -56,7 +56,7 @@ wave_step = 0.010
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e1
 max_iter = 30
-chi2_tolerance = 1e-5
+chi2_tolerance = 1e-3
 
 #--- Line parameters
 #line_num_loggf = 11, 15
@@ -65,12 +65,13 @@ chi2_tolerance = 1e-5
 #line_num_dlam = 1,15
 #line_dlam = -10, 5
 
-line_pars = line_pars
+line_parameters = line_pars
+linelist = ../../Atoms/Kurucz/spinor_window_original
 
 #--- Reference atmosphere (optional)
 atmosphere = atmosphere_2x3_from_nodes.fits
 #atmosphere = atmosphere_high_vmac.fits
-range = 1,1,1,1
+range = 1,1,1,3
 
 #============================= garbage =============================#
 

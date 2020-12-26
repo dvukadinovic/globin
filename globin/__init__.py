@@ -47,7 +47,9 @@ parameter_scale = {"temp"   : 5000,	# [K]
 				   "vmac"   : 1e3,	# [m/s]
 				   "mag"    : 0.1,	# [T]
 				   "gamma"  : 1,	# [rad]
-				   "chi"    : 1}	# [rad]
+				   "chi"    : 1,	# [rad]
+				   "loggf"  : 1,	# 
+				   "dlam"   : 1}	# [mA]
 
 #--- parameter perturbations for calculating RFs
 delta = {"temp"  : 1,		# K
@@ -55,7 +57,9 @@ delta = {"temp"  : 1,		# K
 		 "vmic"  : 10/1e3,	# m/s --> km/s
 		 "mag"   : 25/1e4,	# G --> T
 		 "gamma" : 0.001,	# rad
-		 "chi"   : 0.001}	# rad
+		 "chi"   : 0.001,	# rad
+		 "loggf" : 0.001,	# 
+		 "dlam"  : 1}		# mA
 
 #--- full names of parameters (for FITS header)
 parameter_name = {"temp"   : "Temperature",
