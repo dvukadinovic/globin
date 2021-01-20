@@ -296,55 +296,56 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
-			#--- line parameters to be fit
-			line_par_path = find_value_by_key("line_parameters", text, "optional")
+			if self.mode==3:
+				#--- line parameters to be fit
+				line_par_path = find_value_by_key("line_parameters", text, "optional")
 
-			if line_par_path:
-				# if we provided line parameters for fit, read those parameters
-				loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max = read_line_parameters(line_par_path)
-				# if we have log(gf) init values read, set them in global_pars variable
-				self.atm.line_no = {}
-				if len(loggf_init)>0:
-					self.atm.global_pars["loggf"] = np.array(loggf_init)
-					self.atm.line_no["loggf"] = np.array(loggf_lineNo)
-					globin.limit_values["loggf"] = loggf_min_max
-				else:
-					self.atm.global_pars["loggf"] = []
-					self.atm.line_no["loggf"] = []
-				# if we have dlam init values read, set them in global_pars variable
-				if len(dlam_init)>0:
-					self.atm.global_pars["dlam"] = np.array(dlam_init)
-					self.atm.line_no["dlam"] = np.array(dlam_lineNo)
-					globin.limit_values["dlam"] = dlam_min_max
-				else:
-					self.atm.global_pars["dlam"] = []
-					self.atm.line_no["dlam"] = []
+				if line_par_path:
+					# if we provided line parameters for fit, read those parameters
+					loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max = read_line_parameters(line_par_path)
+					# if we have log(gf) init values read, set them in global_pars variable
+					self.atm.line_no = {}
+					if len(loggf_init)>0:
+						self.atm.global_pars["loggf"] = np.array(loggf_init)
+						self.atm.line_no["loggf"] = np.array(loggf_lineNo)
+						globin.limit_values["loggf"] = loggf_min_max
+					else:
+						self.atm.global_pars["loggf"] = []
+						self.atm.line_no["loggf"] = []
+					# if we have dlam init values read, set them in global_pars variable
+					if len(dlam_init)>0:
+						self.atm.global_pars["dlam"] = np.array(dlam_init)
+						self.atm.line_no["dlam"] = np.array(dlam_lineNo)
+						globin.limit_values["dlam"] = dlam_min_max
+					else:
+						self.atm.global_pars["dlam"] = []
+						self.atm.line_no["dlam"] = []
 
-				#--- Kurucz line list for given spectral region
-				if RLK_linelist_path:
-					linelist_path = find_value_by_key("linelist", text, "required")
-					self.RLK_text_lines, self.RLK_lines = read_RLK_lines(linelist_path)
+					#--- Kurucz line list for given spectral region
+					if RLK_linelist_path:
+						linelist_path = find_value_by_key("linelist", text, "required")
+						self.RLK_text_lines, self.RLK_lines = read_RLK_lines(linelist_path)
 
-					# go through RLK file and find the uncommented line
-					# with path to atomic line files of Kurucz format
-					lines = open(RLK_linelist_path, "r").readlines()
-					for line in lines:
-						line = line.rstrip("\n").strip(" ")
-						# find the first uncommented line and break
-						if line[0]!=globin.COMMENT_CHAR:
-							self.RLK_path = line
-							break
+						# go through RLK file and find the uncommented line
+						# with path to atomic line files of Kurucz format
+						lines = open(RLK_linelist_path, "r").readlines()
+						for line in lines:
+							line = line.rstrip("\n").strip(" ")
+							# find the first uncommented line and break
+							if line[0]!=globin.COMMENT_CHAR:
+								self.RLK_path = line
+								break
 
-					# write down perturbed values
-					self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
-											   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
-					# sys.exit()
-				else:
-					print("No path to kurucz.input file.")
-					# print("There is no Kurucz line list file to write to.")
-					# print("If you want to invert for line parameters, you need to set")
-					# print("path to file where Kurucz line lists are (kurucz.input file).")
-					sys.exit()
+						# write down perturbed values
+						self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
+												   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
+						# sys.exit()
+					else:
+						print("No path to kurucz.input file.")
+						# print("There is no Kurucz line list file to write to.")
+						# print("If you want to invert for line parameters, you need to set")
+						# print("path to file where Kurucz line lists are (kurucz.input file).")
+						sys.exit()
 
 			#--- if we have more threads than atmospheres, reduce the number of used threads
 			if self.n_thread > self.atm.nx*self.atm.ny:

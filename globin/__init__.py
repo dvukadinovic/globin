@@ -21,10 +21,11 @@ from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosph
 from .spec import Observation
 from .inversion import invert
 from . import tools
-from .tools import save_chi2, bezier_spline, construct_atmosphere_from_nods
+from .tools import save_chi2, bezier_spline
 from .visualize import plot_atmosphere, plot_spectra, plot_chi2, show
+from .utils import construct_atmosphere_from_nods, RHatm2Spinor
 
-__all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize"]
+__all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 

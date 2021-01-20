@@ -122,6 +122,10 @@ def invert_pxl_by_pxl(init):
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
+			# plt.plot(obs.spec[0,0,:,0])
+			# plt.plot(spec[0,0,:,1])
+			# plt.show()
+
 			"""
 			Gymnastics with indices for solving LM equations for
 			next step parameters.
@@ -166,7 +170,7 @@ def invert_pxl_by_pxl(init):
 		atmos.check_parameter_bounds()
 
 		atmos.build_from_nodes(init.ref_atm)
-		corrected_spec,_ = globin.compute_spectra(init, atmos)
+		corrected_spec,_,_ = globin.compute_spectra(init, atmos)
 		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
 
 		new_diff = obs.spec - corrected_spec[:,:,:,1:]
@@ -236,7 +240,7 @@ def invert_pxl_by_pxl(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra,_ = globin.compute_spectra(init, atmos, False, True)
+	inverted_spectra,_,_ = globin.compute_spectra(init, atmos, False, True)
 	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
 	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
 
@@ -423,11 +427,12 @@ def invert_global(init):
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps, itter)
 		atmos.check_parameter_bounds()
-		init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
-								   atmos.global_pars["dlam"], atmos.line_no["dlam"])
+		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
+			init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
+									   atmos.global_pars["dlam"], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes(init.ref_atm)
-		corrected_spec,_ = globin.compute_spectra(init, atmos, False, False)
+		corrected_spec,_,_ = globin.compute_spectra(init, atmos, False, False)
 		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
 
 		new_diff = obs.spec - corrected_spec[:,:,:,1:]
@@ -489,7 +494,7 @@ def invert_global(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra,_ = globin.compute_spectra(init, atmos, False, True)
+	inverted_spectra,_,_ = globin.compute_spectra(init, atmos, False, True)
 	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
 	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
 

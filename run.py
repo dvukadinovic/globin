@@ -10,12 +10,16 @@ in_data = globin.InputData()
 in_data.read_input_files()
 # sys.exit()
 
+# globin.RHatm2Spinor(in_data, in_data.ref_atm)
+# sys.exit()
+
 #--- create atmos from nodes
 # globin.construct_atmosphere_from_nods(in_data)
 # sys.exit()
 
 #--- inversion
 globin.invert(in_data)
+# sys.exit()
 
 #--- analysis of the inverted data
 inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
