@@ -47,5 +47,5 @@ class Spectrum(object):
 	def __init__(self):
 		self.data = None
 
-def plot_stokes():
+def add_noise(spec, noise):
 	pass

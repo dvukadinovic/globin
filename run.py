@@ -6,15 +6,20 @@ import numpy as np
 import sys
 
 #--- initialize input object and then read input files
-in_data = globin.InputData()
-in_data.read_input_files()
+# in_data = globin.InputData()
+
+# globin.compute_spectra(in_data.ref_atm)
 # sys.exit()
 
 # globin.RHatm2Spinor(in_data, in_data.ref_atm)
 # sys.exit()
 
-#--- create atmos from nodes
-# globin.construct_atmosphere_from_nods(in_data)
+#--- make atmosphere from nodes
+# globin.construct_atmosphere_from_nodes("atmosphere_2x3_from_nodes.fits", "test.fits")
+# sys.exit()
+
+#--- compute synthetic observations
+# globin.make_synthetic_observations("params.input", "atmosphere_2x3_from_nodes.fits", "test.fits")
 # sys.exit()
 
 #--- inversion

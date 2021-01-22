@@ -1,10 +1,12 @@
 import sys
+import os
 import numpy as np
 import matplotlib.pyplot as plt
-# from scipy.constants import k as k_b
-from scipy.constants import m_e, m_p
 from astropy.io import fits
+import subprocess as sp
+import multiprocessing as mp
 
+from scipy.constants import m_e, m_p
 k_b = 1.38064852e-16
 m_p *= 1e3
 m_e *= 1e3
@@ -210,128 +212,99 @@ atom_abundance = np.array([12.0,
             -7.96,
             -7.96])
 
-def construct_atmosphere_from_nods(in_data):
-    atmos = in_data.atm
+# def construct_atmosphere_from_nodes(ref_atmos_path, output_atmos_path):
+def construct_atmosphere_from_nodes(node_atmosphere_path):
+    atmos = fits.open(node_atmosphere_path)
 
-    # print(atmos.values)
+    atmos = globin.Atmosphere()
+    atmos.nx = 2
+    atmos.ny = 3
 
-    atmos.values["temp"] = np.zeros((2,3,3))
-    atmos.values["temp"][0,0] = [4500,5500,7300]
-    atmos.values["temp"][0,1] = [4400,5400,7200]
-    atmos.values["temp"][0,2] = [4000,5400,7500]
-    atmos.values["temp"][1,0] = [4500,5600,7500]
-    atmos.values["temp"][1,1] = [4800,5300,7600]
-    atmos.values["temp"][1,2] = [4200,5200,7400]
-    # atmos.values["temp"][0,0] = [4500,5500,7300]
-    # atmos.values["temp"][0,1] = [4500,5500,7300]
-    # atmos.values["temp"][0,2] = [4500,5500,7300]
-    # atmos.values["temp"][1,0] = [4500,5500,7300]
-    # atmos.values["temp"][1,1] = [4500,5500,7300]
-    # atmos.values["temp"][1,2] = [4500,5500,7300]
+    # log(tau) position of nodes
+    atmos.nodes = {"temp"  : [-2.2, -1.1, 0.3],
+                   "vz"    : [-2, 0.5],
+                   "vmic"  : [0],
+                   "mag"   : [-2, 0.5],
+                   "gamma" : [0],
+                   "chi"   : [0]}
 
-    atmos.values["vz"] = np.zeros((2,3,2))
-    # atmos.values["vz"][0,0] = [1,-0.5]
-    # atmos.values["vz"][0,1] = [0.5,0.1]
-    # atmos.values["vz"][0,2] = [0,0]
-    # atmos.values["vz"][1,0] = [0.75,-0.1]
-    # atmos.values["vz"][1,1] = [-1,0]
-    # atmos.values["vz"][1,2] = [-1.2,0.5]
-    # atmos.values["vz"][0,0] = [0,0]
-    # atmos.values["vz"][0,1] = [0,0]
-    # atmos.values["vz"][0,2] = [0,0]
-    # atmos.values["vz"][1,0] = [0,0]
-    # atmos.values["vz"][1,1] = [0,0]
-    # atmos.values["vz"][1,2] = [0,0]
+    atmos.values["temp"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["temp"])))
+    atmos.values["temp"][0,0] = [4500, 5500, 7300]
+    atmos.values["temp"][0,1] = [4400, 5400, 7200]
+    atmos.values["temp"][0,2] = [4000, 5400, 7500]
+    atmos.values["temp"][1,0] = [4500, 5600, 7500]
+    atmos.values["temp"][1,1] = [4800, 5300, 7600]
+    atmos.values["temp"][1,2] = [4200, 5200, 7400]
 
-    atmos.values["vmic"] = np.zeros((2,3,1))
-    # atmos.values["vmic"][0,0] = [0.0]
-    # atmos.values["vmic"][0,1] = [0.25]
-    # atmos.values["vmic"][0,2] = [0.50]
-    # atmos.values["vmic"][1,0] = [0.75]
-    # atmos.values["vmic"][1,1] = [1.0]
-    # atmos.values["vmic"][1,2] = [1.25]
-    # atmos.values["vmic"][0,0] = [0.0]
-    # atmos.values["vmic"][0,1] = [0.0]
-    # atmos.values["vmic"][0,2] = [0.0]
-    # atmos.values["vmic"][1,0] = [0.0]
-    # atmos.values["vmic"][1,1] = [0.0]
-    # atmos.values["vmic"][1,2] = [0.0]
+    atmos.values["vz"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["vz"])))
+    atmos.values["vz"][0,0] = [1, -0.5]
+    atmos.values["vz"][0,1] = [0.5, 0.1]
+    atmos.values["vz"][0,2] = [0, 0]
+    atmos.values["vz"][1,0] = [0.75, -0.1]
+    atmos.values["vz"][1,1] = [-1, 0]
+    atmos.values["vz"][1,2] = [-1.2, 0.5]
 
-    atmos.values["mag"] = np.zeros((2,3,2))
-    # atmos.values["mag"][0,0] = [100,250]
-    # atmos.values["mag"][0,1] = [0,0]
-    # atmos.values["mag"][0,2] = [500,1500]
-    # atmos.values["mag"][1,0] = [300,350]
-    # atmos.values["mag"][1,1] = [2000,2500]
-    # atmos.values["mag"][1,2] = [250,500]
+    atmos.values["vmic"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["vmic"])))
+    atmos.values["vmic"][0,0] = [0.0]
+    atmos.values["vmic"][0,1] = [0.25]
+    atmos.values["vmic"][0,2] = [0.50]
+    atmos.values["vmic"][1,0] = [0.75]
+    atmos.values["vmic"][1,1] = [1.0]
+    atmos.values["vmic"][1,2] = [1.25]
 
-    # atmos.values["mag"][0,0] = [-500]
-    # atmos.values["mag"][0,1] = [500]
-    # atmos.values["mag"][0,2] = [500]
-    # atmos.values["mag"][1,0] = [500]
-    # atmos.values["mag"][1,1] = [500]
-    # atmos.values["mag"][1,2] = [500]
+    atmos.values["mag"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["mag"])))
+    atmos.values["mag"][0,0] = [100, 250]
+    atmos.values["mag"][0,1] = [0, 0]
+    atmos.values["mag"][0,2] = [500, 1500]
+    atmos.values["mag"][1,0] = [300, 350]
+    atmos.values["mag"][1,1] = [2000, 2500]
+    atmos.values["mag"][1,2] = [250, 500]
     atmos.values["mag"] /= 1e4 # [G --> T]
 
-    atmos.values["gamma"] = np.zeros((2,3,1))
-    # atmos.values["gamma"][0,0] = [70]
-    # atmos.values["gamma"][0,1] = [45]
-    # atmos.values["gamma"][0,2] = [10]
-    # atmos.values["gamma"][1,0] = [30]
-    # atmos.values["gamma"][1,1] = [60]
-    # atmos.values["gamma"][1,2] = [0]
-    # atmos.values["gamma"][0,0] = [0]
-    # atmos.values["gamma"][0,1] = [0]
-    # atmos.values["gamma"][0,2] = [180]
-    # atmos.values["gamma"][1,0] = [45]
-    # atmos.values["gamma"][1,1] = [45]
-    # atmos.values["gamma"][1,2] = [45]
+    atmos.values["gamma"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["gamma"])))
+    atmos.values["gamma"][0,0] = [70]
+    atmos.values["gamma"][0,1] = [45]
+    atmos.values["gamma"][0,2] = [10]
+    atmos.values["gamma"][1,0] = [30]
+    atmos.values["gamma"][1,1] = [60]
+    atmos.values["gamma"][1,2] = [0]
     atmos.values["gamma"] *= np.pi/180 # [deg --> rad]
 
-    atmos.values["chi"] = np.zeros((2,3,1))
-    # atmos.values["chi"][0,0] = [0]
-    # atmos.values["chi"][0,1] = [30]
-    # atmos.values["chi"][0,2] = [45]
-    # atmos.values["chi"][1,0] = [60]
-    # atmos.values["chi"][1,1] = [90]
-    # atmos.values["chi"][1,2] = [130]
-    # atmos.values["chi"][0,0] = [0]
-    # atmos.values["chi"][0,1] = [0]
-    # atmos.values["chi"][0,2] = [0]
-    # atmos.values["chi"][1,0] = [0]
-    # atmos.values["chi"][1,1] = [45]
-    # atmos.values["chi"][1,2] = [90]
+    atmos.values["chi"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["chi"])))
+    atmos.values["chi"][0,0] = [0]
+    atmos.values["chi"][0,1] = [30]
+    atmos.values["chi"][0,2] = [45]
+    atmos.values["chi"][1,0] = [60]
+    atmos.values["chi"][1,1] = [90]
+    atmos.values["chi"][1,2] = [130]
     atmos.values["chi"] *= np.pi/180 # [deg --> rad]
- 
-    atmos.build_from_nodes(in_data.ref_atm)
 
-    print("vmac: ", atmos.vmac/1e3)
+    # ref_atmos = globin.Atmosphere(ref_atmos_path)
+    ref_atmos = globin.Atmosphere(nx=atmos.nx, ny=atmos.ny)
+    atmos.build_from_nodes(ref_atmos, False)
+    # atmos.save_atmosphere(output_atmos_path)
 
-    spec,_,_ = globin.compute_spectra(in_data, atmos, False, False)
-    globin.atmos.broaden_spectra(spec, atmos)
-    globin.spectrum_path = "obs_2x3_from_nodes_NO_MAG.fits"
-    globin.atmos.save_spectra(spec, globin.spectrum_path)
+    return atmos
 
-    # fig = plt.figure(figsize=(12,14))
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            globin.visualize.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-    globin.visualize.show()
-    atmos.save_atmosphere("atmosphere_2x3_from_nodes_NO_MAG.fits")
+def make_synthetic_observations(atmos, rh_spec_name, wavelength, noise):
+    spec,_,_ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
+    spec = globin.broaden_spectra(spec, atmos)
+    globin.save_spectra(spec, globin.spectrum_path)
 
-    # print(spec[0,0,:,0])
+    globin.add_noise(spec, noise)
 
-    spec = globin.spec.Observation(globin.spectrum_path)
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
+    # globin.show()
 
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            # fig = plt.figure(figsize=(12,10))
-            globin.plot_spectra(spec, idx=idx, idy=idy)
-            # plt.plot(spec[0,0,:,0], spec[0,0,:,1])
-    plt.show()
-            # plt.savefig("results/mag_field_test/stokes_m{:04.0f}_g{:03.0f}_a{:03.0f}.png".format(mag,gamma,chi))
-    # plt.savefig(f"results/mag_field_test/stokes_gamma_compare.png")
-    # plt.show()
+    # spec = globin.Observation(globin.spectrum_path)
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         globin.plot_spectra(spec, idx=idx, idy=idy)
+    # globin.show()
+
+    return spec
 
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))

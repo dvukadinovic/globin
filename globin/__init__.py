@@ -15,15 +15,30 @@ import numpy as np
 import multiprocessing as mp
 import re
 
-from .input import InputData
-from .rh import write_wavs, Rhout, write_B
-from .atmos import Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere
-from .spec import Observation
-from .inversion import invert
-from . import tools
-from .tools import save_chi2, bezier_spline
-from .visualize import plot_atmosphere, plot_spectra, plot_chi2, show
-from .utils import construct_atmosphere_from_nods, RHatm2Spinor
+from .input import \
+	InputData
+
+from .rh import \
+	write_wavs, Rhout, write_B
+
+from .atmos import \
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, \
+	save_spectra, broaden_spectra
+
+from .spec import \
+	Observation, add_noise
+
+from .inversion import \
+	invert
+
+from .tools import \
+	save_chi2, bezier_spline
+
+from .visualize import \
+	plot_atmosphere, plot_spectra, plot_chi2, show
+
+from .utils import \
+	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations
 
 __all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
@@ -31,6 +46,19 @@ __path__ = os.path.dirname(__file__)
 
 #--- comment character in files read by wrapper
 COMMENT_CHAR = "#"
+
+#--- moduse operandi
+# 0 --> synthesis
+# 1 --> regular (pixle-by-pixel) inversion
+# 2 --> PSF inversion (not implemented yet)
+# 3 --> global inversion
+mode = None
+
+#--- name of RH input file
+rh_input_name = None
+
+#--- path to RH main folder
+rh_path = None
 
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000,10000], 		# [K]
@@ -84,7 +112,6 @@ parameter_unit = {"temp"   : "K",
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
 
-#===--- element abundances ---===#
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED
 from scipy.interpolate import splrep, splev
@@ -92,25 +119,7 @@ from scipy.interpolate import splrep, splev
 #--- FAL C model (ref.): reference model if not given otherwise
 falc = Atmosphere(__path__ + "/data/falc.dat")
 
-# Hydrogen level population + interpolation
-# falc_hydrogen_pops, falc_hydrogen_lvls_tcks = hydrogen_lvl_pops(falc.data[0], falc.data[2], falc.data[3], falc.data[4])
-
-# electron concentration [m-3] + interpolation
-# falc_ne = falc.data[4]/10/K_BOLTZMAN/falc.data[2] / 1e6
-# ne_tck = splrep(falc.data[0], falc_ne)
-
 # temperature interpolation
 temp_tck = splrep(falc.data[0],falc.data[2])
 # ynew = splev(np.arange(0,1.5, 0.1), temp_tck, der=1)
 # print(ynew)
-
-#===--- end ---====#
-
-#--- polynomial degree for interpolation
-interp_degree = None
-
-#--- name of RH input file
-rh_input_name = None
-
-#--- spectrum name from synthesis
-spectrum_path = None

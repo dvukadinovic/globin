@@ -32,15 +32,65 @@ class InputData(object):
 	Class for storing input data parameters.
 	"""
 
-	def __init__(self):
-		pass
+	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input"):
+		
+		if (rh_input_name is not None) and (globin_input_name is not None):
+			self.read_input_files(globin_input_name, rh_input_name)
+		
+		if (rh_input_name is None) and (globin_input_name is not None):
+			self.read_globin_input_file(globin_input_name)
 
-	# def __str__(self):
-	# 	pass
+	def read_globin_input_file(self, globin_input_name):
+		self.globin_input_name = globin_input_name
 
-	def read_input_files(self, globin_input_name="params.input", rh_input_name="keyword.input"):
+		#--- get parameters from globin input file
+		text = open(globin_input_name, "r").read()
+		self.params_input = text
+
+		#--- path to RH main folder
+		rh_path = find_value_by_key("rh_path", text, "required")
+		if rh_path.rstrip("\n")[-1]=="/":
+			rh_path = rh_path.rstrip("/")
+		globin.rh_path = rh_path
+		
+		#--- path to fits file with atmospheric values at nodes
+		self.node_atm_path = find_value_by_key("node_atmos", text, "required")
+		ref_atm_path = find_value_by_key("atmosphere", text, "required")
+		self.ref_atm = globin.Atmosphere(ref_atm_path)
+
+		#--- output spectrum name
+		self.spec_name = find_value_by_key("spectrum", text, "default", "spectra.fits")
+		#--- find number of threads
+		globin.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
+		globin.pool = mp.Pool(globin.n_thread)
+		self.noise = find_value_by_key("noise", text, "default", 1e-4, float)
+		self.vmac = find_value_by_key("vmac", text, "default", 0, float) * 1e3 # [km/s --> m/s]
+
+		#--- interpolation degree
+		interp_degree = find_value_by_key("interp_degree", text, "optional", None, int)
+		if interp_degree is not None:
+			globin.interp_degree = interp_degree
+
+		self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
+		self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
+		self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
+		if (self.step is None) or (self.lmin is None) or (self.lmax is None):
+			self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
+			self.wavelength = np.loadtxt(self.wave_grid_path)
+			self.lmin = min(self.wavelength)
+			self.lmax = max(self.wavelength)
+			self.step = self.wavelength[1] - self.wavelength[0]
+		else:
+			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
+		# write_wavs(self.wavelength, wave_file_path)
+		# standard deviation of Gaussian kernel for macro broadening
+		self.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
+
+	def __str__(self):
+		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(globin_input_name, rh_input_name)
+
+	def read_input_files(self, globin_input_name, rh_input_name):
 		""" 
-
 		Read files 'globin_input_name' and 'rh_input_name' for input data.
 
 		We assume that parameters are given in format:
@@ -59,7 +109,6 @@ class InputData(object):
 			File name for RH main input file. Default value is 'keyword.input'.
 		"""
 		self.globin_input_name = globin_input_name
-		self.rh_input_name = rh_input_name
 		globin.rh_input_name = rh_input_name
 
 		#--- get parameters from RH input file
@@ -67,7 +116,8 @@ class InputData(object):
 		self.rh_input = text
 
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
-		self.spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
+		wave_file_path = wave_file_path.split("/")[-1]
+		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
 		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
 		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
 
@@ -76,19 +126,34 @@ class InputData(object):
 		self.params_input = text
 
 		#--- find first mode of operation
-		self.mode = find_value_by_key("mode",text,"required", conversion=int)
+		globin.mode = find_value_by_key("mode", text, "required", conversion=int)
+		
+		#--- path to RH main folder
+		rh_path = find_value_by_key("rh_path", text, "required")
+		if rh_path.rstrip("\n")[-1]=="/":
+			rh_path = rh_path.rstrip("/")
+		globin.rh_path = rh_path
 		
 		#--- find number of threads
-		self.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
+		globin.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
+
+		#--- interpolation degree
+		globin.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
 
 		#--- get parameters for synthesis
-		if self.mode==0:
+		if globin.mode==0:
 			#--- required parameters
-			path_to_atmosphere = find_value_by_key("atmosphere", text, "required")
-			self.atm = Atmosphere(path_to_atmosphere)
-			
+			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
+			if path_to_atmosphere is None:
+				node_atmosphere_path = find_value_by_key("node_atmosphere", text, "required")
+				self.atm = globin.construct_atmos_from_nodes(node_atmosphere_path)
+			else:
+				self.atm = Atmosphere(path_to_atmosphere)
+			self.atm.split_cube()
+
 			#--- default parameters
 			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
+			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			vmac = abs(find_value_by_key("vmac", text, "default", default_val=0, conversion=float))
 			self.atm.vmac = vmac*1e3 # [m/s]
 
@@ -104,12 +169,14 @@ class InputData(object):
 				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			write_wavs(self.wavelength, wave_file_path)
+			write_wavs(self.wavelength, globin.rh_path + "/Atoms/Kurucz/" + wave_file_path)
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
+			self.ref_atm = copy.deepcopy(self.atm)
+
 		#--- get parameters for inversion
-		if self.mode>=1:
+		elif globin.mode>=1:
 			# initialize container for atmosphere which we invert
 			self.atm = Atmosphere()
 
@@ -139,7 +206,6 @@ class InputData(object):
 					self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
 			
 			#--- default parameters
-			globin.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
 			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
 			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
@@ -296,7 +362,7 @@ class InputData(object):
 					print("  Must read first observation file.")
 					sys.exit()
 
-			if self.mode==3:
+			if globin.mode==3:
 				#--- line parameters to be fit
 				line_par_path = find_value_by_key("line_parameters", text, "optional")
 
@@ -347,12 +413,6 @@ class InputData(object):
 						# print("path to file where Kurucz line lists are (kurucz.input file).")
 						sys.exit()
 
-			#--- if we have more threads than atmospheres, reduce the number of used threads
-			if self.n_thread > self.atm.nx*self.atm.ny:
-				self.n_thread = self.atm.nx*self.atm.ny
-				print(f"\n\nWarning: reduced the number of threads to {self.n_thread}.\n\n")
-			self.pool = mp.Pool(self.n_thread)
-
 			#--- determine number of local and global parameters
 			self.atm.n_local_pars = 0
 			for pID in self.atm.nodes:
@@ -365,6 +425,12 @@ class InputData(object):
 			#--- missing parameters
 			# instrument broadening: R or instrument profile provided
 			# strailight contribution
+
+		#--- if we have more threads than atmospheres, reduce the number of used threads
+		if globin.n_thread > self.atm.nx*self.atm.ny:
+			globin.n_thread = self.atm.nx*self.atm.ny
+			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+		globin.pool = mp.Pool(globin.n_thread)
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
 		out = open(self.RLK_path, "w")

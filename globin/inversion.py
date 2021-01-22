@@ -7,16 +7,14 @@ from scipy.ndimage import gaussian_filter
 import globin
 
 def invert(init):
-	if init.mode==0:
-		print("Parameters for synthesis mode are read. We can not run inversion.\nChange mode before running again.\n")
-	elif init.mode==1:
+	if globin.mode==0:
+		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
+	elif globin.mode==1:
 		invert_pxl_by_pxl(init)
-	elif init.mode==3:
-		# if we have global parameters
-		# if not, redirect to invert_pxl_by_pxl
+	elif globin.mode==3:
 		invert_global(init)
 	else:
-		print(f"Not supported mode {init.mode} currently.")
+		print(f"Not supported mode {globin.mode} currently.")
 
 def invert_pxl_by_pxl(init):
 	"""
@@ -328,7 +326,14 @@ def invert_global(init):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, _ = globin.compute_rfs(init, atmos)
+			rf, spec, atm = globin.compute_rfs(init, atmos)
+
+			break
+
+			# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+			# plt.show()
+
+			# sys.exit()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))

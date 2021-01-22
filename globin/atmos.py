@@ -34,8 +34,10 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
-	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None]):
+	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None],
+				 nx=None, ny=None):
 		self.verbose = verbose
+		self.fpath = fpath
 		# dictionary for nodes
 		self.nodes = {}
 		# dictionary for values of parameters in nodes; when we are inverting for
@@ -53,14 +55,19 @@ class Atmosphere(object):
 					   "gamma"  : 6,
 					   "chi"    : 7}
 
-		self.nx = None
-		self.ny = None
+		self.nx = nx
+		self.ny = ny
 		self.npar = 14
 
 		self.logtau = np.linspace(-6, 1, num=71)
 		self.nz = len(self.logtau)
 
-		self.data = None
+		# is we provided nx and ny, make empty atmosphere; otherwise set it to None
+		if (self.nx is not None) and (self.ny is not None):
+			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+			self.data[:,:,0,:] = self.logtau
+		else:
+			self.data = None
 		self.header = None
 		self.path = None
 		self.atm_name_list = []
@@ -106,7 +113,7 @@ class Atmosphere(object):
 		return new
 
 	def __str__(self):
-		pass
+		return "<Atmosphere: fpath = {}, (nx,ny,npar,nz) = ({},{},{},{})>".format(self.fpath, self.nx, self.ny, self.npar, self.nz)
 
 	def read_fits(self, fpath, atm_range):
 		try:
@@ -129,7 +136,9 @@ class Atmosphere(object):
 		print(f"Read atmosphere '{self.path}' with dimensions:")
 		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
 
-		self.split_cube()
+		# we split cube into separate files
+		# which will be used for synthesis
+		# self.split_cube()
 
 	def read_spinor(self, fpath):
 		# need to transform read data into MULTI atmos type: 12 params
@@ -154,12 +163,12 @@ class Atmosphere(object):
 
 	def split_cube(self):
 		# go through the cube and save each pixel as separate atmosphere
-		if not os.path.exists("atmospheres"):
-			os.mkdir("atmospheres")
+		if not os.path.exists(f"atmospheres"):
+			os.mkdir(f"atmospheres")
 		else:
 			# clean directory if it exists (maybe we have atmospheres extracted
 			# from some other cube); it takes few miliseconds, so not a big deal
-			sp.run("rm atmospheres/*",
+			sp.run(f"rm atmospheres/*",
 				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
 		# go through each atmosphere and extract it to separate file
@@ -173,7 +182,7 @@ class Atmosphere(object):
 		if self.verbose:
 			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-	def build_from_nodes(self, ref_atm):
+	def build_from_nodes(self, ref_atm, save_atmos=True):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -260,7 +269,8 @@ class Atmosphere(object):
 					# plt.show()
 
 				#--- save interpolated atmosphere to appropriate file
-				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
+				if save_atmos:	
+					write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def write_atmosphere(self):
 		for idx in range(self.nx):
@@ -444,7 +454,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 
 	return spectra, atmospheres, height
 
-def pool_distribute(arg):
+def pool_distribute(args):
 	"""
 	Function which executes what to be done on single thread in multicore
     mashine.
@@ -464,25 +474,24 @@ def pool_distribute(arg):
 	---------------
 	atm_path : string
 		Atmosphere path located in directory 'atmospheres'.
-	spec_name : string
+	rh_spec_name : string
 		File name in which spectrum is written on a disk (read from keyword.input
         file).
     """
 	start = time.time()
 
-	atm_path, spec_name = arg
+	atm_path, rh_spec_name = args
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
 	set_old_J = True
-	if not os.path.exists(f"../pid_{pid}"):
-		os.mkdir(f"../pid_{pid}")
+	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
+		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
 		#--- copy *.input files
-		sp.run(f"cp *.input ../pid_{pid}",
+		sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
-	# lines = open(f"keyword.input", "r").readlines()
 	lines = open(globin.rh_input_name, "r").readlines()
 
 	for i_,line in enumerate(lines):
@@ -497,8 +506,8 @@ def pool_distribute(arg):
 				if keyword=="ATMOS_FILE":
 					lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
 				#--- change path for magnetic field
-				# elif keyword=="STOKES_INPUT":
-				# 	lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
+				elif keyword=="STOKES_INPUT":
+					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
 				#--- set to read old J.dat file
 				# elif keyword=="STARTING_J":
 				# 	if set_old_J:
@@ -506,19 +515,20 @@ def pool_distribute(arg):
 				# 	else:
 				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
 
-	out = open(f"../pid_{pid}/{globin.rh_input_name}","w")
+	out = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}","w")
 	out.writelines(lines)
 	out.close()
 
 	aux = atm_path.split("_")
-	idx, idy = aux[1], aux[2]
+	idx, idy = aux[-2], aux[-1]
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd ../pid_{pid}; ../rhf1d -i {globin.rh_input_name}",
+	out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../rhf1d -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	log_file.writelines(str(out.stdout, "utf-8"))
 	log_file.close()
 
 	stdout = str(out.stdout,"utf-8").split("\n")
+
 	if out.returncode!=0:
 		print("*** RH error")
 		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).\n")
@@ -526,14 +536,14 @@ def pool_distribute(arg):
 			print("   ", line)
 		return None
 	else:
-		out = sp.run(f"cd ../pid_{pid}; ../solveray",
+		out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 		if out.returncode!=0:
 			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
 			return None
 
-	rh_obj = globin.rh.Rhout(fdir=f"../pid_{pid}", verbose=False)
-	rh_obj.read_spectrum(spec_name)
+	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/pid_{pid}", verbose=False)
+	rh_obj.read_spectrum(rh_spec_name)
 	rh_obj.read_ray()
 
 	dt = time.time() - start
@@ -541,7 +551,7 @@ def pool_distribute(arg):
 
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
-def compute_spectra(init, atmos, save=False, clean_dirs=False):
+def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 	"""
 	Function which computes spectrum from input atmosphere. It will distribute
 	the calculation to number of threads given in 'init' and store the spectrum
@@ -554,7 +564,7 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 	init : Input object
 		Input class object. It must contain number of threads 'n_thread', list
 		of sliced atmospheres from cube 'atm_name_list' and name of the output
-		spectrum 'spec_name' read from 'keyword.input' file. Rest are dimension
+		spectrum 'rh_spec_name' read from 'keyword.input' file. Rest are dimension
 		of the cube ('nx' and 'ny') which are initiated from reading atmosphere
 		file. Also, when reading input we set Pool object for multi thread
 		claculation of spectra.
@@ -570,21 +580,21 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
 		the wavelength and Stokes vector for each pixel in atmosphere cube.
 	"""
-
-	n_thread = init.n_thread
 	atm_name_list = atmos.atm_name_list
-	spec_name = init.spec_name
+	if len(atm_name_list)==0:
+		sys.exit("Empty list of atmosphere names.")
+		# atmos.split_cube()
 
-	args = [[atm_name,spec_name] for atm_name in atm_name_list]
+	args = [ [atm_name, rh_spec_name] for atm_name in atm_name_list]
 	#--- make directory in which we will save logs of running RH
-	if not os.path.exists("logs"):
-		os.mkdir("logs")
+	if not os.path.exists(f"{globin.cwd}/logs"):
+		os.mkdir(f"{globin.cwd}/logs")
 	else:
-		sp.run("rm logs/*",
+		sp.run(f"rm {globin.cwd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	rh_obj_list = init.pool.map(func=pool_distribute, iterable=args)
+	rh_obj_list = globin.pool.map(func=pool_distribute, iterable=args)
 
 	#--- exit if all spectra returned from child process are None (failed synthesis)
 	kill = True
@@ -596,19 +606,13 @@ def compute_spectra(init, atmos, save=False, clean_dirs=False):
 		sys.exit("--> Spectrum synthesis on all pixels have failed!")
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
-	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz, init.wavelength)
+	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz, wavelength)
 
-	#--- save spectral cube to fits file
-	# if save:
-	# 	save_spectra(spectra, globin.spectrum_path)
-
-	#--- delete thread directories (save them if you want to use previous run J)
+	#--- delete thread directories (do not deleat if you want to use previous run J)
 	if clean_dirs:
-		for threadID in range(n_thread):
-			out = sp.run(f"rm -r ../pid_{threadID+1}",
+		for threadID in range(globin.n_thread):
+			out = sp.run(f"rm -r {globin.rh_path}/rhf1d/pid_{threadID+1}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-			# out = sp.run(f"rm ../pid_{threadID+1}/*",
-			# 	shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 			if out.returncode!=0:
 				print(f"error while removing directory '../pid_{threadID+1}'")
 
@@ -685,6 +689,8 @@ def compute_rfs(init, atmos):
 	# atmos.data = init.ref_atm.data
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm,_ = compute_spectra(init, atmos, False, False)
+
+	return 0, spec, atm
 
 	# (nx, ny, np, nz, nw, 4)
 	# full_rf = fits.open("rf_temp.fits")[0].data
