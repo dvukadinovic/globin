@@ -6,20 +6,29 @@ import numpy as np
 import sys
 
 #--- initialize input object and then read input files
-# in_data = globin.InputData()
+in_data = globin.InputData()
 
-# globin.compute_spectra(in_data.ref_atm)
+# vmac = np.linspace(0, 1, num=21) * 1000
+# temp = np.linspace(4000, 5000, num=11)
+# pars = {"vmac" : [None,vmac], "temp" : [0, temp]}
+
+# globin.chi2_hypersurface(pars, in_data)
+
 # sys.exit()
 
-# globin.RHatm2Spinor(in_data, in_data.ref_atm)
+#--- compute test spectra
+# in_data.atm.build_from_nodes(in_data.ref_atm)
+# spec, atm, h = globin.compute_spectra(in_data.atm, in_data.rh_spec_name, in_data.wavelength)
+# plt.plot(in_data.obs.wavelength, in_data.obs.spec[0,0,:,0])
+# plt.plot(spec.wavelength, spec.spec[0,0,:,0])
+# plt.show()
+
+# spec.save("original_loggf.fits", in_data.wavelength)
+
 # sys.exit()
 
-#--- make atmosphere from nodes
-# globin.construct_atmosphere_from_nodes("atmosphere_2x3_from_nodes.fits", "test.fits")
-# sys.exit()
-
-#--- compute synthetic observations
-# globin.make_synthetic_observations("params.input", "atmosphere_2x3_from_nodes.fits", "test.fits")
+#--- make synthetic observations
+# globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise)
 # sys.exit()
 
 #--- inversion

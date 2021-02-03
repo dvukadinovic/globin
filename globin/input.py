@@ -40,52 +40,6 @@ class InputData(object):
 		if (rh_input_name is None) and (globin_input_name is not None):
 			self.read_globin_input_file(globin_input_name)
 
-	def read_globin_input_file(self, globin_input_name):
-		self.globin_input_name = globin_input_name
-
-		#--- get parameters from globin input file
-		text = open(globin_input_name, "r").read()
-		self.params_input = text
-
-		#--- path to RH main folder
-		rh_path = find_value_by_key("rh_path", text, "required")
-		if rh_path.rstrip("\n")[-1]=="/":
-			rh_path = rh_path.rstrip("/")
-		globin.rh_path = rh_path
-		
-		#--- path to fits file with atmospheric values at nodes
-		self.node_atm_path = find_value_by_key("node_atmos", text, "required")
-		ref_atm_path = find_value_by_key("atmosphere", text, "required")
-		self.ref_atm = globin.Atmosphere(ref_atm_path)
-
-		#--- output spectrum name
-		self.spec_name = find_value_by_key("spectrum", text, "default", "spectra.fits")
-		#--- find number of threads
-		globin.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
-		globin.pool = mp.Pool(globin.n_thread)
-		self.noise = find_value_by_key("noise", text, "default", 1e-4, float)
-		self.vmac = find_value_by_key("vmac", text, "default", 0, float) * 1e3 # [km/s --> m/s]
-
-		#--- interpolation degree
-		interp_degree = find_value_by_key("interp_degree", text, "optional", None, int)
-		if interp_degree is not None:
-			globin.interp_degree = interp_degree
-
-		self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
-		self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
-		self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
-		if (self.step is None) or (self.lmin is None) or (self.lmax is None):
-			self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
-			self.wavelength = np.loadtxt(self.wave_grid_path)
-			self.lmin = min(self.wavelength)
-			self.lmax = max(self.wavelength)
-			self.step = self.wavelength[1] - self.wavelength[0]
-		else:
-			self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-		# write_wavs(self.wavelength, wave_file_path)
-		# standard deviation of Gaussian kernel for macro broadening
-		self.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
-
 	def __str__(self):
 		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(globin_input_name, rh_input_name)
 
@@ -120,6 +74,7 @@ class InputData(object):
 		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
 		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
 		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
+		globin.rf_file_name = find_value_by_key("RF_OUTPUT", text, "default", "rfs.out")
 
 		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
@@ -142,20 +97,35 @@ class InputData(object):
 
 		#--- get parameters for synthesis
 		if globin.mode==0:
+			# determine which observations from cube to take into consideration
+			aux = find_value_by_key("range", text, "default", [1,None,1,None])
+			self.atm_range = []
+			if type(aux)==str:
+				for item in aux.split(","):
+					if item is None or int(item)==-1:
+						self.atm_range.append(None)
+					elif item is not None:
+						self.atm_range.append(int(item))
+			else:
+				self.atm_range = aux
+			# we count from zero, but let user count from 1
+			self.atm_range[0] -= 1
+			self.atm_range[2] -= 1
+
 			#--- required parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
 			if path_to_atmosphere is None:
 				node_atmosphere_path = find_value_by_key("node_atmosphere", text, "required")
-				self.atm = globin.construct_atmos_from_nodes(node_atmosphere_path)
+				self.atm = globin.construct_atmos_from_nodes(node_atmosphere_path, self.atm_range)
 			else:
-				self.atm = Atmosphere(path_to_atmosphere)
+				self.atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
 			self.atm.split_cube()
 
 			#--- default parameters
 			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
 			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
-			vmac = abs(find_value_by_key("vmac", text, "default", default_val=0, conversion=float))
-			self.atm.vmac = vmac*1e3 # [m/s]
+			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
+			self.atm.vmac = np.abs(vmac) # [km/s]
 
 			#--- optional parameters
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
@@ -169,7 +139,7 @@ class InputData(object):
 				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			write_wavs(self.wavelength, globin.rh_path + "/Atoms/Kurucz/" + wave_file_path)
+			write_wavs(self.wavelength, globin.rh_path + "/Atoms/wave_files/" + wave_file_path)
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
@@ -215,11 +185,6 @@ class InputData(object):
 				values = values.split(",")
 				self.weights = np.array([float(item) for item in values], dtype=np.float64)
 			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
-			self.atm.vmac = vmac*1e3 # [m/s]
-			# if macro-turbulent velocity is negative, we fit for it
-			if self.atm.vmac<0:
-				self.atm.vmac = abs(self.atm.vmac)
-				self.atm.global_pars["vmac"] = np.array([self.atm.vmac])
 
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
@@ -239,7 +204,7 @@ class InputData(object):
 				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			write_wavs(self.wavelength, wave_file_path)
+			write_wavs(self.wavelength, globin.rh_path + "/Atoms/wave_files/" + wave_file_path)
 
 			fpath = find_value_by_key("rf_weights", text, "optional")
 			self.wavs_weight = np.ones((len(self.wavelength),4))
@@ -250,117 +215,27 @@ class InputData(object):
 					self.wavs_weight[:,1] = wQ
 					self.wavs_weight[:,2] = wU
 					self.wavs_weight[:,3] = wV
-			# standard deviation of Gaussian kernel for macro broadening
-			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
-
-			#--- nodes
-			nodes = find_value_by_key("nodes_temp", text, "optional")
-			values = find_value_by_key("nodes_temp_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["temp"] = [float(item) for item in nodes.split(",")]
-				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["temp"]):
-					sys.exit("Number of nodes and values for temperature are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["temp"])), dtype=np.float64)
-					matrix[:,:] = copy.deepcopy(values)
-					self.atm.values["temp"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'temp'.")
-					print("  Must read first observation file.")
-					sys.exit()
-
-			nodes = find_value_by_key("nodes_vz", text, "optional")
-			values = find_value_by_key("nodes_vz_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["vz"] = [float(item) for item in nodes.split(",")]
-				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["vz"]):
-					sys.exit("Number of nodes and values for vertical velocity are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vz"])), dtype=np.float64)
-					matrix[:,:] = copy.deepcopy(values)
-					self.atm.values["vz"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'vz'.")
-					print("  Must read first observation file.")
-					sys.exit()
-
-			nodes = find_value_by_key("nodes_vmic", text, "optional")
-			values = find_value_by_key("nodes_vmic_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["vmic"] = [float(item) for item in nodes.split(",")]
-				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["vmic"]):
-					sys.exit("Number of nodes and values for vertical velocity are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["vmic"])), dtype=np.float64)
-					matrix[:,:] = copy.deepcopy(values)
-					self.atm.values["vmic"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'vmic'.")
-					print("  Must read first observation file.")
-					sys.exit()
 			
-			nodes = find_value_by_key("nodes_mag", text, "optional")
-			values = find_value_by_key("nodes_mag_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["mag"] = [float(item) for item in nodes.split(",")]
+			# standard deviation of Gaussian kernel for macro broadening
+			self.atm.vmac = vmac # [km/s]
+			self.atm.sigma = lambda vmac: vmac*1e3 / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
+
+			# if macro-turbulent velocity is negative, we fit it
+			if self.atm.vmac<0:
+				# check if initial macro veclocity is larger than the step size in wavelength
+				vmac = np.abs(vmac)
+				kernel_sigma = self.atm.sigma(vmac)
+				if kernel_sigma<0.5:
+					vmac = 0.5 * globin.LIGHT_SPEED / ((self.lmin + self.lmax)*0.5) * self.step
+					vmac /= 1e3
+					globin.limit_values["vmac"][0] = vmac
 				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["mag"]):
-					sys.exit("Number of nodes and values for magnetic field are not the same!")
+				self.atm.vmac = abs(vmac)
+				self.atm.global_pars["vmac"] = np.array([self.atm.vmac])
 
-				try:
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["mag"])), dtype=np.float64)
-					matrix[:,:] = copy.deepcopy(values)
-					self.atm.values["mag"] = copy.deepcopy(matrix) / 1e4 # Gauss --> Tesla
-				except:
-					print("Can not store node values for parameter 'mag'.")
-					print("  Must read first observation file.")
-					sys.exit()
-
-			nodes = find_value_by_key("nodes_gamma", text, "optional")
-			values = find_value_by_key("nodes_gamma_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["gamma"] = [float(item) for item in nodes.split(",")]
-				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["gamma"]):
-					sys.exit("Number of nodes and values for magnetic field inclintion are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["gamma"])), dtype=np.float64)
-					matrix[:,:] = np.deg2rad(values) # degree --> radians
-					self.atm.values["gamma"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'gamma'.")
-					print("  Must read first observation file.")
-					sys.exit()
-
-			nodes = find_value_by_key("nodes_chi", text, "optional")
-			values = find_value_by_key("nodes_chi_values", text, "optional")
-			if (nodes is not None) and (values is not None):
-				self.atm.nodes["chi"] = [float(item) for item in nodes.split(",")]
-				
-				values = [float(item) for item in values.split(",")]
-				if len(values)!=len(self.atm.nodes["chi"]):
-					sys.exit("Number of nodes and values for magnetic field azimuth are not the same!")
-
-				try:	
-					matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes["chi"])), dtype=np.float64)
-					matrix[:,:] = np.deg2rad(values) # degree --> radians
-					self.atm.values["chi"] = copy.deepcopy(matrix)
-				except:
-					print("Can not store node values for parameter 'chi'.")
-					print("  Must read first observation file.")
-					sys.exit()
+			#--- read node parameters
+			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+				self.read_node_parameters(parameter, text)
 
 			if globin.mode==3:
 				#--- line parameters to be fit
@@ -472,6 +347,42 @@ class InputData(object):
 
 		out.writelines(linelist)
 		out.close()
+
+	def read_node_parameters(self, parameter, text):
+		nodes = find_value_by_key(f"nodes_{parameter}", text, "optional")
+		values = find_value_by_key(f"nodes_{parameter}_values", text, "optional")
+		mask = find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
+		
+		if (nodes is not None) and (values is not None):
+			self.atm.nodes[parameter] = [float(item) for item in nodes.split(",")]
+			
+			values = [float(item) for item in values.split(",")]
+			if len(values)!=len(self.atm.nodes[parameter]):
+				sys.exit(f"Number of nodes and values for {parameter} are not the same!")
+
+			try:	
+				matrix = np.zeros((self.atm.nx, self.atm.ny, len(self.atm.nodes[parameter])), dtype=np.float64)
+				matrix[:,:] = copy.deepcopy(values)
+				if parameter=="mag":
+					self.atm.values[parameter] = copy.deepcopy(matrix) / 1e4
+				elif parameter=="gamma":
+					matrix *= np.pi/180
+					self.atm.values[parameter] = copy.deepcopy(matrix)
+				elif parameter=="chi":
+					matrix *= np.pi/180
+					self.atm.values[parameter] = copy.deepcopy(matrix)
+				else:
+					self.atm.values[parameter] = copy.deepcopy(matrix)
+				
+				if mask is None:
+					self.atm.mask[parameter] = np.ones(len(self.atm.nodes[parameter]))
+				else:
+					mask = [float(item) for item in mask.split(",")]
+					self.atm.mask[parameter] = np.array(mask)
+			except:
+				print(f"Can not store node values for parameter '{parameter}'.")
+				print("  Must read first observation file.")
+				sys.exit()
 
 class Line(object):
 

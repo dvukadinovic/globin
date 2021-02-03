@@ -12,8 +12,6 @@ Contributors:
 import os
 import sys
 import numpy as np
-import multiprocessing as mp
-import re
 
 from .input import \
 	InputData
@@ -22,11 +20,10 @@ from .rh import \
 	write_wavs, Rhout, write_B
 
 from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, \
-	save_spectra, broaden_spectra
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere
 
 from .spec import \
-	Observation, add_noise
+	Observation, Spectrum
 
 from .inversion import \
 	invert
@@ -38,7 +35,8 @@ from .visualize import \
 	plot_atmosphere, plot_spectra, plot_chi2, show
 
 from .utils import \
-	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations
+	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
+	chi2_hypersurface
 
 __all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
@@ -61,13 +59,13 @@ rh_input_name = None
 rh_path = None
 
 #--- limit values for atmospheric parameters
-limit_values = {"temp"  : [3000,10000], 		# [K]
+limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [0.01,10],			# [km/s]
-				"vmac"  : [1,30000],			# [m/s]
+				"vmic"  : [1e-3, 10],			# [km/s]
+				"vmac"  : [1e-3, 30],			# [km/s]
 				"mag"   : [0, 5000/1e4],		# [T]
 				"gamma" : [0, np.pi],			# [rad]
-				"chi"   : [-np.pi, np.pi]}		# [rad]
+				"chi"   : [-np.pi/2, np.pi/2]}	# [rad]
 
 #--- parameter scale for RFs
 parameter_scale = {"temp"   : 5000,	# [K]
@@ -82,9 +80,9 @@ parameter_scale = {"temp"   : 5000,	# [K]
 
 #--- parameter perturbations for calculating RFs
 delta = {"temp"  : 1,		# K
-		 "vz"    : 10/1e3,	# m/s --> km/s
-		 "vmic"  : 10/1e3,	# m/s --> km/s
-		 "mag"   : 25/1e4,	# G --> T
+		 "vz"    : 1/1e3,	# m/s --> km/s
+		 "vmic"  : 1/1e3,	# m/s --> km/s
+		 "mag"   : 1/1e4,	# G --> T
 		 "gamma" : 0.001,	# rad
 		 "chi"   : 0.001,	# rad
 		 "loggf" : 0.001,	# 
@@ -92,12 +90,12 @@ delta = {"temp"  : 1,		# K
 
 #--- full names of parameters (for FITS header)
 parameter_name = {"temp"   : "Temperature",
-				   "vz"     : "Vertical_velocity",
-				   "vmic"   : "Microturbulent_velocity",
-				   "vmac"   : "Macroturbulent_velocity",
-				   "mag"    : "Magnetic_field_strength",
-				   "gamma"  : "Inclination",
-				   "chi"    : "Azimuth"}
+				  "vz"     : "Vertical_velocity",
+				  "vmic"   : "Microturbulent_velocity",
+				  "vmac"   : "Macroturbulent_velocity",
+				  "mag"    : "Magnetic_field_strength",
+				  "gamma"  : "Inclination",
+				  "chi"    : "Azimuth"}
 
 #--- parameter units (for FITS header)
 parameter_unit = {"temp"   : "K",
@@ -121,5 +119,7 @@ falc = Atmosphere(__path__ + "/data/falc.dat")
 
 # temperature interpolation
 temp_tck = splrep(falc.data[0],falc.data[2])
+falc_logt = falc.data[0]
+falc_ne = falc.data[4] / 10 / K_BOLTZMAN / falc.data[2]
 # ynew = splev(np.arange(0,1.5, 0.1), temp_tck, der=1)
 # print(ynew)

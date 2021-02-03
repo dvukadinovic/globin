@@ -59,14 +59,14 @@ def invert_pxl_by_pxl(init):
 		sys.exit("There is no parameters to fit.\n   We exit.\n")
 
 	# indices for wavelengths min/max for which we are fiting; based on input
-	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
-	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
-	
+	ind_min = np.argmin(abs(obs.wavelength - init.wavelength[0]))
+	ind_max = np.argmin(abs(obs.wavelength - init.wavelength[-1]))+1
+
 	if init.noise!=0:
-		StokesI_cont = obs.data[:,:,ind_min,1]
+		StokesI_cont = obs.spec[:,:,ind_min,0]
 		noise_lvl = init.noise * StokesI_cont
 		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
+		noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
 		# noise = (nx, ny, nw)
 		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 		# noise_stokes_scale = (nx, ny, nw, 4)
@@ -92,14 +92,14 @@ def invert_pxl_by_pxl(init):
 	# we iterate until one of the pixels reach maximum numbre of iterations
 	# other pixels will be blocked at max itteration earlier than or 
 	# will stop due to convergence criterium
-	while np.min(itter) < init.max_iter:
+	while np.min(itter) <= init.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_pars:
 			print("Iteration (min): {:2}\n".format(np.min(itter)+1))
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, atm = globin.compute_rfs(init, atmos)
+			rf, spec = globin.compute_rfs(init, atmos)
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -115,14 +115,14 @@ def invert_pxl_by_pxl(init):
 			rf *= init.weights
 			rf /= noise_scale_rf
 
-			diff = obs.spec - spec[:,:,:,1:]
+			diff = obs.spec - spec.spec
 			diff *= init.weights
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
-			# plt.plot(obs.spec[0,0,:,0])
-			# plt.plot(spec[0,0,:,1])
-			# plt.show()
+			globin.plot_spectra(obs, 0, 0)
+			globin.plot_spectra(spec, 0, 0)
+			plt.show()
 
 			"""
 			Gymnastics with indices for solving LM equations for
@@ -155,32 +155,20 @@ def invert_pxl_by_pxl(init):
 		proposed_steps = np.linalg.solve(H, delta)
 
 		old_parameters = copy.deepcopy(atmos.values)
-		low_ind, up_ind = 0, 0
-		for parID in atmos.values:
-			low_ind = up_ind
-			up_ind += len(atmos.nodes[parID])
-			step = proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
-			# step = np.around(step, decimals=8)
-			# we do not perturb parameters of those pixels which converged
-			step = np.einsum("...i,...->...i", step, stop_flag)
-			# print(step)
-			atmos.values[parID] += step
+		atmos.update_parameters(proposed_steps, stop_flag)
 		atmos.check_parameter_bounds()
 
 		atmos.build_from_nodes(init.ref_atm)
-		corrected_spec,_,_ = globin.compute_spectra(init, atmos)
-		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
+		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+		corrected_spec.broaden_spectra(atmos.vmac)
 
-		new_diff = obs.spec - corrected_spec[:,:,:,1:]
+		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= init.weights
 		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
-
-		# print(np.log10(chi2_new), np.log10(chi2_old))
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if stop_flag[idx,idy]==1:
-					# print(f"  [{idx},{idy}] --> {np.log10(chi2_new[idx,idy])} ? {np.log10(chi2_old[idx,idy])}")
 					if chi2_new[idx,idy] > chi2_old[idx,idy]:
 						LM_parameter[idx,idy] *= 10
 						for parID in old_parameters:
@@ -199,6 +187,7 @@ def invert_pxl_by_pxl(init):
 					LM_parameter[idx,idy] = 1e-5
 				if LM_parameter[idx,idy]>=1e8:
 					stop_flag[idx,idy] = 0
+					print("Large LM parameter. We break.")
 
 		if updated_pars:
 			print(atmos.values)
@@ -226,6 +215,7 @@ def invert_pxl_by_pxl(init):
 					# we stop the convergence for given pixel
 					if it_no==init.max_iter-1:
 						stop_flag[idx,idy] = 0
+						print("Maximum number of iterations reached. We break.")
 
 		
 		# if all pixels have converged, we stop inversion
@@ -238,9 +228,9 @@ def invert_pxl_by_pxl(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra,_,_ = globin.compute_spectra(init, atmos, False, True)
-	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
-	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
+	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
+	inverted_spectra.broaden_spectra(atmos.vmac)
+	inverted_spectra.save(globin.spectrum_path, init.wavelength)
 
 	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
@@ -287,14 +277,14 @@ def invert_global(init):
 		sys.exit("There are no parameters to fit.\n   We exit.\n")
 
 	# indices for wavelengths min/max for which we are fiting; based on input
-	ind_min = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[0]))
-	ind_max = np.argmin(abs(obs.data[0,0,:,0] - init.wavelength[-1]))+1
+	ind_min = np.argmin(abs(obs.wavelength - init.wavelength[0]))
+	ind_max = np.argmin(abs(obs.wavelength - init.wavelength[-1]))+1
 
 	if init.noise!=0:
-		StokesI_cont = obs.data[:,:,ind_min,1]
+		StokesI_cont = obs.spec[:,:,ind_min,0]
 		noise_lvl = init.noise * StokesI_cont
 		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.data[:,:,ind_min:ind_max,1].T / StokesI_cont.T).T
+		noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
 		# noise = (nx, ny, nw)
 		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 		# noise_stokes_scale = (nx, ny, nw, 4)
@@ -326,11 +316,10 @@ def invert_global(init):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, atm = globin.compute_rfs(init, atmos)
+			rf, spec = globin.compute_rfs(init, atmos)
 
-			break
-
-			# plt.plot(spec[0,0,:,0], spec[0,0,:,1])
+			# globin.plot_spectra(obs, 0, 0)
+			# globin.plot_spectra(spec, 0, 0)
 			# plt.show()
 
 			# sys.exit()
@@ -348,33 +337,13 @@ def invert_global(init):
 			# plt.imshow(rf[0,1,-1,:,:], aspect="auto")
 			# plt.show()
 			# sys.exit()
-
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		for parID in range(Npar):
-			# 			plt.figure(parID+1)
-			# 			plt.plot(rf[idx,idy,parID,:,0])# / spec[idx,idy,ind_min,1])
-			# 		plt.show()
-					# plt.subplot(2,2,1)
-					# plt.plot(init.wavelength, spec[idx,idy,:,1])
-					# plt.plot(init.wavelength, obs.spec[idx,idy,:,0])
-					# plt.subplot(2,2,2)
-					# plt.plot(init.wavelength, spec[idx,idy,:,2])
-					# plt.plot(init.wavelength, obs.spec[idx,idy,:,1])
-					# plt.subplot(2,2,3)
-					# plt.plot(init.wavelength, spec[idx,idy,:,3])
-					# plt.plot(init.wavelength, obs.spec[idx,idy,:,2])
-					# plt.subplot(2,2,4)
-					# plt.plot(init.wavelength, spec[idx,idy,:,4])
-					# plt.plot(init.wavelength, obs.spec[idx,idy,:,3])
-					# plt.show()
 			
 			# scale RFs with weights and noise scale
 			rf *= init.weights
 			rf /= noise_scale_rf
 
 			# calculate difference between observation and synthesis
-			diff = obs.spec - spec[:,:,:,1:]
+			diff = obs.spec - spec.spec
 			diff *= init.weights
 
 			# calculate chi2
@@ -430,17 +399,17 @@ def invert_global(init):
 		
 		old_parameters = copy.deepcopy(atmos.values)
 		old_global_pars = copy.deepcopy(atmos.global_pars)
-		atmos.update_parameters(proposed_steps, itter)
+		atmos.update_parameters(proposed_steps)
 		atmos.check_parameter_bounds()
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes(init.ref_atm)
-		corrected_spec,_,_ = globin.compute_spectra(init, atmos, False, False)
-		corrected_spec = globin.atmos.broaden_spectra(corrected_spec, atmos)
+		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+		corrected_spec.broaden_spectra(atmos.vmac)
 
-		new_diff = obs.spec - corrected_spec[:,:,:,1:]
+		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= init.weights
 		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
 
@@ -468,8 +437,8 @@ def invert_global(init):
 			print(atmos.values)
 			print(atmos.global_pars)
 			print(LM_parameter)
+			print(np.log10(chi2_new))
 			print("\n--------------------------------------------------\n")
-			# sys.exit()
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set break_flag to True
@@ -499,9 +468,9 @@ def invert_global(init):
 	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
 	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
-	inverted_spectra,_,_ = globin.compute_spectra(init, atmos, False, True)
-	inverted_spectra = globin.atmos.broaden_spectra(inverted_spectra, atmos)
-	globin.atmos.save_spectra(inverted_spectra, globin.spectrum_path)
+	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	inverted_spectra.broaden_spectra(atmos.vmac)
+	inverted_spectra.save(globin.spectrum_path, init.wavelength)
 
 	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	

@@ -32,36 +32,41 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0):
 	for k_ in range(n_plots):	
 		parID = atmos.par_id[parameters[k_]]
 
+		# if parameters[k_]=="gamma":
+		# 	cube[parID] = np.arccos(cube[parID])
+		# elif parameters[k_]=="chi":
+		# 	cube[parID] = np.arcsin(cube[parID])
+
 		plt.subplot(nrows, ncols, k_+1)
 
 		plt.plot(logtau, cube[parID]*fact[parameters[k_]])
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameters[k_]]} [{unit[parameters[k_]]}]")
 
-def plot_spectra(inv, idx=0, idy=0):
+def plot_spectra(spec, idx=0, idy=0):
 
 	# Stokes I
 	plt.subplot(2,2,1)
 	plt.title("Stokes I")
-	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,0])
+	plt.plot((spec.wavelength - 401.6)*10, spec.spec[idx,idy,:,0])
 	plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 	plt.xlim([-1, 1])
 	# Stokes Q
 	plt.subplot(2,2,2)
 	plt.title("Stokes Q")
-	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,1])
+	plt.plot((spec.wavelength - 401.6)*10, spec.spec[idx,idy,:,1])
 	plt.xlim([-1, 1])
 	# Stokes U
 	plt.subplot(2,2,3)
 	plt.title("Stokes U")
-	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,2])
+	plt.plot((spec.wavelength - 401.6)*10, spec.spec[idx,idy,:,2])
 	plt.xlim([-1, 1])
 	plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 	plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 	# Stokes V
 	plt.subplot(2,2,4)
 	plt.title("Stokes V")
-	plt.plot((inv.data[idx,idy,:,0] - 401.6)*10, inv.spec[idx,idy,:,3])
+	plt.plot((spec.wavelength - 401.6)*10, spec.spec[idx,idy,:,3])
 	plt.xlim([-1, 1])
 	plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 

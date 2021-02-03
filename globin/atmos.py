@@ -21,6 +21,14 @@ from scipy.ndimage.filters import _gaussian_kernel1d
 
 import globin
 
+# order of parameters RFs in output file from 'rf_ray'
+rf_id = {"temp"  : 0,
+		 "vz"    : 1,
+		 "vmic"  : 2,
+		 "mag"   : 3,
+		 "gamma" : 4,
+		 "chi"   : 5}
+
 class Atmosphere(object):
 	"""
 	Object class for atmospheric models.
@@ -40,6 +48,7 @@ class Atmosphere(object):
 		self.fpath = fpath
 		# dictionary for nodes
 		self.nodes = {}
+		self.mask = {}
 		# dictionary for values of parameters in nodes; when we are inverting for
 		# cube atmosphere, each parameters in dictionary will be a matrix with
 		# dimensions (nx,ny,nnodes).
@@ -62,7 +71,7 @@ class Atmosphere(object):
 		self.logtau = np.linspace(-6, 1, num=71)
 		self.nz = len(self.logtau)
 
-		# is we provided nx and ny, make empty atmosphere; otherwise set it to None
+		# if we provided nx and ny, make empty atmosphere; otherwise set it to None
 		if (self.nx is not None) and (self.ny is not None):
 			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 			self.data[:,:,0,:] = self.logtau
@@ -257,17 +266,6 @@ class Atmosphere(object):
 					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
-					# if parameter=="gamma"
-					# 	print(f"[{idx},{idy}]")
-					# 	print("  K0 = {0} | Kn = {1}".format(K0,Kn))
-					# 	print(y)
-					# 	print(y_new)
-                    #
-					# plt.title(parameter)
-					# plt.scatter(x,y)
-					# plt.plot(self.logtau, y_new)
-					# plt.show()
-
 				#--- save interpolated atmosphere to appropriate file
 				if save_atmos:	
 					write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
@@ -341,9 +339,10 @@ class Atmosphere(object):
 		for parID in self.global_pars:
 			if parID=="vmac":
 				if self.global_pars[parID]<globin.limit_values[parID][0]:
-					self.global_pars[parID] = globin.limit_values[parID][0]
+					self.global_pars[parID] = np.array(globin.limit_values[parID][0])
 				if self.global_pars[parID]>globin.limit_values[parID][1]:
-					self.global_pars[parID] = globin.limit_values[parID][1]
+					self.global_pars[parID] = np.array(globin.limit_values[parID][1])
+				self.vmac = self.global_pars["vmac"]
 			else:
 				for i_ in range(len(self.global_pars[parID])):
 					if self.global_pars[parID][i_]<globin.limit_values[parID][i_][0]:
@@ -351,21 +350,66 @@ class Atmosphere(object):
 					if self.global_pars[parID][i_]>globin.limit_values[parID][i_][1]:
 						self.global_pars[parID][i_] = globin.limit_values[parID][i_][1]
 
-	def update_parameters(self, proposed_steps, itter):
-		low_ind, up_ind = 0, 0
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for parID in self.values:
-					low_ind = up_ind
-					up_ind += len(self.nodes[parID])
-					nodes_logtau = np.asarray(self.nodes[parID], dtype=np.float64)
-					step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
-					self.values[parID][idx,idy] += step
-		for parID in self.global_pars:
-			low_ind = up_ind
-			up_ind += len(self.global_pars[parID])
-			step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
-			self.global_pars[parID] += step
+	def update_parameters(self, proposed_steps, stop_flag=None):
+		if stop_flag:
+			low_ind, up_ind = 0, 0
+			for parID in self.values:
+				low_ind = up_ind
+				up_ind += len(self.nodes[parID])
+				step = proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
+				# we do not perturb parameters of those pixels which converged
+				step = np.einsum("...i,...->...i", step, stop_flag)
+				# if parID=="gamma":
+				# 	aux = np.cos(self.values[parID]) + step
+				# 	self.values[parID] = np.arccos(aux)
+				# elif parID=="chi":
+				# 	aux = np.sin(self.values[parID]) + step
+				# 	self.values[parID] = np.arcsin(aux)
+				# else:
+				self.values[parID] += step
+		else:
+			low_ind, up_ind = 0, 0
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					for parID in self.values:
+						low_ind = up_ind
+						up_ind += len(self.nodes[parID])
+						step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
+						self.values[parID][idx,idy] += step * self.mask[parID]
+			for parID in self.global_pars:
+				low_ind = up_ind
+				up_ind += len(self.global_pars[parID])
+				step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
+				# self.global_pars[parID] += np.array(step)
+				self.global_pars[parID] += step
+			
+	def distribute_hydrogen(self, logtau, temp, pg, pe, abundance):
+		from scipy.interpolate import interp1d
+
+		temp = interp1d(logtau, temp)(self.logtau)
+		pg = interp1d(logtau, pg)(self.logtau)
+		pe = interp1d(logtau, pe)(self.logtau)
+
+		Ej = 13.59844
+		u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
+		u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
+		u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs)(temp)
+		u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs)(temp)
+		phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
+		
+		nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(abundance-12)) / 1e6
+		nH0 = nH / (1 + phi_t/pe)
+		nprot = nH - nH0
+		
+		tt = np.linspace(3000, 10000, num=8)
+		U0 = interp1d(tt, u0_coeffs)(temp)
+
+		self.data[:,:,-1,:] = nprot
+
+		for lvl in range(5):
+			e_lvl = 13.59844*(1-1/(lvl+1)**2)
+			g = 2*(lvl+1)**2
+			self.data[:,:,8+lvl,:] = nH0/U0 * g * np.exp(-5040/temp * e_lvl)
 
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type
@@ -406,12 +450,13 @@ def write_multi_atmosphere(atm, fpath):
 	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
-	from scipy.constants import c as LIGHT_SPEED
-
-	fact = 1 # LIGHT_SPEED / (wavelength*1e-9)**2
-
 	Nw = len(wavelength)
-	spectra = np.zeros((Nx, Ny, Nw, 5), dtype=np.float64)
+	spectra = globin.Spectrum(Nx, Ny, Nw)
+	spectra.wavelength = wavelength
+	spectra.lmin = wavelength[0]
+	spectra.lmax = wavelength[-1]
+	spectra.step = wavelength[1] - wavelength[0]
+
 	atmospheres = np.zeros((Nx, Ny, 14, Nz), dtype=np.float64)
 	height = np.zeros((Nx, Ny, Nz), dtype=np.float64)
 
@@ -423,14 +468,12 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 			ind_max = np.argmin(abs(rh_obj.wave - wavelength[-1]))+1
 
 			# Stokes vector
-			spectra[idx,idy,:,0] = wavelength
-			SI_cont = 1#rh_obj.int[ind_min]
-			spectra[idx,idy,:,1] = rh_obj.int[ind_min:ind_max] * fact / SI_cont
+			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max]
 			# if there is magnetic field, read the Stokes components
 			try:
-				spectra[idx,idy,:,2] = rh_obj.ray_stokes_Q[ind_min:ind_max] * fact / SI_cont
-				spectra[idx,idy,:,3] = rh_obj.ray_stokes_U[ind_min:ind_max] * fact / SI_cont
-				spectra[idx,idy,:,4] = rh_obj.ray_stokes_V[ind_min:ind_max] * fact / SI_cont
+				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max]
+				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max]
+				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max]
 			except:
 				pass
 
@@ -451,6 +494,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 			height[idx,idy] = rh_obj.geometry["height"]
 			for i_ in range(rh_obj.atmos['nhydr']):
 				atmospheres[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
+
+	spectra.wave = rh_obj.wave
 
 	return spectra, atmospheres, height
 
@@ -487,9 +532,9 @@ def pool_distribute(args):
 	set_old_J = True
 	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
 		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
-		#--- copy *.input files
-		sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
-			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+	#--- copy *.input files
+	sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
+		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
 	lines = open(globin.rh_input_name, "r").readlines()
@@ -618,108 +663,23 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 	return spectra, atmospheres, height
 
-def save_spectra(spectra, fpath="spectra.fits"):
-	"""
-	Get list of spectra computed for every pixel and store them in fits file.
-	Spectra for pixels which are not computed, we set to 0.
-
-	Parameters:
-	---------------
-	spectra : list
-		List of dictionaries with fields 'spectra', 'idx' and 'idy'.
-		Spectrum in dictionary is Rhout() class object and 'idx' and 'idy'
-		are pixel positions in the atmosphere cube to which given spectrum
-		coresponds.
-
-	fpath : string (optional)
-		Name of the output file. Default is "spectra.fits".
-
-	Returns:
-	---------------
-	spectra : ndarray
-		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
-		the wavelength and Stokes vector for each pixel in atmosphere cube.
-
-	Changes:
-	---------------
-	make fits header with additional info
-	"""
-	primary = fits.PrimaryHDU(spectra)
-	hdulist = fits.HDUList([primary])
-	hdulist.writeto(fpath, overwrite=True)
-
-def broaden_spectra(spectra, atmos):
-	if "vmac" in atmos.global_pars:
-		vmac = atmos.global_pars["vmac"]
-	else:
-		vmac = atmos.vmac
-
-	# if macro velocity is zero, we do not do broadening
-	if vmac==0:
-		return spectra
-
-	kernel_sigma = atmos.sigma(vmac)
-	radius = int(4*kernel_sigma + 0.5)
-	x = np.arange(-radius, radius+1)
-	phi = np.exp(-x**2/kernel_sigma**2)
-	kernel = phi/phi.sum()
-	# since we are correlating, we need to reverse the order of data
-	kernel = kernel[::-1]
-
-	# output = gaussian_filter(spectra, [0,0,kernel_sigma,0], mode="reflect")
-
-	import matplotlib.pyplot as plt
-	for idx in range(atmos.nx):
-		for idy in range(atmos.ny):
-			for sID in range(4):
-				spectra[idx,idy,:,1+sID] = correlate1d(spectra[idx,idy,:,1+sID], kernel)
-				
-				# plt.plot(spectra[idx,idy,:,1+sID])
-				# plt.plot(output[idx,idy,:,1+sID])
-				# plt.show()
-
-	return spectra
-
 def compute_rfs(init, atmos):
 	import matplotlib.pyplot as plt
 
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
-	# atmos.logtau = init.ref_atm.data[0,0,0]
-	# atmos.nz = len(atmos.logtau)
-	# atmos.data = init.ref_atm.data
 	atmos.build_from_nodes(init.ref_atm)
-	spec, atm,_ = compute_spectra(init, atmos, False, False)
+	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-	return 0, spec, atm
-
-	# (nx, ny, np, nz, nw, 4)
-	# full_rf = fits.open("rf_temp.fits")[0].data
-	# full_rf,_,_ = compute_full_rf(init, local_params=["temp"], global_params=None, fpath=None)
-	
-	full_rf = RH_compute_RF(init.n_thread)
-	# full_rf = np.ones((atmos.nz, len(init.wavelength)))
-
-	# plt.figure(1)
-	# plt.imshow(full_rf[0,0,0,:,:,0], aspect="auto", cmap="seismic")
-	# plt.colorbar()
-	
-	# plt.imshow(full_rf, aspect="auto", cmap="gnuplot")
-	# plt.colorbar()
-	# plt.show()
-
-	# plt.figure(2)
-	# rh_rf = np.loadtxt("../testing/rf_0_0.out") * 5000
-	# plt.imshow(rh_rf, aspect="auto", cmap="gnuplot")
-	# plt.colorbar()
-	# plt.show()
+	# RH_compute_RF(atmos, spec.wave)
 	# sys.exit()
 
-	#--- broaden the spectra with macro-turbulent velocity (if given)
-	if "vmac" in atmos.global_pars:
-		vmac = atmos.global_pars["vmac"]
-	else:
-		vmac = atmos.vmac
-	kernel_sigma = atmos.sigma(vmac)
+	# (nx, ny, np, nz, nw, 4)
+	if atmos.n_local_pars!=0:
+		full_rf = RH_compute_RF(globin.n_thread, atmos.nz, len(spec.wave))
+
+	# plt.imshow(full_rf[0,:,:,0], aspect="auto", cmap="bwr")
+	# plt.colorbar()
+	# plt.show()
 
 	#--- get current iteration atmosphere
 	logtau = atmos.logtau
@@ -742,34 +702,20 @@ def compute_rfs(init, atmos):
 	for parameter in atmos.nodes:
 		parID = atmos.par_id[parameter]
 
-		parameter_scale = globin.parameter_scale[parameter]
+		rfID = rf_id[parameter]
 
+		parameter_scale = globin.parameter_scale[parameter]
 		nodes = atmos.nodes[parameter]
-		# values = atmos.values[parameter]
+		values = atmos.values[parameter]
+
+		# if parameter=="gamma" or parameter=="chi":
+		# 	parameter_scale = -1/np.sin(values) * parameter_scale
+		# elif parameter=="chi":
+		# 	parameter_scale = 1/np.cos(values) * parameter_scale
 
 		perturbation = globin.delta[parameter]
 
 		for nodeID in range(len(nodes)):
-			# zID = np.argmin(np.abs(logtau-nodes[nodeID]))
-
-			# model_plus.data[:,:,parID,zID] += perturbation/2
-			# model_plus.write_atmosphere()
-			# spec_plus,_,_ = compute_spectra(init, model_plus, False, False)
-			# spec_plus = broaden_spectra(spec_plus, model_plus)
-
-			# model_minus.data[:,:,parID,zID] -= perturbation/2
-			# model_minus.write_atmosphere()
-			# spec_minus,_,_ = compute_spectra(init, model_minus, False, False)
-			# spec_minus = broaden_spectra(spec_minus, model_minus)
-			# # remove perturbation from data
-			# model_plus.data[:,:,parID,zID] -= perturbation/2
-			# model_minus.data[:,:,parID,zID] += perturbation/2
-
-			# diff = spec_plus[:,:,:,1:] - spec_minus[:,:,:,1:]
-
-			# plt.plot(diff[0,0,:,0])
-			# plt.show()
-
 			model_plus.values[parameter][:,:,nodeID] += perturbation
 			model_plus.build_from_nodes(init.ref_atm)
 
@@ -777,39 +723,30 @@ def compute_rfs(init, atmos):
 			model_minus.build_from_nodes(init.ref_atm)
 
 			dy_dnode = (model_plus.data[:,:,parID] - model_minus.data[:,:,parID]) / 2 / perturbation
-
-			# diff = np.einsum("ijklm,npk->ijlm", full_rf[:,:,0], dy_dnode)
-			diff = np.einsum("ijk,kl->ijl", dy_dnode, full_rf[:,:-1])
-			rf[:,:,free_par_ID,:,0] = diff * parameter_scale
-
-			# plt.plot(diff[0,0,:,0])
-			# plt.show()
-
-			model_plus.values[parameter][:,:,nodeID] -= perturbation
-			model_minus.values[parameter][:,:,nodeID] += perturbation
-
+			diff = np.einsum("ijk,klm->ijlm", dy_dnode, full_rf[rfID,:,:-1,:])
+			
 			# plt.plot(diff[0,0,:,0])
 
 			# plt.plot(spec_minus[0,0,:,0], spec_minus[0,0,:,1])
 			# plt.plot(spec_plus[0,0,:,0], spec_plus[0,0,:,1])
 
 			# plt.show()
+			
+			# if parameter=="gamma" or parameter=="chi":
+			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", diff, parameter_scale[:,:,nodeID])
+			# else:
+			rf[:,:,free_par_ID,:,:] = diff * parameter_scale
 
-			# from Quintero Node et al. (2016), MNRAS, 459, 3363-3376
-			# rf[:,:,free_par_ID,:,:] = diff  #/ perturbation * parameter_scale # / dlogtau # / np.log(10)
+			model_plus.values[parameter][:,:,nodeID] -= perturbation
+			model_minus.values[parameter][:,:,nodeID] += perturbation
 			free_par_ID += 1
 
-			# remove perturbation from data
-			# model_plus.data[:,:,parID,zID] -= perturbation/2
-			# model_minus.data[:,:,parID,zID] += perturbation/2
-
-	# sys.exit()
 	#--- loop through global parameters and calculate RFs
 	if atmos.n_global_pars>0:
 		#--- loop through global parameters and calculate RFs
 		for parameter in atmos.global_pars:
-			# print(parameter)
 			if parameter=="vmac":
+				kernel_sigma = spec.get_kernel_sigma(atmos.vmac)
 				radius = int(4*kernel_sigma + 0.5)
 				x = np.arange(-radius, radius+1)
 				phi = np.exp(-x**2/kernel_sigma**2)
@@ -822,11 +759,11 @@ def compute_rfs(init, atmos):
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
 						for sID in range(4):
-							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec[idx,idy,:,sID+1], kernel)
+							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
 							rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
 							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * init.step / atmos.global_pars["vmac"]
 				free_par_ID += 1
-			else:
+			elif parameter=="loggf" or parameter=="dlam":
 				perturbation = globin.delta[parameter]
 				parameter_scale = globin.parameter_scale[parameter]
 
@@ -837,21 +774,25 @@ def compute_rfs(init, atmos):
 					# positive perturbation
 					value += perturbation
 					init.write_line_par(value, line_no, parameter)
-					spec_plus,_,_ = compute_spectra(init, atmos)
-					spec_plus = broaden_spectra(spec_plus, atmos)
+					spec_plus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+					spec_plus.broaden_spectra(atmos.vmac)
 
 					# negative perturbation
 					value -= 2*perturbation
 					init.write_line_par(value, line_no, parameter)
-					spec_minus,_,_ = compute_spectra(init, atmos)
-					spec_minus = broaden_spectra(spec_minus, atmos)
+					spec_minus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+					spec_minus.broaden_spectra(atmos.vmac)
 
-					diff = spec_plus[:,:,:,1:] - spec_minus[:,:,:,1:]
+					diff = spec_plus.spec - spec_minus.spec
 					rf[:,:,free_par_ID,:,:] = diff / (2*perturbation) * parameter_scale
 					free_par_ID += 1
 
+					# return perturbation back
+					value += perturbation
+					init.write_line_par(value, line_no, parameter)
+
 	#--- broaden the spectra
-	broaden_spectra(spec, atmos)
+	spec.broaden_spectra(atmos.vmac)
 
 	# for parID in range(Npar):
 	# 	plt.figure(parID+1)
@@ -859,9 +800,11 @@ def compute_rfs(init, atmos):
 	# plt.show()
 	# sys.exit()
 
-	return rf, spec, atm
+	return rf, spec
 
-def RH_compute_RF(n_thread):
+def RH_compute_RF(n_thread, nz, nw):
+	import matplotlib.pyplot as plt
+
 	for pid in range(n_thread):
 		out = sp.run(f"cd ../pid_{pid+1}; ../rf_ray -i {globin.rh_input_name}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -870,11 +813,23 @@ def RH_compute_RF(n_thread):
 			sys.exit("Error in computing RFs.")
 
 		rf = np.loadtxt(f"../pid_{pid+1}/rfs.out")
+		rf = rf.reshape(6, nz, nw, 4, order="C")
+	# 	print(rf.shape)
+
+	# plt.imshow(rf[0,:,:,0], aspect="auto", cmap="gnuplot")
+	# plt.colorbar()
+	# plt.show()
+
+	# plt.imshow(rf[3,:,:,0], aspect="auto", cmap="bwr")
+	# plt.colorbar()
+	# plt.show()
+
+	# sys.exit()
 
 	return rf
 
-
 def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
+	return 0
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.ref_atm
 	
@@ -884,7 +839,7 @@ def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], gl
 	atmos.vmac = vmac
 	atmos.sigma = init.atm.sigma
 	
-	spec, atm,_ = compute_spectra(init, atmos)
+	spec, _,_ = compute_spectra(init, atmos)
 	# spec = broaden_spectra(spec, atmos)
 
 	#--- broaden the spectra with macro-turbulent velocity (if given)
@@ -992,4 +947,4 @@ def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], gl
 	if fpath is not None:
 		fits.writeto(fpath, rf, overwrite=True)
 
-	return rf, spec, atm
+	return rf, spec

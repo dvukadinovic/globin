@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import subprocess as sp
 import multiprocessing as mp
+import copy
 
 from scipy.constants import m_e, m_p
 k_b = 1.38064852e-16
@@ -212,19 +213,16 @@ atom_abundance = np.array([12.0,
             -7.96,
             -7.96])
 
-# def construct_atmosphere_from_nodes(ref_atmos_path, output_atmos_path):
-def construct_atmosphere_from_nodes(node_atmosphere_path):
-    atmos = fits.open(node_atmosphere_path)
+def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range):
+    # atmos = fits.open(node_atmosphere_path)
 
-    atmos = globin.Atmosphere()
-    atmos.nx = 2
-    atmos.ny = 3
+    atmos = globin.Atmosphere(nx=2, ny=3)
 
     # log(tau) position of nodes
     atmos.nodes = {"temp"  : [-2.2, -1.1, 0.3],
-                   "vz"    : [-2, 0.5],
+                   "vz"    : [-2, -0.5],
                    "vmic"  : [0],
-                   "mag"   : [-2, 0.5],
+                   "mag"   : [-2, -0.5],
                    "gamma" : [0],
                    "chi"   : [0]}
 
@@ -280,36 +278,53 @@ def construct_atmosphere_from_nodes(node_atmosphere_path):
     atmos.values["chi"] *= np.pi/180 # [deg --> rad]
 
     # ref_atmos = globin.Atmosphere(ref_atmos_path)
+    from scipy.interpolate import splev, splrep
+
+    tck = splrep(globin.falc_logt, globin.falc_ne)
+    ne = splev(atmos.logtau, tck)
+    atmos.data[:,:,2,:] = ne
     ref_atmos = globin.Atmosphere(nx=atmos.nx, ny=atmos.ny)
     atmos.build_from_nodes(ref_atmos, False)
-    # atmos.save_atmosphere(output_atmos_path)
+    atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4], atom_abundance)
+    atmos.split_cube()
 
+    # atmos.save_atmosphere(output_atmos_path)
+    
     return atmos
 
-def make_synthetic_observations(atmos, rh_spec_name, wavelength, noise):
-    spec,_,_ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
-    spec = globin.broaden_spectra(spec, atmos)
-    globin.save_spectra(spec, globin.spectrum_path)
+def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise):
+    if atmos is None:
+        atmos = construct_atmosphere_from_nodes(None, None)
+        atmos.vmac = vmac
+        atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
 
-    globin.add_noise(spec, noise)
+    if globin.mode!=0:
+        print(f"  Current mode is {globin.mode}.")
+        print("  We can make synthetic observations only in mode = 0.")
+        print("  Change it before running script again.")
+        sys.exit()
+
+    spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
+    spec.broaden_spectra(atmos.vmac)
+    spec.add_noise(noise)
+    spec.save(globin.spectrum_path, wavelength)
 
     # for idx in range(atmos.nx):
     #     for idy in range(atmos.ny):
     #         globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
     # globin.show()
 
-    # spec = globin.Observation(globin.spectrum_path)
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
-    #         globin.plot_spectra(spec, idx=idx, idy=idy)
-    # globin.show()
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            globin.plot_spectra(spec, idx=idx, idy=idy)
+    globin.show()
 
     return spec
 
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))
 
-    spec, atm, height = globin.compute_spectra(in_data, atmos, False, False)
+    spec, atm, height = globin.compute_spectra(atmos, in_data.rh_spec_name, in_data.wavelength)
 
     spinor_atm[0] = atmos.logtau
     spinor_atm[1] = height
@@ -344,3 +359,77 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
 
     np.savetxt("globin_atm_0_0.dat", spinor_atm[:,0,0,:].T, header=f"{atmos.nz}\tdummy.dat", comments="", 
         fmt="%3.2f %5.4e %6.2f %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4f %5.4f")
+
+def chi2_hypersurface(pars, init):
+    atmos = init.atm
+    obs = init.obs
+    weights = init.weights
+    noise = init.noise
+
+    shape = []
+
+    par_names = list(pars.keys())
+
+    # initialize parameters
+    for parameter in pars:
+        ptype, pvalues = pars[parameter]
+        # ptype for global parameters is None
+        if ptype==None:
+            atmos.global_pars[parameter] = pvalues[0]
+            shape.append(len(pvalues))
+            # if we have loggf or dlam parameter, we need to write those data
+            # into the file first
+            if parameter=="loggf" or parameter=="dlam":
+                pass
+        # for local parameters it is nodes index (starting from 0)
+        else:
+            # atmos.values[parameter][:,:,ptype] = pvalues[0]
+            shape.append(len(pvalues))
+
+    chi2 = np.ones(shape)
+    atmos.build_from_nodes(init.ref_atm)
+
+    for i_, vmac in enumerate(pars["vmac"][1]):
+        atmos.vmac = pars["vmac"][1][i_]
+        print(i_, atmos.vmac/1e3)
+        spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+        spec.broaden_spectra(atmos.vmac)
+
+        diff = obs.spec - spec.spec
+        diff *= weights
+
+        chi2[i_,0] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
+
+    plt.plot(pars["vmac"][1]/1e3, chi2[:,0])
+    plt.yscale("log")
+    plt.xlabel(r"$v_{mac}$ [km/s]")
+    plt.ylabel(r"$\chi ^2$")
+    plt.show()
+
+    # for i_, vmac in enumerate(pars["vmac"][1]):
+    #     atmos.vmac = pars["vmac"][1][i_]
+    #     print(i_, atmos.vmac/1e3)
+    #     for j_, temp in enumerate(pars["temp"][1]):
+    #         atmos.values["temp"][:,:,pars["temp"][0]] = pars["temp"][1][j_]
+
+    #         atmos.build_from_nodes(init.ref_atm)
+
+    #         spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+    #         spec.broaden_spectra(atmos.vmac)
+
+    #         diff = obs.spec - spec.spec
+    #         diff *= weights
+
+    #         chi2[i_,j_] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
+
+    #         plt.plot(obs.spec[0,0,:,0])
+    #         plt.plot(spec.spec[0,0,:,0])
+    #         plt.show()
+
+    # plt.imshow(np.log10(chi2), aspect="auto", cmap="gnuplot")
+    # plt.colorbar()
+    # plt.xticks(list(range(shape[1])), np.round(pars[par_names[1]][1]/1e3, decimals=1))
+    # plt.yticks(list(range(shape[0])), np.round(pars[par_names[0]][1]/1e3, decimals=1))
+    # plt.xlabel(r"T [kK]")
+    # plt.ylabel(r"$v_{mac}$ [km/s]")
+    # plt.show()

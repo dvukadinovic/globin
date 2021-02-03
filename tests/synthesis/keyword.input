@@ -130,13 +130,6 @@
 # Output files for atomic data, spectrum, populations, and geometry
   
   SPECTRUM_OUTPUT = spectrum.out
-  
-  RF_TEMP = FALSE
-  RF_MAG = FALSE
-  RF_VZ = FALSE
-  RF_VMIC = FALSE
-  RF_GAMMA = TRUE
-  RF_CHI = FALSE
 
 # OPACITY_OUTPUT, RADRATE_OUTPUT, COLLRATE_OUTPUT, and DAMPING_OUTPUT
 # are all KEYWORD_OPTIONAL
