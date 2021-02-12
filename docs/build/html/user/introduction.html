@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Introduction &#8212; globin 0.1 documentation</title>
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/alabaster.css" type="text/css" />
+    <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+    <script src="../_static/jquery.js"></script>
+    <script src="../_static/underscore.js"></script>
+    <script src="../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Installation" href="installation.html" />
+    <link rel="prev" title="Welcome to globin’s documentation!" href="../index.html" />
+   
+  <link rel="stylesheet" href="../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="introduction">
+<span id="intro"></span><h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<p>Main purpose of <strong>globin</strong> package is to invert high-resolution NUV solar observations from SUSI instrument onboard SUNRISE III balloon-borne mission for inference of atomic line parameters. Package is able to invert ocilator strength (log(gf)) and rest wavelength of spectral line along with atmospheric parameters (temperature, vertical velocity, micro-turbulent velocity, magnetic field strength, field inclination and azimuth).</p>
+<p>Parametrization of atmospheric structure is done using node approach where in node we have value of given physical parameters. Code minimizes difference between provided observed profiles and synthesised spectra using Levenberg-Marquardt algorithm.</p>
+<p>In case of atomic parameters we have implemented a global minimization. In this approach, atomic parameters are called global and are the same for each observed Stokes profile in given field-of-view. This way, we have coupled information from all the pixels to have better inference of atomic parameters.</p>
+<p>Atmospheric structure is assumed to be given in optical depth scale which is then finly interpolated on scale -6 to 1 with step size of 0.1. Interpolation between atmospheric nodes is performed with Bezier’s 2nd and 3rd order polynomials.</p>
+<p>Response function, necessary for spectropolarimetric inversion using LM algorithm, are calculated numerical using <code class="docutils literal notranslate"><span class="pre">rf_ray</span></code> executable of RH. It is modified executable of <code class="docutils literal notranslate"><span class="pre">sovleray</span></code>.</p>
+<div class="section" id="quick-start">
+<h2>Quick start<a class="headerlink" href="#quick-start" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="atmosphere">
+<h2>Atmosphere<a class="headerlink" href="#atmosphere" title="Permalink to this headline">¶</a></h2>
+<p>Input atmosphere</p>
+</div>
+<div class="section" id="synthesis">
+<h2>Synthesis<a class="headerlink" href="#synthesis" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="inversion">
+<h2>Inversion<a class="headerlink" href="#inversion" title="Permalink to this headline">¶</a></h2>
+</div>
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../index.html">Documentation overview</a><ul>
+      <li>Previous: <a href="../index.html" title="previous chapter">Welcome to globin’s documentation!</a></li>
+      <li>Next: <a href="installation.html" title="next chapter">Installation</a></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" />
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2020, Dusan Vukadinovic.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 3.4.3</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="../_sources/user/introduction.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>

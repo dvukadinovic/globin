@@ -120,9 +120,9 @@ def invert_pxl_by_pxl(init):
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
-			globin.plot_spectra(obs, 0, 0)
-			globin.plot_spectra(spec, 0, 0)
-			plt.show()
+			# globin.plot_spectra(obs, 0, 0)
+			# globin.plot_spectra(spec, 0, 0)
+			# plt.show()
 
 			"""
 			Gymnastics with indices for solving LM equations for
@@ -216,7 +216,6 @@ def invert_pxl_by_pxl(init):
 					if it_no==init.max_iter-1:
 						stop_flag[idx,idy] = 0
 						print("Maximum number of iterations reached. We break.")
-
 		
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
@@ -243,7 +242,7 @@ def invert_pxl_by_pxl(init):
 	out_file.write("Run time: {:10.1f}\n\n".format(end))
 
 	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-	out_file.write(init.params_input)
+	out_file.write(init.globin_input)
 	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
 	out_file.write(init.rh_input)
 
@@ -493,7 +492,7 @@ def invert_global(init):
 				out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
 
 	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-	out_file.write(init.params_input)
+	out_file.write(init.globin_input)
 	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
 	out_file.write(init.rh_input)
 

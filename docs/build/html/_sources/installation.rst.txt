@@ -1,0 +1,3 @@
+To install the 'globin' package to current enviroment use
+
+pip3 install -e /path/to/package

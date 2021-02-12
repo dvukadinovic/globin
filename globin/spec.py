@@ -112,7 +112,6 @@ class Observation(Spectrum):
 
 		xmin, xmax, ymin, ymax = atm_range
 		data = np.array(hdu.data[xmin:xmax,ymin:ymax], dtype=np.float64)
-		print(data.shape)
 		
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = data[0,0,:,0]

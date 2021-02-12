@@ -233,6 +233,7 @@ class Atmosphere(object):
 
 					x = self.nodes[parameter]
 					y = self.values[parameter][idx,idy]
+
 					if parameter=="temp":
 						if len(x)>=2:
 							K0 = (y[1]-y[0]) / (x[1]-x[0])
@@ -499,7 +500,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 
 	return spectra, atmospheres, height
 
-def pool_distribute(args):
+def synth_pool(args):
 	"""
 	Function which executes what to be done on single thread in multicore
     mashine.
@@ -537,7 +538,7 @@ def pool_distribute(args):
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
-	lines = open(globin.rh_input_name, "r").readlines()
+	lines = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}", "r").readlines()
 
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -639,7 +640,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	rh_obj_list = globin.pool.map(func=pool_distribute, iterable=args)
+	rh_obj_list = globin.pool.map(func=synth_pool, iterable=args)
 
 	#--- exit if all spectra returned from child process are None (failed synthesis)
 	kill = True
@@ -670,8 +671,7 @@ def compute_rfs(init, atmos):
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-	# RH_compute_RF(atmos, spec.wave)
-	# sys.exit()
+	# RH_compute_RF(atmos, spec.wave, init.lmin, init.lmax)
 
 	# (nx, ny, np, nz, nw, 4)
 	if atmos.n_local_pars!=0:
@@ -802,34 +802,99 @@ def compute_rfs(init, atmos):
 
 	return rf, spec
 
-def RH_compute_RF(n_thread, nz, nw):
-	import matplotlib.pyplot as plt
+def rf_pool(args):
+	start = time.time()
 
-	for pid in range(n_thread):
-		out = sp.run(f"cd ../pid_{pid+1}; ../rf_ray -i {globin.rh_input_name}",
-				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	atm_path = args
 
-		if out.returncode!=0:
-			sys.exit("Error in computing RFs.")
+	#--- for each thread process create separate directory
+	pid = mp.current_process()._identity[0]
+	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
+		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
+	
+	#--- copy *.input files
+	sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
+		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
-		rf = np.loadtxt(f"../pid_{pid+1}/rfs.out")
-		rf = rf.reshape(6, nz, nw, 4, order="C")
-	# 	print(rf.shape)
+	lines = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}", "r").readlines()
 
-	# plt.imshow(rf[0,:,:,0], aspect="auto", cmap="gnuplot")
-	# plt.colorbar()
-	# plt.show()
+	for i_,line in enumerate(lines):
+		line = line.rstrip("\n").replace(" ","")
+		# skip blank lines
+		if len(line)>0:
+			# skip commented lines
+			if line[0]!=globin.COMMENT_CHAR:
+				line = line.split("=")
+				keyword, value = line
+				#--- change atmos path in 'keyword.input' file
+				if keyword=="ATMOS_FILE":
+					lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
+				#--- change path for magnetic field
+				elif keyword=="STOKES_INPUT":
+					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
+				# elif keyword=="RF_TEMP":
+				# 	if "temp" in rf_parameter_flag:
+				# 		lines[i_] = "  RF_TEMP = TRUE"
+				# 	else:
+				# 		lines[i_] = "  RF_TEMP = FALSE"
 
-	# plt.imshow(rf[3,:,:,0], aspect="auto", cmap="bwr")
-	# plt.colorbar()
-	# plt.show()
+	out = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}","w")
+	out.writelines(lines)
+	out.close()
+	
+	aux = atm_path.split("_")
+	idx, idy = aux[-2], aux[-1]
+	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../rf_ray -i {globin.rh_input_name}",
+			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	log_file.writelines(str(out.stdout, "utf-8"))
+	log_file.close()
 
-	# sys.exit()
+	stdout = str(out.stdout,"utf-8").split("\n")
 
-	return rf
+	if out.returncode!=0:
+		print("*** RH error")
+		print(f"    Failed to compute RF for pixel ({idx},{idy}).\n")
+		for line in stdout[-5:]:
+			print("   ", line)
+		return None
+
+	rf = np.loadtxt(f"../pid_{pid}/{globin.rf_file_path}")
+	# rf = rf.reshape(6, nz, nw, 4, order="C")
+	
+	dt = time.time() - start
+	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+
+	return {"rf" : rf, "idx" : idx, "idy" : idy}
+
+def RH_compute_RF(atmos, wave, lmin, lmax):
+	ind_min = np.argmin(np.abs(wave-lmin))
+	ind_max = np.argmin(np.abs(wave-lmax))+1
+
+	#--- make directory in which we will save logs of running 'rf_ray'
+	if not os.path.exists(f"{globin.cwd}/logs"):
+		os.mkdir(f"{globin.cwd}/logs")
+	else:
+		sp.run(f"rm {globin.cwd}/logs/*",
+			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
+
+	rf_list = globin.pool.map(func=rf_pool, iterable=atmos.atm_name_list)
+
+	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
+	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wave), 4))
+
+	for item in rf_list:
+		idx, idy = int(item["idx"]), int(item["idy"])
+		rf[idx,idy,...] = item["rf"].reshape(6, atmos.nz, len(wave), 4)
+	
+	# we return RF for wavelngths for which we have observations
+	return rf[...,ind_min:ind_max,:]
 
 def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
-	return 0
+	"""
+	Obsolete function...
+	"""
+	return None
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos = init.ref_atm
 	

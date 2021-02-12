@@ -15,6 +15,37 @@ import globin
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
 
 def find_value_by_key(key, text, key_type, default_val=None, conversion=str):
+	"""
+	Regexp search of 'key' in given 'text'.
+
+	Parameters:
+	---------------
+	key : str
+		keyword whose value we are searching in 'text'.
+	text : str
+		string in which we look for the keyword 'key'.
+	key_type : str
+		parameter which determines the importance of the key. We have 'requiered',
+		'default' and 'optional' parameter. In case of failed search for 'requiered'
+		parameter error is raised. For failed 'default' key search returned value is
+		one given with 'default_val' parameter. 'optional' type variable returns 'None'
+		if there is no 'key' in 'text'.
+	default_val : {str,float,int}
+		value which will be returned in case of failed 'key' search for default
+		'key_type'.
+	conversion : function (default 'str')
+		function which translate given string into given type ('float' or 'int'). By
+		default we assume that return value will be string.
+
+	Return:
+	---------------
+	value : {str, float, int}
+		value of 'key' in variable type given by 'conversion' parameter.
+
+	Errors:
+	---------------
+	In failed search for 'key_type=requiered' execution stops.
+	"""
 	match = pattern(key).search(text)
 	if match:
 		value = match.group(2)
@@ -36,33 +67,36 @@ class InputData(object):
 		
 		if (rh_input_name is not None) and (globin_input_name is not None):
 			self.read_input_files(globin_input_name, rh_input_name)
-		
-		if (rh_input_name is None) and (globin_input_name is not None):
-			self.read_globin_input_file(globin_input_name)
+		else:
+			if rh_input_name is None:
+				print(f"  There is no path for globin input file path.")
+			if globin_input_name is None:
+				print(f"  There is no path for RH input file path.")
+			sys.exit()
 
 	def __str__(self):
-		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(globin_input_name, rh_input_name)
+		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(self.globin_input_name, self.rh_input_name)
 
 	def read_input_files(self, globin_input_name, rh_input_name):
-		""" 
-		Read files 'globin_input_name' and 'rh_input_name' for input data.
+		"""
+		Read input files for globin ('globin_input_name') and RH ('rh_input_name').
 
-		We assume that parameters are given in format:
+		We assume that parameters (in both files) are given in format:
 			key = value
 
-		Before every comment we have symbol '#', except in line with 'key = value'
-		statement.
+		Commented lines begin with symbol '#'.
 
 		Parameters:
 		---------------
-		globin_input_name : str (optional)
-			File name in which are stored input parameters. By default we read
-			from 'params.input' file.
+		globin_input_name : str
+			file name in which are stored input parameters for globin. By default
+			we read from 'params.input' file.
 
-		rh_input_name : str (optional)	
-			File name for RH main input file. Default value is 'keyword.input'.
+		rh_input_name : str
+			file name for RH input file. Default value is 'keyword.input'.
 		"""
 		self.globin_input_name = globin_input_name
+		self.rh_input_name = rh_input_name
 		globin.rh_input_name = rh_input_name
 
 		#--- get parameters from RH input file
@@ -72,13 +106,13 @@ class InputData(object):
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
 		wave_file_path = wave_file_path.split("/")[-1]
 		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
-		self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
+		# self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
 		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
-		globin.rf_file_name = find_value_by_key("RF_OUTPUT", text, "default", "rfs.out")
+		globin.rf_file_path = find_value_by_key("RF_OUTPUT", text, "default", "rfs.out")
 
 		#--- get parameters from globin input file
 		text = open(globin_input_name, "r").read()
-		self.params_input = text
+		self.globin_input = text
 
 		#--- find first mode of operation
 		globin.mode = find_value_by_key("mode", text, "required", conversion=int)
@@ -90,7 +124,7 @@ class InputData(object):
 		globin.rh_path = rh_path
 		
 		#--- find number of threads
-		globin.n_thread = find_value_by_key("n_threads",text, "default", 1, conversion=int)
+		globin.n_thread = find_value_by_key("n_thread",text, "default", 1, conversion=int)
 
 		#--- interpolation degree
 		globin.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
@@ -99,8 +133,8 @@ class InputData(object):
 		if globin.mode==0:
 			# determine which observations from cube to take into consideration
 			aux = find_value_by_key("range", text, "default", [1,None,1,None])
-			self.atm_range = []
 			if type(aux)==str:
+				self.atm_range = []
 				for item in aux.split(","):
 					if item is None or int(item)==-1:
 						self.atm_range.append(None)
@@ -119,7 +153,7 @@ class InputData(object):
 				self.atm = globin.construct_atmos_from_nodes(node_atmosphere_path, self.atm_range)
 			else:
 				self.atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
-			self.atm.split_cube()
+				self.atm.split_cube()
 
 			#--- default parameters
 			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
@@ -132,8 +166,8 @@ class InputData(object):
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
-				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
-				self.wavelength = np.loadtxt(self.wave_grid_path)
+				wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				self.wavelength = np.loadtxt(wave_grid_path)
 				self.lmin = min(self.wavelength)
 				self.lmax = max(self.wavelength)
 				self.step = self.wavelength[1] - self.wavelength[0]
@@ -143,6 +177,7 @@ class InputData(object):
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
+			# reference atmosphere is the same as input one in mode of synthesis
 			self.ref_atm = copy.deepcopy(self.atm)
 
 		#--- get parameters for inversion
@@ -164,7 +199,7 @@ class InputData(object):
 			# we count from zero, but let user count from 1
 			self.atm_range[0] -= 1
 			self.atm_range[2] -= 1
-		
+
 			#--- required parameters
 			path_to_observations = find_value_by_key("observation", text, "required")
 			self.obs = Observation(path_to_observations, self.atm_range)
@@ -197,8 +232,8 @@ class InputData(object):
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) and (self.lmin is None) and (self.lmax is None):
-				self.wave_grid_path = find_value_by_key("wave_grid", text, "required")
-				self.wavelength = np.loadtxt(self.wave_grid_path)
+				wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				self.wavelength = np.loadtxt(wave_grid_path)
 				self.lmin = min(self.wavelength)
 				self.lmax = max(self.wavelength)
 				self.step = self.wavelength[1] - self.wavelength[0]
@@ -300,6 +335,7 @@ class InputData(object):
 			#--- missing parameters
 			# instrument broadening: R or instrument profile provided
 			# strailight contribution
+			# opacity fudge coefficients
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if globin.n_thread > self.atm.nx*self.atm.ny:
@@ -309,7 +345,6 @@ class InputData(object):
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
 		out = open(self.RLK_path, "w")
-		# out = open("test_RLK_file", "w")
 		linelist = self.RLK_text_lines
 
 		for no,val in zip(loggf_no, loggf_val):
@@ -328,6 +363,7 @@ class InputData(object):
 		out.writelines(linelist)
 		out.close()
 
+	# old?
 	def write_line_par(self, par_val, par_no, parameter):
 		out = open(self.RLK_path, "w")
 		linelist = self.RLK_text_lines

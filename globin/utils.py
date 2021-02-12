@@ -213,72 +213,64 @@ atom_abundance = np.array([12.0,
             -7.96,
             -7.96])
 
-def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range):
-    # atmos = fits.open(node_atmosphere_path)
+def slice_line(line, dtype=float):
+    # remove 'new line' character
+    line = line.rstrip("\n")
+    # split line data based on 'space' separation
+    line = line.split(" ")
+    # filter out empty entries and convert to list
+    lista = list(filter(None, line))
+    # map read values into given data type
+    lista = map(dtype, lista)
+    # return list of values
+    return list(lista)
 
-    atmos = globin.Atmosphere(nx=2, ny=3)
+def read_node_atmosphere(fpath):
+    parameters = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 
-    # log(tau) position of nodes
-    atmos.nodes = {"temp"  : [-2.2, -1.1, 0.3],
-                   "vz"    : [-2, -0.5],
-                   "vmic"  : [0],
-                   "mag"   : [-2, -0.5],
-                   "gamma" : [0],
-                   "chi"   : [0]}
+    lines = open(fpath, "r").readlines()
 
-    atmos.values["temp"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["temp"])))
-    atmos.values["temp"][0,0] = [4500, 5500, 7300]
-    atmos.values["temp"][0,1] = [4400, 5400, 7200]
-    atmos.values["temp"][0,2] = [4000, 5400, 7500]
-    atmos.values["temp"][1,0] = [4500, 5600, 7500]
-    atmos.values["temp"][1,1] = [4800, 5300, 7600]
-    atmos.values["temp"][1,2] = [4200, 5200, 7400]
+    nx, ny = slice_line(lines[0], int)
 
-    atmos.values["vz"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["vz"])))
-    atmos.values["vz"][0,0] = [1, -0.5]
-    atmos.values["vz"][0,1] = [0.5, 0.1]
-    atmos.values["vz"][0,2] = [0, 0]
-    atmos.values["vz"][1,0] = [0.75, -0.1]
-    atmos.values["vz"][1,1] = [-1, 0]
-    atmos.values["vz"][1,2] = [-1.2, 0.5]
+    # number of data for given parameter
+    # we have nx*ny data points
+    # and 1 line for the name of the variable
+    # and 1 line for the node positions
+    nlines = nx*ny + 2
 
-    atmos.values["vmic"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["vmic"])))
-    atmos.values["vmic"][0,0] = [0.0]
-    atmos.values["vmic"][0,1] = [0.25]
-    atmos.values["vmic"][0,2] = [0.50]
-    atmos.values["vmic"][1,0] = [0.75]
-    atmos.values["vmic"][1,1] = [1.0]
-    atmos.values["vmic"][1,2] = [1.25]
+    atmos = globin.Atmosphere(nx=nx, ny=ny)
 
-    atmos.values["mag"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["mag"])))
-    atmos.values["mag"][0,0] = [100, 250]
-    atmos.values["mag"][0,1] = [0, 0]
-    atmos.values["mag"][0,2] = [500, 1500]
-    atmos.values["mag"][1,0] = [300, 350]
-    atmos.values["mag"][1,1] = [2000, 2500]
-    atmos.values["mag"][1,2] = [250, 500]
-    atmos.values["mag"] /= 1e4 # [G --> T]
+    i_ = 2
+    for parID in range(6):
+        parameter = parameters[parID]
+        if i_<len(lines):
+            if lines[i_].rstrip("\n")==parameter:
+                nodes = slice_line(lines[i_+1])
+                atmos.nodes[parameter] = np.array(nodes)
+                num_nodes = len(nodes)
+                atmos.values[parameter] = np.zeros((nx, ny, num_nodes))
 
-    atmos.values["gamma"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["gamma"])))
-    atmos.values["gamma"][0,0] = [70]
-    atmos.values["gamma"][0,1] = [45]
-    atmos.values["gamma"][0,2] = [10]
-    atmos.values["gamma"][1,0] = [30]
-    atmos.values["gamma"][1,1] = [60]
-    atmos.values["gamma"][1,2] = [0]
-    atmos.values["gamma"] *= np.pi/180 # [deg --> rad]
+                for j_ in range(nx*ny):
+                    idx = j_//ny
+                    idy = j_%ny
 
-    atmos.values["chi"] = np.zeros((atmos.nx, atmos.ny, len(atmos.nodes["chi"])))
-    atmos.values["chi"][0,0] = [0]
-    atmos.values["chi"][0,1] = [30]
-    atmos.values["chi"][0,2] = [45]
-    atmos.values["chi"][1,0] = [60]
-    atmos.values["chi"][1,1] = [90]
-    atmos.values["chi"][1,2] = [130]
-    atmos.values["chi"] *= np.pi/180 # [deg --> rad]
+                    temps = slice_line(lines[i_+2+j_])
+                    atmos.values[parameter][idx, idy] = np.array(temps)
 
-    # ref_atmos = globin.Atmosphere(ref_atmos_path)
+                if parameter=="mag":
+                    atmos.values[parameter] /= 1e4 # [G --> T]
+                if parameter=="gamma" or parameter=="chi":
+                    atmos.values[parameter] *= np.pi/180 # [deg --> rad]
+
+                i_ += nlines+1
+
+    return atmos
+
+def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     from scipy.interpolate import splev, splrep
+
+    atmos = read_node_atmosphere(node_atmosphere_path)
+    # ref_atmos = globin.Atmosphere(ref_atmos_path)
 
     tck = splrep(globin.falc_logt, globin.falc_ne)
     ne = splev(atmos.logtau, tck)
@@ -288,7 +280,8 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range):
     atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4], atom_abundance)
     atmos.split_cube()
 
-    # atmos.save_atmosphere(output_atmos_path)
+    if output_atmos_path is not None:
+        atmos.save_atmosphere(output_atmos_path)
     
     return atmos
 
@@ -309,10 +302,10 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise):
     spec.add_noise(noise)
     spec.save(globin.spectrum_path, wavelength)
 
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
-    #         globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-    # globin.show()
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
+    globin.show()
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
@@ -433,3 +426,4 @@ def chi2_hypersurface(pars, init):
     # plt.xlabel(r"T [kK]")
     # plt.ylabel(r"$v_{mac}$ [km/s]")
     # plt.show()
+
