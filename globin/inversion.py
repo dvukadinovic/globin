@@ -6,17 +6,21 @@ from scipy.ndimage import gaussian_filter
 
 import globin
 
-def invert(init):
+def invert(init, save_results=True, verbose=True):
 	if globin.mode==0:
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
+		return None, None
 	elif globin.mode==1:
-		invert_pxl_by_pxl(init)
+		atm, spec = invert_pxl_by_pxl(init, save_results, verbose)
+		return atm, spec
 	elif globin.mode==3:
-		invert_global(init)
+		atm, spec = invert_global(init, save_results, verbose)
+		return atm, spec
 	else:
 		print(f"Not supported mode {globin.mode} currently.")
+		return None, None
 
-def invert_pxl_by_pxl(init):
+def invert_pxl_by_pxl(init, save_results, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -32,9 +36,10 @@ def invert_pxl_by_pxl(init):
 	obs = init.obs
 	atmos = init.atm
 
-	print("Initial parameters:")
-	print(atmos.values)
-	print()
+	if verbose:
+		print("Initial parameters:")
+		print(atmos.values)
+		print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * init.marq_lambda
 	# flags those pixels whose chi2 converged:
@@ -95,7 +100,8 @@ def invert_pxl_by_pxl(init):
 	while np.min(itter) <= init.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_pars:
-			print("Iteration (min): {:2}\n".format(np.min(itter)+1))
+			if verbose:
+				print("Iteration (min): {:2}\n".format(np.min(itter)+1))
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
@@ -189,7 +195,7 @@ def invert_pxl_by_pxl(init):
 					stop_flag[idx,idy] = 0
 					print("Large LM parameter. We break.")
 
-		if updated_pars:
+		if updated_pars and verbose:
 			print(atmos.values)
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
@@ -221,34 +227,37 @@ def invert_pxl_by_pxl(init):
 		if np.sum(stop_flag)==0:
 			break
 
-	fname = "results"
-
 	atmos.build_from_nodes(init.ref_atm)
-	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
 
-	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
-	inverted_spectra.save(globin.spectrum_path, init.wavelength)
-
-	globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
-	end = time.time() - start
-	print("\nFinished in: {0}\n".format(end))
+	if save_results:
+		fname = "results"
+		globin.spectrum_path = f"{fname}/inverted_spectra.fits"
 
-	#--- inverted params comparison with expected values
-	out_file = open("{:s}/output.log".format(fname), "w")
+		atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
+		inverted_spectra.save(globin.spectrum_path, init.wavelength)
+		globin.save_chi2(chi2, f"{fname}/chi2.fits")
+		
+		end = time.time() - start
+		print("\nFinished in: {0}\n".format(end))
 
-	out_file.write("Run time: {:10.1f}\n\n".format(end))
+		#--- inverted params comparison with expected values
+		out_file = open("{:s}/output.log".format(fname), "w")
 
-	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-	out_file.write(init.globin_input)
-	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-	out_file.write(init.rh_input)
+		out_file.write("Run time: {:10.1f}\n\n".format(end))
 
-	out_file.close()
+		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
+		out_file.write(init.globin_input)
+		out_file.write("\n\n     #===--- RH input file ---===#\n\n")
+		out_file.write(init.rh_input)
 
-def invert_global(init):
+		out_file.close()
+
+	return atmos, inverted_spectra
+
+def invert_global(init, save_results, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -264,10 +273,11 @@ def invert_global(init):
 	obs = init.obs
 	atmos = init.atm
 
-	print("Initial parameters:")
-	print(atmos.values)
-	print(atmos.global_pars)
-	print()
+	if verbose:
+		print("Initial parameters:")
+		print(atmos.values)
+		print(atmos.global_pars)
+		print()
 
 	Nw = len(init.wavelength)
 	Npar = atmos.n_local_pars + atmos.n_global_pars
@@ -311,7 +321,8 @@ def invert_global(init):
 	while itter<init.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
-			print("Iteration: {:2}\n".format(itter+1))
+			if verbose:
+				print("Iteration: {:2}\n".format(itter+1))
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
@@ -432,11 +443,11 @@ def invert_global(init):
 			print("Upper limit in LM_parameter. We break\n")
 			break_flag = True
 
-		if updated_parameters:
+		if updated_parameters and verbose:
 			print(atmos.values)
 			print(atmos.global_pars)
 			print(LM_parameter)
-			print(np.log10(chi2_new))
+			# print(np.log10(chi2_new))
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
@@ -446,6 +457,10 @@ def invert_global(init):
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
 			relative_change = abs(chi2[itter-2]/chi2[itter-1] - 1)
+			print(relative_change)
+			if np.abs(relative_change)==np.inf:
+				print("chi2 is way low!\n")
+				break_flag = True
 			if relative_change<init.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
@@ -461,39 +476,42 @@ def invert_global(init):
 			print("Failed 10 times to fix the LM parameter. We break.\n")
 			break
 
-	fname = "results"
-
 	atmos.build_from_nodes(init.ref_atm)
-	atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
-
-	globin.spectrum_path = f"{fname}/inverted_spectra.fits"
+	
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
-	inverted_spectra.save(globin.spectrum_path, init.wavelength)
 
-	globin.save_chi2(chi2, f"{fname}/chi2.fits")
+	if save_results:	
+		fname = "results"
+		globin.spectrum_path = f"{fname}/inverted_spectra.fits"
+
+		atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
+		inverted_spectra.save(globin.spectrum_path, init.wavelength)
+		globin.save_chi2(chi2, f"{fname}/chi2.fits")
 	
-	end = time.time() - start
-	print("Finished in: {0}\n".format(end))
+		end = time.time() - start
+		print("Finished in: {0}\n".format(end))
 
-	#--- make a log file (copy input files + inverted global parameters)
-	out_file = open("{:s}/output.log".format(fname), "w")
+		#--- make a log file (copy input files + inverted global parameters)
+		out_file = open("{:s}/output.log".format(fname), "w")
 
-	out_file.write("Run time: {:10.1f}\n\n".format(end))
+		out_file.write("Run time: {:10.1f}\n\n".format(end))
 
-	out_file.write("\n\n     #===--- Global parameters ---===#\n\n")
+		out_file.write("\n\n     #===--- Global parameters ---===#\n\n")
 
-	for par in atmos.global_pars:
-		if par=="vmac":
-			for i_ in range(len(atmos.global_pars[par])):
-				out_file.write("{:s}    {: 4.3f}\n".format(par, atmos.global_pars[par][i_]))
-		else:
-			for i_ in range(len(atmos.global_pars[par])):
-				out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
+		for par in atmos.global_pars:
+			if par=="vmac":
+				for i_ in range(len(atmos.global_pars[par])):
+					out_file.write("{:s}    {: 4.3f}\n".format(par, atmos.global_pars[par][i_]))
+			else:
+				for i_ in range(len(atmos.global_pars[par])):
+					out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
 
-	out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-	out_file.write(init.globin_input)
-	out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-	out_file.write(init.rh_input)
+		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
+		out_file.write(init.globin_input)
+		out_file.write("\n\n     #===--- RH input file ---===#\n\n")
+		out_file.write(init.rh_input)
 
-	out_file.close()
+		out_file.close()
+
+	return atmos, inverted_spectra

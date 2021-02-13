@@ -54,6 +54,7 @@ class Atmosphere(object):
 		# dimensions (nx,ny,nnodes).
 		self.values = {}
 		self.global_pars = {}
+		self.line_no = {}
 
 		self.par_id = {"logtau" : 0,
 					   "temp"   : 1,

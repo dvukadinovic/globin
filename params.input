@@ -63,8 +63,9 @@ line_parameters = test_line_pars
 linelist = ../../Atoms/Kurucz/spinor_window_original
 
 #--- Reference atmosphere (optional)
-atmosphere = atmosphere_2x3_from_nodes.fits
-range = 1,2,1,3
+#cube_atmosphere = atmosphere_2x3_from_nodes.fits
+node_atmosphere = node_atmosphere
+range = 1,1,1,1
 
 #--- RH root folder path
 rh_path = /media/dusan/storage/RH/rh

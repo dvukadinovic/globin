@@ -14,7 +14,10 @@ import sys
 import numpy as np
 
 from .input import \
-	InputData, find_value_by_key
+	InputData, find_value_by_key, read_node_atmosphere
+
+from .atoms import \
+	Line, read_RLK_lines, read_init_line_parameters, init_line_pars
 
 from .rh import \
 	write_wavs, Rhout, write_B
@@ -36,7 +39,7 @@ from .visualize import \
 
 from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
-	chi2_hypersurface, read_node_atmosphere
+	chi2_hypersurface
 
 __all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"

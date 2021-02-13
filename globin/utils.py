@@ -213,63 +213,10 @@ atom_abundance = np.array([12.0,
             -7.96,
             -7.96])
 
-def slice_line(line, dtype=float):
-    # remove 'new line' character
-    line = line.rstrip("\n")
-    # split line data based on 'space' separation
-    line = line.split(" ")
-    # filter out empty entries and convert to list
-    lista = list(filter(None, line))
-    # map read values into given data type
-    lista = map(dtype, lista)
-    # return list of values
-    return list(lista)
-
-def read_node_atmosphere(fpath):
-    parameters = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
-
-    lines = open(fpath, "r").readlines()
-
-    nx, ny = slice_line(lines[0], int)
-
-    # number of data for given parameter
-    # we have nx*ny data points
-    # and 1 line for the name of the variable
-    # and 1 line for the node positions
-    nlines = nx*ny + 2
-
-    atmos = globin.Atmosphere(nx=nx, ny=ny)
-
-    i_ = 2
-    for parID in range(6):
-        parameter = parameters[parID]
-        if i_<len(lines):
-            if lines[i_].rstrip("\n")==parameter:
-                nodes = slice_line(lines[i_+1])
-                atmos.nodes[parameter] = np.array(nodes)
-                num_nodes = len(nodes)
-                atmos.values[parameter] = np.zeros((nx, ny, num_nodes))
-
-                for j_ in range(nx*ny):
-                    idx = j_//ny
-                    idy = j_%ny
-
-                    temps = slice_line(lines[i_+2+j_])
-                    atmos.values[parameter][idx, idy] = np.array(temps)
-
-                if parameter=="mag":
-                    atmos.values[parameter] /= 1e4 # [G --> T]
-                if parameter=="gamma" or parameter=="chi":
-                    atmos.values[parameter] *= np.pi/180 # [deg --> rad]
-
-                i_ += nlines+1
-
-    return atmos
-
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     from scipy.interpolate import splev, splrep
 
-    atmos = read_node_atmosphere(node_atmosphere_path)
+    atmos = globin.read_node_atmosphere(node_atmosphere_path)
     # ref_atmos = globin.Atmosphere(ref_atmos_path)
 
     tck = splrep(globin.falc_logt, globin.falc_ne)
@@ -278,16 +225,25 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmo
     ref_atmos = globin.Atmosphere(nx=atmos.nx, ny=atmos.ny)
     atmos.build_from_nodes(ref_atmos, False)
     atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4], atom_abundance)
-    atmos.split_cube()
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
     
+    if atm_range is not None:
+        xmin, xmax, ymin, ymax = atm_range
+        atmos.data = atmos.data[xmin:xmax, ymin:ymax]
+        atmos.nx, atmos.ny, atmos.npar, atmos.nz = atmos.data.shape
+    
+    atmos.split_cube()
+
+    print("Constructed atmosphere from nodes: {}".format(node_atmosphere_path))
+    print("  (nx, ny, nz, npar) = ({0}, {1}, {2}, {3})".format(atmos.nx, atmos.ny, atmos.nz, atmos.npar))
+
     return atmos
 
-def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise):
+def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, node_atmosphere_path=None, atm_range=None):
     if atmos is None:
-        atmos = construct_atmosphere_from_nodes(None, None)
+        atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
         atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
 
@@ -426,4 +382,3 @@ def chi2_hypersurface(pars, init):
     # plt.xlabel(r"T [kK]")
     # plt.ylabel(r"$v_{mac}$ [km/s]")
     # plt.show()
-

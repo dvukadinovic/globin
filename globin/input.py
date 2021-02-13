@@ -147,10 +147,10 @@ class InputData(object):
 			self.atm_range[2] -= 1
 
 			#--- required parameters
-			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
+			path_to_atmosphere = find_value_by_key("cube_atmosphere", text, "optional")
 			if path_to_atmosphere is None:
 				node_atmosphere_path = find_value_by_key("node_atmosphere", text, "required")
-				self.atm = globin.construct_atmos_from_nodes(node_atmosphere_path, self.atm_range)
+				self.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, self.atm_range)
 			else:
 				self.atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
 				self.atm.split_cube()
@@ -222,12 +222,18 @@ class InputData(object):
 			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
 
 			#--- optional parameters
-			path_to_atmosphere = find_value_by_key("atmosphere", text, "optional")
+			path_to_atmosphere = find_value_by_key("cube_atmosphere", text, "optional")
 			if path_to_atmosphere is not None:
 				self.ref_atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
-			# if user have not provided reference atmosphere we will assume FAL C model
+			# if user have not provided reference atmosphere try fidning node atmosphere
 			else:
-				self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
+				path_to_node_atmosphere = find_value_by_key("node_atmosphere", text, "optional")
+				if path_to_node_atmosphere is not None:
+					self.ref_atm = globin.construct_atmosphere_from_nodes(path_to_node_atmosphere, self.atm_range)
+				# if node atmosphere not given, set FAL C model as reference atmosphere
+				else:
+					self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
+
 			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
 			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
@@ -274,33 +280,33 @@ class InputData(object):
 
 			if globin.mode==3:
 				#--- line parameters to be fit
-				line_par_path = find_value_by_key("line_parameters", text, "optional")
+				line_pars_path = find_value_by_key("line_parameters", text, "optional")
 
-				if line_par_path:
+				if line_pars_path:
 					# if we provided line parameters for fit, read those parameters
-					loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max = read_line_parameters(line_par_path)
-					# if we have log(gf) init values read, set them in global_pars variable
-					self.atm.line_no = {}
-					if len(loggf_init)>0:
-						self.atm.global_pars["loggf"] = np.array(loggf_init)
-						self.atm.line_no["loggf"] = np.array(loggf_lineNo)
-						globin.limit_values["loggf"] = loggf_min_max
-					else:
-						self.atm.global_pars["loggf"] = []
-						self.atm.line_no["loggf"] = []
-					# if we have dlam init values read, set them in global_pars variable
-					if len(dlam_init)>0:
-						self.atm.global_pars["dlam"] = np.array(dlam_init)
-						self.atm.line_no["dlam"] = np.array(dlam_lineNo)
-						globin.limit_values["dlam"] = dlam_min_max
-					else:
-						self.atm.global_pars["dlam"] = []
-						self.atm.line_no["dlam"] = []
+					lines_to_fit = globin.read_init_line_parameters(line_pars_path)
+
+					# get log(gf) parameters from line list
+					self.atm.global_pars["loggf"] = [line.loggf for line in lines_to_fit if line.loggf is not None]
+					self.atm.line_no["loggf"] = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+					loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+					loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+					globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+
+					# get dlam parameters from lines list
+					self.atm.global_pars["dlam"] = [line.dlam for line in lines_to_fit if line.dlam is not None]
+					self.atm.line_no["dlam"] = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+					dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+					dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+					globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
 
 					#--- Kurucz line list for given spectral region
 					if RLK_linelist_path:
+						# get path to line list which has original / expected values (will not be changed during execution)
 						linelist_path = find_value_by_key("linelist", text, "required")
-						self.RLK_text_lines, self.RLK_lines = read_RLK_lines(linelist_path)
+						# RLK_text_lines --> list of lines with Kurucz line format (needed for outputing atomic line list later)
+						# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
+						self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
 
 						# go through RLK file and find the uncommented line
 						# with path to atomic line files of Kurucz format
@@ -312,10 +318,9 @@ class InputData(object):
 								self.RLK_path = line
 								break
 
-						# write down perturbed values
+						# write down initial atomic lines values
 						self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
 												   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
-						# sys.exit()
 					else:
 						print("No path to kurucz.input file.")
 						# print("There is no Kurucz line list file to write to.")
@@ -344,6 +349,9 @@ class InputData(object):
 		globin.pool = mp.Pool(globin.n_thread)
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
+		"""
+		Write out full Kurucz line list for all parameters.
+		"""
 		out = open(self.RLK_path, "w")
 		linelist = self.RLK_text_lines
 
@@ -363,8 +371,12 @@ class InputData(object):
 		out.writelines(linelist)
 		out.close()
 
-	# old?
 	def write_line_par(self, par_val, par_no, parameter):
+		"""
+		Write out parameter for one given line and parameter.
+
+		Used when we are computing RFs.
+		"""
 		out = open(self.RLK_path, "w")
 		linelist = self.RLK_text_lines
 
@@ -385,6 +397,17 @@ class InputData(object):
 		out.close()
 
 	def read_node_parameters(self, parameter, text):
+		"""
+		For a given parameter read from input file node positions, values and 
+		parameter mask.
+
+		Parameters:
+		---------------
+		parameter : str
+			name of the parameter for which we are loading in node parameters.
+		text : str
+			loaded input file string from which we are searching for the node keywords.
+		"""
 		nodes = find_value_by_key(f"nodes_{parameter}", text, "optional")
 		values = find_value_by_key(f"nodes_{parameter}_values", text, "optional")
 		mask = find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
@@ -420,58 +443,55 @@ class InputData(object):
 				print("  Must read first observation file.")
 				sys.exit()
 
-class Line(object):
+def slice_line(line, dtype=float):
+    # remove 'new line' character
+    line = line.rstrip("\n")
+    # split line data based on 'space' separation
+    line = line.split(" ")
+    # filter out empty entries and convert to list
+    lista = list(filter(None, line))
+    # map read values into given data type
+    lista = map(dtype, lista)
+    # return list of values
+    return list(lista)
 
-	def __init__(self, lineNo=None, lam0=None, loggf=None):
-		self.lineNo = lineNo
-		self.lam0 = lam0
-		self.loggf = loggf
+def read_node_atmosphere(fpath):
+    parameters = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 
-	def __str__(self):
-		return "<LineNo: {}, lam0: {}, loggf: {}>".format(self.lineNo, self.lam0, self.loggf)
+    lines = open(fpath, "r").readlines()
 
-def read_RLK_lines(fpath):
-	lines = open(fpath, "r").readlines()
-	
-	RLK_lines = []
+    nx, ny = slice_line(lines[0], int)
 
-	for i_, line in enumerate(lines):
-		lam0 = float(line[0:10])
-		loggf = float(line[10:17])
+    # number of data for given parameter
+    # we have nx*ny data points
+    # and 1 line for the name of the variable
+    # and 1 line for the node positions
+    nlines = nx*ny + 2
 
-		RLK_lines.append(Line(i_+1, lam0, loggf))
+    atmos = Atmosphere(nx=nx, ny=ny)
 
-	return lines, RLK_lines
+    i_ = 2
+    for parID in range(6):
+        parameter = parameters[parID]
+        if i_<len(lines):
+            if lines[i_].rstrip("\n")==parameter:
+                nodes = slice_line(lines[i_+1])
+                atmos.nodes[parameter] = np.array(nodes)
+                num_nodes = len(nodes)
+                atmos.values[parameter] = np.zeros((nx, ny, num_nodes))
 
-def read_line_parameters(fpath):
-		lines = open(fpath, "r").readlines()
+                for j_ in range(nx*ny):
+                    idx = j_//ny
+                    idy = j_%ny
 
-		loggf_lineNo = []
-		dlam_lineNo = []
+                    temps = slice_line(lines[i_+2+j_])
+                    atmos.values[parameter][idx, idy] = np.array(temps)
 
-		loggf_init = []
-		dlam_init = []
+                if parameter=="mag":
+                    atmos.values[parameter] /= 1e4 # [G --> T]
+                if parameter=="gamma" or parameter=="chi":
+                    atmos.values[parameter] *= np.pi/180 # [deg --> rad]
 
-		loggf_min_max = np.array([], dtype=np.float64)
-		dlam_min_max = np.array([], dtype=np.float64)
+                i_ += nlines+1
 
-		for line in lines:
-			line = list(filter(None,line.rstrip("\n").split(" ")))
-			if line[0]=="loggf":
-				# substract 1 since we are counting from 0 here
-				loggf_lineNo.append(int(line[1])-1)
-				loggf_init.append(float(line[2]))
-				loggf_min_max = np.append( loggf_min_max, np.array( [float(line[3]), float(line[4])] ) )
-			elif line[0]=="dlam":
-				# substract 1 since we are counting from 0 here
-				dlam_lineNo.append(int(line[1])-1)
-				dlam_init.append(float(line[2]))
-				dlam_min_max = np.append( dlam_min_max, np.array( [float(line[3]), float(line[4])] ) )
-
-		# reshape into dimension aprpropriate for min/max check later
-		n_loggf = len(loggf_init)
-		loggf_min_max = np.reshape(loggf_min_max, (n_loggf,2))
-		n_dlam = len(dlam_init)
-		dlam_min_max = np.reshape(dlam_min_max, (n_dlam,2))
-		
-		return loggf_lineNo, loggf_init, loggf_min_max, dlam_lineNo, dlam_init, dlam_min_max
+    return atmos

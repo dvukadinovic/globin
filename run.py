@@ -5,9 +5,7 @@ from astropy.io import fits
 import numpy as np
 import sys
 
-# globin.input.read_node_atmosphere("node_atmosphere")
-
-#--- initialize input object and then read input files
+#--- initialize input object and read input files
 in_data = globin.InputData()
 
 # vmac = np.linspace(0, 1, num=21) * 1000
@@ -30,7 +28,8 @@ in_data = globin.InputData()
 # sys.exit()
 
 #--- make synthetic observations
-globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise)
+globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise, 
+	"node_atmosphere", [0,None,0,None])
 sys.exit()
 
 #--- inversion
