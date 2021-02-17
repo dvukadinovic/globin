@@ -320,40 +320,60 @@ def chi2_hypersurface(pars, init):
     par_names = list(pars.keys())
 
     # initialize parameters
-    for parameter in pars:
-        ptype, pvalues = pars[parameter]
-        # ptype for global parameters is None
-        if ptype==None:
-            atmos.global_pars[parameter] = pvalues[0]
-            shape.append(len(pvalues))
-            # if we have loggf or dlam parameter, we need to write those data
-            # into the file first
-            if parameter=="loggf" or parameter=="dlam":
-                pass
-        # for local parameters it is nodes index (starting from 0)
-        else:
-            # atmos.values[parameter][:,:,ptype] = pvalues[0]
-            shape.append(len(pvalues))
+    # for parameter in pars:
+    #     ptype, pvalues = pars[parameter]
+    #     # ptype for global parameters is None
+    #     if ptype==None:
+    #         atmos.global_pars[parameter] = pvalues[0]
+    #         shape.append(len(pvalues))
+    #         # if we have loggf or dlam parameter, we need to write those data
+    #         # into the file first
+    #         if parameter=="loggf" or parameter=="dlam":
+    #             pass
+    #     # for local parameters it is nodes index (starting from 0)
+    #     else:
+    #         # atmos.values[parameter][:,:,ptype] = pvalues[0]
+    #         shape.append(len(pvalues))
 
+    shape = len(pars["loggf"][1])
     chi2 = np.ones(shape)
     atmos.build_from_nodes(init.ref_atm)
 
-    for i_, vmac in enumerate(pars["vmac"][1]):
-        atmos.vmac = pars["vmac"][1][i_]
-        print(i_, atmos.vmac/1e3)
-        spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
-        spec.broaden_spectra(atmos.vmac)
+    loggf0 = [-2.172, -1.806, -0.084, -0.857, -0.781, -2.419,  0.080, -0.515, -0.087, -1.928, -1.870, -0.714, -1.426, -3.513, -1.160, -2.905, -2.576, -0.547]
 
-        diff = obs.spec - spec.spec
-        diff *= weights
+    #--- vmac
+    # for i_, vmac in enumerate(pars["vmac"][1]):
+    #     atmos.vmac = pars["vmac"][1][i_]
+    #     print(i_, atmos.vmac/1e3)
+    #     spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+    #     spec.broaden_spectra(atmos.vmac)
 
-        chi2[i_,0] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
+    #     diff = obs.spec - spec.spec
+    #     diff *= weights
 
-    plt.plot(pars["vmac"][1]/1e3, chi2[:,0])
-    plt.yscale("log")
-    plt.xlabel(r"$v_{mac}$ [km/s]")
-    plt.ylabel(r"$\chi ^2$")
-    plt.show()
+    #     chi2[i_,0] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
+
+    #--- loggf
+        # ind = pars["loggf"][0]-1
+    for ind in range(0,17):
+        print(ind+1)
+        for i_, loggf in enumerate(pars["loggf"][1]):
+            init.write_line_par(loggf, ind, "loggf")
+            spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+            spec.broaden_spectra(atmos.vmac)
+
+            # print(i_)
+
+            diff = obs.spec - spec.spec
+            diff *= weights
+            chi2[i_] = np.sum(diff[0,0]**2)
+        init.write_line_par(loggf0[ind], ind, "loggf")
+
+        plt.plot(pars["loggf"][1], chi2)
+        plt.yscale("log")
+        plt.xlabel(r"$\log (gf)$")
+        plt.ylabel(r"$\chi ^2$")
+        plt.show()
 
     # for i_, vmac in enumerate(pars["vmac"][1]):
     #     atmos.vmac = pars["vmac"][1][i_]

@@ -11,26 +11,17 @@ in_data = globin.InputData()
 # vmac = np.linspace(0, 1, num=21) * 1000
 # temp = np.linspace(4000, 5000, num=11)
 # pars = {"vmac" : [None,vmac], "temp" : [0, temp]}
+loggf = np.linspace(-5, 0.5, num=30)
+pars = {"loggf" : [13, loggf]}
 
-# globin.chi2_hypersurface(pars, in_data)
+globin.chi2_hypersurface(pars, in_data)
 
-# sys.exit()
-
-#--- compute test spectra
-# in_data.atm.build_from_nodes(in_data.ref_atm)
-# spec, atm, h = globin.compute_spectra(in_data.atm, in_data.rh_spec_name, in_data.wavelength)
-# plt.plot(in_data.obs.wavelength, in_data.obs.spec[0,0,:,0])
-# plt.plot(spec.wavelength, spec.spec[0,0,:,0])
-# plt.show()
-
-# spec.save("original_loggf.fits", in_data.wavelength)
-
-# sys.exit()
+sys.exit()
 
 #--- make synthetic observations
-globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise, 
-	"node_atmosphere", [0,None,0,None])
-sys.exit()
+# globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise, 
+# 	"node_atmosphere", [0,None,0,None])
+# sys.exit()
 
 #--- inversion
 globin.invert(in_data)
