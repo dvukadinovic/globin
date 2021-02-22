@@ -539,6 +539,7 @@ def synth_pool(args):
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
+	#--- set up keyword.input file
 	lines = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}", "r").readlines()
 
 	for i_,line in enumerate(lines):
@@ -566,16 +567,22 @@ def synth_pool(args):
 	out.writelines(lines)
 	out.close()
 
+	# make log file
 	aux = atm_path.split("_")
 	idx, idy = aux[-2], aux[-1]
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	
+	# run rhf1d executable
 	out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../rhf1d -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	
+	# store log file
 	log_file.writelines(str(out.stdout, "utf-8"))
 	log_file.close()
 
 	stdout = str(out.stdout,"utf-8").split("\n")
 
+	# check if rhf1d executed normaly
 	if out.returncode!=0:
 		print("*** RH error")
 		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).\n")
@@ -583,12 +590,14 @@ def synth_pool(args):
 			print("   ", line)
 		return None
 	else:
+		# if everything was fine, run solverray executable
 		out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 		if out.returncode!=0:
 			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
 			return None
 
+	# read output spectra and spectrum ray from RH
 	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/pid_{pid}", verbose=False)
 	rh_obj.read_spectrum(rh_spec_name)
 	rh_obj.read_ray()
@@ -665,21 +674,21 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(init, atmos):
+def compute_rfs(init, atmos, itter):
 	import matplotlib.pyplot as plt
 
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-	# RH_compute_RF(atmos, spec.wave, init.lmin, init.lmax)
-
 	# (nx, ny, np, nz, nw, 4)
 	if atmos.n_local_pars!=0:
-		full_rf = RH_compute_RF(globin.n_thread, atmos.nz, len(spec.wave))
+		full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
 
-	# plt.imshow(full_rf[0,:,:,0], aspect="auto", cmap="bwr")
-	# plt.colorbar()
+	plt.imshow(full_rf[0,0,0,:,:,0], aspect="auto", cmap="gnuplot")
+	plt.colorbar()
+	plt.savefig("results/rf_{:02d}".format(itter+1))
+	plt.close()
 	# plt.show()
 
 	#--- get current iteration atmosphere
@@ -698,6 +707,8 @@ def compute_rfs(init, atmos):
 
 	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(init.wavelength), 4), dtype=np.float64)
 
+	diff = np.zeros((atmos.nx, atmos.ny, len(init.wavelength), 4))
+
 	#--- loop through local (atmospheric) parameters and calculate RFs
 	free_par_ID = 0
 	for parameter in atmos.nodes:
@@ -707,8 +718,7 @@ def compute_rfs(init, atmos):
 
 		parameter_scale = globin.parameter_scale[parameter]
 		nodes = atmos.nodes[parameter]
-		values = atmos.values[parameter]
-
+		
 		# if parameter=="gamma" or parameter=="chi":
 		# 	parameter_scale = -1/np.sin(values) * parameter_scale
 		# elif parameter=="chi":
@@ -717,14 +727,28 @@ def compute_rfs(init, atmos):
 		perturbation = globin.delta[parameter]
 
 		for nodeID in range(len(nodes)):
-			model_plus.values[parameter][:,:,nodeID] += perturbation
-			model_plus.build_from_nodes(init.ref_atm)
+			# positive perturbation
+			atmos.values[parameter][:,:,nodeID] += perturbation
+			atmos.build_from_nodes(init.ref_atm, False)
+			positive = copy.deepcopy(atmos.data[:,:,parID])
 
-			model_minus.values[parameter][:,:,nodeID] -= perturbation
-			model_minus.build_from_nodes(init.ref_atm)
+			# negative perturbation
+			atmos.values[parameter][:,:,nodeID] -= 2*perturbation
+			atmos.build_from_nodes(init.ref_atm, False)
+			negative = copy.deepcopy(atmos.data[:,:,parID])
 
-			dy_dnode = (model_plus.data[:,:,parID] - model_minus.data[:,:,parID]) / 2 / perturbation
-			diff = np.einsum("ijk,klm->ijlm", dy_dnode, full_rf[rfID,:,:-1,:])
+			# derivative of parameter distribution to node perturbation
+			dy_dnode = (positive - negative) / 2 / perturbation
+
+			diff = np.einsum("abc,decfg->abfg", dy_dnode, full_rf[:,:,rfID])
+
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		diff[idx,idy] = np.einsum("a,abc->bc", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
+
+			# print(diff[0,0]==aux)
+
+			# sys.exit()
 			
 			# plt.plot(diff[0,0,:,0])
 
@@ -736,11 +760,13 @@ def compute_rfs(init, atmos):
 			# if parameter=="gamma" or parameter=="chi":
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", diff, parameter_scale[:,:,nodeID])
 			# else:
+			
 			rf[:,:,free_par_ID,:,:] = diff * parameter_scale
-
-			model_plus.values[parameter][:,:,nodeID] -= perturbation
-			model_minus.values[parameter][:,:,nodeID] += perturbation
 			free_par_ID += 1
+
+			# return back perturbation
+			atmos.values[parameter][:,:,nodeID] += perturbation
+			atmos.build_from_nodes(init.ref_atm, False)
 
 	#--- loop through global parameters and calculate RFs
 	if atmos.n_global_pars>0:
@@ -784,8 +810,8 @@ def compute_rfs(init, atmos):
 					spec_minus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 					spec_minus.broaden_spectra(atmos.vmac)
 
-					diff = spec_plus.spec - spec_minus.spec
-					rf[:,:,free_par_ID,:,:] = diff / (2*perturbation) * parameter_scale
+					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+					rf[:,:,free_par_ID,:,:] = diff * parameter_scale
 					free_par_ID += 1
 
 					# return perturbation back
@@ -806,7 +832,7 @@ def compute_rfs(init, atmos):
 def rf_pool(args):
 	start = time.time()
 
-	atm_path = args
+	atm_path, rh_spec_name = args
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
@@ -860,17 +886,23 @@ def rf_pool(args):
 			print("   ", line)
 		return None
 
+	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/pid_{pid}", verbose=False)
+	rh_obj.read_spectrum(rh_spec_name)
+	rh_obj.read_ray()
+
 	rf = np.loadtxt(f"../pid_{pid}/{globin.rf_file_path}")
 	# rf = rf.reshape(6, nz, nw, 4, order="C")
 	
 	dt = time.time() - start
 	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 
-	return {"rf" : rf, "idx" : idx, "idy" : idy}
+	return {"rf" : rf, "wave" : rh_obj.wave, "idx" : idx, "idy" : idy}
 
-def RH_compute_RF(atmos, wave, lmin, lmax):
-	ind_min = np.argmin(np.abs(wave-lmin))
-	ind_max = np.argmin(np.abs(wave-lmax))+1
+def RH_compute_RF(atmos, rh_spec_name, wavelength):
+	lmin, lmax = wavelength[0], wavelength[-1]
+
+	#--- arguments for 'rf_pool' function
+	args = [[name,rh_spec_name] for name in atmos.atm_name_list]
 
 	#--- make directory in which we will save logs of running 'rf_ray'
 	if not os.path.exists(f"{globin.cwd}/logs"):
@@ -879,17 +911,24 @@ def RH_compute_RF(atmos, wave, lmin, lmax):
 		sp.run(f"rm {globin.cwd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
-	rf_list = globin.pool.map(func=rf_pool, iterable=atmos.atm_name_list)
+	rf_list = globin.pool.map(func=rf_pool, iterable=args)
 
 	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
-	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wave), 4))
+	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wavelength), 4))
 
 	for item in rf_list:
-		idx, idy = int(item["idx"]), int(item["idy"])
-		rf[idx,idy,...] = item["rf"].reshape(6, atmos.nz, len(wave), 4)
-	
-	# we return RF for wavelngths for which we have observations
-	return rf[...,ind_min:ind_max,:]
+		if item is not None:
+			wave = item["wave"]
+			
+			#--- indices of min and max values for wavelength
+			ind_min = np.argmin(np.abs(wave-lmin))
+			ind_max = np.argmin(np.abs(wave-lmax))+1
+			
+			idx, idy = int(item["idx"]), int(item["idy"])
+			rf[idx,idy,...] = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
+
+	# we return RF for wavelengths for which we have observations
+	return rf
 
 def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
 	"""

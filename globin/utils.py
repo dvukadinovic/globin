@@ -250,7 +250,7 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, no
     if globin.mode!=0:
         print(f"  Current mode is {globin.mode}.")
         print("  We can make synthetic observations only in mode = 0.")
-        print("  Change it before running script again.")
+        print("  Change it before running the script again.")
         sys.exit()
 
     spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)

@@ -131,7 +131,7 @@
   
   SPECTRUM_OUTPUT = spectrum.out
   
-  RF_TEMP = FALSE
+  RF_TEMP = TRUE
   RF_MAG = FALSE
   RF_VZ = FALSE
   RF_VMIC = FALSE

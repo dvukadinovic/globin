@@ -105,7 +105,7 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec = globin.compute_rfs(init, atmos)
+			rf, spec = globin.compute_rfs(init, atmos, itter[0,0])
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -198,6 +198,7 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 		if updated_pars and verbose:
 			print(atmos.values)
 			print(LM_parameter)
+			# print("{:4.3e}".format(chi2[0,0,-1]))
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
@@ -206,11 +207,17 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 			for idy in range(atmos.ny):
 				if stop_flag[idx,idy]==1:
 					it_no = itter[idx,idy]
-					if it_no>=5:
+					if it_no>=2:
 						# need to get -2 and -1 because I already rised itter by 1 
 						# when chi2 list was updated.
-						relative_change = abs(chi2[idx,idy,it_no-2]/chi2[idx,idy,it_no-1] - 1)
-						if relative_change<init.chi2_tolerance:
+						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
+						print(chi2[idx,idy,it_no-1])
+						print(chi2[idx,idy,it_no-2])
+						print(relative_change)
+						if np.abs(relative_change)==np.inf:
+							print("chi2 is way low!\n")
+							break_flag = True
+						elif relative_change<init.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
 							stop_flag[idx,idy] = 0
 						elif chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
@@ -228,7 +235,6 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 			break
 
 	atmos.build_from_nodes(init.ref_atm)
-
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
 	
@@ -456,15 +462,14 @@ def invert_global(init, save_results, verbose):
 		if (itter)>=3:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
-			relative_change = abs(chi2[itter-2]/chi2[itter-1] - 1)
-			print(relative_change)
+			relative_change = abs(chi2[itter-1]/chi2[itter-2] - 1)
 			if np.abs(relative_change)==np.inf:
 				print("chi2 is way low!\n")
 				break_flag = True
-			if relative_change<init.chi2_tolerance:
+			elif relative_change<init.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
-			if chi2[itter-1] < 1 and init.noise!=0:
+			elif chi2[itter-1] < 1 and init.noise!=0:
 				print("chi2 smaller than 1\n")
 				break_flag = True
 
@@ -515,3 +520,4 @@ def invert_global(init, save_results, verbose):
 		out_file.close()
 
 	return atmos, inverted_spectra
+

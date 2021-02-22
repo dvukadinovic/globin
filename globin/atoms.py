@@ -138,3 +138,10 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
         out.write("{: 4.3f}\n".format(line.loggf_max))
 
     out.close()
+
+def check_init_loggf():
+    """
+    For a given lines log(gf) initial values, test if these lines are seen
+    in spectrum. We requier that line is 1% stronger than continuum intensity.
+    """
+    pass

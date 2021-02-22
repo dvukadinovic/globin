@@ -93,5 +93,5 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.legend(fontsize=12)
 	plt.savefig(fpath)
 
-def show():	
-	plt.show()
+def plot_rf(rf, fpath=None):
+	pass

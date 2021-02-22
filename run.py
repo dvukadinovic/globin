@@ -11,12 +11,12 @@ in_data = globin.InputData()
 # vmac = np.linspace(0, 1, num=21) * 1000
 # temp = np.linspace(4000, 5000, num=11)
 # pars = {"vmac" : [None,vmac], "temp" : [0, temp]}
-loggf = np.linspace(-5, 0.5, num=30)
-pars = {"loggf" : [13, loggf]}
+# loggf = np.linspace(-5, 0.5, num=30)
+# pars = {"loggf" : [13, loggf]}
 
-globin.chi2_hypersurface(pars, in_data)
+# globin.chi2_hypersurface(pars, in_data)
 
-sys.exit()
+# sys.exit()
 
 #--- make synthetic observations
 # globin.make_synthetic_observations(None, in_data.rh_spec_name, in_data.wavelength, in_data.atm.vmac, in_data.noise, 
@@ -42,7 +42,7 @@ lista = list(in_data.atm.nodes)
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
 		fig = plt.figure(figsize=(12,10))
-		# globin.plot_atmosphere(atm, parameters=lista, idx=idx+xmin, idy=idy+ymin)
+		
 		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
 		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy)
 		plt.savefig(f"results/atm_vs_inv_{idx}_{idy}.png")
