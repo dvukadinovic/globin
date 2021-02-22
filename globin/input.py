@@ -345,7 +345,7 @@ class InputData(object):
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if globin.n_thread > self.atm.nx*self.atm.ny:
 			globin.n_thread = self.atm.nx*self.atm.ny
-			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")		
 		globin.pool = mp.Pool(globin.n_thread)
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):

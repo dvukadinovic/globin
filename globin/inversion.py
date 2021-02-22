@@ -3,6 +3,7 @@ import sys
 import copy
 import time
 from scipy.ndimage import gaussian_filter
+import matplotlib.pyplot as plt
 
 import globin
 
@@ -31,8 +32,6 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 	init : InputData
 		InputData object in which we have everything stored.
 	"""
-	import matplotlib.pyplot as plt
-
 	obs = init.obs
 	atmos = init.atm
 
@@ -211,10 +210,7 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 						# need to get -2 and -1 because I already rised itter by 1 
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
-						print(chi2[idx,idy,it_no-1])
-						print(chi2[idx,idy,it_no-2])
-						print(relative_change)
-						if np.abs(relative_change)==np.inf:
+						if chi2[itter-1]<1e-32:
 							print("chi2 is way low!\n")
 							break_flag = True
 						elif relative_change<init.chi2_tolerance:
@@ -274,8 +270,6 @@ def invert_global(init, save_results, verbose):
 	init : InputData
 		InputData object in which we have everything stored.
 	"""
-	import matplotlib.pyplot as plt
-
 	obs = init.obs
 	atmos = init.atm
 
@@ -463,7 +457,7 @@ def invert_global(init, save_results, verbose):
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
 			relative_change = abs(chi2[itter-1]/chi2[itter-2] - 1)
-			if np.abs(relative_change)==np.inf:
+			if chi2[itter-1]<1e-32:
 				print("chi2 is way low!\n")
 				break_flag = True
 			elif relative_change<init.chi2_tolerance:

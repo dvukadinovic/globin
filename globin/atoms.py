@@ -116,15 +116,21 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
     lines = []
     for lineID in lineNo:
         for i_ in range(len(RLK_lines)):
-            if RLK_lines[i_].lineNo-1==lineID:
+            if RLK_lines[i_].lineNo==lineID:
                 lines.append(RLK_lines[i_])
+
                 lines[-1].loggf_min = lines[-1].loggf-3
                 if lines[-1].loggf_min<-10:
                     lines[-1].loggf_min = -10
                 lines[-1].loggf_max = lines[-1].loggf+3
                 if lines[-1].loggf_max>1:
                     lines[-1].loggf_max = 1
-                lines[-1].loggf += np.random.normal(0, 1)
+                
+                lines[-1].loggf += np.abs(np.random.normal(0, 1))
+                if lines[-1].loggf > lines[-1].loggf_max:
+                    lines[-1].loggf = lines[-1].loggf_max
+                if lines[-1].loggf < lines[-1].loggf_min:
+                    lines[-1].loggf = lines[-1].loggf_min
 
     out = open(line_pars_path, "w")
 

@@ -2,6 +2,7 @@ import sys
 from astropy.io import fits
 import numpy as np
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
+import matplotlib.pyplot as plt
 
 import globin
 
@@ -42,7 +43,6 @@ class Spectrum(object):
 
 		# output = gaussian_filter(spectra, [0,0,kernel_sigma,0], mode="reflect")
 
-		import matplotlib.pyplot as plt
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for sID in range(4):

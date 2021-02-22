@@ -18,6 +18,7 @@ import time
 import copy
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 from scipy.ndimage.filters import _gaussian_kernel1d
+from scipy.interpolate import splev
 
 import globin
 
@@ -214,8 +215,7 @@ class Atmosphere(object):
 		STiC].
 		"""
 
-		import matplotlib.pyplot as plt
-		from scipy.interpolate import splev
+		# import matplotlib.pyplot as plt
 
 		# we fill here atmosphere with data which will not be interpolated for which
 		if self.data is None:
@@ -531,6 +531,7 @@ def synth_pool(args):
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
+	pid = (pid-1)%globin.n_thread + 1
 	set_old_J = True
 	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
 		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
@@ -674,8 +675,8 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(init, atmos, itter):
-	import matplotlib.pyplot as plt
+def compute_rfs(init, atmos):
+	# import matplotlib.pyplot as plt
 
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes(init.ref_atm)
@@ -684,12 +685,6 @@ def compute_rfs(init, atmos, itter):
 	# (nx, ny, np, nz, nw, 4)
 	if atmos.n_local_pars!=0:
 		full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
-
-	plt.imshow(full_rf[0,0,0,:,:,0], aspect="auto", cmap="gnuplot")
-	plt.colorbar()
-	plt.savefig("results/rf_{:02d}".format(itter+1))
-	plt.close()
-	# plt.show()
 
 	#--- get current iteration atmosphere
 	logtau = atmos.logtau
@@ -962,7 +957,7 @@ def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], gl
 
 	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(init.wavelength), 4), dtype=np.float64)
 
-	import matplotlib.pyplot as plt
+	# import matplotlib.pyplot as plt
 
 	SP_minus = None
 	SP_plus = None

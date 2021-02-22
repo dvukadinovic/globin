@@ -7,13 +7,13 @@ import globin
 
 Nrepeat = 10
 # lineNo = np.arange(0,18)
-# lineNo = [5,10]
-lineNo = [14,15,16,17]
+#lineNo = [5,10]
+lineNo = [15,16,17,18]
 
 loggf = np.zeros((Nrepeat, len(lineNo)))
 
-out_atmos = np.zeros((Nrepeat, 1, 1, 14, 71))
-out_spec = np.zeros((Nrepeat, 1, 1, 201, 4))
+out_atmos = np.zeros((Nrepeat, 1, 3, 14, 71))
+out_spec = np.zeros((Nrepeat, 1, 3, 201, 4))
 
 for i_ in range(Nrepeat):
 	print("/===========================/")
@@ -33,14 +33,8 @@ for i_ in range(Nrepeat):
 	out_spec[i_] = inv_spec.spec
 	loggf[i_] = atmos.global_pars["loggf"]
 
-	# inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
-	# atm = in_data.ref_atm
-
 	inv = globin.Observation("results/inverted_spectra.fits")
 	obs = in_data.obs
-
-	# chi2 = fits.open("results/chi2.fits")[0].data
-	# globin.plot_chi2(chi2, "results/chi2.png", True)
 
 	lista = list(in_data.atm.nodes)
 
@@ -49,19 +43,19 @@ for i_ in range(Nrepeat):
 			fig = plt.figure(figsize=(12,10))
 			globin.plot_spectra(obs, idx=idx, idy=idy)
 			globin.plot_spectra(inv, idx=idx, idy=idy)
-			plt.savefig("results/loggf_stat_data/run3/obs_vs_inv_{:2d}_{:2d}_{:03d}.png".format(idx, idy, i_+1))
+			plt.savefig("results/loggf_stat_data/test_run/obs_vs_inv_{:2d}_{:2d}_{:03d}.png".format(idx, idy, i_+1))
 			plt.close()
 
-	print(loggf[i_])
+	globin.pool.terminate()
 
 primary = fits.PrimaryHDU(out_atmos)
-primary.writeto("results/loggf_stat_data/run3/out_atmos.fits", overwrite=True)
+primary.writeto("results/loggf_stat_data/test_run/out_atmos.fits", overwrite=True)
 
 primary = fits.PrimaryHDU(out_spec)
-primary.writeto("results/loggf_stat_data/run3/out_spec.fits", overwrite=True)
+primary.writeto("results/loggf_stat_data/test_run/out_spec.fits", overwrite=True)
 
 primary = fits.PrimaryHDU(loggf)
 hdu_list = fits.HDUList([primary])
 par_hdu = fits.ImageHDU(np.array(lineNo))
 hdu_list.append(par_hdu)
-hdu_list.writeto("results/loggf_stat_data/run3/loggf.fits", overwrite=True)
+hdu_list.writeto("results/loggf_stat_data/test_run/loggf.fits", overwrite=True)

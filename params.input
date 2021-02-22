@@ -7,9 +7,9 @@
 # We are using it for sanity check.
 
 #--- General parameters
-n_thread = 1
+n_thread = 3
 interp_degree = 3
-mode = 1
+mode = 3
 
 #--- Spectra to be fitted
 observation = obs_2x3_from_nodes.fits
@@ -23,8 +23,8 @@ vmac = 0.75
 spectrum = obs_2x3_from_nodes.fits
 
 #--- atmospheric parameters: nodes and values
-nodes_temp = -2.2, -1.1, 0.3
-nodes_temp_values = 4000, 5400, 7300
+#nodes_temp = -2.2, -1.1, 0.3
+#nodes_temp_values = 4000, 5400, 7300
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = 0, 0
@@ -65,7 +65,7 @@ linelist = ../../Atoms/Kurucz/spinor_window_original
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmosphere_2x3_from_nodes.fits
 #node_atmosphere = node_atmosphere
-range = 1,1,1,1
+range = 1,1,1,3
 
 #--- RH root folder path
 rh_path = /media/dusan/storage/RH/rh
