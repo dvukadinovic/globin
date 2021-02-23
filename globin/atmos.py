@@ -736,21 +736,6 @@ def compute_rfs(init, atmos):
 			dy_dnode = (positive - negative) / 2 / perturbation
 
 			diff = np.einsum("abc,decfg->abfg", dy_dnode, full_rf[:,:,rfID])
-
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		diff[idx,idy] = np.einsum("a,abc->bc", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
-
-			# print(diff[0,0]==aux)
-
-			# sys.exit()
-			
-			# plt.plot(diff[0,0,:,0])
-
-			# plt.plot(spec_minus[0,0,:,0], spec_minus[0,0,:,1])
-			# plt.plot(spec_plus[0,0,:,0], spec_plus[0,0,:,1])
-
-			# plt.show()
 			
 			# if parameter=="gamma" or parameter=="chi":
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", diff, parameter_scale[:,:,nodeID])

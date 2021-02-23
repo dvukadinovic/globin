@@ -55,7 +55,7 @@ wave_step = 0.01
 
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e1
-max_iter = 30
+max_iter = 1
 chi2_tolerance = 1e-3
 
 #--- Line parameters

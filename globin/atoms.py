@@ -58,7 +58,7 @@ def read_init_line_parameters(fpath):
 
         parameter   line_number   initial_value   min_value   max_value
 
-    'parameter' --> parameter name (currently supported are 'loggf' and 'dlam')
+    'parameter' --> parameter name (currently supported are 'loggf' and 'dlam' in mA)
     'line_number' --> position of line in RLK line list
     'initial_value' --> initial value for the parameter
     'min_value' --> lower limit value for the parmaeter
@@ -119,6 +119,7 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
             if RLK_lines[i_].lineNo==lineID:
                 lines.append(RLK_lines[i_])
 
+                # set line min/max for log(gf)
                 lines[-1].loggf_min = lines[-1].loggf-2
                 if lines[-1].loggf_min<-10:
                     lines[-1].loggf_min = -10
@@ -126,11 +127,23 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
                 if lines[-1].loggf_max>1:
                     lines[-1].loggf_max = 1
                 
+                # check if log(gf) is in min/max range
                 lines[-1].loggf *= (1 + 0.5*np.random.normal(0, 1))
                 if lines[-1].loggf > lines[-1].loggf_max:
                     lines[-1].loggf = lines[-1].loggf_max
                 if lines[-1].loggf < lines[-1].loggf_min:
                     lines[-1].loggf = lines[-1].loggf_min
+
+                # set line min/max for dlam
+                lines[-1].dlam_min = -50
+                lines[-1].dlam_max = 50
+                
+                # check if dlam is in min/max range
+                lines[-1].dlam = np.random.normal(0, 10)
+                if lines[-1].dlam > lines[-1].dlam_max:
+                    lines[-1].dlam = lines[-1].dlam_max
+                if lines[-1].dlam < lines[-1].dlam_min:
+                    lines[-1].dlam = lines[-1].dlam_min
 
     out = open(line_pars_path, "w")
 
@@ -142,6 +155,12 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
         out.write("{: 4.3f}    ".format(line.loggf))
         out.write("{: 4.3f}    ".format(line.loggf_min))
         out.write("{: 4.3f}\n".format(line.loggf_max))
+        
+        out.write("dlam    ")
+        out.write("{: 3d}    ".format(line.lineNo))
+        out.write("{: 4.3f}    ".format(line.dlam))
+        out.write("{: 4.3f}    ".format(line.dlam_min))
+        out.write("{: 4.3f}\n".format(line.dlam_max))
 
     out.close()
 
