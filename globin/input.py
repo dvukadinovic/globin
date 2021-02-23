@@ -315,7 +315,8 @@ class InputData(object):
 							line = line.rstrip("\n").strip(" ")
 							# find the first uncommented line and break
 							if line[0]!=globin.COMMENT_CHAR:
-								self.RLK_path = line
+								fname = line.split("/")[-1]
+								self.RLK_path = globin.rh_path + "/Atoms/Kurucz/" + fname
 								break
 
 						# write down initial atomic lines values
