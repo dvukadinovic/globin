@@ -19,6 +19,7 @@ import copy
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 from scipy.ndimage.filters import _gaussian_kernel1d
 from scipy.interpolate import splev
+import matplotlib.pyplot as plt
 
 import globin
 
@@ -43,8 +44,7 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
-	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None],
-				 nx=None, ny=None):
+	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None], nx=None, ny=None):
 		self.verbose = verbose
 		self.fpath = fpath
 		# dictionary for nodes
@@ -531,7 +531,6 @@ def synth_pool(args):
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
-	pid = (pid-1)%globin.n_thread + 1
 	set_old_J = True
 	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
 		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
@@ -801,9 +800,20 @@ def compute_rfs(init, atmos):
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
+	# globin.plot_spectra(spec, 0, 0)
+
+	# init.write_line_par(-0.087, 8, "loggf")
+	# spec,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	# spec.broaden_spectra(atmos.vmac)
+
+	# globin.plot_spectra(spec, 0, 0)
+
+	# plt.show()
+	# # sys.exit()
+
 	# for parID in range(Npar):
 	# 	plt.figure(parID+1)
-	# 	plt.plot(rf[0,0,parID,:,0])
+	# 	plt.plot(rf[0, 0, parID, :, 0])
 	# plt.show()
 	# sys.exit()
 

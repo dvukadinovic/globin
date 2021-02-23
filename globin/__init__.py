@@ -6,7 +6,10 @@ Contributors:
 			 files;
 18/10/2020 : read input parameters from 'params.input' using regular expressions
 07/12/2020 : moved 'InputData' class into 'input.py' file
-
+23/02/2021 : a lot in mean time, but this is important; InputData() class has a parameter
+			 which takes into account if we need to run mp.Pool(). Used in many iteration
+			 run with different initial conditions. By default we initialize mp.Pool(), but
+			 in this situation we do not need it to be initialized many times.
 """
 
 import os

@@ -135,15 +135,15 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
                     lines[-1].loggf = lines[-1].loggf_min
 
                 # set line min/max for dlam
-                lines[-1].dlam_min = -50
-                lines[-1].dlam_max = 50
+                # lines[-1].dlam_min = -50
+                # lines[-1].dlam_max = 50
                 
-                # check if dlam is in min/max range
-                lines[-1].dlam = np.random.normal(0, 10)
-                if lines[-1].dlam > lines[-1].dlam_max:
-                    lines[-1].dlam = lines[-1].dlam_max
-                if lines[-1].dlam < lines[-1].dlam_min:
-                    lines[-1].dlam = lines[-1].dlam_min
+                # # check if dlam is in min/max range
+                # lines[-1].dlam = np.random.normal(0, 10)
+                # if lines[-1].dlam > lines[-1].dlam_max:
+                #     lines[-1].dlam = lines[-1].dlam_max
+                # if lines[-1].dlam < lines[-1].dlam_min:
+                #     lines[-1].dlam = lines[-1].dlam_min
 
     out = open(line_pars_path, "w")
 
@@ -156,11 +156,11 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
         out.write("{: 4.3f}    ".format(line.loggf_min))
         out.write("{: 4.3f}\n".format(line.loggf_max))
         
-        out.write("dlam    ")
-        out.write("{: 3d}    ".format(line.lineNo))
-        out.write("{: 4.3f}    ".format(line.dlam))
-        out.write("{: 4.3f}    ".format(line.dlam_min))
-        out.write("{: 4.3f}\n".format(line.dlam_max))
+        # out.write("dlam    ")
+        # out.write("{: 3d}    ".format(line.lineNo))
+        # out.write("{: 4.3f}    ".format(line.dlam))
+        # out.write("{: 4.3f}    ".format(line.dlam_min))
+        # out.write("{: 4.3f}\n".format(line.dlam_max))
 
     out.close()
 

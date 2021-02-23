@@ -63,10 +63,10 @@ class InputData(object):
 	Class for storing input data parameters.
 	"""
 
-	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input"):
+	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input", init_pool=True):
 		
 		if (rh_input_name is not None) and (globin_input_name is not None):
-			self.read_input_files(globin_input_name, rh_input_name)
+			self.read_input_files(globin_input_name, rh_input_name, init_pool)
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file path.")
@@ -77,7 +77,7 @@ class InputData(object):
 	def __str__(self):
 		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(self.globin_input_name, self.rh_input_name)
 
-	def read_input_files(self, globin_input_name, rh_input_name):
+	def read_input_files(self, globin_input_name, rh_input_name, init_pool):
 		"""
 		Read input files for globin ('globin_input_name') and RH ('rh_input_name').
 
@@ -346,8 +346,10 @@ class InputData(object):
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if globin.n_thread > self.atm.nx*self.atm.ny:
 			globin.n_thread = self.atm.nx*self.atm.ny
-			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")		
-		globin.pool = mp.Pool(globin.n_thread)
+			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+
+		if init_pool:
+			globin.pool = mp.Pool(globin.n_thread)
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
 		"""

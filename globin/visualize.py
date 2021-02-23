@@ -94,4 +94,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 
 def plot_rf(rf, fpath=None):
+	"""
+	rf.shape = (nx, ny, nz, npar, nw, 4) ???
+	"""
 	pass

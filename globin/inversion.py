@@ -1,5 +1,6 @@
 import numpy as np
 import sys
+import os
 import copy
 import time
 from scipy.ndimage import gaussian_filter
@@ -7,21 +8,21 @@ import matplotlib.pyplot as plt
 
 import globin
 
-def invert(init, save_results=True, verbose=True):
+def invert(init, output_path="results", verbose=True):
 	if globin.mode==0:
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
 		return None, None
 	elif globin.mode==1:
-		atm, spec = invert_pxl_by_pxl(init, save_results, verbose)
+		atm, spec = invert_pxl_by_pxl(init, output_path, verbose)
 		return atm, spec
 	elif globin.mode==3:
-		atm, spec = invert_global(init, save_results, verbose)
+		atm, spec = invert_global(init, output_path, verbose)
 		return atm, spec
 	else:
 		print(f"Not supported mode {globin.mode} currently.")
 		return None, None
 
-def invert_pxl_by_pxl(init, save_results, verbose):
+def invert_pxl_by_pxl(init, output_path, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -234,19 +235,22 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
 	
-	if save_results:
-		fname = "results"
-		globin.spectrum_path = f"{fname}/inverted_spectra.fits"
+	if output_path is not None:
+		# check if there is result folder; if not, make it
+		if not os.path.exists(f"{output_path}"):
+			os.mkdir(f"{output_path}")
 
-		atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
+		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
+
+		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		inverted_spectra.save(globin.spectrum_path, init.wavelength)
-		globin.save_chi2(chi2, f"{fname}/chi2.fits")
+		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 		
 		end = time.time() - start
 		print("\nFinished in: {0}\n".format(end))
 
 		#--- inverted params comparison with expected values
-		out_file = open("{:s}/output.log".format(fname), "w")
+		out_file = open("{:s}/output.log".format(output_path), "w")
 
 		out_file.write("Run time: {:10.1f}\n\n".format(end))
 
@@ -259,7 +263,7 @@ def invert_pxl_by_pxl(init, save_results, verbose):
 
 	return atmos, inverted_spectra
 
-def invert_global(init, save_results, verbose):
+def invert_global(init, output_path, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -480,19 +484,22 @@ def invert_global(init, save_results, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	if save_results:	
-		fname = "results"
-		globin.spectrum_path = f"{fname}/inverted_spectra.fits"
+	if output_path is not None:
+		# check if there is result folder; if not, make it
+		if not os.path.exists(f"{output_path}"):
+			os.mkdir(f"{output_path}")
 
-		atmos.save_atmosphere(f"{fname}/inverted_atmos.fits")
+		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
+
+		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		inverted_spectra.save(globin.spectrum_path, init.wavelength)
-		globin.save_chi2(chi2, f"{fname}/chi2.fits")
+		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	
 		end = time.time() - start
 		print("Finished in: {0}\n".format(end))
 
 		#--- make a log file (copy input files + inverted global parameters)
-		out_file = open("{:s}/output.log".format(fname), "w")
+		out_file = open("{:s}/output.log".format(output_path), "w")
 
 		out_file.write("Run time: {:10.1f}\n\n".format(end))
 
