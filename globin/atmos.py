@@ -674,16 +674,28 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(init, atmos):
+def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	# import matplotlib.pyplot as plt
 
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-	# (nx, ny, np, nz, nw, 4)
+	# full_rf.shape = (nx, ny, np, nz, nw, 4)
+	# check weather we need to recalculate RF for atmospheric parameters;
+	# if change in parameters is less than 10 x perturbation we do not compute RF again
 	if atmos.n_local_pars!=0:
-		full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
+		do_rf = True
+		if old_pars is not None:
+			for par in atmos.nodes:
+				delta = atmos.values[par].flatten() - old_pars[par].flatten()
+				flag = [False if item<globin.delta[par]*10 else True for item in delta]
+				if not any(flag):
+					do_rf = False
+		if do_rf:
+			full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
+	else:
+		full_rf = None
 
 	#--- get current iteration atmosphere
 	logtau = atmos.logtau
@@ -817,7 +829,7 @@ def compute_rfs(init, atmos):
 	# plt.show()
 	# sys.exit()
 
-	return rf, spec
+	return rf, spec, full_rf
 
 def rf_pool(args):
 	start = time.time()
@@ -881,7 +893,6 @@ def rf_pool(args):
 	rh_obj.read_ray()
 
 	rf = np.loadtxt(f"../pid_{pid}/{globin.rf_file_path}")
-	# rf = rf.reshape(6, nz, nw, 4, order="C")
 	
 	dt = time.time() - start
 	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))

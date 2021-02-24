@@ -97,6 +97,7 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 	# we iterate until one of the pixels reach maximum numbre of iterations
 	# other pixels will be blocked at max itteration earlier than or 
 	# will stop due to convergence criterium
+	full_rf, old_parameters = None, None
 	while np.min(itter) <= init.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_pars:
@@ -105,7 +106,7 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec = globin.compute_rfs(init, atmos, itter[0,0])
+			rf, spec, full_rf = globin.compute_rfs(init, atmos, full_rf, old_parameters)
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -211,9 +212,9 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 						# need to get -2 and -1 because I already rised itter by 1 
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
-						if chi2[itter-1]<1e-32:
+						if chi2[idx,idy,itter-1]<1e-32:
 							print("chi2 is way low!\n")
-							break_flag = True
+							stop_flag[idx,idy] = 0
 						elif relative_change<init.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
 							stop_flag[idx,idy] = 0
@@ -322,6 +323,7 @@ def invert_global(init, output_path, verbose):
 	num_failed = 0
 
 	itter = 0
+	full_rf, old_local_parameters = None, None
 	while itter<init.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
@@ -330,13 +332,7 @@ def invert_global(init, output_path, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec = globin.compute_rfs(init, atmos)
-
-			# globin.plot_spectra(obs, 0, 0)
-			# globin.plot_spectra(spec, 0, 0)
-			# plt.show()
-
-			# sys.exit()
+			rf, spec, full_rf = globin.compute_rfs(init, atmos, full_rf, old_local_parameters)
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -347,10 +343,6 @@ def invert_global(init, output_path, verbose):
 			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
 			# 		for sID in range(4):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
-
-			# plt.imshow(rf[0,1,-1,:,:], aspect="auto")
-			# plt.show()
-			# sys.exit()
 			
 			# scale RFs with weights and noise scale
 			rf *= init.weights
@@ -396,22 +388,14 @@ def invert_global(init, output_path, verbose):
 			delta = np.dot(JT, flatted_diff)
 
 			# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
-			# It produces expected results. Checked with (1,1), (1,2) and (2,2) FoV sizes.
+			# It produces expected results.
 
 		H = copy.deepcopy(JTJ)
 		diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 		np.fill_diagonal(H, diagonal_elements)
 		proposed_steps = np.linalg.solve(H, delta)
 
-		# print(np.linalg.eigvals(H))
-
-		# plt.imshow(np.linalg.inv(H), aspect="auto")
-		# plt.colorbar()
-		# plt.show()
-
-		# sys.exit()
-		
-		old_parameters = copy.deepcopy(atmos.values)
+		old_local_parameters = copy.deepcopy(atmos.values)
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps)
 		atmos.check_parameter_bounds()
@@ -429,7 +413,7 @@ def invert_global(init, output_path, verbose):
 
 		if chi2_new > chi2_old:
 			LM_parameter *= 10
-			atmos.values = old_parameters
+			atmos.values = old_local_parameters
 			atmos.global_pars = old_global_pars
 			updated_parameters = False
 			num_failed += 1

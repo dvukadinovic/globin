@@ -24,7 +24,7 @@ in_data = globin.InputData()
 # sys.exit()
 
 #--- inversion
-globin.invert(in_data)
+# globin.invert(in_data)
 # sys.exit()
 
 #--- analysis of the inverted data

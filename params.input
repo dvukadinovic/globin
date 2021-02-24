@@ -23,8 +23,8 @@ vmac = 0.75
 spectrum = obs_2x3_from_nodes.fits
 
 #--- atmospheric parameters: nodes and values
-#nodes_temp = -2.2, -1.1, 0.3
-#nodes_temp_values = 4000, 5400, 7300
+nodes_temp = -2.2, -1.1, 0.3
+nodes_temp_values = 4000, 5400, 7300
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = 0, 0
@@ -54,8 +54,8 @@ wave_step = 0.01
 # wave_grid = wave.grid
 
 #--- Levenberg-Marquardt parameters
-marq_lambda = 1e1
-max_iter = 1
+marq_lambda = 1e-2
+max_iter = 30
 chi2_tolerance = 1e-3
 
 #--- Line parameters
