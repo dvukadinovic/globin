@@ -4,6 +4,7 @@ import numpy as np
 import multiprocessing as mp
 import re
 import copy
+import subprocess as sp
 
 from .atmos import Atmosphere
 from .spec import Observation
@@ -63,10 +64,10 @@ class InputData(object):
 	Class for storing input data parameters.
 	"""
 
-	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input", init_pool=True):
+	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input"):
 		
 		if (rh_input_name is not None) and (globin_input_name is not None):
-			self.read_input_files(globin_input_name, rh_input_name, init_pool)
+			self.read_input_files(globin_input_name, rh_input_name)
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file path.")
@@ -77,7 +78,7 @@ class InputData(object):
 	def __str__(self):
 		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(self.globin_input_name, self.rh_input_name)
 
-	def read_input_files(self, globin_input_name, rh_input_name, init_pool):
+	def read_input_files(self, globin_input_name, rh_input_name):
 		"""
 		Read input files for globin ('globin_input_name') and RH ('rh_input_name').
 
@@ -104,7 +105,7 @@ class InputData(object):
 		self.rh_input = text
 
 		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
-		wave_file_path = wave_file_path.split("/")[-1]
+		self.wave_file_path = wave_file_path.split("/")[-1]
 		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
 		# self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
 		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
@@ -174,10 +175,11 @@ class InputData(object):
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, globin.rh_path + "/Atoms/wave_files/" + wave_file_path)
+
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
-			# reference atmosphere is the same as input one in mode of synthesis
+			# reference atmosphere is the same as input one in synthesis mode
 			self.ref_atm = copy.deepcopy(self.atm)
 
 		#--- get parameters for inversion
@@ -315,19 +317,21 @@ class InputData(object):
 							line = line.rstrip("\n").strip(" ")
 							# find the first uncommented line and break
 							if line[0]!=globin.COMMENT_CHAR:
-								fname = line.split("/")[-1]
-								self.RLK_path = globin.rh_path + "/Atoms/Kurucz/" + fname
+								fname = line.rstrip("\n").replace(" ","")#.split("/")[-1]
+								self.RLK_path = fname
 								break
 
 						# write down initial atomic lines values
 						self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
 												   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
 					else:
-						print("No path to kurucz.input file.")
+						print("No path to 'kurucz.input' file.")
 						# print("There is no Kurucz line list file to write to.")
 						# print("If you want to invert for line parameters, you need to set")
 						# print("path to file where Kurucz line lists are (kurucz.input file).")
 						sys.exit()
+				else:
+					print("No atomic parameters to fit. You sure?\n")
 
 			#--- determine number of local and global parameters
 			self.atm.n_local_pars = 0
@@ -347,9 +351,6 @@ class InputData(object):
 		if globin.n_thread > self.atm.nx*self.atm.ny:
 			globin.n_thread = self.atm.nx*self.atm.ny
 			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
-
-		if init_pool:
-			globin.pool = mp.Pool(globin.n_thread)
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
 		"""
@@ -446,6 +447,30 @@ class InputData(object):
 				print("  Must read first observation file.")
 				sys.exit()
 
+	def start_pool(self, fname):
+		"""
+		Function which starts the mp.Pool() process used to compute
+		spectra on many cores. We also make directories in which
+		RH exec's will be run and files (spectra, solveray, rf) will
+		be stored.
+
+		In each directory we copy all input files (RH's and globin's)
+		with wave file.
+
+		Parameters:
+		---------------
+		fname : str
+			name of the working directory (wd) which will be used for RH
+			to compute everything. With this, we can have many different
+			executions on the same machine.
+		"""
+		globin.wd = fname
+		globin.pool = mp.Pool(globin.n_thread)
+
+		for pid in range(globin.n_thread):
+			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
+				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
+
 def slice_line(line, dtype=float):
     # remove 'new line' character
     line = line.rstrip("\n")
@@ -498,3 +523,4 @@ def read_node_atmosphere(fpath):
                 i_ += nlines+1
 
     return atmos
+

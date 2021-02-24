@@ -10,6 +10,9 @@ Contributors:
 			 which takes into account if we need to run mp.Pool(). Used in many iteration
 			 run with different initial conditions. By default we initialize mp.Pool(), but
 			 in this situation we do not need it to be initialized many times.
+24/02/2021 : overwritten last thing (23/02/2021). Now we have function fot initializing mp.Pool()
+			 and also take as argument working directory for RH computation so that we can have
+			 many different executions from the same PC. Otherwise we have conflict in names.
 """
 
 import os
@@ -111,7 +114,6 @@ parameter_unit = {"temp"   : "K",
 				  "mag"    : "T",
 				  "gamma"  : "rad",
 				  "chi"    : "rad"}
-
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()

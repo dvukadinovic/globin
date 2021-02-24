@@ -23,8 +23,8 @@ vmac = 0.75
 spectrum = obs_2x3_from_nodes.fits
 
 #--- atmospheric parameters: nodes and values
-nodes_temp = -2.2, -1.1, 0.3
-nodes_temp_values = 4000, 5400, 7300
+#nodes_temp = -2.2, -1.1, 0.3
+#nodes_temp_values = 4000, 5400, 7300
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = 0, 0
@@ -60,7 +60,7 @@ chi2_tolerance = 1e-3
 
 #--- Line parameters
 line_parameters = test_line_pars
-linelist = ../../Atoms/Kurucz/spinor_window_original
+linelist = ../rh/Atoms/Kurucz/spinor_window_original
 
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmosphere_2x3_from_nodes.fits

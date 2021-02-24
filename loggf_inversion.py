@@ -42,7 +42,7 @@ for i_ in range(Nrepeat):
 	loggf[i_] = atmos.global_pars["loggf"]
 	dlam[i_] = atmos.global_pars["dlam"]
 
-	lista = list(in_data.atm.nodes)
+	# lista = list(in_data.atm.nodes)
 
 	for idx in range(obs.nx):
 		for idy in range(obs.ny):

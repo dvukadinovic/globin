@@ -7,6 +7,7 @@ import sys
 
 #--- initialize input object and read input files
 in_data = globin.InputData()
+in_data.start_pool("voodoo")
 
 # vmac = np.linspace(0, 1, num=21) * 1000
 # temp = np.linspace(4000, 5000, num=11)
@@ -24,8 +25,8 @@ in_data = globin.InputData()
 # sys.exit()
 
 #--- inversion
-# globin.invert(in_data)
-# sys.exit()
+globin.invert(in_data, None)
+sys.exit()
 
 #--- analysis of the inverted data
 inv_atm = globin.Atmosphere("results/inverted_atmos.fits")
@@ -42,7 +43,7 @@ lista = list(in_data.atm.nodes)
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
 		fig = plt.figure(figsize=(12,10))
-		
+
 		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
 		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy)
 		plt.savefig(f"results/atm_vs_inv_{idx}_{idy}.png")

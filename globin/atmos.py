@@ -532,15 +532,15 @@ def synth_pool(args):
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
 	set_old_J = True
-	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
-		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
+	# if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}"):
+	# 	os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}")
 	#--- copy *.input files
-	sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
+	sp.run(f"cp *.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
 	#--- set up keyword.input file
-	lines = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}", "r").readlines()
+	lines = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").readlines()
 
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -563,7 +563,7 @@ def synth_pool(args):
 				# 	else:
 				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
 
-	out = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}","w")
+	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}","w")
 	out.writelines(lines)
 	out.close()
 
@@ -573,7 +573,7 @@ def synth_pool(args):
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
 	
 	# run rhf1d executable
-	out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../rhf1d -i {globin.rh_input_name}",
+	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rhf1d -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	
 	# store log file
@@ -591,14 +591,14 @@ def synth_pool(args):
 		return None
 	else:
 		# if everything was fine, run solverray executable
-		out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../solveray",
+		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 		if out.returncode!=0:
 			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
 			return None
 
 	# read output spectra and spectrum ray from RH
-	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/pid_{pid}", verbose=False)
+	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
 	rh_obj.read_spectrum(rh_spec_name)
 	rh_obj.read_ray()
 
@@ -812,17 +812,6 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
-	# globin.plot_spectra(spec, 0, 0)
-
-	# init.write_line_par(-0.087, 8, "loggf")
-	# spec,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
-	# spec.broaden_spectra(atmos.vmac)
-
-	# globin.plot_spectra(spec, 0, 0)
-
-	# plt.show()
-	# # sys.exit()
-
 	# for parID in range(Npar):
 	# 	plt.figure(parID+1)
 	# 	plt.plot(rf[0, 0, parID, :, 0])
@@ -838,14 +827,14 @@ def rf_pool(args):
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
-	if not os.path.exists(f"{globin.rh_path}/rhf1d/pid_{pid}"):
-		os.mkdir(f"{globin.rh_path}/rhf1d/pid_{pid}")
+	# if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}"):
+	# 	os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}")
 	
 	#--- copy *.input files
-	sp.run(f"cp *.input {globin.rh_path}/rhf1d/pid_{pid}",
+	sp.run(f"cp *.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
-	lines = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}", "r").readlines()
+	lines = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").readlines()
 
 	for i_,line in enumerate(lines):
 		line = line.rstrip("\n").replace(" ","")
@@ -867,14 +856,14 @@ def rf_pool(args):
 				# 	else:
 				# 		lines[i_] = "  RF_TEMP = FALSE"
 
-	out = open(f"{globin.rh_path}/rhf1d/pid_{pid}/{globin.rh_input_name}","w")
+	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}","w")
 	out.writelines(lines)
 	out.close()
 	
 	aux = atm_path.split("_")
 	idx, idy = aux[-2], aux[-1]
 	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd {globin.rh_path}/rhf1d/pid_{pid}; ../rf_ray -i {globin.rh_input_name}",
+	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rf_ray -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	log_file.writelines(str(out.stdout, "utf-8"))
 	log_file.close()
@@ -888,11 +877,11 @@ def rf_pool(args):
 			print("   ", line)
 		return None
 
-	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/pid_{pid}", verbose=False)
+	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
 	rh_obj.read_spectrum(rh_spec_name)
 	rh_obj.read_ray()
 
-	rf = np.loadtxt(f"../pid_{pid}/{globin.rf_file_path}")
+	rf = np.loadtxt(f"../{globin.wd}_{pid}/{globin.rf_file_path}")
 	
 	dt = time.time() - start
 	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
