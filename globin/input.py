@@ -471,6 +471,14 @@ class InputData(object):
 			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
 				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
 
+		if not os.path.exists(f"atmospheres"):
+			os.mkdir(f"atmospheres")
+		else:
+			# clean directory if it exists (maybe we have atmospheres extracted
+			# from some other cube); it takes few miliseconds, so not a big deal
+			sp.run(f"rm atmospheres/*",
+				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+
 def slice_line(line, dtype=float):
     # remove 'new line' character
     line = line.rstrip("\n")

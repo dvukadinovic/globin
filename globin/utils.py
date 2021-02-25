@@ -261,12 +261,12 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, no
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
             globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-    globin.show()
+    plt.show()
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
             globin.plot_spectra(spec, idx=idx, idy=idy)
-    globin.show()
+    plt.show()
 
     return spec
 
@@ -335,7 +335,8 @@ def chi2_hypersurface(pars, init):
     #         # atmos.values[parameter][:,:,ptype] = pvalues[0]
     #         shape.append(len(pvalues))
 
-    shape = len(pars["loggf"][1])
+    par = par_names[0]
+    shape = len(pars[par][1])
     chi2 = np.ones(shape)
     atmos.build_from_nodes(init.ref_atm)
 
@@ -355,10 +356,18 @@ def chi2_hypersurface(pars, init):
 
     #--- loggf
         # ind = pars["loggf"][0]-1
-    for ind in range(0,17):
+    # for ind in range(0,17):
+    # for ind in [0,1,2,3]:
+    # for ind in [3,5,6]:
+    # for ind in [0,1,2,3,4,5,6,7]:
+    # for ind in [8,9,10,11,12,13]:
+    for ind in range(18):
+    # for ind in [8,9,10]:
+    # for ind in [11,12,13]:
+    # for ind in [14,15,16,17]:
         print(ind+1)
-        for i_, loggf in enumerate(pars["loggf"][1]):
-            init.write_line_par(loggf, ind, "loggf")
+        for i_, val in enumerate(pars[par][1]):
+            init.write_line_par(val, ind, par)
             spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
             spec.broaden_spectra(atmos.vmac)
 
@@ -367,9 +376,24 @@ def chi2_hypersurface(pars, init):
             diff = obs.spec - spec.spec
             diff *= weights
             chi2[i_] = np.sum(diff[0,0]**2)
-        init.write_line_par(loggf0[ind], ind, "loggf")
 
-        plt.plot(pars["loggf"][1], chi2)
+            # plt.subplot(1,2,1)
+            # globin.plot_spectra(obs, 0, 0)
+            # globin.plot_spectra(spec, 0, 0)
+
+            # plt.subplot(1,2,2)
+            # diff = copy.deepcopy(obs)
+            # diff.spec -= spec.spec
+            # globin.plot_spectra(diff, 0, 0)
+
+            # plt.show()
+ 
+        if par=="loggf":
+            init.write_line_par(loggf0[ind], ind, par)
+        elif par=="dlam":
+            init.write_line_par(0, ind, par)
+
+        plt.plot(pars[par][1], chi2)
         plt.yscale("log")
         plt.xlabel(r"$\log (gf)$")
         plt.ylabel(r"$\chi ^2$")
@@ -401,4 +425,5 @@ def chi2_hypersurface(pars, init):
     # plt.yticks(list(range(shape[0])), np.round(pars[par_names[0]][1]/1e3, decimals=1))
     # plt.xlabel(r"T [kK]")
     # plt.ylabel(r"$v_{mac}$ [km/s]")
-    # plt.show()
+    # pltobs, 0, 0.show()
+

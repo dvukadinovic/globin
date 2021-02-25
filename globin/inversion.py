@@ -240,6 +240,11 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 		# check if there is result folder; if not, make it
 		if not os.path.exists(f"{output_path}"):
 			os.mkdir(f"{output_path}")
+		# if there is no folder with name of the run, make it
+		if not os.path.exists(f"{output_path}/{globin.wd}"):
+			os.mkdir(f"{output_path}/{globin.wd}")
+				
+		output_path = f"{output_path}/{globin.wd}"	
 
 		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
 
@@ -472,6 +477,11 @@ def invert_global(init, output_path, verbose):
 		# check if there is result folder; if not, make it
 		if not os.path.exists(f"{output_path}"):
 			os.mkdir(f"{output_path}")
+		# if there is no folder with name of the run, make it
+		if not os.path.exists(f"{output_path}/{globin.wd}"):
+			os.mkdir(f"{output_path}/{globin.wd}")
+				
+		output_path = f"{output_path}/{globin.wd}"
 
 		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
 

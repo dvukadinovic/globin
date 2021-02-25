@@ -173,15 +173,6 @@ class Atmosphere(object):
 			sys.exit()
 
 	def split_cube(self):
-		# go through the cube and save each pixel as separate atmosphere
-		if not os.path.exists(f"atmospheres"):
-			os.mkdir(f"atmospheres")
-		else:
-			# clean directory if it exists (maybe we have atmospheres extracted
-			# from some other cube); it takes few miliseconds, so not a big deal
-			sp.run(f"rm atmospheres/*",
-				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
-
 		# go through each atmosphere and extract it to separate file
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -532,8 +523,7 @@ def synth_pool(args):
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
 	set_old_J = True
-	# if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}"):
-	# 	os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}")
+
 	#--- copy *.input files
 	sp.run(f"cp *.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
@@ -689,7 +679,7 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 		if old_pars is not None:
 			for par in atmos.nodes:
 				delta = atmos.values[par].flatten() - old_pars[par].flatten()
-				flag = [False if item<globin.delta[par]*10 else True for item in delta]
+				flag = [False if item<globin.delta[par] else True for item in delta]
 				if not any(flag):
 					do_rf = False
 		if do_rf:
@@ -881,7 +871,7 @@ def rf_pool(args):
 	rh_obj.read_spectrum(rh_spec_name)
 	rh_obj.read_ray()
 
-	rf = np.loadtxt(f"../{globin.wd}_{pid}/{globin.rf_file_path}")
+	rf = np.loadtxt(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rf_file_path}")
 	
 	dt = time.time() - start
 	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
