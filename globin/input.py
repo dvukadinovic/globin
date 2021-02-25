@@ -96,6 +96,16 @@ class InputData(object):
 		rh_input_name : str
 			file name for RH input file. Default value is 'keyword.input'.
 		"""
+		# directory in which atmospheres will be extracted
+		if not os.path.exists(f"atmospheres"):
+			os.mkdir(f"atmospheres")
+		else:
+			# clean directory if it exists (maybe we have atmospheres extracted
+			# from some other cube); it takes few miliseconds, so not a big deal
+			sp.run(f"rm atmospheres/*",
+				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+
+
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
 		globin.rh_input_name = rh_input_name
@@ -470,14 +480,6 @@ class InputData(object):
 		for pid in range(globin.n_thread):
 			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
 				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
-
-		if not os.path.exists(f"atmospheres"):
-			os.mkdir(f"atmospheres")
-		else:
-			# clean directory if it exists (maybe we have atmospheres extracted
-			# from some other cube); it takes few miliseconds, so not a big deal
-			sp.run(f"rm atmospheres/*",
-				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
 def slice_line(line, dtype=float):
     # remove 'new line' character

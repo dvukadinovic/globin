@@ -676,12 +676,12 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	# if change in parameters is less than 10 x perturbation we do not compute RF again
 	if atmos.n_local_pars!=0:
 		do_rf = True
-		if old_pars is not None:
-			for par in atmos.nodes:
-				delta = atmos.values[par].flatten() - old_pars[par].flatten()
-				flag = [False if item<globin.delta[par] else True for item in delta]
-				if not any(flag):
-					do_rf = False
+		# if old_pars is not None:
+		# 	for par in atmos.nodes:
+		# 		delta = atmos.values[par].flatten() - old_pars[par].flatten()
+		# 		flag = [False if item<globin.delta[par] else True for item in delta]
+		# 		if not any(flag):
+		# 			do_rf = False
 		if do_rf:
 			full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
 	else:

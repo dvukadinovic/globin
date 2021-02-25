@@ -110,7 +110,7 @@ def read_init_line_parameters(fpath):
 
     return lines_to_fit
 
-def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
+def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
     _, RLK_lines = read_RLK_lines(RLK_line_list_path)
 
     lines = []
@@ -128,7 +128,7 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
                     lines[-1].loggf_max = 1
                 
                 # check if log(gf) is in min/max range
-                lines[-1].loggf *= (1 + 0.5*np.random.normal(0, 1))
+                lines[-1].loggf += 0.5*np.random.normal(0, 1)
                 if lines[-1].loggf > lines[-1].loggf_max:
                     lines[-1].loggf = lines[-1].loggf_max
                 if lines[-1].loggf < lines[-1].loggf_min:
@@ -145,24 +145,27 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path="test_line_pars"):
                 # if lines[-1].dlam < lines[-1].dlam_min:
                 #     lines[-1].dlam = lines[-1].dlam_min
 
-    out = open(line_pars_path, "w")
+    if line_pars_path is not None:
+        out = open(line_pars_path, "w")
 
-    out.write("# parID   LineNo   initial   min     max\n")
+        out.write("# parID   LineNo   initial   min     max\n")
 
-    for line in lines:
-        out.write("loggf    ")
-        out.write("{: 3d}    ".format(line.lineNo))
-        out.write("{: 4.3f}    ".format(line.loggf))
-        out.write("{: 4.3f}    ".format(line.loggf_min))
-        out.write("{: 4.3f}\n".format(line.loggf_max))
-        
-        # out.write("dlam    ")
-        # out.write("{: 3d}    ".format(line.lineNo))
-        # out.write("{: 4.3f}    ".format(line.dlam))
-        # out.write("{: 4.3f}    ".format(line.dlam_min))
-        # out.write("{: 4.3f}\n".format(line.dlam_max))
+        for line in lines:
+            out.write("loggf    ")
+            out.write("{: 3d}    ".format(line.lineNo))
+            out.write("{: 4.3f}    ".format(line.loggf))
+            out.write("{: 4.3f}    ".format(line.loggf_min))
+            out.write("{: 4.3f}\n".format(line.loggf_max))
+            
+            # out.write("dlam    ")
+            # out.write("{: 3d}    ".format(line.lineNo))
+            # out.write("{: 4.3f}    ".format(line.dlam))
+            # out.write("{: 4.3f}    ".format(line.dlam_min))
+            # out.write("{: 4.3f}\n".format(line.dlam_max))
 
-    out.close()
+        out.close()
+
+    return lines
 
 def check_init_loggf():
     """
