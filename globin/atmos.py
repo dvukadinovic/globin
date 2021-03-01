@@ -803,9 +803,10 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	spec.broaden_spectra(atmos.vmac)
 
 	# for parID in range(Npar):
-	# 	plt.figure(parID+1)
+	# 	# plt.figure(parID+1)
 	# 	plt.plot(rf[0, 0, parID, :, 0])
-	# plt.show()
+	# 	plt.savefig(f"rf_p{parID+1}.png")
+	# 	plt.show()
 	# sys.exit()
 
 	return rf, spec, full_rf

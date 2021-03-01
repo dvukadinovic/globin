@@ -113,56 +113,63 @@ def read_init_line_parameters(fpath):
 def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
     _, RLK_lines = read_RLK_lines(RLK_line_list_path)
 
-    lines = []
-    for lineID in lineNo:
-        for i_ in range(len(RLK_lines)):
-            if RLK_lines[i_].lineNo==lineID:
-                lines.append(RLK_lines[i_])
-
-                # set line min/max for log(gf)
-                lines[-1].loggf_min = lines[-1].loggf-2
-                if lines[-1].loggf_min<-10:
-                    lines[-1].loggf_min = -10
-                lines[-1].loggf_max = lines[-1].loggf+2
-                if lines[-1].loggf_max>1:
-                    lines[-1].loggf_max = 1
-                
-                # check if log(gf) is in min/max range
-                lines[-1].loggf += 0.5*np.random.normal(0, 1)
-                if lines[-1].loggf > lines[-1].loggf_max:
-                    lines[-1].loggf = lines[-1].loggf_max
-                if lines[-1].loggf < lines[-1].loggf_min:
-                    lines[-1].loggf = lines[-1].loggf_min
-
-                # set line min/max for dlam
-                # lines[-1].dlam_min = -50
-                # lines[-1].dlam_max = 50
-                
-                # # check if dlam is in min/max range
-                # lines[-1].dlam = np.random.normal(0, 10)
-                # if lines[-1].dlam > lines[-1].dlam_max:
-                #     lines[-1].dlam = lines[-1].dlam_max
-                # if lines[-1].dlam < lines[-1].dlam_min:
-                #     lines[-1].dlam = lines[-1].dlam_min
+    pars = list(lineNo.keys())
 
     if line_pars_path is not None:
         out = open(line_pars_path, "w")
-
         out.write("# parID   LineNo   initial   min     max\n")
 
-        for line in lines:
-            out.write("loggf    ")
-            out.write("{: 3d}    ".format(line.lineNo))
-            out.write("{: 4.3f}    ".format(line.loggf))
-            out.write("{: 4.3f}    ".format(line.loggf_min))
-            out.write("{: 4.3f}\n".format(line.loggf_max))
-            
-            # out.write("dlam    ")
-            # out.write("{: 3d}    ".format(line.lineNo))
-            # out.write("{: 4.3f}    ".format(line.dlam))
-            # out.write("{: 4.3f}    ".format(line.dlam_min))
-            # out.write("{: 4.3f}\n".format(line.dlam_max))
+    for par in pars:
+        lines = []
+        for lineID in lineNo[par]:
+            for i_ in range(len(RLK_lines)):
+                if RLK_lines[i_].lineNo==lineID:
+                    lines.append(RLK_lines[i_])
 
+                    if par=="loggf":
+                        # set line min/max for log(gf)
+                        lines[-1].loggf_min = lines[-1].loggf-2
+                        if lines[-1].loggf_min<-10:
+                            lines[-1].loggf_min = -10
+                        lines[-1].loggf_max = lines[-1].loggf+2
+                        if lines[-1].loggf_max>1:
+                            lines[-1].loggf_max = 1
+                        
+                        # check if log(gf) is in min/max range
+                        lines[-1].loggf += 0.5*np.random.normal(0, 1)
+                        if lines[-1].loggf > lines[-1].loggf_max:
+                            lines[-1].loggf = lines[-1].loggf_max
+                        if lines[-1].loggf < lines[-1].loggf_min:
+                            lines[-1].loggf = lines[-1].loggf_min
+
+                    if par=="dlam":
+                        # set line min/max for dlam
+                        lines[-1].dlam_min = -50
+                        lines[-1].dlam_max = 50
+                        
+                        # check if dlam is in min/max range
+                        lines[-1].dlam = np.random.normal(0, 10)
+                        if lines[-1].dlam > lines[-1].dlam_max:
+                            lines[-1].dlam = lines[-1].dlam_max
+                        if lines[-1].dlam < lines[-1].dlam_min:
+                            lines[-1].dlam = lines[-1].dlam_min
+
+        if line_pars_path is not None:
+            for line in lines:
+                if par=="loggf":
+                    out.write("loggf    ")
+                    out.write("{: 3d}    ".format(line.lineNo))
+                    out.write("{: 4.3f}    ".format(line.loggf))
+                    out.write("{: 4.3f}    ".format(line.loggf_min))
+                    out.write("{: 4.3f}\n".format(line.loggf_max))
+                if par=="dlam":
+                    out.write("dlam     ")
+                    out.write("{: 3d}   ".format(line.lineNo))
+                    out.write("{: 5.3f}   ".format(line.dlam))
+                    out.write("{: 5.3f}   ".format(line.dlam_min))
+                    out.write("{: 5.3f}\n".format(line.dlam_max))
+
+    if line_pars_path is not None:
         out.close()
 
     return lines
@@ -173,3 +180,7 @@ def check_init_loggf():
     in spectrum. We requier that line is 1% stronger than continuum intensity.
     """
     pass
+
+if __name__=="__main__":
+    lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}
+    init_line_pars(lineNo, "../../rh/Atoms/Kurucz/spinor_window_original", "/home/dusan/line_pars")
