@@ -20,7 +20,7 @@ import sys
 import numpy as np
 
 from .input import \
-	InputData, find_value_by_key, read_node_atmosphere
+	InputData, find_value_by_key, read_node_atmosphere, set_keyword
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars
@@ -47,7 +47,7 @@ from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
 	chi2_hypersurface
 
-__all__ = ["rh", "atmos", "inversion", "spec", "tools", "input", "visualize", "utils"]
+__all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 

@@ -177,7 +177,7 @@ class Atmosphere(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				atm = self.get_atmos(idx, idy)
-				fpath = f"atmospheres/atm_{idx}_{idy}"
+				fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 				self.atm_name_list.append(fpath)
 				write_multi_atmosphere(atm, fpath)
 
@@ -264,6 +264,9 @@ class Atmosphere(object):
 					write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def write_atmosphere(self):
+		"""
+		Obsolete. To be deleated.
+		"""
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
@@ -344,7 +347,7 @@ class Atmosphere(object):
 						self.global_pars[parID][i_] = globin.limit_values[parID][i_][1]
 
 	def update_parameters(self, proposed_steps, stop_flag=None):
-		if stop_flag:
+		if stop_flag is not None:
 			low_ind, up_ind = 0, 0
 			for parID in self.values:
 				low_ind = up_ind
@@ -520,47 +523,24 @@ def synth_pool(args):
 
 	atm_path, rh_spec_name = args
 
-	#--- for each thread process create separate directory
+	# get process ID number
 	pid = mp.current_process()._identity[0]
 	set_old_J = True
 
 	#--- copy *.input files
-	sp.run(f"cp *.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
+	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
 	#--- set up keyword.input file
-	lines = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").readlines()
-
-	for i_,line in enumerate(lines):
-		line = line.rstrip("\n").replace(" ","")
-		# skip blank lines
-		if len(line)>0:
-			# skip commented lines
-			if line[0]!=globin.COMMENT_CHAR:
-				line = line.split("=")
-				keyword, value = line
-				#--- change atmos path in 'keyword.input' file
-				if keyword=="ATMOS_FILE":
-					lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
-				#--- change path for magnetic field
-				elif keyword=="STOKES_INPUT":
-					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
-				#--- set to read old J.dat file
-				# elif keyword=="STARTING_J":
-				# 	if set_old_J:
-				# 		lines[i_] = "  STARTING_J      = OLD_J\n"
-				# 	else:
-				# 		lines[i_] = "  STARTING_J      = NEW_J\n"
-
-	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}","w")
-	out.writelines(lines)
-	out.close()
+	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
+	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
+	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
 
 	# make log file
 	aux = atm_path.split("_")
 	idx, idy = aux[-2], aux[-1]
-	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	log_file = open(f"{globin.cwd}/runs/{globin.wd}/logs/log_{idx}_{idy}", "w")
 	
 	# run rhf1d executable
 	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rhf1d -i {globin.rh_input_name}",
@@ -580,6 +560,7 @@ def synth_pool(args):
 			print("   ", line)
 		return None
 	else:
+
 		# if everything was fine, run solverray executable
 		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -629,14 +610,14 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 	atm_name_list = atmos.atm_name_list
 	if len(atm_name_list)==0:
 		sys.exit("Empty list of atmosphere names.")
-		# atmos.split_cube()
 
 	args = [ [atm_name, rh_spec_name] for atm_name in atm_name_list]
+	
 	#--- make directory in which we will save logs of running RH
-	if not os.path.exists(f"{globin.cwd}/logs"):
-		os.mkdir(f"{globin.cwd}/logs")
+	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
+		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
 	else:
-		sp.run(f"rm {globin.cwd}/logs/*",
+		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
@@ -818,42 +799,18 @@ def rf_pool(args):
 
 	#--- for each thread process create separate directory
 	pid = mp.current_process()._identity[0]
-	# if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}"):
-	# 	os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}")
 	
 	#--- copy *.input files
-	sp.run(f"cp *.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
+	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
-	lines = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").readlines()
-
-	for i_,line in enumerate(lines):
-		line = line.rstrip("\n").replace(" ","")
-		# skip blank lines
-		if len(line)>0:
-			# skip commented lines
-			if line[0]!=globin.COMMENT_CHAR:
-				line = line.split("=")
-				keyword, value = line
-				#--- change atmos path in 'keyword.input' file
-				if keyword=="ATMOS_FILE":
-					lines[i_] = f"  ATMOS_FILE = {globin.cwd}/{atm_path}\n"
-				#--- change path for magnetic field
-				elif keyword=="STOKES_INPUT":
-					lines[i_] = f"  STOKES_INPUT = {globin.cwd}/{atm_path}.B\n"
-				# elif keyword=="RF_TEMP":
-				# 	if "temp" in rf_parameter_flag:
-				# 		lines[i_] = "  RF_TEMP = TRUE"
-				# 	else:
-				# 		lines[i_] = "  RF_TEMP = FALSE"
-
-	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}","w")
-	out.writelines(lines)
-	out.close()
+	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
+	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
+	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
 	
 	aux = atm_path.split("_")
 	idx, idy = aux[-2], aux[-1]
-	log_file = open(f"{globin.cwd}/logs/log_{idx}_{idy}", "w")
+	log_file = open(f"{globin.cwd}/runs/{globin.wd}/logs/log_{idx}_{idy}", "w")
 	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rf_ray -i {globin.rh_input_name}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	log_file.writelines(str(out.stdout, "utf-8"))
@@ -886,10 +843,10 @@ def RH_compute_RF(atmos, rh_spec_name, wavelength):
 	args = [[name,rh_spec_name] for name in atmos.atm_name_list]
 
 	#--- make directory in which we will save logs of running 'rf_ray'
-	if not os.path.exists(f"{globin.cwd}/logs"):
-		os.mkdir(f"{globin.cwd}/logs")
+	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
+		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
 	else:
-		sp.run(f"rm {globin.cwd}/logs/*",
+		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	rf_list = globin.pool.map(func=rf_pool, iterable=args)

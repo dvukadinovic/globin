@@ -64,10 +64,10 @@ class InputData(object):
 	Class for storing input data parameters.
 	"""
 
-	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input"):
+	def __init__(self, globin_input_name="params.input", rh_input_name="keyword.input", run_name="run"):
 		
 		if (rh_input_name is not None) and (globin_input_name is not None):
-			self.read_input_files(globin_input_name, rh_input_name)
+			self.read_input_files(globin_input_name, rh_input_name, run_name)
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file path.")
@@ -76,9 +76,9 @@ class InputData(object):
 			sys.exit()
 
 	def __str__(self):
-		return "<InputData:\n  globin = {0}\n  RH = {1}\n>".format(self.globin_input_name, self.rh_input_name)
+		return "<InputData:\n  globin = {0}\n  RH = {1}\n  run_name = {2}>\n".format(self.globin_input_name, self.rh_input_name, self.run_name)
 
-	def read_input_files(self, globin_input_name, rh_input_name):
+	def read_input_files(self, globin_input_name, rh_input_name, run_name):
 		"""
 		Read input files for globin ('globin_input_name') and RH ('rh_input_name').
 
@@ -96,54 +96,74 @@ class InputData(object):
 		rh_input_name : str
 			file name for RH input file. Default value is 'keyword.input'.
 		"""
-		# directory in which atmospheres will be extracted
-		if not os.path.exists(f"atmospheres"):
-			os.mkdir(f"atmospheres")
+		globin.wd = run_name
+		self.run_name = run_name
+
+		# make runs directory if not existing
+		if not os.path.exists("runs"):
+			os.mkdir("runs")
+
+		# make directory for specified run with provided 'run_name'
+		if not os.path.exists(f"runs/{self.run_name}"):
+			os.mkdir(f"runs/{self.run_name}")
+
+		# make directory in which atmospheres will be extracted for given run
+		if not os.path.exists(f"runs/{self.run_name}/atmospheres"):
+			os.mkdir(f"runs/{self.run_name}/atmospheres")
 		else:
 			# clean directory if it exists (maybe we have atmospheres extracted
 			# from some other cube); it takes few miliseconds, so not a big deal
-			sp.run(f"rm atmospheres/*",
+			sp.run(f"rm runs/{self.run_name}/atmospheres/*",
 				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
+		# copy all RH input files into run directory
+		# keyword.input and kurucz.input are changed accordingly during input reading
+		# and saved back into 'runs/{run_name}' directory
+		sp.run(f"cp *.input runs/{run_name}/",
+			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
 		globin.rh_input_name = rh_input_name
 
 		#--- get parameters from RH input file
-		text = open(rh_input_name, "r").read()
-		self.rh_input = text
+		file = open(globin.rh_input_name, "r")
+		text = file.read()
+		file.close()
+		globin.keyword_input = text
 
-		wave_file_path = find_value_by_key("WAVETABLE", text, "required")
+		wave_file_path = find_value_by_key("WAVETABLE", globin.keyword_input, "required")
 		self.wave_file_path = wave_file_path.split("/")[-1]
-		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", text, "default", "spectrum.out")
-		# self.solve_ne = find_value_by_key("SOLVE_NE", text, "optional")
-		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", text, "optional")
-		globin.rf_file_path = find_value_by_key("RF_OUTPUT", text, "default", "rfs.out")
+		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
+		# self.solve_ne = find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
+		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "optional")
+		globin.rf_file_path = find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 
 		#--- get parameters from globin input file
-		text = open(globin_input_name, "r").read()
+		file = open(globin_input_name, "r")
+		text = file.read()
+		file.close()
 		self.globin_input = text
 
 		#--- find first mode of operation
-		globin.mode = find_value_by_key("mode", text, "required", conversion=int)
+		globin.mode = find_value_by_key("mode", self.globin_input, "required", conversion=int)
 		
 		#--- path to RH main folder
-		rh_path = find_value_by_key("rh_path", text, "required")
+		rh_path = find_value_by_key("rh_path", self.globin_input, "required")
 		if rh_path.rstrip("\n")[-1]=="/":
 			rh_path = rh_path.rstrip("/")
 		globin.rh_path = rh_path
 		
 		#--- find number of threads
-		globin.n_thread = find_value_by_key("n_thread",text, "default", 1, conversion=int)
+		globin.n_thread = find_value_by_key("n_thread",self.globin_input, "default", 1, conversion=int)
 
 		#--- interpolation degree
-		globin.interp_degree = find_value_by_key("interp_degree", text, "default", 3, int)
+		globin.interp_degree = find_value_by_key("interp_degree", self.globin_input, "default", 3, int)
 
 		#--- get parameters for synthesis
 		if globin.mode==0:
 			# determine which observations from cube to take into consideration
-			aux = find_value_by_key("range", text, "default", [1,None,1,None])
+			aux = find_value_by_key("range", self.globin_input, "default", [1,None,1,None])
 			if type(aux)==str:
 				self.atm_range = []
 				for item in aux.split(","):
@@ -158,33 +178,33 @@ class InputData(object):
 			self.atm_range[2] -= 1
 
 			#--- required parameters
-			path_to_atmosphere = find_value_by_key("cube_atmosphere", text, "optional")
+			path_to_atmosphere = find_value_by_key("cube_atmosphere", self.globin_input, "optional")
 			if path_to_atmosphere is None:
-				node_atmosphere_path = find_value_by_key("node_atmosphere", text, "required")
+				node_atmosphere_path = find_value_by_key("node_atmosphere", self.globin_input, "required")
 				self.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, self.atm_range)
 			else:
 				self.atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
 				self.atm.split_cube()
 
 			#--- default parameters
-			globin.spectrum_path = find_value_by_key("spectrum", text, "default", "spectrum.fits")
-			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
-			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
+			globin.spectrum_path = find_value_by_key("spectrum", self.globin_input, "default", "spectrum.fits")
+			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
+			vmac = find_value_by_key("vmac", self.globin_input, "default", default_val=0, conversion=float)
 			self.atm.vmac = np.abs(vmac) # [km/s]
 
 			#--- optional parameters
-			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
-			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
-			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
+			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
+			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]
+			self.step = find_value_by_key("wave_step", self.globin_input, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) or (self.lmin is None) or (self.lmax is None):
-				wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				wave_grid_path = find_value_by_key("wave_grid", self.globin_input, "required")
 				self.wavelength = np.loadtxt(wave_grid_path)
 				self.lmin = min(self.wavelength)
 				self.lmax = max(self.wavelength)
 				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			write_wavs(self.wavelength, globin.rh_path + "/Atoms/wave_files/" + wave_file_path)
+			write_wavs(self.wavelength, f"runs/{self.run_name}/" + self.wave_file_path)
 
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
@@ -192,13 +212,16 @@ class InputData(object):
 			# reference atmosphere is the same as input one in synthesis mode
 			self.ref_atm = copy.deepcopy(self.atm)
 
+			# set path to WAVETABLE in 'keyword.input' file
+			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
+
 		#--- get parameters for inversion
 		elif globin.mode>=1:
 			# initialize container for atmosphere which we invert
 			self.atm = Atmosphere()
 
 			# determine which observations from cube to take into consideration
-			aux = find_value_by_key("range", text, "default", [1,None,1,None])
+			aux = find_value_by_key("range", self.globin_input, "default", [1,None,1,None])
 			self.atm_range = []
 			if type(aux)==str:
 				for item in aux.split(","):
@@ -213,53 +236,56 @@ class InputData(object):
 			self.atm_range[2] -= 1
 
 			#--- required parameters
-			path_to_observations = find_value_by_key("observation", text, "required")
+			path_to_observations = find_value_by_key("observation", self.globin_input, "required")
 			self.obs = Observation(path_to_observations, self.atm_range)
 			# set dimensions for atmosphere same as dimension of observations
 			self.atm.nx = self.obs.nx
 			self.atm.ny = self.obs.ny
 			for idx in range(self.atm.nx):
 				for idy in range(self.atm.ny):
-					self.atm.atm_name_list.append(f"atmospheres/atm_{idx}_{idy}")
+					self.atm.atm_name_list.append(f"runs/{self.run_name}/atmospheres/atm_{idx}_{idy}")
 			
 			#--- default parameters
-			self.noise = find_value_by_key("noise", text, "default", 1e-3, float)
-			self.marq_lambda = find_value_by_key("marq_lambda", text, "default", 1e-3, float)
-			self.max_iter = find_value_by_key("max_iter", text, "default", 30, int)
-			self.chi2_tolerance = find_value_by_key("chi2_tolerance", text, "default", 1e-2, float)
-			values = find_value_by_key("weights", text, "default", np.array([1,1,1,1], dtype=np.float64))
+			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
+			self.marq_lambda = find_value_by_key("marq_lambda", self.globin_input, "default", 1e-3, float)
+			self.max_iter = find_value_by_key("max_iter", self.globin_input, "default", 30, int)
+			self.chi2_tolerance = find_value_by_key("chi2_tolerance", self.globin_input, "default", 1e-2, float)
+			values = find_value_by_key("weights", self.globin_input, "default", np.array([1,1,1,1], dtype=np.float64))
 			if type(values)==str:
 				values = values.split(",")
 				self.weights = np.array([float(item) for item in values], dtype=np.float64)
-			vmac = find_value_by_key("vmac", text, "default", default_val=0, conversion=float)
+			vmac = find_value_by_key("vmac", self.globin_input, "default", default_val=0, conversion=float)
 
 			#--- optional parameters
-			path_to_atmosphere = find_value_by_key("cube_atmosphere", text, "optional")
+			path_to_atmosphere = find_value_by_key("cube_atmosphere", self.globin_input, "optional")
 			if path_to_atmosphere is not None:
 				self.ref_atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
 			# if user have not provided reference atmosphere try fidning node atmosphere
 			else:
-				path_to_node_atmosphere = find_value_by_key("node_atmosphere", text, "optional")
+				path_to_node_atmosphere = find_value_by_key("node_atmosphere", self.globin_input, "optional")
 				if path_to_node_atmosphere is not None:
 					self.ref_atm = globin.construct_atmosphere_from_nodes(path_to_node_atmosphere, self.atm_range)
 				# if node atmosphere not given, set FAL C model as reference atmosphere
 				else:
 					self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
 
-			self.lmin = find_value_by_key("wave_min", text, "optional", conversion=float) / 10  # [nm]
-			self.lmax = find_value_by_key("wave_max", text, "optional", conversion=float) / 10  # [nm]
-			self.step = find_value_by_key("wave_step", text, "optional", conversion=float) / 10 # [nm]
+			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
+			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]
+			self.step = find_value_by_key("wave_step", self.globin_input, "optional", conversion=float) / 10 # [nm]
 			if (self.step is None) and (self.lmin is None) and (self.lmax is None):
-				wave_grid_path = find_value_by_key("wave_grid", text, "required")
+				wave_grid_path = find_value_by_key("wave_grid", self.globin_input, "required")
 				self.wavelength = np.loadtxt(wave_grid_path)
 				self.lmin = min(self.wavelength)
 				self.lmax = max(self.wavelength)
 				self.step = self.wavelength[1] - self.wavelength[0]
 			else:
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
-			write_wavs(self.wavelength, globin.rh_path + "/Atoms/wave_files/" + wave_file_path)
+			write_wavs(self.wavelength, f"runs/{self.run_name}/" + self.wave_file_path)
 
-			fpath = find_value_by_key("rf_weights", text, "optional")
+			# set path to WAVETABLE in 'keyword.input' file
+			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
+			
+			fpath = find_value_by_key("rf_weights", self.globin_input, "optional")
 			self.wavs_weight = np.ones((len(self.wavelength),4))
 			if fpath is not None:
 				lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
@@ -288,11 +314,11 @@ class InputData(object):
 
 			#--- read node parameters
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-				self.read_node_parameters(parameter, text)
+				self.read_node_parameters(parameter, self.globin_input)
 
 			if globin.mode==3:
 				#--- line parameters to be fit
-				line_pars_path = find_value_by_key("line_parameters", text, "optional")
+				line_pars_path = find_value_by_key("line_parameters", self.globin_input, "optional")
 
 				if line_pars_path:
 					# if we provided line parameters for fit, read those parameters
@@ -315,20 +341,29 @@ class InputData(object):
 					#--- Kurucz line list for given spectral region
 					if RLK_linelist_path:
 						# get path to line list which has original / expected values (will not be changed during execution)
-						linelist_path = find_value_by_key("linelist", text, "required")
-						# RLK_text_lines --> list of lines with Kurucz line format (needed for outputing atomic line list later)
+						linelist_path = find_value_by_key("linelist", self.globin_input, "required")
+						# RLK_text_lines --> list of text lines with Kurucz line format (needed for outputing atomic line list later)
 						# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
 						self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
 
 						# go through RLK file and find the uncommented line
 						# with path to atomic line files of Kurucz format
-						lines = open(RLK_linelist_path, "r").readlines()
+						file = open(RLK_linelist_path, "r")
+						lines = file.readlines()
+						file.close()
 						for line in lines:
-							line = line.rstrip("\n").strip(" ")
+							line = line.rstrip("\n").replace(" ","")
 							# find the first uncommented line and break
 							if line[0]!=globin.COMMENT_CHAR:
-								fname = line.rstrip("\n").replace(" ","")#.split("/")[-1]
-								self.RLK_path = fname
+								# fname = line.rstrip("\n").replace(" ","")#.split("/")[-1]
+								# self.RLK_path = fname
+								fname = line.split("/")[-1]
+
+								self.RLK_path = f"{globin.cwd}/runs/{run_name}/{fname}"
+								
+								out = open(f"runs/{run_name}/{RLK_linelist_path}", "w")
+								out.write(self.RLK_path + "\n")
+								out.close()
 								break
 
 						# write down initial atomic lines values
@@ -361,6 +396,14 @@ class InputData(object):
 		if globin.n_thread > self.atm.nx*self.atm.ny:
 			globin.n_thread = self.atm.nx*self.atm.ny
 			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+
+		#--- initialize Pool() object
+		globin.pool = mp.Pool(globin.n_thread)
+
+		#--- for each thread make working directory inside rh/rhf1d directory
+		for pid in range(globin.n_thread):
+			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
+				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
 
 	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
 		"""
@@ -474,7 +517,6 @@ class InputData(object):
 			to compute everything. With this, we can have many different
 			executions on the same machine.
 		"""
-		globin.wd = fname
 		globin.pool = mp.Pool(globin.n_thread)
 
 		for pid in range(globin.n_thread):
@@ -534,3 +576,23 @@ def read_node_atmosphere(fpath):
 
     return atmos
 
+def set_keyword(text, key, value, fpath=None):
+	lines = text.split("\n")
+		
+	for num, line in enumerate(lines):
+		line = line.replace(" ","")
+		if len(line)>0:
+			if line[0]!="#":
+				if key in line:
+					break
+
+	lines[num] = "  " + key + " = " + value
+	lines = [line + "\n" for line in lines]
+	
+	if fpath is not None:
+		out = open(fpath, "w")
+		out.writelines(lines)
+		out.close()
+		return "".join(lines)
+	else:
+		return "".join(lines)

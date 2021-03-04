@@ -8,21 +8,21 @@ import matplotlib.pyplot as plt
 
 import globin
 
-def invert(init, output_path="results", verbose=True):
+def invert(init, save_output=True, verbose=True):
 	if globin.mode==0:
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
 		return None, None
 	elif globin.mode==1:
-		atm, spec = invert_pxl_by_pxl(init, output_path, verbose)
+		atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
 		return atm, spec
 	elif globin.mode==3:
-		atm, spec = invert_global(init, output_path, verbose)
+		atm, spec = invert_global(init, save_output, verbose)
 		return atm, spec
 	else:
 		print(f"Not supported mode {globin.mode} currently.")
 		return None, None
 
-def invert_pxl_by_pxl(init, output_path, verbose):
+def invert_pxl_by_pxl(init, save_output, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -127,10 +127,6 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
-			# globin.plot_spectra(obs, 0, 0)
-			# globin.plot_spectra(spec, 0, 0)
-			# plt.show()
-
 			"""
 			Gymnastics with indices for solving LM equations for
 			next step parameters.
@@ -150,7 +146,7 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 
 			# This was tested with arrays filled with hand and 
 			# checked if the array manipulations return what we expect
-			# and it does
+			# and it does!
 
 		# hessian = (nx, ny, npar, npar)
 		H = copy.deepcopy(JTJ)
@@ -187,11 +183,11 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 						itter[idx,idy] += 1
 						updated_pars = True
 
-		# if Marquardt parameter is to large, we break
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if LM_parameter[idx,idy]<=1e-5:
 					LM_parameter[idx,idy] = 1e-5
+				# if Marquardt parameter is to large, we break
 				if LM_parameter[idx,idy]>=1e8:
 					stop_flag[idx,idy] = 0
 					print("Large LM parameter. We break.")
@@ -199,11 +195,10 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 		if updated_pars and verbose:
 			print(atmos.values)
 			print(LM_parameter)
-			# print("{:4.3e}".format(chi2[0,0,-1]))
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
-		# if yes, we set stop_flag to 1 (True)
+		# if yes, we set stop_flag to 0 (True)
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if stop_flag[idx,idy]==1:
@@ -212,7 +207,7 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 						# need to get -2 and -1 because I already rised itter by 1 
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
-						if chi2[idx,idy,itter-1]<1e-32:
+						if chi2[idx,idy,it_no-1]<1e-32:
 							print("chi2 is way low!\n")
 							stop_flag[idx,idy] = 0
 						elif relative_change<init.chi2_tolerance:
@@ -236,40 +231,29 @@ def invert_pxl_by_pxl(init, output_path, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
 	
-	if output_path is not None:
-		# check if there is result folder; if not, make it
-		if not os.path.exists(f"{output_path}"):
-			os.mkdir(f"{output_path}")
-		# if there is no folder with name of the run, make it
-		if not os.path.exists(f"{output_path}/{globin.wd}"):
-			os.mkdir(f"{output_path}/{globin.wd}")
-				
-		output_path = f"{output_path}/{globin.wd}"	
-
-		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
+	if save_output is not None:
+		output_path = f"runs/{globin.wd}"	
 
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-		inverted_spectra.save(globin.spectrum_path, init.wavelength)
+		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", init.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 		
 		end = time.time() - start
 		print("\nFinished in: {0}\n".format(end))
 
-		#--- inverted params comparison with expected values
 		out_file = open("{:s}/output.log".format(output_path), "w")
-
+		
 		out_file.write("Run time: {:10.1f}\n\n".format(end))
-
 		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 		out_file.write(init.globin_input)
 		out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-		out_file.write(init.rh_input)
+		out_file.write(globin.keyword_input)
 
 		out_file.close()
 
 	return atmos, inverted_spectra
 
-def invert_global(init, output_path, verbose):
+def invert_global(init, save_output, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -404,6 +388,7 @@ def invert_global(init, output_path, verbose):
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps)
 		atmos.check_parameter_bounds()
+
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"], atmos.line_no["dlam"])
@@ -429,9 +414,9 @@ def invert_global(init, output_path, verbose):
 			itter += 1
 			num_failed = 0
 
-		# if Marquardt parameter is to large, we break
 		if LM_parameter<=1e-5:
 			LM_parameter = 1e-5
+		# if Marquardt parameter is to large, we break
 		if LM_parameter>=1e8:
 			print("Upper limit in LM_parameter. We break\n")
 			break_flag = True
@@ -440,7 +425,6 @@ def invert_global(init, output_path, verbose):
 			print(atmos.values)
 			print(atmos.global_pars)
 			print(LM_parameter)
-			# print(np.log10(chi2_new))
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
@@ -473,20 +457,11 @@ def invert_global(init, output_path, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	if output_path is not None:
-		# check if there is result folder; if not, make it
-		if not os.path.exists(f"{output_path}"):
-			os.mkdir(f"{output_path}")
-		# if there is no folder with name of the run, make it
-		if not os.path.exists(f"{output_path}/{globin.wd}"):
-			os.mkdir(f"{output_path}/{globin.wd}")
-				
-		output_path = f"{output_path}/{globin.wd}"
-
-		globin.spectrum_path = f"{output_path}/inverted_spectra.fits"
+	if save_output is not None:
+		output_path = f"runs/{globin.wd}"
 
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-		inverted_spectra.save(globin.spectrum_path, init.wavelength)
+		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", init.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	
 		end = time.time() - start
@@ -496,7 +471,6 @@ def invert_global(init, output_path, verbose):
 		out_file = open("{:s}/output.log".format(output_path), "w")
 
 		out_file.write("Run time: {:10.1f}\n\n".format(end))
-
 		out_file.write("\n\n     #===--- Global parameters ---===#\n\n")
 
 		for par in atmos.global_pars:
@@ -510,7 +484,7 @@ def invert_global(init, output_path, verbose):
 		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 		out_file.write(init.globin_input)
 		out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-		out_file.write(init.rh_input)
+		out_file.write(globin.keyword_input)
 
 		out_file.close()
 
