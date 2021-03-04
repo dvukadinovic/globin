@@ -427,3 +427,7 @@ def chi2_hypersurface(pars, init):
     # plt.ylabel(r"$v_{mac}$ [km/s]")
     # pltobs, 0, 0.show()
 
+def claculate_chi2(init):
+    obs = init.obs
+    atmos = init.atm
+    pass

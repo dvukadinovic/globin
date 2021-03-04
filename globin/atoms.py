@@ -110,7 +110,7 @@ def read_init_line_parameters(fpath):
 
     return lines_to_fit
 
-def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
+def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None, min_max={"loggf" : 1, "dlam" : 25}):
     _, RLK_lines = read_RLK_lines(RLK_line_list_path)
 
     pars = list(lineNo.keys())
@@ -121,6 +121,7 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
 
     for par in pars:
         lines = []
+        dpar = min_max[par]
         for lineID in lineNo[par]:
             for i_ in range(len(RLK_lines)):
                 if RLK_lines[i_].lineNo==lineID:
@@ -128,15 +129,15 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
 
                     if par=="loggf":
                         # set line min/max for log(gf)
-                        lines[-1].loggf_min = lines[-1].loggf-2
+                        lines[-1].loggf_min = lines[-1].loggf-dpar
                         if lines[-1].loggf_min<-10:
                             lines[-1].loggf_min = -10
-                        lines[-1].loggf_max = lines[-1].loggf+2
+                        lines[-1].loggf_max = lines[-1].loggf+dpar
                         if lines[-1].loggf_max>1:
                             lines[-1].loggf_max = 1
                         
                         # check if log(gf) is in min/max range
-                        lines[-1].loggf += 0.5*np.random.normal(0, 1)
+                        lines[-1].loggf += np.random.normal(0, 0.5)
                         if lines[-1].loggf > lines[-1].loggf_max:
                             lines[-1].loggf = lines[-1].loggf_max
                         if lines[-1].loggf < lines[-1].loggf_min:
@@ -144,11 +145,11 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None):
 
                     if par=="dlam":
                         # set line min/max for dlam
-                        lines[-1].dlam_min = -50
-                        lines[-1].dlam_max = 50
+                        lines[-1].dlam_min = -dpar
+                        lines[-1].dlam_max = dpar
                         
                         # check if dlam is in min/max range
-                        lines[-1].dlam = np.random.normal(0, 10)
+                        lines[-1].dlam = np.random.normal(0, 5)
                         if lines[-1].dlam > lines[-1].dlam_max:
                             lines[-1].dlam = lines[-1].dlam_max
                         if lines[-1].dlam < lines[-1].dlam_min:
