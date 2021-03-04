@@ -18,6 +18,9 @@ def invert(init, save_output=True, verbose=True):
 	elif globin.mode==3:
 		atm, spec = invert_global(init, save_output, verbose)
 		return atm, spec
+	# elif globin.mod==4:
+	# 	atm, spec = invert_mcmc(init, save_output, verbose)
+	# 	return atm, spec
 	else:
 		print(f"Not supported mode {globin.mode} currently.")
 		return None, None
@@ -490,3 +493,14 @@ def invert_global(init, save_output, verbose):
 
 	return atmos, inverted_spectra
 
+# def invert_mcmc(init, save_output, verbose):
+#     # obs = init.obs
+#     # atmos = init.atm
+
+#     # atmos.build_from_nodes(init.ref_atm)
+#     # spec, _, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+
+#     # diff = obs.spec - spec.spec
+#     # chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+
+#    	# return atmos, spec

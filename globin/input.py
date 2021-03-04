@@ -410,6 +410,9 @@ class InputData(object):
 		Write out full Kurucz line list for all parameters.
 		"""
 		out = open(self.RLK_path, "w")
+
+		# because of Python memory handling
+		# these two variables will be the same all the time!
 		linelist = self.RLK_text_lines
 
 		for no,val in zip(loggf_no, loggf_val):
@@ -435,6 +438,9 @@ class InputData(object):
 		Used when we are computing RFs.
 		"""
 		out = open(self.RLK_path, "w")
+
+		# because of Python memory handling
+		# these two variables will be the same all the time!
 		linelist = self.RLK_text_lines
 
 		if parameter=="loggf":
@@ -499,29 +505,6 @@ class InputData(object):
 				print(f"Can not store node values for parameter '{parameter}'.")
 				print("  Must read first observation file.")
 				sys.exit()
-
-	def start_pool(self, fname):
-		"""
-		Function which starts the mp.Pool() process used to compute
-		spectra on many cores. We also make directories in which
-		RH exec's will be run and files (spectra, solveray, rf) will
-		be stored.
-
-		In each directory we copy all input files (RH's and globin's)
-		with wave file.
-
-		Parameters:
-		---------------
-		fname : str
-			name of the working directory (wd) which will be used for RH
-			to compute everything. With this, we can have many different
-			executions on the same machine.
-		"""
-		globin.pool = mp.Pool(globin.n_thread)
-
-		for pid in range(globin.n_thread):
-			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
-				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
 
 def slice_line(line, dtype=float):
     # remove 'new line' character

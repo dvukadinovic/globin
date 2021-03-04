@@ -309,135 +309,120 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     np.savetxt("globin_atm_0_0.dat", spinor_atm[:,0,0,:].T, header=f"{atmos.nz}\tdummy.dat", comments="", 
         fmt="%3.2f %5.4e %6.2f %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4f %5.4f")
 
-def chi2_hypersurface(pars, init):
-    atmos = init.atm
-    obs = init.obs
-    weights = init.weights
-    noise = init.noise
-
-    shape = []
-
-    par_names = list(pars.keys())
-
-    # initialize parameters
-    # for parameter in pars:
-    #     ptype, pvalues = pars[parameter]
-    #     # ptype for global parameters is None
-    #     if ptype==None:
-    #         atmos.global_pars[parameter] = pvalues[0]
-    #         shape.append(len(pvalues))
-    #         # if we have loggf or dlam parameter, we need to write those data
-    #         # into the file first
-    #         if parameter=="loggf" or parameter=="dlam":
-    #             pass
-    #     # for local parameters it is nodes index (starting from 0)
-    #     else:
-    #         # atmos.values[parameter][:,:,ptype] = pvalues[0]
-    #         shape.append(len(pvalues))
-
-    par = par_names[0]
-    shape = len(pars[par][1])
-    chi2 = np.ones(shape)
-    atmos.build_from_nodes(init.ref_atm)
-
-    loggf0 = [-2.172, -1.806, -0.084, -0.857, -0.781, -2.419,  0.080, -0.515, -0.087, -1.928, -1.870, -0.714, -1.426, -3.513, -1.160, -2.905, -2.576, -0.547]
-
-    #--- vmac
-    # for i_, vmac in enumerate(pars["vmac"][1]):
-    #     atmos.vmac = pars["vmac"][1][i_]
-    #     print(i_, atmos.vmac/1e3)
-    #     spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
-    #     spec.broaden_spectra(atmos.vmac)
-
-    #     diff = obs.spec - spec.spec
-    #     diff *= weights
-
-    #     chi2[i_,0] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
-
-    #--- loggf
-        # ind = pars["loggf"][0]-1
-    # for ind in range(0,17):
-    # for ind in [0,1,2,3]:
-    # for ind in [3,5,6]:
-    # for ind in [0,1,2,3,4,5,6,7]:
-    # for ind in [8,9,10,11,12,13]:
-    for ind in range(18):
-    # for ind in [8,9,10]:
-    # for ind in [11,12,13]:
-    # for ind in [14,15,16,17]:
-        print(ind+1)
-        for i_, val in enumerate(pars[par][1]):
-            init.write_line_par(val, ind, par)
-            spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
-            spec.broaden_spectra(atmos.vmac)
-
-            # print(i_)
-
-            diff = obs.spec - spec.spec
-            diff *= weights
-            chi2[i_] = np.sum(diff[0,0]**2)
-
-            # plt.subplot(1,2,1)
-            # globin.plot_spectra(obs, 0, 0)
-            # globin.plot_spectra(spec, 0, 0)
-
-            # plt.subplot(1,2,2)
-            # diff = copy.deepcopy(obs)
-            # diff.spec -= spec.spec
-            # globin.plot_spectra(diff, 0, 0)
-
-            # plt.show()
- 
-        if par=="loggf":
-            init.write_line_par(loggf0[ind], ind, par)
-        elif par=="dlam":
-            init.write_line_par(0, ind, par)
-
-        plt.plot(pars[par][1], chi2)
-        plt.yscale("log")
-        plt.xlabel(r"$\log (gf)$")
-        plt.ylabel(r"$\chi ^2$")
-        plt.show()
-
-    # for i_, vmac in enumerate(pars["vmac"][1]):
-    #     atmos.vmac = pars["vmac"][1][i_]
-    #     print(i_, atmos.vmac/1e3)
-    #     for j_, temp in enumerate(pars["temp"][1]):
-    #         atmos.values["temp"][:,:,pars["temp"][0]] = pars["temp"][1][j_]
-
-    #         atmos.build_from_nodes(init.ref_atm)
-
-    #         spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
-    #         spec.broaden_spectra(atmos.vmac)
-
-    #         diff = obs.spec - spec.spec
-    #         diff *= weights
-
-    #         chi2[i_,j_] = np.sum(diff[0,0]**2) # / noise_stokes**2) / dof
-
-    #         plt.plot(obs.spec[0,0,:,0])
-    #         plt.plot(spec.spec[0,0,:,0])
-    #         plt.show()
-
-    # plt.imshow(np.log10(chi2), aspect="auto", cmap="gnuplot")
-    # plt.colorbar()
-    # plt.xticks(list(range(shape[1])), np.round(pars[par_names[1]][1]/1e3, decimals=1))
-    # plt.yticks(list(range(shape[0])), np.round(pars[par_names[0]][1]/1e3, decimals=1))
-    # plt.xlabel(r"T [kK]")
-    # plt.ylabel(r"$v_{mac}$ [km/s]")
-    # pltobs, 0, 0.show()
-
-def claculate_chi2(init):
+def calculate_chi2(init, pars, fname):
+    # pars:
+    #   atmospheric --> [node, values, idx, idy]
+    #   atomic      --> [line, values]
+    #   vmac        --> [None, values]
+    
     noise_stokes = 1
     dof = 1
+
+    # get parameter names
+    par_names = [item[0] for item in pars]
+
+    unique_names = list(set(par_names))
+    atmos_par_names = [name for name in unique_names if name in ["temp", "vz", "vmic", "mag", "gamma", "chi"]]
     
-    obs = init.obs
-    atmos = init.atm
+    # set all node values to expected ones;
+    # for that we use reference atmosphere
+    for par in atmos_par_names:
+        nodes = init.atm.nodes[par]
 
-    atmos.build_from_nodes(init.ref_atm)
-    spec, _, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+        par_id = init.ref_atm.par_id[par]
+        value = init.ref_atm.data[:,:,par_id,:]
 
-    diff = obs.spec - spec.spec
-    chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+        for i_,node in enumerate(nodes):
+            ind = np.argmin(np.abs(init.ref_atm.logtau - node))
+            par_in_node = value[:,:,ind]
+            init.atm.values[par][:,:,i_] = par_in_node
 
-    print(chi2)
+    # set shape of chi2
+    shape = [len(item[2]) for item in pars]
+    chi2 = np.zeros(shape)
+
+    # number of parameter combinations
+    N = np.prod(shape)
+
+    # set a list if indice for each parameter combination
+    ranges = [np.arange(size) for size in shape]
+    inds = np.meshgrid(*ranges, indexing="ij")
+    inds = [item.flatten() for item in inds]
+
+    #--- for each combination compute spectra and calculate chi2
+    for j_,ind in enumerate(zip(*inds)):
+        print("{:3.1f} %".format( (j_+1)/N * 100 ))
+
+        # set parameters
+        for i_,par in enumerate(par_names):
+            node = pars[i_][1]
+            value_ind = ind[i_]
+            value = pars[i_][2][value_ind]
+            try:
+                idx, idy = pars[i_][3], pars[i_][4]
+            except:
+                idx, idy = None, None
+            args = par, node, value, idx, idy
+            init = set_parameter(init, args)
+
+        # build atmosphere and compute spectra
+        init.atm.build_from_nodes(init.ref_atm)
+        spec, _, _ = globin.compute_spectra(init.atm, init.rh_spec_name, init.wavelength)
+
+        # compute chi2
+        diff = init.obs.spec - spec.spec
+        chi2[ind] = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+
+    #--- save chi2 into fits file
+    primary = fits.PrimaryHDU(chi2)
+    primary.name = "chi2_vals"
+
+    hdulist = fits.HDUList([primary])
+
+    for item in pars:
+        parameter = item[0]
+        node = item[1]
+        values = item[2]
+        try:
+            idx, idy = item[3], item[4]
+        except:
+            idx, idy = -1, -1
+
+        par_hdu = fits.ImageHDU(values)
+        if parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+            par_hdu.name = f"{parameter}_x{idx}_y{idy}_n{node}"
+        else:
+            par_hdu.name = f"{parameter}_line{node}"
+
+        par_hdu.header["XPOS"] = (idx, " x position of atmosphere")
+        par_hdu.header["YPOS"] = (idx, " y position of atmosphere")
+        par_hdu.header["NODE"] = (node, " node index")
+
+        hdulist.append(par_hdu)
+    
+    hdulist.writeto(fname, overwrite=True)
+
+    return chi2
+
+def set_parameter(init, args):
+    # koji parametar --> parameters
+    # ind / line_no
+    # value
+    # idx, idy = None, None
+    # 
+    atmos_pars = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
+    global_pars = ["vmac", "loggf", "dlam"]
+
+    parameter, ind, value, idx, idy = args
+
+    #--- set the initial parameters
+    if parameter in atmos_pars:
+        init.atm.values[parameter][idx, idy, ind] = value
+    if parameter in global_pars:
+        if ind is not None:
+            init.atm.global_pars[parameter][ind] = value
+            init.write_line_par(value, ind, parameter)
+        else:
+            init.atm.global_pars[parameter] = value
+
+    return init
