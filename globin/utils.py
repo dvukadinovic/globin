@@ -428,6 +428,16 @@ def chi2_hypersurface(pars, init):
     # pltobs, 0, 0.show()
 
 def claculate_chi2(init):
+    noise_stokes = 1
+    dof = 1
+    
     obs = init.obs
     atmos = init.atm
-    pass
+
+    atmos.build_from_nodes(init.ref_atm)
+    spec, _, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+
+    diff = obs.spec - spec.spec
+    chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+
+    print(chi2)
