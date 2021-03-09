@@ -316,6 +316,12 @@ class InputData(object):
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter, self.globin_input)
 
+			#--- read initial node parameter values from file (.fits)
+			# if len(self.atm.nodes):
+			# 	fpath = find_value_by_key(f"initial_atmosphere", text, "optional")
+			# 	if fpath is not None:
+			# 		pass
+
 			if globin.mode==3:
 				#--- line parameters to be fit
 				line_pars_path = find_value_by_key("line_parameters", self.globin_input, "optional")
@@ -330,6 +336,7 @@ class InputData(object):
 					loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
 					loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
 					globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+					globin.parameter_scale["loggf"] = np.ones(len(self.atm.global_pars["loggf"]))
 
 					# get dlam parameters from lines list
 					self.atm.global_pars["dlam"] = [line.dlam for line in lines_to_fit if line.dlam is not None]
@@ -337,6 +344,7 @@ class InputData(object):
 					dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
 					dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
 					globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+					globin.parameter_scale["dlam"] = np.ones(len(self.atm.global_pars["dlam"]))
 
 					#--- Kurucz line list for given spectral region
 					if RLK_linelist_path:
@@ -501,10 +509,14 @@ class InputData(object):
 				else:
 					mask = [float(item) for item in mask.split(",")]
 					self.atm.mask[parameter] = np.array(mask)
+
+				globin.parameter_scale[parameter] = np.ones((self.atm.nx, self.atm.ny, len(self.atm.nodes[parameter])))
 			except:
 				print(f"Can not store node values for parameter '{parameter}'.")
 				print("  Must read first observation file.")
 				sys.exit()
+		# if (nodes is not None) and (values is None):
+		# 	find_value_by_key(f"node_{parameter}_cube", text, "required")
 
 def slice_line(line, dtype=float):
     # remove 'new line' character

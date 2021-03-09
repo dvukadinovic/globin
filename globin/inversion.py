@@ -18,9 +18,9 @@ def invert(init, save_output=True, verbose=True):
 	elif globin.mode==3:
 		atm, spec = invert_global(init, save_output, verbose)
 		return atm, spec
-	# elif globin.mod==4:
-	# 	atm, spec = invert_mcmc(init, save_output, verbose)
-	# 	return atm, spec
+	elif globin.mod==4:
+		atm, spec = invert_mcmc(init, save_output, verbose)
+		return atm, spec
 	else:
 		print(f"Not supported mode {globin.mode} currently.")
 		return None, None
@@ -56,15 +56,15 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 	Nw = len(init.wavelength)
 	# this is number of local parameters only (we are doing pxl-by-pxl)
 	Npar = atmos.n_local_pars
+	
+	if Npar==0:
+		sys.exit("There is no parameters to fit.\n   We exit.\n")
 
 	# indices of diagonal elements of Hessian matrix
 	x = np.arange(atmos.nx)
 	y = np.arange(atmos.ny)
 	p = np.arange(Npar)
 	X,Y,P = np.meshgrid(x,y,p, indexing="ij")
-
-	if Npar==0:
-		sys.exit("There is no parameters to fit.\n   We exit.\n")
 
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.wavelength - init.wavelength[0]))
@@ -493,14 +493,47 @@ def invert_global(init, save_output, verbose):
 
 	return atmos, inverted_spectra
 
-# def invert_mcmc(init, save_output, verbose):
-#     # obs = init.obs
-#     # atmos = init.atm
+def invert_mcmc(init, save_output, verbose):
+	obs = init.obs
+	atmos = init.atm
 
-#     # atmos.build_from_nodes(init.ref_atm)
-#     # spec, _, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	atmos.build_from_nodes(init.ref_atm)
+	spec, _, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-#     # diff = obs.spec - spec.spec
-#     # chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+	diff = obs.spec - spec.spec
+	chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 
-#    	# return atmos, spec
+	return atmos, spec
+
+def lnprior(pars):
+	"""
+	Check if each parameter is in its respective bounds given by globin.limit_values.
+
+	If one fails, return -np.inf, else return 0.
+	"""
+	blos = theta
+	if abs(blos) < 3000:
+		return 0.0
+	return -np.inf
+
+def lnlike(theta, x, y, yp, yerr):
+	"""
+	Compute chi2.
+
+	We need:
+	  -- observations
+	  -- noise
+	  -- parameters to compute spectra
+	"""
+	return -0.5 * np.sum( (y-fn(theta, x, yp))**2 / yerr**2)
+
+def lnprob(theta, x, y, yp, yerr):
+	"""
+	Compute product of prior and likelihood.
+
+	We need what is needed for prior and likelihood
+	"""
+	lp = lnprior(theta)
+	if not np.isfinite(lp):
+		return -np.inf
+	return lp + lnlike(theta, x, y, yp, yerr)

@@ -77,15 +77,16 @@ limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"chi"   : [-np.pi/2, np.pi/2]}	# [rad]
 
 #--- parameter scale for RFs
-parameter_scale = {"temp"   : 5000,	# [K]
-				   "vz"     : 1,	# [km/s]
-				   "vmic"   : 1,	# [km/s]
-				   "vmac"   : 1e3,	# [m/s]
-				   "mag"    : 0.1,	# [T]
-				   "gamma"  : 1,	# [rad]
-				   "chi"    : 1,	# [rad]
-				   "loggf"  : 1,	# 
-				   "dlam"   : 1}	# [mA]
+# parameter_scale = {"temp"   : 5000,	# [K]
+# 				   "vz"     : 1,	# [km/s]
+# 				   "vmic"   : 1,	# [km/s]
+# 				   "vmac"   : 1e3,	# [m/s]
+# 				   "mag"    : 0.1,	# [T]
+# 				   "gamma"  : 1,	# [rad]
+# 				   "chi"    : 1,	# [rad]
+# 				   "loggf"  : 1,	# 
+# 				   "dlam"   : 1}	# [mA]
+parameter_scale = {}
 
 #--- parameter perturbations for calculating RFs
 delta = {"temp"  : 1,		# K

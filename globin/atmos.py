@@ -352,7 +352,7 @@ class Atmosphere(object):
 			for parID in self.values:
 				low_ind = up_ind
 				up_ind += len(self.nodes[parID])
-				step = proposed_steps[:,:,low_ind:up_ind] * globin.parameter_scale[parID]
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parID]
 				# we do not perturb parameters of those pixels which converged
 				step = np.einsum("...i,...->...i", step, stop_flag)
 				# if parID=="gamma":
@@ -370,12 +370,12 @@ class Atmosphere(object):
 					for parID in self.values:
 						low_ind = up_ind
 						up_ind += len(self.nodes[parID])
-						step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
+						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parID][idx,idy]
 						self.values[parID][idx,idy] += step * self.mask[parID]
 			for parID in self.global_pars:
 				low_ind = up_ind
 				up_ind += len(self.global_pars[parID])
-				step = proposed_steps[low_ind:up_ind] * globin.parameter_scale[parID]
+				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parID]
 				# self.global_pars[parID] += np.array(step)
 				self.global_pars[parID] += step
 			
@@ -693,7 +693,6 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 
 		rfID = rf_id[parameter]
 
-		parameter_scale = globin.parameter_scale[parameter]
 		nodes = atmos.nodes[parameter]
 		
 		# if parameter=="gamma" or parameter=="chi":
@@ -717,13 +716,18 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 			# derivative of parameter distribution to node perturbation
 			dy_dnode = (positive - negative) / 2 / perturbation
 
-			diff = np.einsum("abc,decfg->abfg", dy_dnode, full_rf[:,:,rfID])
-			
+			node_RF = np.einsum("abc,decfg->abfg", dy_dnode, full_rf[:,:,rfID])
+
+			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
+			globin.parameter_scale[parameter][...,nodeID] = scale
+
 			# if parameter=="gamma" or parameter=="chi":
-			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", diff, parameter_scale[:,:,nodeID])
+			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
 			# else:
 			
-			rf[:,:,free_par_ID,:,:] = diff * parameter_scale
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / scale[idx,idy]
 			free_par_ID += 1
 
 			# return back perturbation
@@ -745,16 +749,20 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
+				"""
+				Miss here the good parameter scaling as is done for
+				other parameters.
+				"""
+
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
 						for sID in range(4):
 							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
-							rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
+							# rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
 							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * init.step / atmos.global_pars["vmac"]
 				free_par_ID += 1
 			elif parameter=="loggf" or parameter=="dlam":
 				perturbation = globin.delta[parameter]
-				parameter_scale = globin.parameter_scale[parameter]
 
 				for parID in range(len(atmos.global_pars[parameter])):
 					line_no = atmos.line_no[parameter][parID]
@@ -773,7 +781,11 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 					spec_minus.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
-					rf[:,:,free_par_ID,:,:] = diff * parameter_scale
+
+					scale = np.sqrt(np.sum(diff**2))
+					globin.parameter_scale[parameter][parID] = scale
+
+					rf[:,:,free_par_ID,:,:] = diff / scale
 					free_par_ID += 1
 
 					# return perturbation back
@@ -784,10 +796,10 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	spec.broaden_spectra(atmos.vmac)
 
 	# for parID in range(Npar):
-	# 	# plt.figure(parID+1)
+	# 	plt.figure(parID+1)
 	# 	plt.plot(rf[0, 0, parID, :, 0])
-	# 	plt.savefig(f"rf_p{parID+1}.png")
-	# 	plt.show()
+	# 	# plt.savefig(f"rf_p{parID+1}.png")
+	# plt.show()
 	# sys.exit()
 
 	return rf, spec, full_rf
