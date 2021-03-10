@@ -668,6 +668,18 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	else:
 		full_rf = None
 
+	# plt.imshow(full_rf[0,0,0,:,:,0], aspect="auto")
+	# plt.colorbar()
+	# plt.savefig("full_rf_a12_sI_2.png")
+	# plt.close()
+
+	# plt.imshow(full_rf[0,1,0,:,:,0], aspect="auto")
+	# plt.colorbar()
+	# plt.savefig("full_rf_a13_sI_2.png")
+	# plt.close()
+
+	# sys.exit()
+
 	#--- get current iteration atmosphere
 	logtau = atmos.logtau
 	dlogtau = logtau[1] - logtau[0]
@@ -683,8 +695,7 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 		Npar = atmos.n_local_pars
 
 	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(init.wavelength), 4), dtype=np.float64)
-
-	diff = np.zeros((atmos.nx, atmos.ny, len(init.wavelength), 4))
+	node_RF = np.zeros((atmos.nx, atmos.ny, len(init.wavelength), 4))
 
 	#--- loop through local (atmospheric) parameters and calculate RFs
 	free_par_ID = 0
@@ -702,6 +713,7 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 
 		perturbation = globin.delta[parameter]
 
+
 		for nodeID in range(len(nodes)):
 			# positive perturbation
 			atmos.values[parameter][:,:,nodeID] += perturbation
@@ -716,7 +728,9 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 			# derivative of parameter distribution to node perturbation
 			dy_dnode = (positive - negative) / 2 / perturbation
 
-			node_RF = np.einsum("abc,decfg->abfg", dy_dnode, full_rf[:,:,rfID])
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
 
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 			globin.parameter_scale[parameter][...,nodeID] = scale
