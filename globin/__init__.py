@@ -76,16 +76,8 @@ limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"gamma" : [0, np.pi],			# [rad]
 				"chi"   : [-np.pi/2, np.pi/2]}	# [rad]
 
-#--- parameter scale for RFs
-# parameter_scale = {"temp"   : 5000,	# [K]
-# 				   "vz"     : 1,	# [km/s]
-# 				   "vmic"   : 1,	# [km/s]
-# 				   "vmac"   : 1e3,	# [m/s]
-# 				   "mag"    : 0.1,	# [T]
-# 				   "gamma"  : 1,	# [rad]
-# 				   "chi"    : 1,	# [rad]
-# 				   "loggf"  : 1,	# 
-# 				   "dlam"   : 1}	# [mA]
+#--- parameter scale (calcualted from RFs based on
+#    Cristopher Frutigers' thesis, p.42)
 parameter_scale = {}
 
 #--- parameter perturbations for calculating RFs

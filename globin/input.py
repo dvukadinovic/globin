@@ -574,14 +574,22 @@ def read_node_atmosphere(fpath):
 def set_keyword(text, key, value, fpath=None):
 	lines = text.split("\n")
 		
+	line_num = None
 	for num, line in enumerate(lines):
 		line = line.replace(" ","")
 		if len(line)>0:
 			if line[0]!="#":
 				if key in line:
+					line_num = num
 					break
 
-	lines[num] = "  " + key + " = " + value
+	if line_num is not None:
+		lines[num] = "  " + key + " = " + value
+	else:
+		line = "  " + key + " = " + value
+		lines.insert(0, line)
+		pass
+
 	lines = [line + "\n" for line in lines]
 	
 	if fpath is not None:
@@ -591,3 +599,4 @@ def set_keyword(text, key, value, fpath=None):
 		return "".join(lines)
 	else:
 		return "".join(lines)
+

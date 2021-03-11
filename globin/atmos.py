@@ -362,6 +362,10 @@ class Atmosphere(object):
 				# 	aux = np.sin(self.values[parID]) + step
 				# 	self.values[parID] = np.arcsin(aux)
 				# else:
+				# RH returns RFs in m/s and we are working with km/s in globin
+				# so we have to return the values from m/s to km/s
+				if parID=="vz" or parID=="vmic":
+					step /= 1e3
 				self.values[parID] += step
 		else:
 			low_ind, up_ind = 0, 0
@@ -371,6 +375,10 @@ class Atmosphere(object):
 						low_ind = up_ind
 						up_ind += len(self.nodes[parID])
 						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parID][idx,idy]
+						# RH returns RFs in m/s and we are working with km/s in globin
+						# so we have to return the values from m/s to km/s
+						if parID=="vz" or parID=="vmic":
+							step /= 1e3
 						self.values[parID][idx,idy] += step * self.mask[parID]
 			for parID in self.global_pars:
 				low_ind = up_ind
@@ -527,12 +535,14 @@ def synth_pool(args):
 	pid = mp.current_process()._identity[0]
 	set_old_J = True
 
-	#--- copy *.input files
+	#--- copy *.input files from 'runs/globin.wd' directory
 	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
 
-	#--- set up keyword.input file
+	# re-read 'keyword.input' file for given pID
+	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
+
 	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
@@ -611,6 +621,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 	if len(atm_name_list)==0:
 		sys.exit("Empty list of atmosphere names.")
 
+
 	args = [ [atm_name, rh_spec_name] for atm_name in atm_name_list]
 	
 	#--- make directory in which we will save logs of running RH
@@ -668,26 +679,6 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	else:
 		full_rf = None
 
-	# plt.imshow(full_rf[0,0,0,:,:,0], aspect="auto")
-	# plt.colorbar()
-	# plt.savefig("full_rf_a12_sI_2.png")
-	# plt.close()
-
-	# plt.imshow(full_rf[0,1,0,:,:,0], aspect="auto")
-	# plt.colorbar()
-	# plt.savefig("full_rf_a13_sI_2.png")
-	# plt.close()
-
-	# sys.exit()
-
-	#--- get current iteration atmosphere
-	logtau = atmos.logtau
-	dlogtau = logtau[1] - logtau[0]
-
-	#--- copy current atmosphere to new model atmosphere with +/- perturbation
-	model_plus = copy.deepcopy(atmos)
-	model_minus = copy.deepcopy(atmos)
-
 	#--- get total number of parameters (local + global)
 	if atmos.n_global_pars>0:
 		Npar = atmos.n_local_pars + atmos.n_global_pars
@@ -713,7 +704,6 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 
 		perturbation = globin.delta[parameter]
 
-
 		for nodeID in range(len(nodes)):
 			# positive perturbation
 			atmos.values[parameter][:,:,nodeID] += perturbation
@@ -733,8 +723,8 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 					node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
 
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-			globin.parameter_scale[parameter][...,nodeID] = scale
-
+			globin.parameter_scale[parameter][..., nodeID] = scale
+			
 			# if parameter=="gamma" or parameter=="chi":
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
 			# else:
@@ -830,6 +820,9 @@ def rf_pool(args):
 	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
+	# re-read 'keyword.input' file for given pID
+	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
+
 	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
@@ -875,6 +868,17 @@ def RH_compute_RF(atmos, rh_spec_name, wavelength):
 		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
+	"""
+	Rewrite 'keyword.input' file to compute appropriate RFs for
+	parameters of inversion.
+	"""
+	keyword_path = f"runs/{globin.wd}/{globin.rh_input_name}"
+	for par in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+		key = "RF_" + par.upper()
+		if par in atmos.nodes:
+			globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
+		else:
+			globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 	rf_list = globin.pool.map(func=rf_pool, iterable=args)
 
 	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
