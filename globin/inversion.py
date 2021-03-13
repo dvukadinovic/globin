@@ -198,6 +198,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		if updated_pars and verbose:
 			print(atmos.values)
 			print(LM_parameter)
+			# print(globin.parameter_scale)
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
@@ -225,7 +226,10 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 					if it_no==init.max_iter-1:
 						stop_flag[idx,idy] = 0
 						print("Maximum number of iterations reached. We break.")
-		
+
+		# if itter[0,0]==2:
+		# 	sys.exit()
+
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
 			break

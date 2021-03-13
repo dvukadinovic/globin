@@ -260,7 +260,9 @@ class Atmosphere(object):
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
 				#--- save interpolated atmosphere to appropriate file
+
 				if save_atmos:	
+					# print(f"Saving ({idx},{idy}) in build_from_nodes()")
 					write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def write_atmosphere(self):
@@ -325,24 +327,40 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self):
 		for parID in self.values:
-			for i_ in range(len(self.nodes[parID])):
-				for idx in range(self.nx):
-					for idy in range(self.ny):
-						if self.values[parID][idx,idy,i_]<globin.limit_values[parID][0]:
-							self.values[parID][idx,idy,i_] = globin.limit_values[parID][0]
-						if self.values[parID][idx,idy,i_]>globin.limit_values[parID][1]:
-							self.values[parID][idx,idy,i_] = globin.limit_values[parID][1]
+			# for every gamma, we are returnig the angle (in rad) 
+			# which is in 1st and 2nd quadrant
+			# there is no need for checking the bounds because
+			# np.arccos() returns the angle in range [0, np.pi]
+			if parID=="gamma":
+				cos_angle = np.cos(self.values[parID])
+				self.values[parID] = np.arccos(cos_angle)
+			elif parID=="chi":
+				self.values[parID] %= 2*np.pi
+			else:
+				for i_ in range(len(self.nodes[parID])):
+					for idx in range(self.nx):
+						for idy in range(self.ny):
+							# minimum check
+							if self.values[parID][idx,idy,i_]<globin.limit_values[parID][0]:
+								self.values[parID][idx,idy,i_] = globin.limit_values[parID][0]
+							# maximum check
+							if self.values[parID][idx,idy,i_]>globin.limit_values[parID][1]:
+								self.values[parID][idx,idy,i_] = globin.limit_values[parID][1]
 		for parID in self.global_pars:
 			if parID=="vmac":
+				# minimum check
 				if self.global_pars[parID]<globin.limit_values[parID][0]:
 					self.global_pars[parID] = np.array(globin.limit_values[parID][0])
+				# maximum check
 				if self.global_pars[parID]>globin.limit_values[parID][1]:
 					self.global_pars[parID] = np.array(globin.limit_values[parID][1])
 				self.vmac = self.global_pars["vmac"]
 			else:
 				for i_ in range(len(self.global_pars[parID])):
+					# minimum check
 					if self.global_pars[parID][i_]<globin.limit_values[parID][i_][0]:
 						self.global_pars[parID][i_] = globin.limit_values[parID][i_][0]
+					# maximum check
 					if self.global_pars[parID][i_]>globin.limit_values[parID][i_][1]:
 						self.global_pars[parID][i_] = globin.limit_values[parID][i_][1]
 
@@ -452,6 +470,10 @@ def write_multi_atmosphere(atm, fpath):
 
 	# store now and magnetic field vector
 	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
+
+	if np.isnan(np.sum(atm)):
+		print("We have NaN in atomic structure!\n")
+		sys.exit()
 
 def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 	Nw = len(wavelength)
@@ -564,7 +586,7 @@ def synth_pool(args):
 
 	# check if rhf1d executed normaly
 	if out.returncode!=0:
-		print("*** RH error")
+		print("*** RH error (synth_pool)")
 		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).\n")
 		for line in stdout[-5:]:
 			print("   ", line)
@@ -656,9 +678,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(init, atmos, full_rf=None, old_pars=None):
-	# import matplotlib.pyplot as plt
-
+def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
@@ -667,17 +687,31 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	# check weather we need to recalculate RF for atmospheric parameters;
 	# if change in parameters is less than 10 x perturbation we do not compute RF again
 	if atmos.n_local_pars!=0:
-		do_rf = True
-		# if old_pars is not None:
-		# 	for par in atmos.nodes:
-		# 		delta = atmos.values[par].flatten() - old_pars[par].flatten()
-		# 		flag = [False if item<globin.delta[par] else True for item in delta]
-		# 		if not any(flag):
-		# 			do_rf = False
-		if do_rf:
-			full_rf = RH_compute_RF(atmos, init.rh_spec_name, init.wavelength)
+		pars = list(atmos.nodes.keys())
+		par_flag = [True]*len(pars)
+		if old_pars is not None:
+			for i_, par in enumerate(atmos.nodes):
+				delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
+				flag = [False if item<globin.diff[par] else True for item in delta]
+				if any(flag):
+					par_flag[i_] = True
+				else:
+					par_flag[i_] = False
+		print(par_flag)
+		full_rf = RH_compute_RF(atmos, par_flag, init.rh_spec_name, init.wavelength)
+		for i_,par in enumerate(pars):
+			rfID = rf_id[par]
+			if not par_flag[i_]:
+				full_rf[:,:, rfID] = old_full_rf[:,:, rfID]
 	else:
 		full_rf = None
+
+	# for i_,par in enumerate(pars):
+	# 	rfID = rf_id[par]
+	# 	plt.figure(i_+1)
+	# 	plt.imshow(full_rf[0,0,rfID,:,:,0], aspect="auto")
+	# 	plt.colorbar()
+	# plt.show()
 
 	#--- get total number of parameters (local + global)
 	if atmos.n_global_pars>0:
@@ -692,7 +726,6 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 	free_par_ID = 0
 	for parameter in atmos.nodes:
 		parID = atmos.par_id[parameter]
-
 		rfID = rf_id[parameter]
 
 		nodes = atmos.nodes[parameter]
@@ -723,7 +756,13 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 					node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
 
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-			globin.parameter_scale[parameter][..., nodeID] = scale
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					if scale[idx,idy]==0:
+						print(parameter)
+						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
+					else:
+						globin.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
 			
 			# if parameter=="gamma" or parameter=="chi":
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
@@ -731,7 +770,7 @@ def compute_rfs(init, atmos, full_rf=None, old_pars=None):
 			
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / scale[idx,idy]
+					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
 			free_par_ID += 1
 
 			# return back perturbation
@@ -838,7 +877,7 @@ def rf_pool(args):
 	stdout = str(out.stdout,"utf-8").split("\n")
 
 	if out.returncode!=0:
-		print("*** RH error")
+		print("*** RH error (rf_pool)")
 		print(f"    Failed to compute RF for pixel ({idx},{idy}).\n")
 		for line in stdout[-5:]:
 			print("   ", line)
@@ -855,7 +894,7 @@ def rf_pool(args):
 
 	return {"rf" : rf, "wave" : rh_obj.wave, "idx" : idx, "idy" : idy}
 
-def RH_compute_RF(atmos, rh_spec_name, wavelength):
+def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	lmin, lmax = wavelength[0], wavelength[-1]
 
 	#--- arguments for 'rf_pool' function
@@ -868,34 +907,48 @@ def RH_compute_RF(atmos, rh_spec_name, wavelength):
 		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
+	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
+	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wavelength), 4))
+
 	"""
 	Rewrite 'keyword.input' file to compute appropriate RFs for
 	parameters of inversion.
 	"""
+
 	keyword_path = f"runs/{globin.wd}/{globin.rh_input_name}"
-	for par in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-		key = "RF_" + par.upper()
-		if par in atmos.nodes:
+	for i_, par in enumerate(atmos.nodes):
+		if par_flag[i_]:
+			rfID = rf_id[par]
+			key = "RF_" + par.upper()
 			globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
-		else:
-			globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
-	rf_list = globin.pool.map(func=rf_pool, iterable=args)
-
-	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
-	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wavelength), 4))
-
-	for item in rf_list:
-		if item is not None:
-			wave = item["wave"]
 			
-			#--- indices of min and max values for wavelength
-			ind_min = np.argmin(np.abs(wave-lmin))
-			ind_max = np.argmin(np.abs(wave-lmax))+1
-			
-			idx, idy = int(item["idx"]), int(item["idy"])
-			rf[idx,idy,...] = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
+			pars = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
+			pars.remove(par)
+			for item in pars:
+				key = "RF_" + item.upper()
+				globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
-	# we return RF for wavelengths for which we have observations
+			# for l_ in range(130,140):
+			# 	print(globin.keyword_input.split("\n")[l_])
+
+			# time.sleep(2)
+
+			rf_list = globin.pool.map(func=rf_pool, iterable=args)
+
+			for item in rf_list:
+				if item is not None:
+					wave = item["wave"]
+					
+					#--- indices of min and max values for wavelength
+					ind_min = np.argmin(np.abs(wave-lmin))
+					ind_max = np.argmin(np.abs(wave-lmax))+1
+					
+					idx, idy = int(item["idx"]), int(item["idy"])
+					aux = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
+					rf[idx,idy,rfID] = aux[rfID]
+
+			print("Done RF for ", par)
+
 	return rf
 
 def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):

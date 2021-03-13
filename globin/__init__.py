@@ -68,27 +68,35 @@ rh_input_name = None
 rh_path = None
 
 #--- limit values for atmospheric parameters
-limit_values = {"temp"  : [3000, 10000], 		# [K]
-				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [1e-3, 10],			# [km/s]
-				"vmac"  : [1e-3, 30],			# [km/s]
-				"mag"   : [0, 5000/1e4],		# [T]
-				"gamma" : [0, np.pi],			# [rad]
-				"chi"   : [-np.pi/2, np.pi/2]}	# [rad]
+limit_values = {"temp"  : [3000, 10000], 	# [K]
+				"vz"    : [-10, 10],		# [km/s]
+				"vmic"  : [1e-3, 10],		# [km/s]
+				"vmac"  : [1e-3, 30],		# [km/s]
+				"mag"   : [0, 5000/1e4],	# [T]
+				"gamma" : [0, np.pi],		# [rad]
+				"chi"   : [0, 2*np.pi]}		# [rad]
 
 #--- parameter scale (calcualted from RFs based on
 #    Cristopher Frutigers' thesis, p.42)
 parameter_scale = {}
 
-#--- parameter perturbations for calculating RFs
+#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
 delta = {"temp"  : 1,		# K
 		 "vz"    : 1/1e3,	# m/s --> km/s
 		 "vmic"  : 1/1e3,	# m/s --> km/s
 		 "mag"   : 1/1e4,	# G --> T
-		 "gamma" : 0.001,	# rad
-		 "chi"   : 0.001,	# rad
-		 "loggf" : 0.001,	# 
+		 "gamma" : 0.01,	# rad
+		 "chi"   : 0.01,	# rad
+		 "loggf" : 0.01,	# 
 		 "dlam"  : 1}		# mA
+
+#--- parameter differences for flaging if RF needs to be computed
+diff = {"temp"   : 10,		# K
+		"vz"     : 0.01,	# km/s
+		"vmic"   : 0.01,	# km/s
+		"mag"    : 10/1e4,	# G
+		"gamma"  : 0.001,	# rad = 0.057 deg
+		"chi"    : 0.001}	# rad = 0.057 deg
 
 #--- full names of parameters (for FITS header)
 parameter_name = {"temp"   : "Temperature",
