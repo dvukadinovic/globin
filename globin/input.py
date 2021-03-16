@@ -250,6 +250,7 @@ class InputData(object):
 			self.marq_lambda = find_value_by_key("marq_lambda", self.globin_input, "default", 1e-3, float)
 			self.max_iter = find_value_by_key("max_iter", self.globin_input, "default", 30, int)
 			self.chi2_tolerance = find_value_by_key("chi2_tolerance", self.globin_input, "default", 1e-2, float)
+			self.ncycle = find_value_by_key("ncycle", self.globin_input, "default", 1, int)
 			values = find_value_by_key("weights", self.globin_input, "default", np.array([1,1,1,1], dtype=np.float64))
 			if type(values)==str:
 				values = values.split(",")

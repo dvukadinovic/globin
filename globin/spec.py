@@ -11,13 +11,20 @@ class Spectrum(object):
 	Custom class for storing computed spectra object. It is rebuilt from RH
 	class.
 	"""
-	def __init__(self, nx=None, ny=None, nw=None):
+	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None):
 		self.nx = nx
 		self.ny = ny
 		self.nw = nw
 		# storage for full wavelength list from RH (used for full RF calculation)
-		self.wave = None
-		if (nx is not None) and (ny is not None) and (nw is not None):
+		self.wave = wave
+		self.wavelength = wave
+		if spec is not None:
+			self.spec = spec
+			shape = self.spec.shape
+			self.nx = shape[0]
+			self.ny = shape[1]
+			self.nw = shape[2]
+		elif (nx is not None) and (ny is not None) and (nw is not None):
 			self.spec = np.zeros((nx, ny, nw, 4))
 			self.wavelength = np.zeros(nw)
 
@@ -112,7 +119,7 @@ class Observation(Spectrum):
 
 		xmin, xmax, ymin, ymax = atm_range
 		data = np.array(hdu.data[xmin:xmax,ymin:ymax], dtype=np.float64)
-		
+
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = data[0,0,:,0]
 		self.spec = data[:,:,:,1:]

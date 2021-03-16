@@ -331,11 +331,11 @@ class Atmosphere(object):
 			# which is in 1st and 2nd quadrant
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
-			if parID=="gamma":
+			if parID=="gamma" or parID=="chi":
 				cos_angle = np.cos(self.values[parID])
 				self.values[parID] = np.arccos(cos_angle)
-			elif parID=="chi":
-				self.values[parID] %= 2*np.pi
+			# elif parID=="chi":
+				# self.values[parID] %= 2*np.pi
 			else:
 				for i_ in range(len(self.nodes[parID])):
 					for idx in range(self.nx):
@@ -689,15 +689,14 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	if atmos.n_local_pars!=0:
 		pars = list(atmos.nodes.keys())
 		par_flag = [True]*len(pars)
-		if old_pars is not None:
-			for i_, par in enumerate(atmos.nodes):
-				delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
-				flag = [False if item<globin.diff[par] else True for item in delta]
-				if any(flag):
-					par_flag[i_] = True
-				else:
-					par_flag[i_] = False
-		print(par_flag)
+		# if old_pars is not None:
+		# 	for i_, par in enumerate(atmos.nodes):
+		# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
+		# 		flag = [False if item<globin.diff[par] else True for item in delta]
+		# 		if any(flag):
+		# 			par_flag[i_] = True
+		# 		else:
+		# 			par_flag[i_] = False
 		full_rf = RH_compute_RF(atmos, par_flag, init.rh_spec_name, init.wavelength)
 		for i_,par in enumerate(pars):
 			rfID = rf_id[par]
@@ -947,7 +946,7 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 					aux = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
 					rf[idx,idy,rfID] = aux[rfID]
 
-			print("Done RF for ", par)
+			# print("Done RF for ", par)
 
 	return rf
 

@@ -13,7 +13,9 @@ def invert(init, save_output=True, verbose=True):
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
 		return None, None
 	elif globin.mode==1:
-		atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
+		for cycle in range(init.ncycle):
+			atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
+			init.atm = atm
 		return atm, spec
 	elif globin.mode==3:
 		atm, spec = invert_global(init, save_output, verbose)
