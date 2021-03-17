@@ -53,7 +53,6 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 	Icont = np.max(obs.spec[idx,idy,:,0])
 
-
 	obs.spec /= Icont
 	if inv is not None:
 		inv.spec /= Icont

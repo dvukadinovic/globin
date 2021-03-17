@@ -83,6 +83,11 @@ class Atmosphere(object):
 		self.path = None
 		self.atm_name_list = []
 
+		# standard deviations for smoothing parameters with Gaussian distribution
+		self.std = dict(temp=100, vz=0.2, vmic=0.2, 
+						mag=50e-4, gamma=0.087, chi=0.087,
+				   		vmac=0.2, loggf=0.020, dlam=5)
+
 		if fpath is not None:
 			# by file extension determine atmosphere type / format
 			ftype = fpath.split(".")[-1]
@@ -331,11 +336,11 @@ class Atmosphere(object):
 			# which is in 1st and 2nd quadrant
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
-			if parID=="gamma" or parID=="chi":
+			if parID=="gamma":# or parID=="chi":
 				cos_angle = np.cos(self.values[parID])
 				self.values[parID] = np.arccos(cos_angle)
-			# elif parID=="chi":
-				# self.values[parID] %= 2*np.pi
+			elif parID=="chi":
+				self.values[parID] %= 2*np.pi
 			else:
 				for i_ in range(len(self.nodes[parID])):
 					for idx in range(self.nx):
@@ -380,10 +385,11 @@ class Atmosphere(object):
 				# 	aux = np.sin(self.values[parID]) + step
 				# 	self.values[parID] = np.arcsin(aux)
 				# else:
-				# RH returns RFs in m/s and we are working with km/s in globin
-				# so we have to return the values from m/s to km/s
-				if parID=="vz" or parID=="vmic":
-					step /= 1e3
+				if globin.rf_type=="snapi":
+					# RH returns RFs in m/s and we are working with km/s in globin
+					# so we have to return the values from m/s to km/s
+					if parID=="vz" or parID=="vmic":
+						step /= 1e3
 				self.values[parID] += step
 		else:
 			low_ind, up_ind = 0, 0
@@ -432,6 +438,42 @@ class Atmosphere(object):
 			e_lvl = 13.59844*(1-1/(lvl+1)**2)
 			g = 2*(lvl+1)**2
 			self.data[:,:,8+lvl,:] = nH0/U0 * g * np.exp(-5040/temp * e_lvl)
+
+	def smooth_parameters(self):
+		#--- atmospheric parameters
+		for parameter in self.nodes:
+			new_values = np.random.normal(loc=self.values[parameter], 
+										  scale=self.std[parameter], 
+										  size=self.values[parameter].shape)
+			self.values[parameter] = new_values
+
+		#--- global parameters
+		for parameter in self.global_pars:
+			new_values = np.random.normal(loc=self.global_pars[parameter],
+										  scale=self.std[parameter],
+										  size=len(self.global_pars[parameter]))
+			self.global_pars[parameter] = new_values
+
+	def compute_errors(self, H, chi2):
+		invH = np.linalg.inv(H)
+		diag = np.einsum("...kk->...k", invH)
+		diag = diag.flatten(order="F")
+
+		npar = self.n_local_pars + self.n_global_pars
+
+		self.errors = np.zeros(npar)
+
+		low, up = 0, 0
+		for parameter in self.nodes:
+			scale = globin.parameter_scale[parameter].flatten()
+			up += len(self.nodes[parameter])
+			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
+			low = up
+		for parameter in self.global_pars:
+			scale = globin.parameter_scale[parameter]
+			up += len(scale)
+			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
+			low = up
 
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type
@@ -683,27 +725,33 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	atmos.build_from_nodes(init.ref_atm)
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
-	# full_rf.shape = (nx, ny, np, nz, nw, 4)
-	# check weather we need to recalculate RF for atmospheric parameters;
-	# if change in parameters is less than 10 x perturbation we do not compute RF again
-	if atmos.n_local_pars!=0:
-		pars = list(atmos.nodes.keys())
-		par_flag = [True]*len(pars)
-		# if old_pars is not None:
-		# 	for i_, par in enumerate(atmos.nodes):
-		# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
-		# 		flag = [False if item<globin.diff[par] else True for item in delta]
-		# 		if any(flag):
-		# 			par_flag[i_] = True
-		# 		else:
-		# 			par_flag[i_] = False
-		full_rf = RH_compute_RF(atmos, par_flag, init.rh_spec_name, init.wavelength)
-		for i_,par in enumerate(pars):
-			rfID = rf_id[par]
-			if not par_flag[i_]:
-				full_rf[:,:, rfID] = old_full_rf[:,:, rfID]
-	else:
+	if globin.rf_type=="snapi":	
+		# full_rf.shape = (nx, ny, np, nz, nw, 4)
+		# check weather we need to recalculate RF for atmospheric parameters;
+		# if change in parameters is less than 10 x perturbation we do not compute RF again
+		if atmos.n_local_pars!=0:
+			pars = list(atmos.nodes.keys())
+			par_flag = [True]*len(pars)
+			# if old_pars is not None:
+			# 	for i_, par in enumerate(atmos.nodes):
+			# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
+			# 		flag = [False if item<globin.diff[par] else True for item in delta]
+			# 		if any(flag):
+			# 			par_flag[i_] = True
+			# 		else:
+			# 			par_flag[i_] = False
+			full_rf = RH_compute_RF(atmos, par_flag, init.rh_spec_name, init.wavelength)
+			for i_,par in enumerate(pars):
+				rfID = rf_id[par]
+				if not par_flag[i_]:
+					full_rf[:,:, rfID] = old_full_rf[:,:, rfID]
+		else:
+			full_rf = None
+	elif globin.rf_type=="node":
 		full_rf = None
+	else:
+		print("Not proper RF type calculation.")
+		sys.exit()
 
 	# for i_,par in enumerate(pars):
 	# 	rfID = rf_id[par]
@@ -713,13 +761,13 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	# plt.show()
 
 	#--- get total number of parameters (local + global)
-	if atmos.n_global_pars>0:
-		Npar = atmos.n_local_pars + atmos.n_global_pars
-	else:
-		Npar = atmos.n_local_pars
-
+	Npar = atmos.n_local_pars + atmos.n_global_pars
+	
 	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(init.wavelength), 4), dtype=np.float64)
 	node_RF = np.zeros((atmos.nx, atmos.ny, len(init.wavelength), 4))
+
+	model_plus = copy.deepcopy(atmos)
+	model_minus = copy.deepcopy(atmos)
 
 	#--- loop through local (atmospheric) parameters and calculate RFs
 	free_par_ID = 0
@@ -728,31 +776,48 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 		rfID = rf_id[parameter]
 
 		nodes = atmos.nodes[parameter]
+		perturbation = globin.delta[parameter]
 		
 		# if parameter=="gamma" or parameter=="chi":
 		# 	parameter_scale = -1/np.sin(values) * parameter_scale
 		# elif parameter=="chi":
 		# 	parameter_scale = 1/np.cos(values) * parameter_scale
 
-		perturbation = globin.delta[parameter]
-
 		for nodeID in range(len(nodes)):
-			# positive perturbation
-			atmos.values[parameter][:,:,nodeID] += perturbation
-			atmos.build_from_nodes(init.ref_atm, False)
-			positive = copy.deepcopy(atmos.data[:,:,parID])
+			if globin.rf_type=="snapi":
+				#===--- computing RFs for given parameter (proper way as in SNAPI)
+				# positive perturbation
+				atmos.values[parameter][:,:,nodeID] += perturbation
+				atmos.build_from_nodes(init.ref_atm, False)
+				positive = copy.deepcopy(atmos.data[:,:,parID])
 
-			# negative perturbation
-			atmos.values[parameter][:,:,nodeID] -= 2*perturbation
-			atmos.build_from_nodes(init.ref_atm, False)
-			negative = copy.deepcopy(atmos.data[:,:,parID])
+				# negative perturbation
+				atmos.values[parameter][:,:,nodeID] -= 2*perturbation
+				atmos.build_from_nodes(init.ref_atm, False)
+				negative = copy.deepcopy(atmos.data[:,:,parID])
 
-			# derivative of parameter distribution to node perturbation
-			dy_dnode = (positive - negative) / 2 / perturbation
+				# derivative of parameter distribution to node perturbation
+				dy_dnode = (positive - negative) / 2 / perturbation
 
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
+			elif globin.rf_type=="node":
+				#===--- Computing RFs in nodes
+				# positive perturbation
+				model_plus.values[parameter][:,:,nodeID] += perturbation
+				model_plus.build_from_nodes(init.ref_atm)
+				spectra_plus,_,_ = compute_spectra(model_plus, init.rh_spec_name, init.wavelength)
+
+				# negative perturbation (except for gamma and chi)
+				if parameter=="gamma" or parameter=="chi":
+					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
+				else:
+					model_minus.values[parameter][:,:,nodeID] -= perturbation
+					model_minus.build_from_nodes(init.ref_atm)
+					spectra_minus,_,_ = compute_spectra(model_minus, init.rh_spec_name, init.wavelength)			
+
+					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 			for idx in range(atmos.nx):
@@ -772,9 +837,15 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
 			free_par_ID += 1
 
-			# return back perturbation
-			atmos.values[parameter][:,:,nodeID] += perturbation
-			atmos.build_from_nodes(init.ref_atm, False)
+			if globin.rf_type=="snapi":
+				# return back perturbation (SNAPI way)
+				atmos.values[parameter][:,:,nodeID] += perturbation
+				atmos.build_from_nodes(init.ref_atm, False)
+			elif globin.rf_type=="node":
+				# return back perturbations (node way)
+				model_plus.values[parameter][:,:,nodeID] -= perturbation
+				if parameter!="gamma" or parameter!="chi":
+					model_minus.values[parameter][:,:,nodeID] += perturbation
 
 	#--- loop through global parameters and calculate RFs
 	if atmos.n_global_pars>0:

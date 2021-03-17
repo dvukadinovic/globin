@@ -12,20 +12,23 @@ def invert(init, save_output=True, verbose=True):
 	if globin.mode==0:
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
 		return None, None
-	elif globin.mode==1:
+	elif globin.mode>=1:
 		for cycle in range(init.ncycle):
-			atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
-			init.atm = atm
+			if globin.mode==1:
+				atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
+			elif globin.mode==3:
+				atm, spec = invert_global(init, save_output, verbose)
+			elif globin.mode==4:
+				atm, spec = invert_mcmc(init, save_output, verbose)
+			else:
+				print(f"Not supported mode {globin.mode} currently.")
+				return None, None
+			
+			# in last cycle we do not smooth atmospheric parameters
+			if (cycle+1)<init.ncycle:
+				init.atm.smooth_parameters()
+
 		return atm, spec
-	elif globin.mode==3:
-		atm, spec = invert_global(init, save_output, verbose)
-		return atm, spec
-	elif globin.mod==4:
-		atm, spec = invert_mcmc(init, save_output, verbose)
-		return atm, spec
-	else:
-		print(f"Not supported mode {globin.mode} currently.")
-		return None, None
 
 def invert_pxl_by_pxl(init, save_output, verbose):
 	"""
@@ -214,7 +217,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
 						if chi2[idx,idy,it_no-1]<1e-32:
-							print("chi2 is way low!\n")
+							print(f"--> [{idx},{idy}] : chi2 is way low!\n")
 							stop_flag[idx,idy] = 0
 						elif relative_change<init.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
@@ -225,12 +228,9 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 							stop_flag[idx,idy] = 0
 					# if given pixel iteration number has reached the maximum number of iterations
 					# we stop the convergence for given pixel
-					if it_no==init.max_iter-1:
+					if it_no==init.max_iter:
 						stop_flag[idx,idy] = 0
 						print("Maximum number of iterations reached. We break.")
-
-		# if itter[0,0]==2:
-		# 	sys.exit()
 
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
@@ -239,6 +239,11 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 	atmos.build_from_nodes(init.ref_atm)
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
+
+	try:
+		atmos.compute_errors(JTJ, chi2_old)
+	except:
+		print("Failed to compute parameter errors\n")
 	
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"	
@@ -465,6 +470,11 @@ def invert_global(init, save_output, verbose):
 	
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
+
+	try:
+		atmos.compute_errors(JTJ, chi2_old)
+	except:
+		print("Failed to compute parameter errors\n")
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
