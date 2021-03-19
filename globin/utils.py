@@ -113,118 +113,18 @@ atom_mass = np.array([1.00797,
             247,
             251,
             252])
-atom_abundance = np.array([12.0,
-            10.99,
-            1.16,
-            1.15,
-            2.6,
-            8.39,
-            8.0,
-            8.66,
-            4.4,
-            8.09,
-            6.33,
-            7.58,
-            6.47,
-            7.55,
-            5.45,
-            7.21,
-            5.5,
-            6.56,
-            5.12,
-            6.36,
-            3.1,
-            4.99,
-            4.0,
-            5.67,
-            5.39,
-            7.44,
-            4.92,
-            6.25,
-            4.21,
-            4.6,
-            2.88,
-            3.41,
-            2.37,
-            3.35,
-            2.63,
-            3.23,
-            2.6,
-            2.9,
-            2.24,
-            2.6,
-            1.42,
-            1.92,
-            -7.96,
-            1.84,
-            1.12,
-            1.69,
-            0.94,
-            1.86,
-            1.66,
-            2.0,
-            1.0,
-            2.24,
-            1.51,
-            2.23,
-            1.12,
-            2.13,
-            1.22,
-            1.55,
-            0.71,
-            1.5,
-            -7.96,
-            1.0,
-            0.51,
-            1.12,
-            -0.1,
-            1.1,
-            0.26,
-            0.93,
-            0.0,
-            1.08,
-            0.76,
-            0.88,
-            0.13,
-            1.11,
-            0.27,
-            1.45,
-            1.35,
-            1.8,
-            1.01,
-            1.09,
-            0.9,
-            1.85,
-            0.71,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            0.12,
-            -7.96,
-            -0.47,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96,
-            -7.96])
 
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     from scipy.interpolate import splev, splrep
 
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
-    # ref_atmos = globin.Atmosphere(ref_atmos_path)
 
     tck = splrep(globin.falc_logt, globin.falc_ne)
     ne = splev(atmos.logtau, tck)
     atmos.data[:,:,2,:] = ne
     ref_atmos = globin.Atmosphere(nx=atmos.nx, ny=atmos.ny)
     atmos.build_from_nodes(ref_atmos, False)
-    atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4], atom_abundance)
+    atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4])
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
@@ -242,21 +142,21 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmo
     return atmos
 
 def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, node_atmosphere_path=None, atm_range=None):
-    if atmos is None:
-        atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
-        atmos.vmac = vmac
-        atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
-
     if globin.mode!=0:
         print(f"  Current mode is {globin.mode}.")
         print("  We can make synthetic observations only in mode = 0.")
         print("  Change it before running the script again.")
         sys.exit()
+    
+    if atmos is None:
+        atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
+        atmos.vmac = vmac
+        atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
 
     spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
     spec.broaden_spectra(atmos.vmac)
     spec.add_noise(noise)
-    spec.save(globin.spectrum_path, wavelength)
+    spec.save(globin.output_spectra_path, wavelength)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):

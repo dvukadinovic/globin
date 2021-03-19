@@ -5,6 +5,7 @@ import multiprocessing as mp
 import re
 import copy
 import subprocess as sp
+from scipy.interpolate import interp1d
 
 from .atmos import Atmosphere
 from .spec import Observation
@@ -53,7 +54,9 @@ def find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 		return conversion(value)
 	else:
 		if key_type=="required":
-			sys.exit(f"We are missing keyword '{key}' in input file.")
+			print("--> Error in input.read_input_files()")
+			print(f"    We are missing keyword '{key}' in input file.")
+			sys.exit()
 		elif key_type=="default":
 			return default_val
 		elif key_type=="optional":
@@ -171,11 +174,29 @@ class InputData(object):
 						self.atm_range.append(None)
 					elif item is not None:
 						self.atm_range.append(int(item))
+				# if self.atm_range[1]<self.atm_range[0]:
+				# 	print("--> Error in input.read_input_files()")
+				# 	print("    x-range upper index smaller than lower index.")
+				# 	sys.exit()
+				# if self.atm_range[3]<self.atm_range[2]:
+				# 	print("--> Error in input.read_input_files()")
+				# 	print("    y-range upper index smaller than lower index.")
+				# 	sys.exit()
 			else:
 				self.atm_range = aux
 			# we count from zero, but let user count from 1
 			self.atm_range[0] -= 1
 			self.atm_range[2] -= 1
+
+			#--- default parameters
+			logtau_top = find_value_by_key("logtau_top", self.globin_input, "default", -6,float)
+			logtau_bot = find_value_by_key("logtau_bot", self.globin_input, "default", 1, float)
+			logtau_step = find_value_by_key("logtau_step", self.globin_input, "default", 0.1, float)
+			globin.output_spectra_path = find_value_by_key("spectrum", self.globin_input, "default", "spectrum.fits")
+			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
+			vmac = find_value_by_key("vmac", self.globin_input, "default", 0, float)
+			atm_type = find_value_by_key("atm_type", self.globin_input, "default", "multi", str)
+			atm_type = atm_type.lower()
 
 			#--- required parameters
 			path_to_atmosphere = find_value_by_key("cube_atmosphere", self.globin_input, "optional")
@@ -183,13 +204,9 @@ class InputData(object):
 				node_atmosphere_path = find_value_by_key("node_atmosphere", self.globin_input, "required")
 				self.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, self.atm_range)
 			else:
-				self.atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
+				self.atm = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=self.atm_range,
+								logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 				self.atm.split_cube()
-
-			#--- default parameters
-			globin.spectrum_path = find_value_by_key("spectrum", self.globin_input, "default", "spectrum.fits")
-			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
-			vmac = find_value_by_key("vmac", self.globin_input, "default", default_val=0, conversion=float)
 			self.atm.vmac = np.abs(vmac) # [km/s]
 
 			#--- optional parameters
@@ -217,8 +234,26 @@ class InputData(object):
 
 		#--- get parameters for inversion
 		elif globin.mode>=1:
+			#--- default parameters
+			logtau_top = find_value_by_key("logtau_top", self.globin_input, "default", -6,float)
+			logtau_bot = find_value_by_key("logtau_bot", self.globin_input, "default", 1, float)
+			logtau_step = find_value_by_key("logtau_step", self.globin_input, "default", 0.1, float)
+			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
+			self.marq_lambda = find_value_by_key("marq_lambda", self.globin_input, "default", 1e-3, float)
+			self.max_iter = find_value_by_key("max_iter", self.globin_input, "default", 30, int)
+			self.chi2_tolerance = find_value_by_key("chi2_tolerance", self.globin_input, "default", 1e-2, float)
+			self.ncycle = find_value_by_key("ncycle", self.globin_input, "default", 1, int)
+			globin.rf_type = find_value_by_key("rf_type", self.globin_input, "default", "node", str)
+			values = find_value_by_key("weights", self.globin_input, "default", np.array([1,1,1,1], dtype=np.float64))
+			if type(values)==str:
+				values = values.split(",")
+				self.weights = np.array([float(item) for item in values], dtype=np.float64)
+			vmac = find_value_by_key("vmac", self.globin_input, "default", default_val=0, conversion=float)
+			atm_type = find_value_by_key("atm_type", self.globin_input, "default", "multi", str)
+			atm_type = atm_type.lower()
+
 			# initialize container for atmosphere which we invert
-			self.atm = Atmosphere()
+			self.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 
 			# determine which observations from cube to take into consideration
 			aux = find_value_by_key("range", self.globin_input, "default", [1,None,1,None])
@@ -245,23 +280,10 @@ class InputData(object):
 				for idy in range(self.atm.ny):
 					self.atm.atm_name_list.append(f"runs/{self.run_name}/atmospheres/atm_{idx}_{idy}")
 			
-			#--- default parameters
-			self.noise = find_value_by_key("noise", self.globin_input, "default", 1e-3, float)
-			self.marq_lambda = find_value_by_key("marq_lambda", self.globin_input, "default", 1e-3, float)
-			self.max_iter = find_value_by_key("max_iter", self.globin_input, "default", 30, int)
-			self.chi2_tolerance = find_value_by_key("chi2_tolerance", self.globin_input, "default", 1e-2, float)
-			self.ncycle = find_value_by_key("ncycle", self.globin_input, "default", 1, int)
-			globin.rf_type = find_value_by_key("rf_type", self.globin_input, "default", "node", str)
-			values = find_value_by_key("weights", self.globin_input, "default", np.array([1,1,1,1], dtype=np.float64))
-			if type(values)==str:
-				values = values.split(",")
-				self.weights = np.array([float(item) for item in values], dtype=np.float64)
-			vmac = find_value_by_key("vmac", self.globin_input, "default", default_val=0, conversion=float)
-
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("cube_atmosphere", self.globin_input, "optional")
 			if path_to_atmosphere is not None:
-				self.ref_atm = Atmosphere(path_to_atmosphere, atm_range=self.atm_range)
+				self.ref_atm = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=self.atm_range)
 			# if user have not provided reference atmosphere try fidning node atmosphere
 			else:
 				path_to_node_atmosphere = find_value_by_key("node_atmosphere", self.globin_input, "optional")
@@ -269,7 +291,7 @@ class InputData(object):
 					self.ref_atm = globin.construct_atmosphere_from_nodes(path_to_node_atmosphere, self.atm_range)
 				# if node atmosphere not given, set FAL C model as reference atmosphere
 				else:
-					self.ref_atm = Atmosphere(globin.__path__ + "/data/falc.dat")
+					self.ref_atm = globin.falc
 
 			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]
@@ -296,6 +318,11 @@ class InputData(object):
 					self.wavs_weight[:,1] = wQ
 					self.wavs_weight[:,2] = wU
 					self.wavs_weight[:,3] = wV
+				else:
+					self.wavs_weight[:,0] = interp1d(lam, wI)(self.wavelength)
+					self.wavs_weight[:,1] = interp1d(lam, wQ)(self.wavelength)
+					self.wavs_weight[:,2] = interp1d(lam, wU)(self.wavelength)
+					self.wavs_weight[:,3] = interp1d(lam, wV)(self.wavelength)
 			
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.vmac = vmac # [km/s]
@@ -403,9 +430,10 @@ class InputData(object):
 			# opacity fudge coefficients
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
-		if globin.n_thread > self.atm.nx*self.atm.ny:
-			globin.n_thread = self.atm.nx*self.atm.ny
-			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+		if globin.mode>=1:
+			if globin.n_thread > self.atm.nx*self.atm.ny:
+				globin.n_thread = self.atm.nx*self.atm.ny
+				print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
 
 		#--- initialize Pool() object
 		globin.pool = mp.Pool(globin.n_thread)

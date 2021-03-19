@@ -101,7 +101,6 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 	updated_pars = True
 	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
-	# for i_ in range(init.max_iter):
 	# we iterate until one of the pixels reach maximum numbre of iterations
 	# other pixels will be blocked at max itteration earlier than or 
 	# will stop due to convergence criterium
@@ -198,12 +197,12 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 				# if Marquardt parameter is to large, we break
 				if LM_parameter[idx,idy]>=1e8:
 					stop_flag[idx,idy] = 0
+					itter[idx,idy] = init.max_iter
 					print("Large LM parameter. We break.")
 
 		if updated_pars and verbose:
 			print(atmos.values)
 			print(LM_parameter)
-			# print(globin.parameter_scale)
 			print("\n--------------------------------------------------\n")
 
 		# we check if chi2 has converged for each pixel
@@ -219,13 +218,16 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 						if chi2[idx,idy,it_no-1]<1e-32:
 							print(f"--> [{idx},{idy}] : chi2 is way low!\n")
 							stop_flag[idx,idy] = 0
+							itter[idx,idy] = init.max_iter
 						elif relative_change<init.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
 							stop_flag[idx,idy] = 0
+							itter[idx,idy] = init.max_iter
 						elif chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
 							# print(chi2[idx,idy,it_no-1])
 							print(f"--> [{idx},{idy}] : chi2 smaller than 1")
 							stop_flag[idx,idy] = 0
+							itter[idx,idy] = init.max_iter
 					# if given pixel iteration number has reached the maximum number of iterations
 					# we stop the convergence for given pixel
 					if it_no==init.max_iter:
@@ -553,3 +555,4 @@ def lnprob(theta, x, y, yp, yerr):
 	if not np.isfinite(lp):
 		return -np.inf
 	return lp + lnlike(theta, x, y, yp, yerr)
+

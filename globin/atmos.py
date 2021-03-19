@@ -18,7 +18,7 @@ import time
 import copy
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 from scipy.ndimage.filters import _gaussian_kernel1d
-from scipy.interpolate import splev
+from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 
 import globin
@@ -44,19 +44,27 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
-	def __init__(self, fpath=None, verbose=False, atm_range=[0,None,0,None], nx=None, ny=None):
+	def __init__(self, fpath=None, atm_type="multi", verbose=False, atm_range=[0,None,0,None], nx=None, ny=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.verbose = verbose
 		self.fpath = fpath
-		# dictionary for nodes
+		self.type = atm_type
+
+		# nodes: each atmosphere has the same nodes
 		self.nodes = {}
+		
+		# node mask: we can specify only which nodes to invert (mask==1)
+		# structure and ordering same as self.nodes
 		self.mask = {}
-		# dictionary for values of parameters in nodes; when we are inverting for
-		# cube atmosphere, each parameters in dictionary will be a matrix with
-		# dimensions (nx,ny,nnodes).
+		
+		# parameters in nodes: shape = (nx, ny, nnodes)
 		self.values = {}
+		
+		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {}
+		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {}
 
+		# index of parameters in self.data ndarray
 		self.par_id = {"logtau" : 0,
 					   "temp"   : 1,
 					   "ne"     : 2,
@@ -66,12 +74,11 @@ class Atmosphere(object):
 					   "gamma"  : 6,
 					   "chi"    : 7}
 
-		self.nx = nx
-		self.ny = ny
-		self.npar = 14
+		self.nx, self.ny, self.npar = nx, ny, 14
 
-		self.logtau = np.linspace(-6, 1, num=71)
-		self.nz = len(self.logtau)
+		# define log(tau) scale
+		self.nz = int((logtau_bot - logtau_top) / logtau_step) + 1
+		self.logtau = np.linspace(logtau_top, logtau_bot, num=self.nz)
 
 		# if we provided nx and ny, make empty atmosphere; otherwise set it to None
 		if (self.nx is not None) and (self.ny is not None):
@@ -79,30 +86,25 @@ class Atmosphere(object):
 			self.data[:,:,0,:] = self.logtau
 		else:
 			self.data = None
-		self.header = None
+
 		self.path = None
 		self.atm_name_list = []
 
-		# standard deviations for smoothing parameters with Gaussian distribution
-		self.std = dict(temp=100, vz=0.2, vmic=0.2, 
-						mag=50e-4, gamma=0.087, chi=0.087,
-				   		vmac=0.2, loggf=0.020, dlam=5)
-
+		# if we provide path to atmosphere, read in data
 		if fpath is not None:
 			# by file extension determine atmosphere type / format
-			ftype = fpath.split(".")[-1]
+			extension = fpath.split(".")[-1]
 
 			# read atmosphere by the type
-			if ftype=="dat" or ftype=="txt":
-				self.type = "spinor"
+			if extension=="dat" or extension=="txt":
 				self.read_spinor(fpath)
 			# read fits / fit / cube type atmosphere
-			elif ftype=="fits" or ftype=="fit":
-				self.type = "multi"
+			elif extension=="fits" or extension=="fit":
 				self.read_fits(fpath, atm_range)
 			else:
-				print(f"Unsupported type '{ftype}' of atmosphere file.")
-				print(" Supported types are: .dat, .txt, .fit(s)")
+				print("--> Error in atmos.Atmosphere()")
+				print(f"    Unsupported extension '{extension}' of atmosphere file.")
+				print("    Supported extensions are: .dat, .txt, .fit(s)")
 				sys.exit()
 
 	def __deepcopy__(self, memo):
@@ -135,37 +137,90 @@ class Atmosphere(object):
 		try:
 			atmos = fits.open(fpath)[0]
 		except:
-			print(f"Error: Atmosphere file with path '{fpath}'")
-			print("       does not exist.\n")
+			print("--> Error in atmos.read_fits()")
+			print(f"    Atmosphere file with path '{fpath}' does not exist.")
 			sys.exit()
 
 		self.header = atmos.header
-		self.data = np.array(atmos.data, dtype=np.float64)
+		atmos_data = np.array(atmos.data, dtype=np.float64)
 		xmin, xmax, ymin, ymax = atm_range
-		self.data = self.data[xmin:xmax, ymin:ymax]
-		self.nx, self.ny, self.npar, self.nz = self.data.shape
+		atmos_data = atmos_data[xmin:xmax, ymin:ymax]
+		self.logtau = atmos_data[0,0,0]
 		self.path = fpath
+		self.nx, self.ny, self.nz = atmos_data.shape[0], atmos_data.shape[1], atmos_data.shape[3]
 
-		# type of atmosphere: are we reading MULTI, SPINOR or SIR format
-		# self.atm_type = self.header["TYPE"]
+		# convert to MULTI type of atmosphere
+		if self.type=="spinor":
+			self.spinor2multi(atmos_data)
+		elif self.type=="sir":
+			self.sir2multi()
+		elif self.type=="multi":
+			self.data = atmos_data
+		else:
+			print("--> Error in atmos.read_fits()")
+			print(f"    Currently not recognized atmosphere type: {self.type}")
+			sys.exit()
 
 		print(f"Read atmosphere '{self.path}' with dimensions:")
 		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
 
-		# we split cube into separate files
-		# which will be used for synthesis
-		# self.split_cube()
-
 	def read_spinor(self, fpath):
 		# need to transform read data into MULTI atmos type: 12 params
-		self.data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
-		self.npar = self.data.shape[0]
-		self.nz = self.data.shape[1]
+		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+		self.logtau = atmos_data[0]
+		self.nz = atmos_data.shape[1]
+		self.nx = 1
+		self.ny = 1
+
+		if self.type=="spinor":
+			#--- convert from SPINOR to MULTi type atmosphere
+			# self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+			aux = np.zeros((self.nx, self.ny, *atmos_data.shape))
+			aux[0,0] = atmos_data
+			
+			self.spinor2multi(aux)
+
+		elif self.type=="sir":
+			self.sir2multi()
+		elif self.type=="multi":
+			self.data = atmos_data
+		else:
+			print("--> Error in atmos.read_fits()")
+			print(f"    Currently not recognized atmosphere type: {self.type}")
+			sys.exit()
 
 	def read_sir(self):
 		pass
 
 	def read_multi(self):
+		pass
+
+	def spinor2multi(self, atmos_data):
+		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+		
+		for idx in range(self.nx):
+			for idy in range(self.ny):	
+				# log(tau)
+				self.data[idx,idy,0] = atmos_data[idx,idy,0]
+				# Temperature [K]
+				self.data[idx,idy,1] = atmos_data[idx,idy,2]
+				# Electron density [1/m3]
+				self.data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2]
+				# Vertical velocity [cm/s] --> [km/s]
+				self.data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
+				# Microturbulent velocitu [cm/s] --> [km/s]
+				self.data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
+				# Magnetic field strength [G] --> [T]
+				self.data[idx,idy,5] = atmos_data[idx,idy,7]/1e4
+				# Inclination [deg] --> [rad]
+				self.data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
+				# Azimuth [deg] --> [rad]
+				self.data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
+
+				# Hydrogen population
+				self.distribute_hydrogen(self.logtau, atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4], idx=idx, idy=idy)
+
+	def sir2multi():
 		pass
 
 	def get_atmos(self, idx, idy):
@@ -210,17 +265,12 @@ class Atmosphere(object):
 		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
 		STiC].
 		"""
-
-		# import matplotlib.pyplot as plt
-
+		
 		# we fill here atmosphere with data which will not be interpolated for which
 		if self.data is None:
-			try:
-				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-				self.data[:,:,0,:] = self.logtau
-				self.interpolate_atmosphere(ref_atm)
-			except:
-				sys.exit("Could not allocate variable for storing atmosphere built from nodes.")
+			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+			self.data[:,:,0,:] = self.logtau
+			self.interpolate_atmosphere(ref_atm)
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -279,29 +329,23 @@ class Atmosphere(object):
 				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def interpolate_atmosphere(self, ref_atm):
-		from scipy.interpolate import interp1d
-
 		x_new = self.logtau
 		shape = ref_atm.data.shape
-		# data cubes have dimension (nx,ny,npar,dpth)
-		if len(shape)==4:
-			x_old = ref_atm.data[0,0,0]
-		# 1D atmospheres have dimension (npar,ndpth)
-		elif len(shape)==2:
-			x_old = ref_atm.data[0]
-		else:
-			sys.exit("\n\natmos.interpolate_atmosphere --> Not recognized dimension of reference atmosphere.\n\n")
+
+		if x_new[0] < ref_atm.data[0,0,0,0]:
+			print("--> Warning: atmosphere will be extrapolated")
+			print("    from {} to {} in optical depth.\n".format(ref_atm.data[0,0,0,0], x_new[0]))
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parID in range(1,self.npar):
-					if len(shape)==4:
-						fun = interp1d(x_old, ref_atm.data[idx,idy,parID])
-					elif len(shape)==2:
-						fun = interp1d(x_old, ref_atm.data[parID])
-					self.data[idx,idy,parID] = fun(x_new)
+					if ref_atm.nx*ref_atm.ny>1:
+						tck = splrep(ref_atm.data[0,0,0], ref_atm.data[idx,idy,parID])
+					elif ref_atm.nx*ref_atm.ny==1:
+						tck = splrep(ref_atm.data[0,0,0], ref_atm.data[0,0,parID])
+					self.data[idx,idy,parID] = splev(x_new, tck)
 
-	def save_atmosphere(self, fpath="inverted_atmos.fits"):
+	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		primary = fits.PrimaryHDU(self.data)
 		primary.name = "Atmosphere"
 
@@ -309,6 +353,11 @@ class Atmosphere(object):
 		primary.header.comments["NAXIS2"] = "number of parameters"
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
+
+		# add keys from kwargs (as dict)
+		if kwargs:
+			for key in kwargs:
+				primary.header[key] = kwargs[key]
 
 		hdulist = fits.HDUList([primary])
 
@@ -411,7 +460,7 @@ class Atmosphere(object):
 				# self.global_pars[parID] += np.array(step)
 				self.global_pars[parID] += step
 			
-	def distribute_hydrogen(self, logtau, temp, pg, pe, abundance):
+	def distribute_hydrogen(self, logtau, temp, pg, pe, idx=None, idy=None):
 		from scipy.interpolate import interp1d
 
 		temp = interp1d(logtau, temp)(self.logtau)
@@ -421,36 +470,44 @@ class Atmosphere(object):
 		Ej = 13.59844
 		u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
 		u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
-		u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs)(temp)
-		u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs)(temp)
+		
+		u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
+		u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
+		
 		phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
 		
-		nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(abundance-12)) / 1e6
+		nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6
 		nH0 = nH / (1 + phi_t/pe)
 		nprot = nH - nH0
 		
-		tt = np.linspace(3000, 10000, num=8)
-		U0 = interp1d(tt, u0_coeffs)(temp)
+		# U0 = interp1d(np.linspace(3000, 10000, num=8), u0_coeffs, fill_value="extrapolate")(temp)
 
-		self.data[:,:,-1,:] = nprot
+		if (idx is not None) and (idy is not None):
+			self.data[idx,idy,-1,:] = nprot
+		else:
+			self.data[:,:,-1,:] = nprot
 
 		for lvl in range(5):
 			e_lvl = 13.59844*(1-1/(lvl+1)**2)
 			g = 2*(lvl+1)**2
-			self.data[:,:,8+lvl,:] = nH0/U0 * g * np.exp(-5040/temp * e_lvl)
+			pops = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
+			if (idx is not None) and (idy is not None):
+				self.data[idx,idy,8+lvl,:] = pops
+			else:
+				self.data[:,:,8+lvl,:] = pops
 
 	def smooth_parameters(self):
 		#--- atmospheric parameters
 		for parameter in self.nodes:
 			new_values = np.random.normal(loc=self.values[parameter], 
-										  scale=self.std[parameter], 
+										  scale=globin.smooth_std[parameter], 
 										  size=self.values[parameter].shape)
 			self.values[parameter] = new_values
 
 		#--- global parameters
 		for parameter in self.global_pars:
 			new_values = np.random.normal(loc=self.global_pars[parameter],
-										  scale=self.std[parameter],
+										  scale=globin.smooth_std[parameter],
 										  size=len(self.global_pars[parameter]))
 			self.global_pars[parameter] = new_values
 
@@ -514,6 +571,7 @@ def write_multi_atmosphere(atm, fpath):
 	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
 
 	if np.isnan(np.sum(atm)):
+		print(fpath)
 		print("We have NaN in atomic structure!\n")
 		sys.exit()
 

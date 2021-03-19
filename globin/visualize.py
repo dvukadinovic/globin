@@ -19,7 +19,7 @@ unit = {"temp"  : "K",
 		"chi"   : "deg"}
 
 def plot_atmosphere(atmos, parameters, idx=0, idy=0):
-	logtau = atmos.logtau
+	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 
 	n_plots = len(parameters)
@@ -51,11 +51,12 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 	lmax = np.max(obs.wavelength)
 	dlam = (lmax - lmin) * 10
 
-	Icont = np.max(obs.spec[idx,idy,:,0])
+	# Icont = np.max(obs.spec[idx,idy,:,0])
 
-	obs.spec /= Icont
-	if inv is not None:
-		inv.spec /= Icont
+	# obs.spec /= Icont
+	# if inv is not None:
+	# 	print("Normed inverted spec")
+	# 	inv.spec /= Icont
 	for ids in range(1,4):
 		obs.spec[:,:,:,ids] *= 100
 		if inv is not None:	

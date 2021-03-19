@@ -67,6 +67,23 @@ rh_input_name = None
 #--- path to RH main folder
 rh_path = None
 
+abundance = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
+            		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
+            		  5.12, 6.36, 3.1, 4.99, 4.0, 5.67, 5.39, 7.44, 4.92,
+            		  6.25, 4.21, 4.6, 2.88, 3.41, 2.37, 3.35, 2.63, 3.23,
+            		  2.6, 2.9, 2.24, 2.6, 1.42, 1.92, -7.96, 1.84, 1.12,
+            		  1.69, 0.94, 1.86, 1.66, 2.0, 1.0, 2.24, 1.51, 2.23,
+            		  1.12, 2.13, 1.22, 1.55, 0.71, 1.5, -7.96, 1.0, 0.51,
+            		  1.12, -0.1, 1.1, 0.26, 0.93, 0.0, 1.08, 0.76, 0.88,
+            		  0.13, 1.11, 0.27, 1.45, 1.35, 1.8, 1.01, 1.09, 0.9,
+            		  1.85, 0.71, -7.96, -7.96, -7.96, -7.96, -7.96, -7.96,
+            		  0.12, -7.96, -0.47, -7.96, -7.96, -7.96, -7.96, -7.96,
+            		  -7.96, -7.96])
+
+#--- parameter scale (calcualted from RFs based on
+#    Cristopher Frutigers' thesis, p.42)
+parameter_scale = {}
+
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"vz"    : [-10, 10],		# [km/s]
@@ -76,9 +93,16 @@ limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"gamma" : [0, np.pi],		# [rad]
 				"chi"   : [0, 2*np.pi]}		# [rad]
 
-#--- parameter scale (calcualted from RFs based on
-#    Cristopher Frutigers' thesis, p.42)
-parameter_scale = {}
+#--- standard deviations for smoothing resulting parameters in many cycle inversion run
+smooth_std = {"temp"   : 100, 	# [K]
+			  "vz"     : 0.2,	# [km/s]
+			  "vmic"   : 0.2,	# [km/s]
+			  "mag"    : 50e-4,	# [T]
+			  "gamma"  : 0.087, # [rad == 5deg]
+			  "chi"    : 0.087,	# [rad == 5deg]
+			  "vmac"   : 0.2,	# [km/s]
+			  "loggf"  : 0.020,	#
+			  "dlam"   : 5}		# [mA]
 
 #--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
 delta = {"temp"  : 1,		# K
@@ -124,11 +148,11 @@ from scipy.constants import c as LIGHT_SPEED
 from scipy.interpolate import splrep, splev
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(__path__ + "/data/falc.dat")
+falc = Atmosphere(fpath=__path__ + "/data/falc.dat", atm_type="spinor")
 
 # temperature interpolation
-temp_tck = splrep(falc.data[0],falc.data[2])
-falc_logt = falc.data[0]
-falc_ne = falc.data[4] / 10 / K_BOLTZMAN / falc.data[2]
+temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
+falc_logt = falc.data[0,0,0]
+falc_ne = falc.data[0,0,2] 
 # ynew = splev(np.arange(0,1.5, 0.1), temp_tck, der=1)
 # print(ynew)
