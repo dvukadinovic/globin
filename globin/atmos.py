@@ -81,11 +81,11 @@ class Atmosphere(object):
 		self.logtau = np.linspace(logtau_top, logtau_bot, num=self.nz)
 
 		# if we provided nx and ny, make empty atmosphere; otherwise set it to None
-		if (self.nx is not None) and (self.ny is not None):
-			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-			self.data[:,:,0,:] = self.logtau
-		else:
-			self.data = None
+		# if (self.nx is not None) and (self.ny is not None):
+		# 	self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+		# 	self.data[:,:,0,:] = self.logtau
+		# else:
+		self.data = None
 
 		self.path = None
 		self.atm_name_list = []
@@ -479,8 +479,6 @@ class Atmosphere(object):
 		nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6
 		nH0 = nH / (1 + phi_t/pe)
 		nprot = nH - nH0
-		
-		# U0 = interp1d(np.linspace(3000, 10000, num=8), u0_coeffs, fill_value="extrapolate")(temp)
 
 		if (idx is not None) and (idy is not None):
 			self.data[idx,idy,-1,:] = nprot
@@ -1023,6 +1021,8 @@ def rf_pool(args):
 	return {"rf" : rf, "wave" : rh_obj.wave, "idx" : idx, "idy" : idy}
 
 def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
+	compute_spectra(atmos, rh_spec_name, wavelength)
+	
 	lmin, lmax = wavelength[0], wavelength[-1]
 
 	#--- arguments for 'rf_pool' function
@@ -1056,11 +1056,6 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 				key = "RF_" + item.upper()
 				globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
-			# for l_ in range(130,140):
-			# 	print(globin.keyword_input.split("\n")[l_])
-
-			# time.sleep(2)
-
 			rf_list = globin.pool.map(func=rf_pool, iterable=args)
 
 			for item in rf_list:
@@ -1075,7 +1070,7 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 					aux = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
 					rf[idx,idy,rfID] = aux[rfID]
 
-			# print("Done RF for ", par)
+			print("Done RF for ", par)
 
 	return rf
 

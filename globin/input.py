@@ -388,6 +388,7 @@ class InputData(object):
 						file = open(RLK_linelist_path, "r")
 						lines = file.readlines()
 						file.close()
+						
 						for line in lines:
 							line = line.rstrip("\n").replace(" ","")
 							# find the first uncommented line and break

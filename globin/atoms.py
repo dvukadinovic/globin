@@ -119,12 +119,16 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None, min_max={"lo
         out = open(line_pars_path, "w")
         out.write("# parID   LineNo   initial   min     max\n")
 
+    outing_lines = []
     for par in pars:
         lines = []
         dpar = min_max[par]
         for lineID in lineNo[par]:
             for i_ in range(len(RLK_lines)):
                 if RLK_lines[i_].lineNo==lineID:
+                    # check if this line is not already in the list
+                    # if it is not, append and set index to -1
+                    # if it is, get the index of line in list                        
                     lines.append(RLK_lines[i_])
 
                     if par=="loggf":
@@ -154,6 +158,14 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None, min_max={"lo
                             lines[-1].dlam = lines[-1].dlam_max
                         if lines[-1].dlam < lines[-1].dlam_min:
                             lines[-1].dlam = lines[-1].dlam_min
+                    
+                    ind = -1
+                    for k_, line in enumerate(outing_lines):
+                        if lineID == line.lineNo:
+                            ind = k_
+                            break
+                    if ind==-1:
+                        outing_lines.append(lines[-1])
 
         if line_pars_path is not None:
             for line in lines:
@@ -173,7 +185,7 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None, min_max={"lo
     if line_pars_path is not None:
         out.close()
 
-    return lines
+    return outing_lines
 
 def check_init_loggf():
     """

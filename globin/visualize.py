@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import  copy
+from astropy.io import fits
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
 import globin
 
@@ -57,10 +59,10 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 	# if inv is not None:
 	# 	print("Normed inverted spec")
 	# 	inv.spec /= Icont
-	for ids in range(1,4):
-		obs.spec[:,:,:,ids] *= 100
-		if inv is not None:	
-			inv.spec[:,:,:,ids] *= 100
+	# for ids in range(1,4):
+	# 	obs.spec[:,:,:,ids] *= 100
+	# 	if inv is not None:	
+	# 		inv.spec[:,:,:,ids] *= 100
 
 	fig = plt.figure(figsize=(9,9), dpi=150)
 	gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.5)
@@ -108,7 +110,7 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
 		difference = obs.spec[idx, idy, :, 0] - inv.spec[idx,idy,:,0]
-		difference /= obs.spec[idx,idy, :, 0] / 100
+		# difference /= obs.spec[idx,idy, :, 0] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=0.75)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
@@ -129,6 +131,7 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
 		difference = obs.spec[idx, idy, :, 1] - inv.spec[idx,idy,:,1]
+		# difference /= obs.spec[idx,idy, :, 1] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=0.75)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
@@ -149,6 +152,7 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
 		difference = obs.spec[idx, idy, :, 2] - inv.spec[idx,idy,:,2]
+		# difference /= obs.spec[idx,idy, :, 2] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=0.75)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
@@ -169,6 +173,7 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
 		difference = obs.spec[idx, idy, :, 3] - inv.spec[idx,idy,:,3]
+		# difference /= obs.spec[idx,idy, :, 3] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=0.75)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
@@ -199,8 +204,97 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(rf, fpath=None):
+def plot_rf(rf=None, fpath=None):
 	"""
-	rf.shape = (nx, ny, nz, npar, nw, 4) ???
+	rf.shape = (nx, ny, 6, nz, nw, 4))
 	"""
-	pass
+	if fpath is not None:
+		rf = fits.open(fpath)[0].data
+	else:
+		if rf is None:
+			print("No data to plot! Provide path to RF or give me the cube!")
+			sys.exit()
+
+	idx, idy = 0,0
+	idp = 0
+
+	xpos = np.linspace(0, 200, num=11)
+	xvals = np.round(np.linspace(-1, 1, num=11), decimals=1)
+
+	ypos = np.linspace(0, 70, num=6)
+	yvals = np.round(np.linspace(-5, 1, num=6), decimals=1)
+
+	aux = np.sum(rf[idx, idy, idp, :, :, 0], axis=1)
+	norm = np.sqrt(np.sum(aux**2))
+	plt.plot(np.linspace(-6, 1, num=71), aux/norm)
+	plt.show()
+	return 
+
+	fig = plt.figure(figsize=(9,9), dpi=150)
+	gs = fig.add_gridspec(nrows=4, ncols=1, wspace=0.35, hspace=0.5)
+
+	ax = fig.add_subplot(gs[0,0])
+	matrix = rf[idx, idy, idp, :, :, 0]
+	norm = np.sqrt(np.sum(matrix**2))
+	matrix /= norm
+	vmax = np.max(np.abs(matrix))
+	im = ax.imshow(rf[idx, idy, idp, :, :, 0], aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
+	add_colorbar(fig, ax, im)
+	ax.set_xticks(xpos)
+	ax.set_xticklabels(xvals)
+	ax.set_yticks(ypos)
+	ax.set_yticklabels(yvals)
+	ax.grid(b=True, which="major", axis="y", lw=0.5)
+
+	ax = fig.add_subplot(gs[1,0])
+	matrix = rf[idx, idy, idp, :, :, 1]
+	norm = np.sqrt(np.sum(matrix**2))
+	matrix /= norm
+	vmax = np.max(np.abs(matrix))
+	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
+	add_colorbar(fig, ax, im)
+	ax.set_xticks(xpos)
+	ax.set_xticklabels(xvals)
+	ax.set_yticks(ypos)
+	ax.set_yticklabels(yvals)
+	ax.grid(b=True, which="major", axis="y", lw=0.5)
+
+	ax = fig.add_subplot(gs[2,0])
+	matrix = rf[idx, idy, idp, :, :, 2]
+	norm = np.sqrt(np.sum(matrix**2))
+	matrix /= norm
+	vmax = np.max(np.abs(matrix))
+	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
+	add_colorbar(fig, ax, im)
+	ax.set_xticks(xpos)
+	ax.set_xticklabels(xvals)
+	ax.set_yticks(ypos)
+	ax.set_yticklabels(yvals)
+	ax.grid(b=True, which="major", axis="y", lw=0.5)
+
+	ax = fig.add_subplot(gs[3,0])
+	matrix = rf[idx, idy, idp, :, :, 3]
+	norm = np.sqrt(np.sum(matrix**2))
+	matrix /= norm
+	vmax = np.max(np.abs(matrix))
+	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
+	add_colorbar(fig, ax, im)
+	ax.set_xticks(xpos)
+	ax.set_xticklabels(xvals)
+	ax.set_yticks(ypos)
+	ax.set_yticklabels(yvals)
+	ax.grid(b=True, which="major", axis="y", lw=0.5)
+
+	plt.show()
+
+def add_colorbar(fig, ax, im, label=None):
+	axins = inset_axes(ax,
+	                   width="2%",
+	                   height="100%",
+	                   loc='lower left',
+	                   bbox_to_anchor=(1.02, 0., 1, 1),
+	                   bbox_transform=ax.transAxes,
+	                   borderpad=0)
+	cbar = fig.colorbar(im, cax=axins)
+	if label is not None:
+		cbar.set_label(label)

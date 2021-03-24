@@ -115,16 +115,9 @@ atom_mass = np.array([1.00797,
             252])
 
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
-    from scipy.interpolate import splev, splrep
-
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
 
-    tck = splrep(globin.falc_logt, globin.falc_ne)
-    ne = splev(atmos.logtau, tck)
-    atmos.data[:,:,2,:] = ne
-    ref_atmos = globin.Atmosphere(nx=atmos.nx, ny=atmos.ny)
-    atmos.build_from_nodes(ref_atmos, False)
-    atmos.distribute_hydrogen(globin.falc.data[0], globin.falc.data[2], globin.falc.data[3], globin.falc.data[4])
+    atmos.build_from_nodes(globin.falc, False)
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
@@ -153,15 +146,15 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, no
         atmos.vmac = vmac
         atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
 
-    spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
-    spec.broaden_spectra(atmos.vmac)
-    spec.add_noise(noise)
-    spec.save(globin.output_spectra_path, wavelength)
-
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
             globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
     plt.show()
+
+    spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
+    spec.broaden_spectra(atmos.vmac)
+    spec.add_noise(noise)
+    spec.save(globin.output_spectra_path, wavelength)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
