@@ -94,14 +94,14 @@ limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"chi"   : [0, 2*np.pi]}		# [rad]
 
 #--- standard deviations for smoothing resulting parameters in many cycle inversion run
-smooth_std = {"temp"   : 100, 	# [K]
-			  "vz"     : 0.2,	# [km/s]
-			  "vmic"   : 0.2,	# [km/s]
-			  "mag"    : 50e-4,	# [T]
+smooth_std = {"temp"   : 50, 	# [K]
+			  "vz"     : 0.1,	# [km/s]
+			  "vmic"   : 0.1,	# [km/s]
+			  "mag"    : 25e-4,	# [T]
 			  "gamma"  : 0.087, # [rad == 5deg]
 			  "chi"    : 0.087,	# [rad == 5deg]
-			  "vmac"   : 0.2,	# [km/s]
-			  "loggf"  : 0.020,	#
+			  "vmac"   : 0.1,	# [km/s]
+			  "loggf"  : 0.010,	#
 			  "dlam"   : 5}		# [mA]
 
 #--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
