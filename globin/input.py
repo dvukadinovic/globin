@@ -283,7 +283,8 @@ class InputData(object):
 			#--- optional parameters
 			path_to_atmosphere = find_value_by_key("cube_atmosphere", self.globin_input, "optional")
 			if path_to_atmosphere is not None:
-				self.ref_atm = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=self.atm_range)
+				self.ref_atm = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=self.atm_range,
+							logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 			# if user have not provided reference atmosphere try fidning node atmosphere
 			else:
 				path_to_node_atmosphere = find_value_by_key("node_atmosphere", self.globin_input, "optional")
@@ -292,6 +293,7 @@ class InputData(object):
 				# if node atmosphere not given, set FAL C model as reference atmosphere
 				else:
 					self.ref_atm = globin.falc
+
 
 			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]

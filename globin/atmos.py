@@ -145,21 +145,11 @@ class Atmosphere(object):
 		atmos_data = np.array(atmos.data, dtype=np.float64)
 		xmin, xmax, ymin, ymax = atm_range
 		atmos_data = atmos_data[xmin:xmax, ymin:ymax]
-		self.logtau = atmos_data[0,0,0]
+		logtau = atmos_data[0,0,0]
 		self.path = fpath
 		self.nx, self.ny, self.nz = atmos_data.shape[0], atmos_data.shape[1], atmos_data.shape[3]
 
-		# convert to MULTI type of atmosphere
-		if self.type=="spinor":
-			self.spinor2multi(atmos_data)
-		elif self.type=="sir":
-			self.sir2multi()
-		elif self.type=="multi":
-			self.data = atmos_data
-		else:
-			print("--> Error in atmos.read_fits()")
-			print(f"    Currently not recognized atmosphere type: {self.type}")
-			sys.exit()
+		self.convert_atmosphere(logtau, atmos_data)
 
 		print(f"Read atmosphere '{self.path}' with dimensions:")
 		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
@@ -167,26 +157,35 @@ class Atmosphere(object):
 	def read_spinor(self, fpath):
 		# need to transform read data into MULTI atmos type: 12 params
 		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
-		self.logtau = atmos_data[0]
+		logtau = atmos_data[0]
 		self.nz = atmos_data.shape[1]
 		self.nx = 1
 		self.ny = 1
+		
+		aux = np.zeros((self.nx, self.ny, *atmos_data.shape))
+		aux[0,0] = atmos_data
 
+		self.convert_atmosphere(logtau, aux)
+
+	def convert_atmosphere(self, logtau, atmos_data):
 		if self.type=="spinor":
-			#--- convert from SPINOR to MULTi type atmosphere
-			# self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-			aux = np.zeros((self.nx, self.ny, *atmos_data.shape))
-			aux[0,0] = atmos_data
-			
-			self.spinor2multi(aux)
-
+			multi_atmos = self.spinor2multi(atmos_data)
+			if multi_atmos[0,0,0]!=self.logtau:
+				self.interpolate_atmosphere(multi_atmos)
+			else:
+				self.data = np.zeros((*multi_atmos.shape))
+				self.data = multi_atmos
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			self.data = atmos_data
+			if logtau!=self.logtau:
+				self.interpolate_atmosphere(atmos_data)
+			else:
+				self.data = atmos_data
 		else:
 			print("--> Error in atmos.read_fits()")
 			print(f"    Currently not recognized atmosphere type: {self.type}")
+			print("    Recognized ones are: spinor, sir and multi.")
 			sys.exit()
 
 	def read_sir(self):
@@ -196,29 +195,31 @@ class Atmosphere(object):
 		pass
 
 	def spinor2multi(self, atmos_data):
-		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-		
+		data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+
 		for idx in range(self.nx):
 			for idy in range(self.ny):	
 				# log(tau)
-				self.data[idx,idy,0] = atmos_data[idx,idy,0]
+				data[idx,idy,0] = atmos_data[idx,idy,0]
 				# Temperature [K]
-				self.data[idx,idy,1] = atmos_data[idx,idy,2]
+				data[idx,idy,1] = atmos_data[idx,idy,2]
 				# Electron density [1/m3]
-				self.data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2]
+				data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2]
 				# Vertical velocity [cm/s] --> [km/s]
-				self.data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
+				data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
 				# Microturbulent velocitu [cm/s] --> [km/s]
-				self.data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
+				data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
 				# Magnetic field strength [G] --> [T]
-				self.data[idx,idy,5] = atmos_data[idx,idy,7]/1e4
+				data[idx,idy,5] = atmos_data[idx,idy,7]/1e4
 				# Inclination [deg] --> [rad]
-				self.data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
+				data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
 				# Azimuth [deg] --> [rad]
-				self.data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
+				data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
 
 				# Hydrogen population
-				self.distribute_hydrogen(self.logtau, atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4], idx=idx, idy=idy)
+				data[idx,idy,8:] = self.distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
+
+		return data
 
 	def sir2multi():
 		pass
@@ -330,19 +331,23 @@ class Atmosphere(object):
 
 	def interpolate_atmosphere(self, ref_atm):
 		x_new = self.logtau
-		shape = ref_atm.data.shape
+		self.nz = len(x_new)
+		nx, ny, npar, nz = ref_atm.shape
 
-		if x_new[0] < ref_atm.data[0,0,0,0]:
+		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+		self.data[:,:,0,:] = self.logtau
+
+		if x_new[0] < ref_atm[0,0,0,0]:
 			print("--> Warning: atmosphere will be extrapolated")
-			print("    from {} to {} in optical depth.\n".format(ref_atm.data[0,0,0,0], x_new[0]))
+			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parID in range(1,self.npar):
-					if ref_atm.nx*ref_atm.ny>1:
-						tck = splrep(ref_atm.data[0,0,0], ref_atm.data[idx,idy,parID])
-					elif ref_atm.nx*ref_atm.ny==1:
-						tck = splrep(ref_atm.data[0,0,0], ref_atm.data[0,0,parID])
+					if nx*ny>1:
+						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
+					elif nx*ny==1:
+						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
 
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
@@ -460,12 +465,8 @@ class Atmosphere(object):
 				# self.global_pars[parID] += np.array(step)
 				self.global_pars[parID] += step
 			
-	def distribute_hydrogen(self, logtau, temp, pg, pe, idx=None, idy=None):
+	def distribute_hydrogen(self, temp, pg, pe):
 		from scipy.interpolate import interp1d
-
-		temp = interp1d(logtau, temp)(self.logtau)
-		pg = interp1d(logtau, pg)(self.logtau)
-		pe = interp1d(logtau, pe)(self.logtau)
 
 		Ej = 13.59844
 		u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
@@ -480,19 +481,16 @@ class Atmosphere(object):
 		nH0 = nH / (1 + phi_t/pe)
 		nprot = nH - nH0
 
-		if (idx is not None) and (idy is not None):
-			self.data[idx,idy,-1,:] = nprot
-		else:
-			self.data[:,:,-1,:] = nprot
+		pops = np.zeros((6, len(temp)))
 
+		pops[-1] = nprot
+	
 		for lvl in range(5):
 			e_lvl = 13.59844*(1-1/(lvl+1)**2)
 			g = 2*(lvl+1)**2
-			pops = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
-			if (idx is not None) and (idy is not None):
-				self.data[idx,idy,8+lvl,:] = pops
-			else:
-				self.data[:,:,8+lvl,:] = pops
+			pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
+
+		return pops
 
 	def smooth_parameters(self):
 		#--- atmospheric parameters
