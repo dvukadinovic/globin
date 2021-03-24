@@ -117,7 +117,10 @@ atom_mass = np.array([1.00797,
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
 
-    atmos.build_from_nodes(globin.falc, False)
+    atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
+    atmos.data[:,:,0,:] = atmos.logtau
+    atmos.interpolate_atmosphere(globin.falc.data)
+    atmos.build_from_nodes(False)
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
@@ -259,7 +262,7 @@ def calculate_chi2(init, pars, fname):
             init = set_parameter(init, args)
 
         # build atmosphere and compute spectra
-        init.atm.build_from_nodes(init.ref_atm)
+        init.atm.build_from_nodes()
         spec, _, _ = globin.compute_spectra(init.atm, init.rh_spec_name, init.wavelength)
 
         # compute chi2

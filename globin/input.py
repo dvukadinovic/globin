@@ -294,6 +294,10 @@ class InputData(object):
 				else:
 					self.ref_atm = globin.falc
 
+			#--- initialize invert atmosphere data from reference atmosphere
+			self.atm.data = np.zeros((self.atm.nx, self.atm.ny, self.atm.npar, self.atm.nz), dtype=np.float64)
+			self.atm.data[:,:,0,:] = self.atm.logtau
+			self.atm.interpolate_atmosphere(self.ref_atm.data)
 
 			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]

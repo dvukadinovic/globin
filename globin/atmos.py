@@ -167,6 +167,12 @@ class Atmosphere(object):
 
 		self.convert_atmosphere(logtau, aux)
 
+	def read_sir(self):
+		pass
+
+	def read_multi(self):
+		pass
+
 	def convert_atmosphere(self, logtau, atmos_data):
 		if self.type=="spinor":
 			multi_atmos = self.spinor2multi(atmos_data)
@@ -187,12 +193,6 @@ class Atmosphere(object):
 			print(f"    Currently not recognized atmosphere type: {self.type}")
 			print("    Recognized ones are: spinor, sir and multi.")
 			sys.exit()
-
-	def read_sir(self):
-		pass
-
-	def read_multi(self):
-		pass
 
 	def spinor2multi(self, atmos_data):
 		data = np.zeros((self.nx, self.ny, self.npar, self.nz))
@@ -245,7 +245,7 @@ class Atmosphere(object):
 		if self.verbose:
 			print("Extracted all atmospheres into folder 'atmospheres'\n")
 
-	def build_from_nodes(self, ref_atm, save_atmos=True):
+	def build_from_nodes(self, save_atmos=True):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -266,13 +266,6 @@ class Atmosphere(object):
 		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
 		STiC].
 		"""
-		
-		# we fill here atmosphere with data which will not be interpolated for which
-		if self.data is None:
-			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-			self.data[:,:,0,:] = self.logtau
-			self.interpolate_atmosphere(ref_atm)
-
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parameter in self.nodes:
@@ -316,9 +309,7 @@ class Atmosphere(object):
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
 				#--- save interpolated atmosphere to appropriate file
-
-				if save_atmos:	
-					# print(f"Saving ({idx},{idy}) in build_from_nodes()")
+				if save_atmos:
 					write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def write_atmosphere(self):
@@ -776,7 +767,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 
 def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
-	atmos.build_from_nodes(init.ref_atm)
+	atmos.build_from_nodes()
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
 	if globin.rf_type=="snapi":	
@@ -842,12 +833,12 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 				#===--- computing RFs for given parameter (proper way as in SNAPI)
 				# positive perturbation
 				atmos.values[parameter][:,:,nodeID] += perturbation
-				atmos.build_from_nodes(init.ref_atm, False)
+				atmos.build_from_nodes(False)
 				positive = copy.deepcopy(atmos.data[:,:,parID])
 
 				# negative perturbation
 				atmos.values[parameter][:,:,nodeID] -= 2*perturbation
-				atmos.build_from_nodes(init.ref_atm, False)
+				atmos.build_from_nodes(False)
 				negative = copy.deepcopy(atmos.data[:,:,parID])
 
 				# derivative of parameter distribution to node perturbation
@@ -860,7 +851,7 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 				#===--- Computing RFs in nodes
 				# positive perturbation
 				model_plus.values[parameter][:,:,nodeID] += perturbation
-				model_plus.build_from_nodes(init.ref_atm)
+				model_plus.build_from_nodes()
 				spectra_plus,_,_ = compute_spectra(model_plus, init.rh_spec_name, init.wavelength)
 
 				# negative perturbation (except for gamma and chi)
@@ -868,7 +859,7 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
-					model_minus.build_from_nodes(init.ref_atm)
+					model_minus.build_from_nodes()
 					spectra_minus,_,_ = compute_spectra(model_minus, init.rh_spec_name, init.wavelength)			
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
@@ -894,7 +885,7 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 			if globin.rf_type=="snapi":
 				# return back perturbation (SNAPI way)
 				atmos.values[parameter][:,:,nodeID] += perturbation
-				atmos.build_from_nodes(init.ref_atm, False)
+				atmos.build_from_nodes(False)
 			elif globin.rf_type=="node":
 				# return back perturbations (node way)
 				model_plus.values[parameter][:,:,nodeID] -= perturbation

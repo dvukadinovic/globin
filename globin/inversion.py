@@ -168,7 +168,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		atmos.update_parameters(proposed_steps, stop_flag)
 		atmos.check_parameter_bounds()
 
-		atmos.build_from_nodes(init.ref_atm)
+		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 		corrected_spec.broaden_spectra(atmos.vmac)
 
@@ -238,7 +238,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		if np.sum(stop_flag)==0:
 			break
 
-	atmos.build_from_nodes(init.ref_atm)
+	atmos.build_from_nodes(False)
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
@@ -409,7 +409,7 @@ def invert_global(init, save_output, verbose):
 			init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"], atmos.line_no["dlam"])
 
-		atmos.build_from_nodes(init.ref_atm)
+		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 		corrected_spec.broaden_spectra(atmos.vmac)
 
@@ -468,7 +468,7 @@ def invert_global(init, save_output, verbose):
 			print("Failed 10 times to fix the LM parameter. We break.\n")
 			break
 
-	atmos.build_from_nodes(init.ref_atm)
+	atmos.build_from_nodes(False)
 	
 	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
@@ -515,7 +515,7 @@ def invert_mcmc(init, save_output, verbose):
 	obs = init.obs
 	atmos = init.atm
 
-	atmos.build_from_nodes(init.ref_atm)
+	atmos.build_from_nodes()
 	spec, _, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
 	diff = obs.spec - spec.spec
