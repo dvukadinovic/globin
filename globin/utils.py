@@ -137,7 +137,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmo
 
     return atmos
 
-def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, node_atmosphere_path=None, atm_range=None):
+def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, atm_name="atmosphere.fits", node_atmosphere_path=None, atm_range=None):
     if globin.mode!=0:
         print(f"  Current mode is {globin.mode}.")
         print("  We can make synthetic observations only in mode = 0.")
@@ -147,25 +147,27 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, no
     if atmos is None:
         atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
-    #     atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
+        atmos.save_atmosphere(atm_name)
     # else:
     #     atmos.save_atmosphere("muram_x1_x3_y42_y43.fits")
 
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
             # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-            # globin.plot_atmosphere(atmos, ["temp"], idx, idy)
-    # plt.show()
+            globin.plot_atmosphere(atmos, ["temp"], idx, idy)
+    plt.show()
 
     spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
     spec.broaden_spectra(atmos.vmac)
     spec.add_noise(noise)
-    # spec.save(globin.output_spectra_path, wavelength)
+    spec.save(globin.output_spectra_path, wavelength)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
             globin.plot_spectra(spec, idx=idx, idy=idy)
     plt.show()
+
+    sys.exit()
 
     return spec
 
