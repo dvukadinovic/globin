@@ -155,7 +155,6 @@ class Atmosphere(object):
 		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
 
 	def read_spinor(self, fpath):
-		# need to transform read data into MULTI atmos type: 12 params
 		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
 		logtau = atmos_data[0]
 		self.nz = atmos_data.shape[1]
@@ -184,7 +183,7 @@ class Atmosphere(object):
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			if logtau!=self.logtau:
+			if all(logtau)!=all(self.logtau):
 				self.interpolate_atmosphere(atmos_data)
 			else:
 				self.data = atmos_data

@@ -28,8 +28,17 @@ class Spectrum(object):
 			self.spec = np.zeros((nx, ny, nw, 4))
 			self.wavelength = np.zeros(nw)
 
-	def add_noise(self, noise):
-		pass
+	def add_noise(self, in_noise):
+		self.mean = np.mean(np.max(self.spec[...,0], axis=2))
+		wavs_dependent_factor = np.sqrt(self.spec[...,0] / self.mean)
+		
+		gauss_noise = np.random.normal(0, in_noise, size=(self.nx, self.ny, self.nw, 4))
+		SI_cont_err = gauss_noise * self.mean
+
+		self.spec[...,0] += wavs_dependent_factor * SI_cont_err[...,0]
+		self.spec[...,1] += wavs_dependent_factor * SI_cont_err[...,1]
+		self.spec[...,2] += wavs_dependent_factor * SI_cont_err[...,2]
+		self.spec[...,3] += wavs_dependent_factor * SI_cont_err[...,3]
 
 	def get_kernel_sigma(self, vmac):
 		step = self.wavelength[1] - self.wavelength[0]

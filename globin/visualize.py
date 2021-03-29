@@ -20,7 +20,7 @@ unit = {"temp"  : "K",
 		"gamma" : "deg",
 		"chi"   : "deg"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=1, color="tab:blue"):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 
@@ -42,7 +42,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0):
 
 		plt.subplot(nrows, ncols, k_+1)
 
-		plt.plot(logtau, cube[parID]*fact[parameters[k_]])
+		plt.plot(logtau, cube[parID]*fact[parameters[k_]], ls=ls, lw=lw, color=color)
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameters[k_]]} [{unit[parameters[k_]]}]")
 
@@ -63,9 +63,6 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 	# 	obs.spec[:,:,:,ids] *= 100
 	# 	if inv is not None:	
 	# 		inv.spec[:,:,:,ids] *= 100
-
-	fig = plt.figure(figsize=(9,9), dpi=150)
-	gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.5)
 
 	if title:
 		fig.suptitle(title, fontsize=16)
@@ -96,6 +93,9 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 		plt.xlim([0, dlam])
 		plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 	else:
+		fig = plt.figure(figsize=(9,9), dpi=150)
+		gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.5)
+		
 		#--- Stokes I
 		gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 

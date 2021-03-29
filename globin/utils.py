@@ -147,17 +147,20 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, no
     if atmos is None:
         atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
-        atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
+    #     atmos.save_atmosphere("atmosphere_2x3_from_nodes.fits")
+    # else:
+    #     atmos.save_atmosphere("muram_x1_x3_y42_y43.fits")
 
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-    plt.show()
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+            # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
+            # globin.plot_atmosphere(atmos, ["temp"], idx, idy)
+    # plt.show()
 
     spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
     spec.broaden_spectra(atmos.vmac)
     spec.add_noise(noise)
-    spec.save(globin.output_spectra_path, wavelength)
+    # spec.save(globin.output_spectra_path, wavelength)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
