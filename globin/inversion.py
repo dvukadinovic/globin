@@ -93,6 +93,10 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
+	aux = 1/obs.spec[...,0]
+	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	weights = 1
+
 	chi2 = np.zeros((atmos.nx, atmos.ny, init.max_iter))
 	N_search_for_lambda = 5
 	dof = np.count_nonzero(init.weights) * Nw - Npar
@@ -131,7 +135,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 			diff = obs.spec - spec.spec
 			diff *= init.weights
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
 			"""
@@ -174,7 +178,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= init.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
