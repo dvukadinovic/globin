@@ -28,6 +28,8 @@ def invert(init, save_output=True, verbose=True):
 			if (cycle+1)<init.ncycle:
 				init.atm.smooth_parameters()
 
+		globin.remove_dirs()
+
 		return atm, spec
 
 def invert_pxl_by_pxl(init, save_output, verbose):
@@ -63,7 +65,9 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 	Npar = atmos.n_local_pars
 	
 	if Npar==0:
-		sys.exit("There is no parameters to fit.\n   We exit.\n")
+		print("There is no parameters to fit.\n   We exit.\n")
+		globin.remove_dirs()
+		sys.exit()
 
 	# indices of diagonal elements of Hessian matrix
 	x = np.arange(atmos.nx)
@@ -243,7 +247,7 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 			break
 
 	atmos.build_from_nodes(False)
-	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength, )
+	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
@@ -297,7 +301,9 @@ def invert_global(init, save_output, verbose):
 	Npar = atmos.n_local_pars + atmos.n_global_pars
 
 	if Npar==0:
-		sys.exit("There are no parameters to fit.\n   We exit.\n")
+		print("There is no parameters to fit.\n   We exit.\n")
+		globin.remove_dirs()
+		sys.exit()
 
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.wavelength - init.wavelength[0]))

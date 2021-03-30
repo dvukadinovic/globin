@@ -312,6 +312,11 @@ class InputData(object):
 				self.wavelength = np.arange(self.lmin, self.lmax+self.step, self.step)
 			write_wavs(self.wavelength, f"runs/{self.run_name}/" + self.wave_file_path)
 
+			# if all(self.wavelength)!=all(self.obs.wavelength):
+			# 	print("We do not have same wavelength grid in observations and synthesis.\n")
+			# 	print("  We break here: read_input_files().\n")
+			# 	sys.exit()
+
 			# set path to WAVETABLE in 'keyword.input' file
 			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
 			

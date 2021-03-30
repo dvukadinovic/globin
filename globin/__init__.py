@@ -18,6 +18,7 @@ Contributors:
 import os
 import sys
 import numpy as np
+import subprocess as sp
 
 from .input import \
 	InputData, find_value_by_key, read_node_atmosphere, set_keyword
@@ -45,7 +46,7 @@ from .visualize import \
 
 from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
-	calculate_chi2
+	calculate_chi2, remove_dirs
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"

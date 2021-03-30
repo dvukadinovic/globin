@@ -696,7 +696,7 @@ def synth_pool(args):
 
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
-def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
+def compute_spectra(atmos, rh_spec_name, wavelength):
 	"""
 	Function which computes spectrum from input atmosphere. It will distribute
 	the calculation to number of threads given in 'init' and store the spectrum
@@ -727,8 +727,9 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 	"""
 	atm_name_list = atmos.atm_name_list
 	if len(atm_name_list)==0:
-		sys.exit("Empty list of atmosphere names.")
-
+		print("Empty list of atmosphere names.\n")
+		globin.remove_dirs()
+		sys.exit()
 
 	args = [ [atm_name, rh_spec_name] for atm_name in atm_name_list]
 	
@@ -749,18 +750,18 @@ def compute_spectra(atmos, rh_spec_name, wavelength, clean_dirs=False):
 		if not kill:
 			break
 	if kill:
-		sys.exit("--> Spectrum synthesis on all pixels have failed!")
+		print("--> Spectrum synthesis on all pixels have failed!\n")
+		globin.remove_dirs()
+		sys.exit()
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
 	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz, wavelength)
 
-	#--- delete thread directories (do not deleat if you want to use previous run J)
-	if clean_dirs:
-		for threadID in range(globin.n_thread):
-			out = sp.run(f"rm -r {globin.rh_path}/rhf1d/pid_{threadID+1}",
-				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-			if out.returncode!=0:
-				print(f"error while removing directory '../pid_{threadID+1}'")
+	# if we are only in synthesis mode,
+	# after we finish synthesis, remove working
+	# dirs in rh/rhf1d folder
+	if globin.mode==0:
+		globin.remove_dirs()
 
 	return spectra, atmospheres, height
 
@@ -794,7 +795,8 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	elif globin.rf_type=="node":
 		full_rf = None
 	else:
-		print("Not proper RF type calculation.")
+		print("Not proper RF type calculation.\n")
+		globin.remove_dirs()
 		sys.exit()
 
 	# for i_,par in enumerate(pars):
@@ -1109,7 +1111,7 @@ def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], gl
 		for zID in range(atmos.nz):
 			model_plus.data[:,:,parID,zID] += perturbation
 			model_plus.write_atmosphere()
-			spec_plus,_,_ = compute_spectra(init, model_plus, clean_dirs=True)
+			spec_plus,_,_ = compute_spectra(init, model_plus)
 			spec_plus = broaden_spectra(spec_plus, model_plus)
 
 			# plt.plot(atmos.data[0,0,parID])
@@ -1117,7 +1119,7 @@ def compute_full_rf(init, local_params=["temp", "vz", "mag", "gamma", "chi"], gl
 
 			model_minus.data[:,:,parID,zID] -= perturbation
 			model_minus.write_atmosphere()
-			spec_minus,_,_ = compute_spectra(init, model_minus, clean_dirs=True)
+			spec_minus,_,_ = compute_spectra(init, model_minus)
 			spec_minus = broaden_spectra(spec_minus, model_minus)
 
 			# plt.plot(model_minus.data[0,0,parID])

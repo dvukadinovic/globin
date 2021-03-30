@@ -114,6 +114,21 @@ atom_mass = np.array([1.00797,
             251,
             252])
 
+def remove_dirs():
+    """
+    We remove working dirs locate in rh/rhf1d if we fail to run RH
+    or if we have finished synthesis/inversion.
+
+    In case of error, log of running RH will be saved and could be
+    investigated further.
+    """
+    for threadID in range(globin.n_thread):
+        out = sp.run(f"rm -r {globin.rh_path}/rhf1d/{globin.wd}_{threadID+1}", 
+                shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+        if out.returncode!=0:
+            print(out.stdout)
+            sys.exit()
+
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
 
@@ -142,14 +157,14 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, at
         print(f"  Current mode is {globin.mode}.")
         print("  We can make synthetic observations only in mode = 0.")
         print("  Change it before running the script again.")
+        globin.remove_dirs()
         sys.exit()
     
     if atmos is None:
         atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
-        atmos.save_atmosphere(atm_name)
-    # else:
-    #     atmos.save_atmosphere("muram_x1_x3_y42_y43.fits")
+
+    atmos.save_atmosphere(atm_name)
 
     for idx in range(atmos.nx):
         for idy in range(atmos.ny):
@@ -166,8 +181,6 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, at
         for idy in range(atmos.ny):
             globin.plot_spectra(spec, idx=idx, idy=idy)
     plt.show()
-
-    sys.exit()
 
     return spec
 
