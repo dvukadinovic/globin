@@ -381,6 +381,8 @@ class InputData(object):
 				self.atm.vmac = abs(vmac)
 				self.atm.global_pars["vmac"] = np.array([self.atm.vmac])
 
+			self.ref_atm.vmac = abs(vmac)
+
 			#--- read initial node parameter values	
 			fpath = find_value_by_key("initial_atmosphere", text, "optional")
 			if fpath is not None:

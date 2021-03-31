@@ -340,3 +340,43 @@ def set_parameter(init, args):
             init.atm.global_pars[parameter] = value
 
     return init
+
+def make_atmosphere(fpath, ref_atm, nx, ny):
+    nodes = np.array([0, -1, -2, -3])
+    temp_min_max = np.array(
+                    [[4700, 6800],
+                     [3600, 5500],
+                     [3600, 5100],
+                     [3600, 4900]])
+
+    atmos = globin.Atmosphere(nx=nx, ny=ny, logtau_top=-4)
+    
+    atmos.nodes["temp"] = nodes
+    atmos.values["temp"] = np.zeros((nx, ny, len(nodes)))
+
+    atmos.values["temp"][:,:,0] = np.random.uniform(low=temp_min_max[0,0], high=temp_min_max[0,1], size=(nx, ny))
+
+    for i_ in range(1,len(nodes)):
+        max = np.where(atmos.values["temp"][:,:,i_-1] < temp_min_max[i_,1], atmos.values["temp"][:,:,i_-1], atmos.values["temp"][:,:,i_-1]-100)
+        aux = np.random.uniform(low=temp_min_max[i_,0], high=max, size=(nx, ny))
+        atmos.values["temp"][:,:,i_] = aux
+        
+    # reverse the ordering
+    # first values must be at the top of atmosphere (because of the interpolation)
+    atmos.nodes["temp"] = atmos.nodes["temp"][::-1]
+    atmos.values["temp"] = np.flip(atmos.values["temp"], axis=2)
+
+    # add reference atmosphere here
+    atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
+    atmos.data[:,:,0,:] = atmos.logtau
+    atmos.interpolate_atmosphere(ref_atm.data)
+    atmos.vmac = ref_atm.vmac
+
+    atmos.build_from_nodes(False)
+    atmos.save_atmosphere(fpath)
+
+    for idx in range(atmos.nx):
+        for idy in range(atmos.ny):
+            globin.plot_atmosphere(atmos, ["temp"], idx, idy)
+            plt.plot(atmos.nodes["temp"], atmos.values["temp"][idx,idy], "ro")
+    plt.show()
