@@ -174,14 +174,16 @@ class InputData(object):
 						self.atm_range.append(None)
 					elif item is not None:
 						self.atm_range.append(int(item))
-				# if self.atm_range[1]<self.atm_range[0]:
-				# 	print("--> Error in input.read_input_files()")
-				# 	print("    x-range upper index smaller than lower index.")
-				# 	sys.exit()
-				# if self.atm_range[3]<self.atm_range[2]:
-				# 	print("--> Error in input.read_input_files()")
-				# 	print("    y-range upper index smaller than lower index.")
-				# 	sys.exit()
+				if self.atm_range[1] is not None:
+					if self.atm_range[1]<self.atm_range[0]:
+						print("--> Error in input.read_input_files()")
+						print("    xmax smaller than xmin.")
+						sys.exit()
+				if self.atm_range[3] is not None:
+					if self.atm_range[3]<self.atm_range[2]:
+						print("--> Error in input.read_input_files()")
+						print("    ymax smaller than ymin.")
+						sys.exit()
 			else:
 				self.atm_range = aux
 			# we count from zero, but let user count from 1
@@ -264,6 +266,16 @@ class InputData(object):
 						self.atm_range.append(None)
 					elif item is not None:
 						self.atm_range.append(int(item))
+				if self.atm_range[1] is not None:
+					if self.atm_range[1]<self.atm_range[0]:
+						print("--> Error in input.read_input_files()")
+						print("    xmax smaller than xmin.")
+						sys.exit()
+				if self.atm_range[3] is not None:
+					if self.atm_range[3]<self.atm_range[2]:
+						print("--> Error in input.read_input_files()")
+						print("    ymax smaller than ymin.")
+						sys.exit()
 			else:
 				self.atm_range = aux
 			# we count from zero, but let user count from 1
@@ -404,8 +416,6 @@ class InputData(object):
 							line = line.rstrip("\n").replace(" ","")
 							# find the first uncommented line and break
 							if line[0]!=globin.COMMENT_CHAR:
-								# fname = line.rstrip("\n").replace(" ","")#.split("/")[-1]
-								# self.RLK_path = fname
 								fname = line.split("/")[-1]
 
 								self.RLK_path = f"{globin.cwd}/runs/{run_name}/{fname}"

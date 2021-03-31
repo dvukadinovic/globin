@@ -349,6 +349,12 @@ class Atmosphere(object):
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
 
+		primary.header["VMAC"] = ("{:5.3f}".format(self.vmac), "macro-turbulen velocity")
+		if "vmac" in self.global_pars:
+			primary.header["VMAC_FIT"] = ("TRUE", "flag for fitting macro velocity")
+		else:
+			primary.header["VMAC_FIT"] = ("FALSE", "flag for fitting macro velocity")
+
 		# add keys from kwargs (as dict)
 		if kwargs:
 			for key in kwargs:
@@ -369,6 +375,31 @@ class Atmosphere(object):
 			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
 			par_hdu.header.comments["NAXIS4"] = "1 - node values | 2 - parameter values"
+
+			hdulist.append(par_hdu)
+
+		hdulist.writeto(fpath, overwrite=True)
+
+	def save_atomic_parameters(self, fpath="inverted_atoms.fits", kwargs=None):
+		pars = list(self.global_pars.keys())
+
+		primary = fits.PrimaryHDU()
+		hdulist = fits.HDUList([primary])
+		
+		for parameter in pars:
+			matrix = np.zeros((2, len(self.global_pars[parameter])))
+			matrix[0] = self.line_no[parameter]
+			matrix[1] = self.global_pars[parameter]
+
+			par_hdu = fits.ImageHDU(matrix)
+			par_hdu.name = parameter
+
+			par_hdu.header.comments["NAXIS1"] = "number of lines"
+			par_hdu.header.comments["NAXIS2"] = "1 - line IDs | 2 - line values"
+			
+			if kwargs:
+				for key in kwargs:
+					par_hdu.header[key] = kwargs[key]
 
 			hdulist.append(par_hdu)
 

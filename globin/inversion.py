@@ -53,8 +53,8 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * init.marq_lambda
 	# flags those pixels whose chi2 converged:
-	#   1 -> we do inversion
-	#   0 -> we converged
+	#   1 --> we do inversion
+	#   0 --> we converged
 	# with flag we multiply the proposed steps, in that case for those pixles
 	# in which we converged we will not change parameters, but, the calculations
 	# will be done, as well as RFs... Find smarter way around it.
@@ -492,6 +492,7 @@ def invert_global(init, save_output, verbose):
 		output_path = f"runs/{globin.wd}"
 
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
+		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (init.RLK_path.split(globin.cwd)[-1], "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", init.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	

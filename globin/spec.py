@@ -15,6 +15,7 @@ class Spectrum(object):
 		self.nx = nx
 		self.ny = ny
 		self.nw = nw
+		self.noise = None
 		# storage for full wavelength list from RH (used for full RF calculation)
 		self.wave = wave
 		self.wavelength = wave
@@ -29,10 +30,18 @@ class Spectrum(object):
 			self.wavelength = np.zeros(nw)
 
 	def add_noise(self, in_noise):
+		self.noise = in_noise
+
+		if self.noise is None:
+			print("--> Error in spec.add_noise()")
+			print("    We can not add noise of NoneType.")
+			globin.remove_dirs()
+			sys.exit()
+
 		self.mean = np.mean(np.max(self.spec[...,0], axis=2))
 		wavs_dependent_factor = np.sqrt(self.spec[...,0] / self.mean)
 		
-		gauss_noise = np.random.normal(0, in_noise, size=(self.nx, self.ny, self.nw, 4))
+		gauss_noise = np.random.normal(0, self.noise, size=(self.nx, self.ny, self.nw, 4))
 		SI_cont_err = gauss_noise * self.mean
 
 		self.spec[...,0] += wavs_dependent_factor * SI_cont_err[...,0]
@@ -97,7 +106,13 @@ class Spectrum(object):
 		data = np.zeros((self.nx, self.ny, len(wavelength), 5))
 		data[...,0] = wavelength
 		data[...,1:] = self.spec
+		
 		primary = fits.PrimaryHDU(data)
+		
+		if self.noise is None:
+			self.noise = -1
+		primary.header["noise"] = ("{:4.3e}".format(self.noise), "assumed noise level; -1 when we do not know")
+
 		hdulist = fits.HDUList([primary])
 		hdulist.writeto(fpath, overwrite=True)
 

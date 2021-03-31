@@ -116,10 +116,10 @@ atom_mass = np.array([1.00797,
 
 def remove_dirs():
     """
-    We remove working dirs locate in rh/rhf1d if we fail to run RH
+    We remove working dirs located in rh/rhf1d if we fail to run RH
     or if we have finished synthesis/inversion.
 
-    In case of error, log of running RH will be saved and could be
+    In case of an error, logs of running RH will be saved and could be
     investigated further.
     """
     for threadID in range(globin.n_thread):

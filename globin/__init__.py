@@ -119,7 +119,7 @@ delta = {"temp"  : 1,		# K
 diff = {"temp"   : 10,		# K
 		"vz"     : 0.01,	# km/s
 		"vmic"   : 0.01,	# km/s
-		"mag"    : 10/1e4,	# G
+		"mag"    : 10/1e4,	# T
 		"gamma"  : 0.001,	# rad = 0.057 deg
 		"chi"    : 0.001}	# rad = 0.057 deg
 
