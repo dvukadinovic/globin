@@ -6,6 +6,7 @@ import re
 import copy
 import subprocess as sp
 from scipy.interpolate import interp1d
+from astropy.io import fits
 
 from .atmos import Atmosphere
 from .spec import Observation
@@ -184,6 +185,14 @@ class InputData(object):
 						print("--> Error in input.read_input_files()")
 						print("    ymax smaller than ymin.")
 						sys.exit()
+				if self.atm_range[0]<1:
+					print("--> Error in input.read_input_files()")
+					print("    xmin is lower than 1.")
+					sys.exit()
+				if self.atm_range[2]<1:
+					print("--> Error in input.read_input_files()")
+					print("    ymin is lower than 1.")
+					sys.exit()
 			else:
 				self.atm_range = aux
 			# we count from zero, but let user count from 1
@@ -232,7 +241,7 @@ class InputData(object):
 			self.ref_atm = copy.deepcopy(self.atm)
 
 			# set path to WAVETABLE in 'keyword.input' file
-			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
+			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/{self.wave_file_path}", f"runs/{self.run_name}/{self.rh_input_name}")
 
 		#--- get parameters for inversion
 		elif globin.mode>=1:
@@ -276,6 +285,14 @@ class InputData(object):
 						print("--> Error in input.read_input_files()")
 						print("    ymax smaller than ymin.")
 						sys.exit()
+				if self.atm_range[0]<1:
+					print("--> Error in input.read_input_files()")
+					print("    xmin is lower than 1.")
+					sys.exit()
+				if self.atm_range[2]<1:
+					print("--> Error in input.read_input_files()")
+					print("    ymin is lower than 1.")
+					sys.exit()
 			else:
 				self.atm_range = aux
 			# we count from zero, but let user count from 1
@@ -330,7 +347,7 @@ class InputData(object):
 			# 	sys.exit()
 
 			# set path to WAVETABLE in 'keyword.input' file
-			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
+			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/{self.wave_file_path}", f"runs/{self.run_name}/{self.rh_input_name}")
 			
 			fpath = find_value_by_key("rf_weights", self.globin_input, "optional")
 			self.wavs_weight = np.ones((self.atm.nx, self.atm.ny, len(self.wavelength),4))
@@ -364,15 +381,15 @@ class InputData(object):
 				self.atm.vmac = abs(vmac)
 				self.atm.global_pars["vmac"] = np.array([self.atm.vmac])
 
-			#--- read node parameters
-			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-				self.read_node_parameters(parameter, self.globin_input)
-
-			#--- read initial node parameter values from file (.fits)
-			# if len(self.atm.nodes):
-			# 	fpath = find_value_by_key(f"initial_atmosphere", text, "optional")
-			# 	if fpath is not None:
-			# 		pass
+			#--- read initial node parameter values	
+			fpath = find_value_by_key("initial_atmosphere", text, "optional")
+			if fpath is not None:
+				# read node parameters from .fits file
+				self.load_node_data(fpath)
+			else:
+				# read node parameters from .input file
+				for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+					self.read_node_parameters(parameter, self.globin_input)
 
 			if globin.mode==3:
 				#--- line parameters to be fit
@@ -570,6 +587,30 @@ class InputData(object):
 		# if (nodes is not None) and (values is None):
 		# 	find_value_by_key(f"node_{parameter}_cube", text, "required")
 
+	def load_node_data(self, fpath):
+		hdu_list = fits.open(fpath)
+
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+			try:
+				ind = hdu_list.index_of(parameter)
+				data = hdu_list[ind].data
+				_, nx, ny, nnodes = data.shape
+
+				self.atm.nx, self.atm.ny = nx, ny
+
+				if self.atm.nx!=self.obs.nx or self.atm.ny!=self.obs.ny:
+					print("--> Error in input.load_node_data()")
+					print("    initial atmosphere does not have same dimensions")
+					print("    as observations.")
+					sys.exit()
+
+				self.atm.nodes[parameter] = data[0,0,0]
+				self.atm.values[parameter] = data[1]
+
+				globin.parameter_scale[parameter] = np.ones((self.atm.nx, self.atm.ny, nnodes))
+			except:
+				pass
+
 def slice_line(line, dtype=float):
     # remove 'new line' character
     line = line.rstrip("\n")
@@ -651,4 +692,3 @@ def set_keyword(text, key, value, fpath=None):
 		return "".join(lines)
 	else:
 		return "".join(lines)
-

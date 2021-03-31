@@ -368,7 +368,7 @@ class Atmosphere(object):
 			matrix[1] = self.values[parameter]
 
 			par_hdu = fits.ImageHDU(matrix)
-			par_hdu.name = globin.parameter_name[parameter]
+			par_hdu.name = parameter
 
 			par_hdu.header["unit"] = globin.parameter_unit[parameter]
 			par_hdu.header.comments["NAXIS1"] = "number of nodes"

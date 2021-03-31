@@ -209,11 +209,6 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 					itter[idx,idy] = init.max_iter
 					print("Large LM parameter. We break.")
 
-		if updated_pars and verbose:
-			print(atmos.values)
-			print(LM_parameter)
-			print("\n--------------------------------------------------\n")
-
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 0 (True)
 		for idx in range(atmos.nx):
@@ -242,6 +237,11 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 					if it_no==init.max_iter:
 						stop_flag[idx,idy] = 0
 						print("Maximum number of iterations reached. We break.\n")
+
+		if updated_pars and verbose:
+			print(atmos.values)
+			print(LM_parameter)
+			print("\n--------------------------------------------------\n")
 
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
@@ -454,12 +454,6 @@ def invert_global(init, save_output, verbose):
 			print("Upper limit in LM_parameter. We break\n")
 			break_flag = True
 
-		if updated_parameters and verbose:
-			print(atmos.values)
-			print(atmos.global_pars)
-			print(LM_parameter)
-			print("\n--------------------------------------------------\n")
-
 		# we check if chi2 has converged for each pixel
 		# if yes, we set break_flag to True
 		# we do not check for chi2 convergence until 3rd iteration
@@ -476,6 +470,12 @@ def invert_global(init, save_output, verbose):
 			elif chi2[itter-1] < 1 and init.noise!=0:
 				print("chi2 smaller than 1\n")
 				break_flag = True
+		
+		if updated_parameters and verbose:
+			print(atmos.values)
+			print(atmos.global_pars)
+			print(LM_parameter)
+			print("\n--------------------------------------------------\n")
 
 		# if all pixels have converged, we stop inversion
 		if break_flag:
