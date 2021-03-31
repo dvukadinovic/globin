@@ -97,12 +97,13 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
+	# weights on Stokes vector based on observed Stokes I
 	aux = 1/obs.spec[...,0]
 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-	weights = 1
+	norm = np.sum(weights, axis=2)
+	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, init.max_iter))
-	N_search_for_lambda = 5
 	dof = np.count_nonzero(init.weights) * Nw - Npar
 
 	start = time.time()
@@ -228,19 +229,19 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = init.max_iter
 						elif relative_change<init.chi2_tolerance:
-							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.")
+							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = init.max_iter
 						elif chi2[idx,idy,it_no-1] < 1 and init.noise!=0:
 							# print(chi2[idx,idy,it_no-1])
-							print(f"--> [{idx},{idy}] : chi2 smaller than 1")
+							print(f"--> [{idx},{idy}] : chi2 smaller than 1\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = init.max_iter
 					# if given pixel iteration number has reached the maximum number of iterations
 					# we stop the convergence for given pixel
 					if it_no==init.max_iter:
 						stop_flag[idx,idy] = 0
-						print("Maximum number of iterations reached. We break.")
+						print("Maximum number of iterations reached. We break.\n")
 
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
@@ -327,6 +328,12 @@ def invert_global(init, save_output, verbose):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
+	# weights on Stokes vector based on observed Stokes I
+	aux = 1/obs.spec[...,0]
+	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	norm = np.sum(weights, axis=2)
+	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+
 	chi2 = np.zeros(init.max_iter, dtype=np.float64)
 	LM_parameter = init.marq_lambda
 	dof = np.count_nonzero(init.weights) * Nw - Npar
@@ -368,7 +375,7 @@ def invert_global(init, save_output, verbose):
 			diff *= init.weights
 
 			# calculate chi2
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2) / dof
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -425,7 +432,7 @@ def invert_global(init, save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= init.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2) / dof
 
 		if chi2_new > chi2_old:
 			LM_parameter *= 10

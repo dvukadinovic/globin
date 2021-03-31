@@ -333,19 +333,19 @@ class InputData(object):
 			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/" + self.wave_file_path, f"runs/{self.run_name}/" + self.rh_input_name)
 			
 			fpath = find_value_by_key("rf_weights", self.globin_input, "optional")
-			self.wavs_weight = np.ones((len(self.wavelength),4))
+			self.wavs_weight = np.ones((self.atm.nx, self.atm.ny, len(self.wavelength),4))
 			if fpath is not None:
 				lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
 				if len(lam)==len(self.wavelength):
-					self.wavs_weight[:,0] = wI
-					self.wavs_weight[:,1] = wQ
-					self.wavs_weight[:,2] = wU
-					self.wavs_weight[:,3] = wV
+					self.wavs_weight[...,0] = wI
+					self.wavs_weight[...,1] = wQ
+					self.wavs_weight[...,2] = wU
+					self.wavs_weight[...,3] = wV
 				else:
-					self.wavs_weight[:,0] = interp1d(lam, wI)(self.wavelength)
-					self.wavs_weight[:,1] = interp1d(lam, wQ)(self.wavelength)
-					self.wavs_weight[:,2] = interp1d(lam, wU)(self.wavelength)
-					self.wavs_weight[:,3] = interp1d(lam, wV)(self.wavelength)
+					self.wavs_weight[...,0] = interp1d(lam, wI)(self.wavelength)
+					self.wavs_weight[...,1] = interp1d(lam, wQ)(self.wavelength)
+					self.wavs_weight[...,2] = interp1d(lam, wU)(self.wavelength)
+					self.wavs_weight[...,3] = interp1d(lam, wV)(self.wavelength)
 			
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.vmac = vmac # [km/s]
