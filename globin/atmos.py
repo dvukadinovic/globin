@@ -186,6 +186,7 @@ class Atmosphere(object):
 			if all(logtau)!=all(self.logtau):
 				self.interpolate_atmosphere(atmos_data)
 			else:
+				self.logtau = logtau
 				self.data = atmos_data
 		else:
 			print("--> Error in atmos.read_fits()")

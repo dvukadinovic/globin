@@ -46,7 +46,7 @@ from .visualize import \
 
 from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
-	calculate_chi2, remove_dirs, make_atmosphere
+	calculate_chi2, remove_dirs
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"

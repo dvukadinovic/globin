@@ -342,12 +342,13 @@ def set_parameter(init, args):
     return init
 
 def make_atmosphere(fpath, ref_atm, nx, ny):
+    return None
     nodes = np.array([0, -1, -2, -3])
     temp_min_max = np.array(
-                    [[4700, 6800],
-                     [3600, 5500],
-                     [3600, 5100],
-                     [3600, 4900]])
+                    [[5000, 7000],
+                     [4000, 6000],
+                     [3500, 5000],
+                     [3400, 4600]])
 
     atmos = globin.Atmosphere(nx=nx, ny=ny, logtau_top=-4)
     
@@ -357,7 +358,7 @@ def make_atmosphere(fpath, ref_atm, nx, ny):
     atmos.values["temp"][:,:,0] = np.random.uniform(low=temp_min_max[0,0], high=temp_min_max[0,1], size=(nx, ny))
 
     for i_ in range(1,len(nodes)):
-        max = np.where(atmos.values["temp"][:,:,i_-1] < temp_min_max[i_,1], atmos.values["temp"][:,:,i_-1], atmos.values["temp"][:,:,i_-1]-100)
+        max = np.where(atmos.values["temp"][:,:,i_-1] < temp_min_max[i_,1], atmos.values["temp"][:,:,i_-1], atmos.values["temp"][:,:,i_-1])
         aux = np.random.uniform(low=temp_min_max[i_,0], high=max, size=(nx, ny))
         atmos.values["temp"][:,:,i_] = aux
         
