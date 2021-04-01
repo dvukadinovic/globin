@@ -183,11 +183,11 @@ class Atmosphere(object):
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			if all(logtau)!=all(self.logtau):
-				self.interpolate_atmosphere(atmos_data)
-			else:
-				self.logtau = logtau
-				self.data = atmos_data
+			# if all(logtau)!=all(self.logtau):
+			# 	self.interpolate_atmosphere(atmos_data)
+			# else:
+			self.logtau = logtau
+			self.data = atmos_data
 		else:
 			print("--> Error in atmos.read_fits()")
 			print(f"    Currently not recognized atmosphere type: {self.type}")
