@@ -175,7 +175,7 @@ class Atmosphere(object):
 	def convert_atmosphere(self, logtau, atmos_data):
 		if self.type=="spinor":
 			multi_atmos = self.spinor2multi(atmos_data)
-			if multi_atmos[0,0,0]!=self.logtau:
+			if not np.array_equal(multi_atmos[0,0,0], self.logtau):
 				self.interpolate_atmosphere(multi_atmos)
 			else:
 				self.data = np.zeros((*multi_atmos.shape))
@@ -183,11 +183,13 @@ class Atmosphere(object):
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			# if all(logtau)!=all(self.logtau):
-			# 	self.interpolate_atmosphere(atmos_data)
-			# else:
-			self.logtau = logtau
-			self.data = atmos_data
+			print(logtau)
+			print(self.logtau)
+			if not np.array_equal(logtau, self.logtau):
+				self.interpolate_atmosphere(atmos_data)
+			else:
+				self.logtau = logtau
+				self.data = atmos_data
 		else:
 			print("--> Error in atmos.read_fits()")
 			print(f"    Currently not recognized atmosphere type: {self.type}")
@@ -321,6 +323,14 @@ class Atmosphere(object):
 				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
 	def interpolate_atmosphere(self, ref_atm):
+		if (self.logtau[0]<ref_atm[0,0,0,0]) or \
+		   (self.logtau[-1]>ref_atm[0,0,0,-1]):
+			# print("--> Warning: atmosphere will be extrapolated")
+			# print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
+			self.logtau = ref_atm[0,0,0]
+			self.data = ref_atm
+			return
+		
 		x_new = self.logtau
 		self.nz = len(x_new)
 		nx, ny, npar, nz = ref_atm.shape
@@ -328,9 +338,6 @@ class Atmosphere(object):
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
 		self.data[:,:,0,:] = self.logtau
 
-		if x_new[0] < ref_atm[0,0,0,0]:
-			print("--> Warning: atmosphere will be extrapolated")
-			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
