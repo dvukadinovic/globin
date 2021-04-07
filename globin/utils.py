@@ -132,9 +132,9 @@ def remove_dirs():
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
 
-    atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
-    atmos.data[:,:,0,:] = atmos.logtau
-    atmos.interpolate_atmosphere(globin.falc.data)
+    # atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
+    # atmos.data[:,:,0,:] = atmos.logtau
+    atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
     atmos.build_from_nodes(False)
 
     if output_atmos_path is not None:

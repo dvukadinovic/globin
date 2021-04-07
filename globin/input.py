@@ -237,6 +237,14 @@ class InputData(object):
 			# standard deviation of Gaussian kernel for macro broadening
 			self.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
 
+			# get the name of the input line list
+			lines = open(globin.kurucz_input_fname, "r").readlines()
+			for line in lines:
+				line = line.replace(" ","")
+				if line[0]!="#":
+					line_list_path = line.split("/")[-1]
+			self.atm.line_lists_path = [line_list_path]
+
 			# reference atmosphere is the same as input one in synthesis mode
 			self.ref_atm = copy.deepcopy(self.atm)
 
@@ -265,6 +273,14 @@ class InputData(object):
 
 			# initialize container for atmosphere which we invert
 			self.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
+
+			# get the name of the input line list
+			lines = open(globin.kurucz_input_fname, "r").readlines()
+			for line in lines:
+				line = line.replace(" ","")
+				if line[0]!="#":
+					line_list_path = line.split("/")[-1]
+			self.atm.line_lists_path = [line_list_path]
 
 			# determine which observations from cube to take into consideration
 			aux = find_value_by_key("range", self.globin_input, "default", [1,None,1,None])

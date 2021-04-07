@@ -49,6 +49,9 @@ class Atmosphere(object):
 		self.fpath = fpath
 		self.type = atm_type
 
+		# list of fpath's to line lists (in mode=2)
+		self.line_lists_path = []
+
 		# nodes: each atmosphere has the same nodes
 		self.nodes = {}
 		
@@ -413,85 +416,101 @@ class Atmosphere(object):
 		hdulist.writeto(fpath, overwrite=True)
 
 	def check_parameter_bounds(self):
-		for parID in self.values:
+		for parameter in self.values:
 			# for every gamma, we are returnig the angle (in rad) 
 			# which is in 1st and 2nd quadrant
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
-			if parID=="gamma":# or parID=="chi":
-				cos_angle = np.cos(self.values[parID])
-				self.values[parID] = np.arccos(cos_angle)
-			elif parID=="chi":
-				self.values[parID] %= 2*np.pi
+			if parameter=="gamma":# or parameter=="chi":
+				cos_angle = np.cos(self.values[parameter])
+				self.values[parameter] = np.arccos(cos_angle)
+			elif parameter=="chi":
+				self.values[parameter] %= 2*np.pi
 			else:
-				for i_ in range(len(self.nodes[parID])):
+				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
 						for idy in range(self.ny):
 							# minimum check
-							if self.values[parID][idx,idy,i_]<globin.limit_values[parID][0]:
-								self.values[parID][idx,idy,i_] = globin.limit_values[parID][0]
+							if self.values[parameter][idx,idy,i_]<globin.limit_values[parameter][0]:
+								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][0]
 							# maximum check
-							if self.values[parID][idx,idy,i_]>globin.limit_values[parID][1]:
-								self.values[parID][idx,idy,i_] = globin.limit_values[parID][1]
-		for parID in self.global_pars:
-			if parID=="vmac":
+							if self.values[parameter][idx,idy,i_]>globin.limit_values[parameter][1]:
+								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][1]
+		for parameter in self.global_pars:
+			if parameter=="vmac":
 				# minimum check
-				if self.global_pars[parID]<globin.limit_values[parID][0]:
-					self.global_pars[parID] = np.array(globin.limit_values[parID][0])
+				if self.global_pars[parameter]<globin.limit_values[parameter][0]:
+					self.global_pars[parameter] = np.array(globin.limit_values[parameter][0])
 				# maximum check
-				if self.global_pars[parID]>globin.limit_values[parID][1]:
-					self.global_pars[parID] = np.array(globin.limit_values[parID][1])
+				if self.global_pars[parameter]>globin.limit_values[parameter][1]:
+					self.global_pars[parameter] = np.array(globin.limit_values[parameter][1])
 				self.vmac = self.global_pars["vmac"]
 			else:
-				for i_ in range(len(self.global_pars[parID])):
-					# minimum check
-					if self.global_pars[parID][i_]<globin.limit_values[parID][i_][0]:
-						self.global_pars[parID][i_] = globin.limit_values[parID][i_][0]
-					# maximum check
-					if self.global_pars[parID][i_]>globin.limit_values[parID][i_][1]:
-						self.global_pars[parID][i_] = globin.limit_values[parID][i_][1]
+				if globin.mode==2:
+					nx, ny = self.nx, self.ny
+				elif globin.mode==3:
+					nx, ny = 1,1
+				for idx in range(nx):
+					for idy in range(ny):
+						for i_ in range(self.line_no[parameter].size):
+							# minimum check
+							if self.global_pars[parameter][idx,idy,i_]<globin.limit_values[parameter][i_,0]:
+								self.global_pars[parameter][idx,idy,i_] = globin.limit_values[parameter][i_,0]
+							# maximum check
+							if self.global_pars[parameter][idx,idy,i_]>globin.limit_values[parameter][i_,1]:
+								self.global_pars[parameter][idx,idy,i_] = globin.limit_values[parameter][i_,1]
 
 	def update_parameters(self, proposed_steps, stop_flag=None):
 		if stop_flag is not None:
 			low_ind, up_ind = 0, 0
-			for parID in self.values:
+			# update atmospheric parameters
+			for parameter in self.values:
 				low_ind = up_ind
-				up_ind += len(self.nodes[parID])
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parID]
+				up_ind += len(self.nodes[parameter])
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
 				# we do not perturb parameters of those pixels which converged
 				step = np.einsum("...i,...->...i", step, stop_flag)
-				# if parID=="gamma":
-				# 	aux = np.cos(self.values[parID]) + step
-				# 	self.values[parID] = np.arccos(aux)
-				# elif parID=="chi":
-				# 	aux = np.sin(self.values[parID]) + step
-				# 	self.values[parID] = np.arcsin(aux)
+				# if parameter=="gamma":
+				# 	aux = np.cos(self.values[parameter]) + step
+				# 	self.values[parameter] = np.arccos(aux)
+				# elif parameter=="chi":
+				# 	aux = np.sin(self.values[parameter]) + step
+				# 	self.values[parameter] = np.arcsin(aux)
 				# else:
 				if globin.rf_type=="snapi":
 					# RH returns RFs in m/s and we are working with km/s in globin
 					# so we have to return the values from m/s to km/s
-					if parID=="vz" or parID=="vmic":
+					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
-				self.values[parID] += step
+				self.values[parameter] += step
+
+			# update atomic parameters
+			for parameter in self.global_pars:
+				low_ind = up_ind
+				up_ind += self.line_no[parameter].size
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				self.global_pars[parameter] += step
 		else:
 			low_ind, up_ind = 0, 0
+			# update atmospheric parameters
 			for idx in range(self.nx):
 				for idy in range(self.ny):
-					for parID in self.values:
+					for parameter in self.values:
 						low_ind = up_ind
-						up_ind += len(self.nodes[parID])
-						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parID][idx,idy]
+						up_ind += len(self.nodes[parameter])
+						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter][idx,idy]
 						# RH returns RFs in m/s and we are working with km/s in globin
 						# so we have to return the values from m/s to km/s
-						if parID=="vz" or parID=="vmic":
+						if parameter=="vz" or parameter=="vmic":
 							step /= 1e3
-						self.values[parID][idx,idy] += step * self.mask[parID]
-			for parID in self.global_pars:
+						self.values[parameter][idx,idy] += step * self.mask[parameter]
+
+			# update atomic parameters
+			for parameter in self.global_pars:
 				low_ind = up_ind
-				up_ind += len(self.global_pars[parID])
-				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parID]
-				# self.global_pars[parID] += np.array(step)
-				self.global_pars[parID] += step
+				up_ind += self.global_pars[parameter].size
+				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
+				self.global_pars[parameter] += step
 			
 	def distribute_hydrogen(self, temp, pg, pe):
 		from scipy.interpolate import interp1d
@@ -774,11 +793,10 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		globin.remove_dirs()
 		sys.exit()
 
-
-	if globin.mode==3:
-		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
-	elif globin.mode==2:
+	if globin.mode==2:
 		args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
+	else:
+		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
 	
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
@@ -1004,6 +1022,9 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
+					# plt.plot(diff[0,0,:,0])
+					# plt.show()
+
 					if globin.mode==2:
 						scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
 					elif globin.mode==3:
@@ -1016,7 +1037,7 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					elif globin.mode==3:
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
-								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
+								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][0,0,idp]
 						free_par_ID += 1
 					
 					# return perturbation back
@@ -1029,13 +1050,16 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					elif globin.mode==3:
 						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 
+	# print(globin.parameter_scale["loggf"])
+	# print(atmos.data[:,:,1])
+	# sys.exit()
+
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
 	# for parID in range(Npar):
 	# 	plt.figure(parID+1)
 	# 	plt.plot(rf[0, 0, parID, :, 0])
-	# 	# plt.savefig(f"rf_p{parID+1}.png")
 	# plt.show()
 	# sys.exit()
 

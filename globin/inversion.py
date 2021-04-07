@@ -14,12 +14,8 @@ def invert(init, save_output=True, verbose=True):
 		return None, None
 	elif globin.mode>=1:
 		for cycle in range(init.ncycle):
-			if globin.mode==1:
+			if globin.mode==1 or globin.mode==2:
 				atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
-			elif globin.mode==2:
-				# pixel-by-pixel inversion with atomic parameters
-				invert_pxl_by_pxl(init, save_output, verbose)
-				atm, spec = None, None
 			elif globin.mode==3:
 				atm, spec = invert_global(init, save_output, verbose)
 			elif globin.mode==4:
@@ -32,8 +28,8 @@ def invert(init, save_output=True, verbose=True):
 			if (cycle+1)<init.ncycle:
 				init.atm.smooth_parameters()
 
-		globin.remove_dirs()
-		sys.exit()
+		# globin.remove_dirs()
+		# sys.exit()
 
 		return atm, spec
 
@@ -54,6 +50,8 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 	if verbose:
 		print("Initial parameters:")
 		print(atmos.values)
+		if globin.mode==2:
+			print(atmos.global_pars)
 		print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * init.marq_lambda
@@ -67,7 +65,10 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 	Nw = len(init.wavelength)
 	# this is number of local parameters only (we are doing pxl-by-pxl)
-	Npar = atmos.n_local_pars
+	if globin.mode==1:	
+		Npar = atmos.n_local_pars
+	elif globin.mode==2:
+		Npar = atmos.n_local_pars + atmos.n_global_pars
 	
 	if Npar==0:
 		print("There is no parameters to fit.\n   We exit.\n")
@@ -129,8 +130,12 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(init, atmos, full_rf, old_parameters)
 
-			print(rf.shape)
-			sys.exit()
+			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
+			# plt.show()
+
+			# globin.plot_atmosphere(init.ref_atm, ["temp"], color="tab:red")
+			# globin.plot_atmosphere(atmos, ["temp"])
+			# plt.show()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -181,9 +186,18 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 		# proposed_steps = (nx, ny, npar)
 		proposed_steps = np.linalg.solve(H, delta)
 
-		old_parameters = copy.deepcopy(atmos.values)
+		old_atmos_parameters = copy.deepcopy(atmos.values)
+		if globin.mode==2:
+			old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps, stop_flag)
 		atmos.check_parameter_bounds()
+
+		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					init.write_line_parameters(atmos.line_lists_path[idx*atmos.ny + idy],
+											   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
+											   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
@@ -198,8 +212,11 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 				if stop_flag[idx,idy]==1:
 					if chi2_new[idx,idy] > chi2_old[idx,idy]:
 						LM_parameter[idx,idy] *= 10
-						for parID in old_parameters:
-							atmos.values[parID][idx,idy] = old_parameters[parID][idx,idy]
+						for parameter in old_atmos_parameters:
+							atmos.values[parameter][idx,idy] = old_atmos_parameters[parameter][idx,idy]
+						if globin.mode==2:
+							for parameter in old_atomic_parameters:
+								atmos.global_pars[parameter][idx,idy] = old_atomic_parameters[parameter][idx,idy]
 						updated_pars = False
 					else:
 						chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
@@ -248,6 +265,8 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 
 		if updated_pars and verbose:
 			print(atmos.values)
+			if globin.mode==2:
+				print(atmos.global_pars)
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
 
@@ -431,8 +450,9 @@ def invert_global(init, save_output, verbose):
 		atmos.check_parameter_bounds()
 
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			init.write_line_parameters(atmos.global_pars["loggf"], atmos.line_no["loggf"],
-									   atmos.global_pars["dlam"], atmos.line_no["dlam"])
+			init.write_line_parameters(atmos.line_lists_path[0],
+									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
+									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
@@ -524,9 +544,9 @@ def invert_global(init, save_output, verbose):
 			if par=="vmac":
 				for i_ in range(len(atmos.global_pars[par])):
 					out_file.write("{:s}    {: 4.3f}\n".format(par, atmos.global_pars[par][i_]))
-			else:
-				for i_ in range(len(atmos.global_pars[par])):
-					out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
+			# else:
+			# 	for i_ in range(len(atmos.global_pars[par])):
+			# 		out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
 
 		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 		out_file.write(init.globin_input)
