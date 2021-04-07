@@ -18,6 +18,7 @@ def invert(init, save_output=True, verbose=True):
 				atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
 			elif globin.mode==2:
 				# pixel-by-pixel inversion with atomic parameters
+				invert_pxl_by_pxl(init, save_output, verbose)
 				atm, spec = None, None
 			elif globin.mode==3:
 				atm, spec = invert_global(init, save_output, verbose)
@@ -32,6 +33,7 @@ def invert(init, save_output=True, verbose=True):
 				init.atm.smooth_parameters()
 
 		globin.remove_dirs()
+		sys.exit()
 
 		return atm, spec
 
@@ -502,7 +504,7 @@ def invert_global(init, save_output, verbose):
 		output_path = f"runs/{globin.wd}"
 
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (init.RLK_path.split(globin.cwd)[-1], "reference line list")})
+		# atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (init.RLK_path.split(globin.cwd)[-1], "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", init.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	

@@ -140,7 +140,7 @@ class InputData(object):
 		self.wave_file_path = wave_file_path.split("/")[-1]
 		self.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
 		# self.solve_ne = find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
-		RLK_linelist_path = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "optional")
+		globin.kurucz_input_fname = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "optional")
 		globin.rf_file_path = find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 
 		#--- get parameters from globin input file
@@ -243,7 +243,7 @@ class InputData(object):
 			# set path to WAVETABLE in 'keyword.input' file
 			globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{self.run_name}/{self.wave_file_path}", f"runs/{self.run_name}/{self.rh_input_name}")
 
-		#--- get parameters for inversion
+		#--- get parameters for inversions
 		elif globin.mode>=1:
 			#--- default parameters
 			logtau_top = find_value_by_key("logtau_top", self.globin_input, "default", -6,float)
@@ -421,7 +421,7 @@ class InputData(object):
 					globin.parameter_scale["loggf"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
 
 					self.atm.global_pars["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-					self.atm.line_no["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)))
+					self.atm.line_no["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)), dtype=np.int)
 
 					self.atm.global_pars["loggf"][:,:] = aux_values
 					self.atm.line_no["loggf"][:,:] = aux_lineNo
@@ -435,14 +435,41 @@ class InputData(object):
 					globin.parameter_scale["dlam"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
 
 					self.atm.global_pars["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-					self.atm.line_no["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)))
+					self.atm.line_no["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)), dtype=np.int)
 
 					self.atm.global_pars["dlam"][:,:] = aux_values
 					self.atm.line_no["dlam"][:,:] = aux_lineNo
 
-					sys.exit()
+					# write these data into files
 
-			if globin.mode==3:
+					# make list of line lists paths (aka names)
+					self.atm.line_lists_path = []
+					for idx in range(self.atm.nx):
+						for idy in range(self.atm.ny):
+							fpath = f"runs/{self.run_name}/line_lists/rlk_list_x{idx}_y{idy}"
+							self.atm.line_lists_path.append(fpath)
+
+					#--- Kurucz line list for given spectral region
+					if globin.kurucz_input_fname:
+						# get path to line list which has original / expected values (will not be changed during execution)
+						linelist_path = find_value_by_key("linelist", self.globin_input, "required")
+						# RLK_text_lines --> list of text lines with Kurucz line format (needed for outputing atomic line list later)
+						# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
+						self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
+
+						for idx in range(self.atm.nx):
+							for idy in range(self.atm.ny):
+								self.write_line_parameters(self.atm.line_lists_path[idx*self.atm.ny + idy],
+														   self.atm.global_pars["loggf"][idx,idy], self.atm.line_no["loggf"][idx,idy],
+														   self.atm.global_pars["dlam"][idx,idy], self.atm.line_no["dlam"][idx,idy])
+					else:
+						print("--> Error in read_input_files()")
+						print("    No path to 'kurucz.input' file.")
+						sys.exit()
+				else:
+					print("No atomic parameters to fit. You sure?\n")
+
+			elif globin.mode==3:
 				#--- line parameters to be fit
 				line_pars_path = find_value_by_key("line_parameters", self.globin_input, "optional")
 
@@ -467,7 +494,7 @@ class InputData(object):
 					globin.parameter_scale["dlam"] = np.ones(len(self.atm.global_pars["dlam"]))
 
 					#--- Kurucz line list for given spectral region
-					if RLK_linelist_path:
+					if globin.kurucz_input_fname:
 						# get path to line list which has original / expected values (will not be changed during execution)
 						linelist_path = find_value_by_key("linelist", self.globin_input, "required")
 						# RLK_text_lines --> list of text lines with Kurucz line format (needed for outputing atomic line list later)
@@ -476,7 +503,7 @@ class InputData(object):
 
 						# go through RLK file and find the uncommented line
 						# with path to atomic line files of Kurucz format
-						file = open(RLK_linelist_path, "r")
+						file = open(globin.kurucz_input_fname, "r")
 						lines = file.readlines()
 						file.close()
 						
@@ -488,7 +515,7 @@ class InputData(object):
 
 								self.RLK_path = f"{globin.cwd}/runs/{run_name}/{fname}"
 								
-								out = open(f"runs/{run_name}/{RLK_linelist_path}", "w")
+								out = open(f"runs/{run_name}/{globin.kurucz_input_fname}", "w")
 								out.write(self.RLK_path + "\n")
 								out.close()
 								break
@@ -533,11 +560,12 @@ class InputData(object):
 			if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
 				os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
 
-	def write_line_parameters(self, loggf_val, loggf_no, dlam_val, dlam_no):
+	def write_line_parameters(self, fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 		"""
 		Write out full Kurucz line list for all parameters.
 		"""
-		out = open(self.RLK_path, "w")
+		# out = open(self.RLK_path, "w")
+		out = open(fpath, "w")
 
 		# because of Python memory handling
 		# these two variables will be the same all the time!
@@ -559,13 +587,14 @@ class InputData(object):
 		out.writelines(linelist)
 		out.close()
 
-	def write_line_par(self, par_val, par_no, parameter):
+	def write_line_par(self, fpath, par_val, par_no, parameter):
 		"""
 		Write out parameter for one given line and parameter.
 
 		Used when we are computing RFs.
 		"""
-		out = open(self.RLK_path, "w")
+		# out = open(self.RLK_path, "w")
+		out = open(fpath, "w")
 
 		# because of Python memory handling
 		# these two variables will be the same all the time!
@@ -653,6 +682,8 @@ class InputData(object):
 					print("--> Error in input.load_node_data()")
 					print("    initial atmosphere does not have same dimensions")
 					print("    as observations.")
+					print(f"    -- atm = ({self.atm.nx},{self.atm.ny})")
+					print(f"    -- obs = ({self.obs.nx},{self.obs.ny})")
 					sys.exit()
 
 				self.atm.nodes[parameter] = data[0,0,0]
