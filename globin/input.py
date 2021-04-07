@@ -324,9 +324,7 @@ class InputData(object):
 					self.ref_atm = globin.falc
 
 			#--- initialize invert atmosphere data from reference atmosphere
-			self.atm.data = np.zeros((self.atm.nx, self.atm.ny, self.atm.npar, self.atm.nz), dtype=np.float64)
-			self.atm.data[:,:,0,:] = self.atm.logtau
-			self.atm.interpolate_atmosphere(self.ref_atm.data)
+			self.atm.interpolate_atmosphere(self.ref_atm.data[0,0,0], self.ref_atm.data)
 
 			self.lmin = find_value_by_key("wave_min", self.globin_input, "optional", conversion=float) / 10  # [nm]
 			self.lmax = find_value_by_key("wave_max", self.globin_input, "optional", conversion=float) / 10  # [nm]
@@ -413,32 +411,32 @@ class InputData(object):
 					lines_to_fit = globin.read_init_line_parameters(line_pars_path)
 
 					# get log(gf) parameters from line list
-					aux_values = np.array([line.loggf for line in lines_to_fit if line.loggf is not None])
-					aux_lineNo = np.array([line.lineNo for line in lines_to_fit if line.loggf is not None])
+					aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+					aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
 					loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
 					loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
 					globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
 					globin.parameter_scale["loggf"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
 
 					self.atm.global_pars["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-					self.atm.line_no["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)), dtype=np.int)
+					self.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
 
 					self.atm.global_pars["loggf"][:,:] = aux_values
-					self.atm.line_no["loggf"][:,:] = aux_lineNo
+					self.atm.line_no["loggf"][:] = aux_lineNo
 
 					# get dlam parameters from lines list
-					aux_values = np.array([line.dlam for line in lines_to_fit if line.dlam is not None])
-					aux_lineNo = np.array([line.lineNo for line in lines_to_fit if line.dlam is not None])
+					aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+					aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
 					dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
 					dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
 					globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
 					globin.parameter_scale["dlam"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
 
 					self.atm.global_pars["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-					self.atm.line_no["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)), dtype=np.int)
+					self.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
 
 					self.atm.global_pars["dlam"][:,:] = aux_values
-					self.atm.line_no["dlam"][:,:] = aux_lineNo
+					self.atm.line_no["dlam"][:] = aux_lineNo
 
 					# write these data into files
 
@@ -460,8 +458,8 @@ class InputData(object):
 						for idx in range(self.atm.nx):
 							for idy in range(self.atm.ny):
 								self.write_line_parameters(self.atm.line_lists_path[idx*self.atm.ny + idy],
-														   self.atm.global_pars["loggf"][idx,idy], self.atm.line_no["loggf"][idx,idy],
-														   self.atm.global_pars["dlam"][idx,idy], self.atm.line_no["dlam"][idx,idy])
+														   self.atm.global_pars["loggf"][idx,idy], self.atm.line_no["loggf"],
+														   self.atm.global_pars["dlam"][idx,idy], self.atm.line_no["dlam"])
 					else:
 						print("--> Error in read_input_files()")
 						print("    No path to 'kurucz.input' file.")
@@ -478,20 +476,32 @@ class InputData(object):
 					lines_to_fit = globin.read_init_line_parameters(line_pars_path)
 
 					# get log(gf) parameters from line list
-					self.atm.global_pars["loggf"] = [line.loggf for line in lines_to_fit if line.loggf is not None]
-					self.atm.line_no["loggf"] = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+					aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+					aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
 					loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
 					loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
 					globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-					globin.parameter_scale["loggf"] = np.ones(len(self.atm.global_pars["loggf"]))
+					globin.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
+
+					self.atm.global_pars["loggf"] = np.zeros((1,1,len(aux_values)))
+					self.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+					self.atm.global_pars["loggf"][0,0] = aux_values
+					self.atm.line_no["loggf"][:] = aux_lineNo
 
 					# get dlam parameters from lines list
-					self.atm.global_pars["dlam"] = [line.dlam for line in lines_to_fit if line.dlam is not None]
-					self.atm.line_no["dlam"] = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+					aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+					aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
 					dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
 					dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
 					globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-					globin.parameter_scale["dlam"] = np.ones(len(self.atm.global_pars["dlam"]))
+					globin.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
+
+					self.atm.global_pars["dlam"] = np.zeros((1,1,len(aux_values)))
+					self.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+					self.atm.global_pars["dlam"][0,0] = aux_values
+					self.atm.line_no["dlam"][:] = aux_lineNo
 
 					#--- Kurucz line list for given spectral region
 					if globin.kurucz_input_fname:
@@ -501,28 +511,12 @@ class InputData(object):
 						# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
 						self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
 
-						# go through RLK file and find the uncommented line
-						# with path to atomic line files of Kurucz format
-						file = open(globin.kurucz_input_fname, "r")
-						lines = file.readlines()
-						file.close()
-						
-						for line in lines:
-							line = line.rstrip("\n").replace(" ","")
-							# find the first uncommented line and break
-							if line[0]!=globin.COMMENT_CHAR:
-								fname = line.split("/")[-1]
-
-								self.RLK_path = f"{globin.cwd}/runs/{run_name}/{fname}"
-								
-								out = open(f"runs/{run_name}/{globin.kurucz_input_fname}", "w")
-								out.write(self.RLK_path + "\n")
-								out.close()
-								break
+						self.atm.line_lists_path = [f"runs/{self.run_name}/{linelist_path.split('/')[-1]}"]
 
 						# write down initial atomic lines values
-						self.write_line_parameters(self.atm.global_pars["loggf"], self.atm.line_no["loggf"],
-												   self.atm.global_pars["dlam"], self.atm.line_no["dlam"])
+						self.write_line_parameters(self.atm.line_lists_path[0],
+												   self.atm.global_pars["loggf"][0,0], self.atm.line_no["loggf"],
+												   self.atm.global_pars["dlam"][0,0], self.atm.line_no["dlam"])
 					else:
 						print("No path to 'kurucz.input' file.")
 						# print("There is no Kurucz line list file to write to.")
@@ -534,12 +528,12 @@ class InputData(object):
 
 			#--- determine number of local and global parameters
 			self.atm.n_local_pars = 0
-			for pID in self.atm.nodes:
-				self.atm.n_local_pars += len(self.atm.nodes[pID])
+			for parameter in self.atm.nodes:
+				self.atm.n_local_pars += len(self.atm.nodes[parameter])
 
 			self.atm.n_global_pars = 0
-			for pID in self.atm.global_pars:
-				self.atm.n_global_pars += len(self.atm.global_pars[pID])
+			for parameter in self.atm.global_pars:
+				self.atm.n_global_pars += self.atm.global_pars[parameter].shape[-1]
 
 			#--- missing parameters
 			# instrument broadening: R or instrument profile provided

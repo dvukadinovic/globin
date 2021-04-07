@@ -129,6 +129,9 @@ def invert_pxl_by_pxl(init, save_output, verbose):
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(init, atmos, full_rf, old_parameters)
 
+			print(rf.shape)
+			sys.exit()
+
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
 			# for idx in range(atmos.nx):

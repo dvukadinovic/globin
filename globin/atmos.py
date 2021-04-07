@@ -122,6 +122,7 @@ class Atmosphere(object):
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
 		new.sigma = copy.deepcopy(self.sigma)
+		new.line_lists_path = copy.deepcopy(self.line_lists_path)
 		try:
 			new.n_local_pars = copy.deepcopy(self.n_local_pars)
 			new.n_global_pars = copy.deepcopy(self.n_global_pars)
@@ -176,7 +177,7 @@ class Atmosphere(object):
 		if self.type=="spinor":
 			multi_atmos = self.spinor2multi(atmos_data)
 			if not np.array_equal(multi_atmos[0,0,0], self.logtau):
-				self.interpolate_atmosphere(multi_atmos)
+				self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
 			else:
 				self.data = np.zeros((*multi_atmos.shape))
 				self.data = multi_atmos
@@ -184,7 +185,7 @@ class Atmosphere(object):
 			self.sir2multi()
 		elif self.type=="multi":
 			if not np.array_equal(logtau, self.logtau):
-				self.interpolate_atmosphere(atmos_data)
+				self.interpolate_atmosphere(x_new=logtau, ref_atm=atmos_data)
 			else:
 				self.logtau = logtau
 				self.data = atmos_data
@@ -195,10 +196,11 @@ class Atmosphere(object):
 			sys.exit()
 
 	def spinor2multi(self, atmos_data):
-		data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+		nx, ny, npar, nz = 1, 1, 14, atmos_data.shape[-1]
+		data = np.zeros((nx, ny, npar, nz))
 
-		for idx in range(self.nx):
-			for idy in range(self.ny):	
+		for idx in range(nx):
+			for idy in range(ny):	
 				# log(tau)
 				data[idx,idy,0] = atmos_data[idx,idy,0]
 				# Temperature [K]
@@ -320,22 +322,21 @@ class Atmosphere(object):
 			for idy in range(self.ny):
 				write_multi_atmosphere(self.data[idx,idy], self.atm_name_list[idx*self.ny + idy])
 
-	def interpolate_atmosphere(self, ref_atm):
-		if (self.logtau[0]<ref_atm[0,0,0,0]) or \
-		   (self.logtau[-1]>ref_atm[0,0,0,-1]):
+	def interpolate_atmosphere(self, x_new, ref_atm):
+		if (x_new[0]<ref_atm[0,0,0,0]) or \
+		   (x_new[-1]>ref_atm[0,0,0,-1]):
 			# print("--> Warning: atmosphere will be extrapolated")
 			# print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 			self.logtau = ref_atm[0,0,0]
 			self.data = ref_atm
 			return
 
-		x_new = self.logtau
 		self.nz = len(x_new)
-		nx, ny, npar, nz = ref_atm.shape
+		nx, ny, _, _ = ref_atm.shape
 
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-		self.data[:,:,0,:] = self.logtau
-
+		self.data[:,:,0,:] = x_new
+		self.logtau = x_new
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -674,7 +675,7 @@ def synth_pool(args):
     """
 	start = time.time()
 
-	atm_path, rh_spec_name = args
+	atm_path, rh_spec_name, line_list_path = args
 
 	# get process ID number
 	pid = mp.current_process()._identity[0]
@@ -691,6 +692,11 @@ def synth_pool(args):
 	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
 	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
+
+	# make kurucz.input file in rhf1d/globin.wd_pid and give the line list path
+	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.kurucz_input_fname}", "w")
+	out.write(f"{globin.cwd}/{line_list_path}\n")
+	out.close()
 
 	# make log file
 	aux = atm_path.split("_")
@@ -768,7 +774,11 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		globin.remove_dirs()
 		sys.exit()
 
-	args = [ [atm_name, rh_spec_name] for atm_name in atm_name_list]
+
+	if globin.mode==3:
+		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
+	elif globin.mode==2:
+		args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
 	
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
@@ -957,36 +967,67 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 							# rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
 							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * init.step / atmos.global_pars["vmac"]
 				free_par_ID += 1
+
 			elif parameter=="loggf" or parameter=="dlam":
 				perturbation = globin.delta[parameter]
 
-				for parID in range(len(atmos.global_pars[parameter])):
-					line_no = atmos.line_no[parameter][parID]
-					value = copy.deepcopy(atmos.global_pars[parameter][parID])
-					
+				for idp in range(atmos.line_no[parameter].size):
+					line_no = atmos.line_no[parameter][idp]
+					values = copy.deepcopy(atmos.global_pars[parameter][:,:,idp])
+
 					# positive perturbation
-					value += perturbation
-					init.write_line_par(value, line_no, parameter)
+					values += perturbation
+					# write atomic parameters in files
+					if globin.mode==2:
+						for idx in range(atmos.nx):
+							for idy in range(atmos.ny):	
+								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+													values[idx,idy], line_no, parameter)
+					elif globin.mode==3:
+						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+					
 					spec_plus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 					spec_plus.broaden_spectra(atmos.vmac)
 
 					# negative perturbation
-					value -= 2*perturbation
-					init.write_line_par(value, line_no, parameter)
+					values -= 2*perturbation
+					if globin.mode==2:
+						for idx in range(atmos.nx):
+							for idy in range(atmos.ny):	
+								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+													values[idx,idy], line_no, parameter)
+					elif globin.mode==3:
+						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+					
 					spec_minus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 					spec_minus.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
-					scale = np.sqrt(np.sum(diff**2))
-					globin.parameter_scale[parameter][parID] = scale
+					if globin.mode==2:
+						scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
+					elif globin.mode==3:
+						scale = np.sqrt(np.sum(diff**2))
+					globin.parameter_scale[parameter][...,idp] = scale
 
-					rf[:,:,free_par_ID,:,:] = diff / scale
-					free_par_ID += 1
-
+					if globin.mode==2:
+						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]
+						free_par_ID += 1
+					elif globin.mode==3:
+						for idx in range(atmos.nx):
+							for idy in range(atmos.ny):
+								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
+						free_par_ID += 1
+					
 					# return perturbation back
-					value += perturbation
-					init.write_line_par(value, line_no, parameter)
+					values += perturbation
+					if globin.mode==2:
+						for idx in range(atmos.nx):
+							for idy in range(atmos.ny):	
+								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+													values[idx,idy], line_no, parameter)
+					elif globin.mode==3:
+						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
@@ -995,6 +1036,13 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	# 	plt.figure(parID+1)
 	# 	plt.plot(rf[0, 0, parID, :, 0])
 	# 	# plt.savefig(f"rf_p{parID+1}.png")
+	# plt.show()
+	# sys.exit()
+
+	#--- compare RFs for single parameter
+	# for idx in range(atmos.nx):
+	# 	for idy in range(atmos.ny):
+	# 		plt.plot(rf[idx,idy, 3, :, 0])
 	# plt.show()
 	# sys.exit()
 
