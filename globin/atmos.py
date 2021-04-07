@@ -397,15 +397,22 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 		
 		for parameter in pars:
-			matrix = np.zeros((2, len(self.global_pars[parameter])))
-			matrix[0] = self.line_no[parameter]
-			matrix[1] = self.global_pars[parameter]
+			if globin.mode==2:
+				nx, ny = self.nx, self.ny
+			elif globin.mode==3:
+				nx, ny = 1,1
+
+			matrix = np.zeros((self.nx, self.ny, 2, self.line_no[parameter].size))
+			matrix[:,:,0] = self.line_no[parameter]
+			matrix[:,:,1] = self.global_pars[parameter]
 
 			par_hdu = fits.ImageHDU(matrix)
 			par_hdu.name = parameter
 
 			par_hdu.header.comments["NAXIS1"] = "number of lines"
 			par_hdu.header.comments["NAXIS2"] = "1 - line IDs | 2 - line values"
+			par_hdu.header.comments["NAXIS3"] = "y-axis number of pixels"
+			par_hdu.header.comments["NAXIS4"] = "x-axis number of pixels"
 			
 			if kwargs:
 				for key in kwargs:
