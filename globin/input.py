@@ -393,6 +393,55 @@ class InputData(object):
 				for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 					self.read_node_parameters(parameter, self.globin_input)
 
+			if globin.mode==2:
+				# this is pixel-by-pixel inversion and for atomic parameters
+
+				# make directory in which line list will be saved for each atmosphere
+				if not os.path.exists(f"runs/{self.run_name}/line_lists"):
+					os.mkdir(f"runs/{self.run_name}/line_lists")
+				else:
+					# clean directory if it exists (maybe we have line lists saved
+					# from some other run); it takes few miliseconds, so not a big deal
+					sp.run(f"rm runs/{self.run_name}/line_lists/*",
+						shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+
+				#--- line parameters to be fit
+				line_pars_path = find_value_by_key("line_parameters", self.globin_input, "optional")
+
+				if line_pars_path:
+					# if we provided line parameters for fit, read those parameters
+					lines_to_fit = globin.read_init_line_parameters(line_pars_path)
+
+					# get log(gf) parameters from line list
+					aux_values = np.array([line.loggf for line in lines_to_fit if line.loggf is not None])
+					aux_lineNo = np.array([line.lineNo for line in lines_to_fit if line.loggf is not None])
+					loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+					loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+					globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+					globin.parameter_scale["loggf"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
+
+					self.atm.global_pars["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
+					self.atm.line_no["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)))
+
+					self.atm.global_pars["loggf"][:,:] = aux_values
+					self.atm.line_no["loggf"][:,:] = aux_lineNo
+
+					# get dlam parameters from lines list
+					aux_values = np.array([line.dlam for line in lines_to_fit if line.dlam is not None])
+					aux_lineNo = np.array([line.lineNo for line in lines_to_fit if line.dlam is not None])
+					dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+					dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+					globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+					globin.parameter_scale["dlam"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
+
+					self.atm.global_pars["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
+					self.atm.line_no["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_lineNo)))
+
+					self.atm.global_pars["dlam"][:,:] = aux_values
+					self.atm.line_no["dlam"][:,:] = aux_lineNo
+
+					sys.exit()
+
 			if globin.mode==3:
 				#--- line parameters to be fit
 				line_pars_path = find_value_by_key("line_parameters", self.globin_input, "optional")

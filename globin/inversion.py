@@ -16,6 +16,9 @@ def invert(init, save_output=True, verbose=True):
 		for cycle in range(init.ncycle):
 			if globin.mode==1:
 				atm, spec = invert_pxl_by_pxl(init, save_output, verbose)
+			elif globin.mode==2:
+				# pixel-by-pixel inversion with atomic parameters
+				atm, spec = None, None
 			elif globin.mode==3:
 				atm, spec = invert_global(init, save_output, verbose)
 			elif globin.mode==4:
