@@ -183,8 +183,6 @@ class Atmosphere(object):
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			print(logtau)
-			print(self.logtau)
 			if not np.array_equal(logtau, self.logtau):
 				self.interpolate_atmosphere(atmos_data)
 			else:
@@ -330,7 +328,7 @@ class Atmosphere(object):
 			self.logtau = ref_atm[0,0,0]
 			self.data = ref_atm
 			return
-		
+
 		x_new = self.logtau
 		self.nz = len(x_new)
 		nx, ny, npar, nz = ref_atm.shape

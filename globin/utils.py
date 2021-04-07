@@ -164,13 +164,13 @@ def make_synthetic_observations(atmos, rh_spec_name, wavelength, vmac, noise, at
         atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
 
-    atmos.save_atmosphere(atm_name)
+    # atmos.save_atmosphere(atm_name)
 
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-            globin.plot_atmosphere(atmos, ["temp"], idx, idy)
-    plt.show()
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
+    #         globin.plot_atmosphere(atmos, ["temp"], idx, idy)
+    # plt.show()
 
     spec, _, _ = globin.compute_spectra(atmos, rh_spec_name, wavelength)
     spec.broaden_spectra(atmos.vmac)
