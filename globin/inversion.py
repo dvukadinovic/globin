@@ -28,8 +28,7 @@ def invert(init, save_output=True, verbose=True):
 			if (cycle+1)<init.ncycle:
 				init.atm.smooth_parameters()
 
-		# globin.remove_dirs()
-		# sys.exit()
+		globin.remove_dirs()
 
 		return atm, spec
 

@@ -800,11 +800,11 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		globin.remove_dirs()
 		sys.exit()
 
-	if globin.mode==2:
-		args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
-	else:
+	if len(atmos.line_lists_path)==1 and (globin.mode==2 or globin.mode==3):
 		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
-	
+	else:
+		args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
+
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
 		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
@@ -841,6 +841,7 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes()
 	spec, atm, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+
 
 	if globin.rf_type=="snapi":	
 		# full_rf.shape = (nx, ny, np, nz, nw, 4)
@@ -938,10 +939,11 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
+
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
 					if scale[idx,idy]==0:
-						print(parameter)
+						print("scale==0 for --> ", parameter)
 						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
 					else:
 						globin.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
@@ -1039,12 +1041,12 @@ def compute_rfs(init, atmos, old_full_rf=None, old_pars=None):
 					globin.parameter_scale[parameter][...,idp] = scale
 
 					if globin.mode==2:
-						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]
-						free_par_ID += 1
-					elif globin.mode==3:
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
-								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][0,0,idp]
+								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
+						free_par_ID += 1
+					elif globin.mode==3:
+						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]
 						free_par_ID += 1
 					
 					# return perturbation back
