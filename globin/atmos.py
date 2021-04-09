@@ -800,11 +800,21 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		globin.remove_dirs()
 		sys.exit()
 
-	if len(atmos.line_lists_path)==1 and (globin.mode==2 or globin.mode==3):
+	if globin.mode==1:
 		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
-	else:
+	elif globin.mode==2:
+		if len(atmos.line_lists_path)>1:	
+			args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
+		else:
+			args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
+	elif globin.mode==3:
 		args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
-
+	else:
+		print("--> Error in compute_spectra()")
+		print("    We can not make a list of arguments for computing spectra.")
+		globin.remove_dirs()
+		sys.exit()
+	
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
 		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
