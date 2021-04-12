@@ -6,7 +6,8 @@ class Line(object):
     """
     def __init__(self, lineNo=None, lam0=None,
                     loggf=None, loggf_min=None, loggf_max=None,
-                    dlam=None, dlam_min=None, dlam_max=None):
+                    dlam=None, dlam_min=None, dlam_max=None,
+                    ion=None, state=None, e1=None, e2=None):
         self.lineNo = lineNo
         self.lam0 = lam0
         self.loggf = loggf
@@ -15,6 +16,11 @@ class Line(object):
         self.dlam = dlam
         self.dlam_min = dlam_min
         self.dlam_max = dlam_max
+
+        self.ion = ion
+        self.state = state
+        self.e1 = e1
+        self.e2 = e2
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
@@ -45,8 +51,21 @@ def read_RLK_lines(fpath):
     for i_, line in enumerate(text_lines):
         lam0 = float(line[0:10])
         loggf = float(line[10:17])
+        aux = float(line[17:23])
+        decimal, integer = np.modf(aux)
+        ion = int(integer)
+        state = round(decimal*100)
+        e1 = float(line[23:35])*0.00012 # [1/cm --> eV]
+        e2 = float(line[51:63])*0.00012 # [1/cm --> eV]
 
-        RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf))
+        if e1>e2:
+            RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
+                                  ion=ion, state=state,
+                                  e1=e2, e2=e1))
+        else:
+            RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
+                                  ion=ion, state=state,
+                                  e1=e1, e2=e2))
 
     return text_lines, RLK_lines
 
