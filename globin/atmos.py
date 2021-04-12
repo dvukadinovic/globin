@@ -800,7 +800,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		globin.remove_dirs()
 		sys.exit()
 
-	if globin.mode==1:
+	if globin.mode==0 or globin.mode==1:
 		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
 	elif globin.mode==2:
 		if len(atmos.line_lists_path)>1:	
