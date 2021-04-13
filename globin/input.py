@@ -680,10 +680,12 @@ class InputData(object):
 	def load_node_data(self, fpath):
 		hdu_list = fits.open(fpath)
 
+		xmin, xmax, ymin, ymax = self.atm_range
+
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 			try:
 				ind = hdu_list.index_of(parameter)
-				data = hdu_list[ind].data
+				data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
 				_, nx, ny, nnodes = data.shape
 
 				self.atm.nx, self.atm.ny = nx, ny
@@ -698,6 +700,7 @@ class InputData(object):
 
 				self.atm.nodes[parameter] = data[0,0,0]
 				self.atm.values[parameter] = data[1]
+				self.atm.mask[parameter] = np.ones(len(self.atm.nodes[parameter]))
 
 				globin.parameter_scale[parameter] = np.ones((self.atm.nx, self.atm.ny, nnodes))
 			except:
