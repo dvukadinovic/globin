@@ -221,30 +221,33 @@ def plot_rf(rf=None, fpath=None):
 	xpos = np.linspace(0, 200, num=11)
 	xvals = np.round(np.linspace(-1, 1, num=11), decimals=1)
 
-	ypos = np.linspace(0, 70, num=6)
+	ypos = np.linspace(0, 50, num=6)
 	yvals = np.round(np.linspace(-5, 1, num=6), decimals=1)
 
-	aux = np.sum(rf[idx, idy, idp, :, :, 0], axis=1)
-	norm = np.sqrt(np.sum(aux**2))
-	plt.plot(np.linspace(-6, 1, num=71), aux/norm)
-	plt.show()
-	return 
+	# aux = np.sum(rf[idx, idy, idp, :, :, 0], axis=1)
+	# norm = np.sqrt(np.sum(aux**2))
+	# plt.plot(np.linspace(-4, 1, num=51), aux/norm)
+	# plt.show()
+	# return 
 
 	fig = plt.figure(figsize=(9,9), dpi=150)
-	gs = fig.add_gridspec(nrows=4, ncols=1, wspace=0.35, hspace=0.5)
+	gs = fig.add_gridspec(nrows=1, ncols=1, wspace=0.35, hspace=0.5)
 
 	ax = fig.add_subplot(gs[0,0])
 	matrix = rf[idx, idy, idp, :, :, 0]
 	norm = np.sqrt(np.sum(matrix**2))
 	matrix /= norm
 	vmax = np.max(np.abs(matrix))
-	im = ax.imshow(rf[idx, idy, idp, :, :, 0], aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
+	# im = ax.imshow(rf[idx, idy, idp, :, :, 0], aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
+	im = ax.imshow(matrix, aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
 	add_colorbar(fig, ax, im)
 	ax.set_xticks(xpos)
 	ax.set_xticklabels(xvals)
 	ax.set_yticks(ypos)
 	ax.set_yticklabels(yvals)
 	ax.grid(b=True, which="major", axis="y", lw=0.5)
+	plt.show()
+	return 
 
 	ax = fig.add_subplot(gs[1,0])
 	matrix = rf[idx, idy, idp, :, :, 1]
