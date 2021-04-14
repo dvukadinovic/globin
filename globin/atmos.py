@@ -956,10 +956,10 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 				for idy in range(atmos.ny):
 					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
 			
-			if len(old_inds)>0:
-				for ind in old_inds:
-					idx, idy = ind
-					rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
+			# if len(old_inds)>0:
+			# 	for ind in old_inds:
+			# 		idx, idy = ind
+			# 		rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
 
 			free_par_ID += 1
 
