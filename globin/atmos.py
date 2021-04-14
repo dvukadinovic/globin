@@ -956,10 +956,11 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 				for idy in range(atmos.ny):
 					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
 			
-			# if len(old_inds)>0:
-			# 	for ind in old_inds:
-			# 		idx, idy = ind
-			# 		rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
+			# copy old RFs for those parameters for which we have not calculated spectra
+			if len(old_inds)>0:
+				for ind in old_inds:
+					idx, idy = ind
+					rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
 
 			free_par_ID += 1
 
@@ -1014,7 +1015,8 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 					if globin.mode==2:
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):	
-								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+								init.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
 						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
@@ -1027,7 +1029,8 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 					if globin.mode==2:
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):	
-								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+								init.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
 						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
@@ -1050,17 +1053,24 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
 								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
-						free_par_ID += 1
 					elif globin.mode==3:
 						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]
-						free_par_ID += 1
+
+					# copy old RFs for those parameters for which we have not calculated spectra
+					if len(old_inds)>0:
+						for ind in old_inds:
+							idx, idy = ind
+							rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
+					
+					free_par_ID += 1
 					
 					# return perturbation back
 					values += perturbation
 					if globin.mode==2:
 						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								init.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
+							for idy in range(atmos.ny):
+								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"	
+								init.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
 						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
@@ -1072,9 +1082,10 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
-	# for parID in range(Npar):
-	# 	plt.figure(parID+1)
-	# 	plt.plot(rf[0, 0, parID, :, 0])
+	# for idx in range(atmos.nx):
+	# 	for parID in range(Npar):
+	# 		plt.figure(parID+1)
+	# 		plt.plot(rf[idx, 0, parID, :, 0])
 	# plt.show()
 	# sys.exit()
 
