@@ -569,7 +569,7 @@ def invert_global(save_output, verbose):
 		# we check if chi2 has converged for each pixel
 		# if yes, we set break_flag to True
 		# we do not check for chi2 convergence until 3rd iteration
-		if (itter)>=3:
+		if (itter)>=3 and updated_parameters:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
 			relative_change = abs(chi2[itter-1]/chi2[itter-2] - 1)
