@@ -482,6 +482,7 @@ class Atmosphere(object):
 					# so we have to return the values from m/s to km/s
 					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
+				np.nan_to_num(step, nan=0.0, copy=False)
 				self.values[parameter] += step
 
 			# update atomic parameters
@@ -489,6 +490,7 @@ class Atmosphere(object):
 				low_ind = up_ind
 				up_ind += self.line_no[parameter].size
 				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
 		else:
 			low_ind, up_ind = 0, 0
@@ -503,6 +505,7 @@ class Atmosphere(object):
 						# so we have to return the values from m/s to km/s
 						if parameter=="vz" or parameter=="vmic":
 							step /= 1e3
+						np.nan_to_num(step, nan=0.0, copy=False)
 						self.values[parameter][idx,idy] += step * self.mask[parameter]
 
 			# update atomic parameters
@@ -510,6 +513,7 @@ class Atmosphere(object):
 				low_ind = up_ind
 				up_ind += self.global_pars[parameter].size
 				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
+				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
 			
 	def distribute_hydrogen(self, temp, pg, pe):
@@ -618,13 +622,14 @@ def write_multi_atmosphere(atm, fpath):
 		print("We have NaN in atomic structure!\n")
 		sys.exit()
 
-def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
-	Nw = len(wavelength)
+def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
+	Nw = len(globin.wavelength)
 	spectra = globin.Spectrum(Nx, Ny, Nw)
-	spectra.wavelength = wavelength
-	spectra.lmin = wavelength[0]
-	spectra.lmax = wavelength[-1]
-	spectra.step = wavelength[1] - wavelength[0]
+	spectra.noise = globin.noise
+	spectra.wavelength = globin.wavelength
+	spectra.lmin = globin.lmin
+	spectra.lmax = globin.lmax
+	spectra.step = globin.step
 
 	atmospheres = np.zeros((Nx, Ny, 14, Nz), dtype=np.float64)
 	height = np.zeros((Nx, Ny, Nz), dtype=np.float64)
@@ -633,8 +638,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz, wavelength):
 		if item is not None:
 			rh_obj, idx, idy = item.values()
 
-			ind_min = np.argmin(abs(rh_obj.wave - wavelength[0]))
-			ind_max = np.argmin(abs(rh_obj.wave - wavelength[-1]))+1
+			ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
+			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
 
 			# Stokes vector
 			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max]
@@ -694,7 +699,7 @@ def synth_pool(args):
     """
 	start = time.time()
 
-	atm_path, rh_spec_name, line_list_path = args
+	atm_path, line_list_path = args
 
 	# get process ID number
 	pid = mp.current_process()._identity[0]
@@ -750,7 +755,7 @@ def synth_pool(args):
 
 	# read output spectra and spectrum ray from RH
 	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
-	rh_obj.read_spectrum(rh_spec_name)
+	rh_obj.read_spectrum(globin.rh_spec_name)
 	rh_obj.read_ray()
 
 	dt = time.time() - start
@@ -758,7 +763,7 @@ def synth_pool(args):
 
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
-def compute_spectra(atmos, rh_spec_name, wavelength):
+def compute_spectra(atmos):
 	"""
 	Function which computes spectrum from input atmosphere. It will distribute
 	the calculation to number of threads given in 'init' and store the spectrum
@@ -787,25 +792,24 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
 		the wavelength and Stokes vector for each pixel in atmosphere cube.
 	"""
-	atm_name_list = atmos.atm_name_list
-	if len(atm_name_list)==0:
+	if len(atmos.atm_name_list)==0:
 		print("Empty list of atmosphere names.\n")
 		globin.remove_dirs()
 		sys.exit()
 
 	if globin.mode==0 or globin.mode==1 or globin.mode==3:
-		args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
+		args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
 	elif globin.mode==2:
 		if len(atmos.line_lists_path)>1:	
-			args = [ [atm_name, rh_spec_name, line_list_path] for atm_name, line_list_path in zip(atm_name_list, atmos.line_lists_path)]
+			args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
 		else:
-			args = [ [atm_name, rh_spec_name, atmos.line_lists_path[0]] for atm_name in atm_name_list]
+			args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
 	else:
 		print("--> Error in compute_spectra()")
 		print("    We can not make a list of arguments for computing spectra.")
 		globin.remove_dirs()
 		sys.exit()
-	
+
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
 		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
@@ -828,7 +832,7 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 		sys.exit()
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
-	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz, wavelength)
+	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
 
 	# if we are only in synthesis mode,
 	# after we finish synthesis, remove working
@@ -838,10 +842,10 @@ def compute_spectra(atmos, rh_spec_name, wavelength):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
+def compute_rfs(atmos, old_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes()
-	spec, _, _ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	spec, _, _ = compute_spectra(atmos)
 
 	if globin.rf_type=="snapi":	
 		# full_rf.shape = (nx, ny, np, nz, nw, 4)
@@ -882,8 +886,8 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 	#--- get total number of parameters (local + global)
 	Npar = atmos.n_local_pars + atmos.n_global_pars
 	
-	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(init.wavelength), 4), dtype=np.float64)
-	node_RF = np.zeros((atmos.nx, atmos.ny, len(init.wavelength), 4))
+	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(globin.wavelength), 4), dtype=np.float64)
+	node_RF = np.zeros((atmos.nx, atmos.ny, len(globin.wavelength), 4))
 
 	model_plus = copy.deepcopy(atmos)
 	model_minus = copy.deepcopy(atmos)
@@ -926,7 +930,7 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 				# positive perturbation
 				model_plus.values[parameter][:,:,nodeID] += perturbation
 				model_plus.build_from_nodes()
-				spectra_plus,_,_ = compute_spectra(model_plus, init.rh_spec_name, init.wavelength)
+				spectra_plus,_,_ = compute_spectra(model_plus)
 
 				# negative perturbation (except for gamma and chi)
 				if parameter=="gamma" or parameter=="chi":
@@ -934,7 +938,7 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.build_from_nodes()
-					spectra_minus,_,_ = compute_spectra(model_minus, init.rh_spec_name, init.wavelength)			
+					spectra_minus,_,_ = compute_spectra(model_minus)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
@@ -945,9 +949,9 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 					if scale[idx,idy]==0:
 						# print("scale==0 for --> ", parameter)
 						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
-					else:
+					elif not np.isnan(np.sum(scale[idx,idy])):
 						globin.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
-			
+
 			# if parameter=="gamma" or parameter=="chi":
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
 			# else:
@@ -955,13 +959,6 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
 					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
-			
-			# copy old RFs for those parameters for which we have not calculated spectra
-			if len(old_inds)>0:
-				for ind in old_inds:
-					idx, idy = ind
-					rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
-
 			free_par_ID += 1
 
 			if globin.rf_type=="snapi":
@@ -1040,28 +1037,22 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
-					# plt.plot(diff[0,0,:,0])
-					# plt.show()
-
 					if globin.mode==2:
 						scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
+						for idx in range(atmos.nx):
+							for idy in range(atmos.ny):
+								if not np.isnan(np.sum(scale[idx,idy])):
+									globin.parameter_scale[parameter][...,idp] = scale
 					elif globin.mode==3:
 						scale = np.sqrt(np.sum(diff**2))
-					globin.parameter_scale[parameter][...,idp] = scale
+						globin.parameter_scale[parameter][...,idp] = scale
 
 					if globin.mode==2:
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
 								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
 					elif globin.mode==3:
-						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]
-
-					# copy old RFs for those parameters for which we have not calculated spectra
-					if len(old_inds)>0:
-						for ind in old_inds:
-							idx, idy = ind
-							rf[idx,idy,free_par_ID] = old_rf[idx,idy,free_par_ID]
-					
+						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]	
 					free_par_ID += 1
 					
 					# return perturbation back
@@ -1082,10 +1073,10 @@ def compute_rfs(init, atmos, old_rf=None, old_pars=None, old_inds=[]):
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
-	# for idx in range(atmos.nx):
+	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):
 	# 		plt.figure(parID+1)
-	# 		plt.plot(rf[idx, 0, parID, :, 0])
+	# 		plt.plot(rf[0, idy, parID, :, 0] + 0.1*idy)
 	# plt.show()
 	# sys.exit()
 

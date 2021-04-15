@@ -26,19 +26,19 @@ class Spectrum(object):
 			self.ny = shape[1]
 			self.nw = shape[2]
 		elif (nx is not None) and (ny is not None) and (nw is not None):
-			self.spec = np.zeros((nx, ny, nw, 4))
-			self.wavelength = np.zeros(nw)
+			self.spec = np.empty((nx, ny, nw, 4))
+			self.spec[:,:,:,:] = np.nan
+			self.wavelength = np.empty(nw)
+			self.wavelength[:] = np.nan
 
-	def add_noise(self, in_noise):
-		self.noise = in_noise
-
+	def add_noise(self):
 		if self.noise is None:
 			print("--> Error in spec.add_noise()")
 			print("    We can not add noise of NoneType.")
 			globin.remove_dirs()
 			sys.exit()
 
-		self.mean = np.mean(np.max(self.spec[...,0], axis=2))
+		self.mean = np.nanmean(np.max(self.spec[...,0], axis=2))
 		wavs_dependent_factor = np.sqrt(self.spec[...,0] / self.mean)
 		
 		gauss_noise = np.random.normal(0, self.noise, size=(self.nx, self.ny, self.nw, 4))

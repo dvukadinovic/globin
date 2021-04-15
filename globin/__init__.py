@@ -21,7 +21,7 @@ import numpy as np
 import subprocess as sp
 
 from .input import \
-	InputData, find_value_by_key, read_node_atmosphere, set_keyword
+	read_input, find_value_by_key, read_node_atmosphere, set_keyword
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars
@@ -60,13 +60,13 @@ COMMENT_CHAR = "#"
 # 1 --> regular (pixle-by-pixel) inversion
 # 2 --> PSF inversion (not implemented yet)
 # 3 --> global inversion
-mode = None
+# mode = None
 
 #--- name of RH input file
-rh_input_name = None
+# rh_input_name = None
 
 #--- path to RH main folder
-rh_path = None
+# rh_path = None
 
 abundance = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
             		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
