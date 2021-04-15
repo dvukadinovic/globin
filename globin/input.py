@@ -68,9 +68,9 @@ def read_input(run_name, globin_input_name="params.input", rh_input_name="keywor
 		read_input_files(run_name, globin_input_name, rh_input_name)
 	else:
 		if rh_input_name is None:
-			print(f"  There is no path for globin input file path.")
+			print(f"  There is no path for globin input file.")
 		if globin_input_name is None:
-			print(f"  There is no path for RH input file path.")
+			print(f"  There is no path for RH input file.")
 		sys.exit()
 
 def read_input_files(run_name, globin_input_name, rh_input_name):
@@ -129,7 +129,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	wave_file_path = wave_file_path.split("/")[-1]
 	globin.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
 	globin.solve_ne = find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
-	globin.kurucz_input_fname = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "optional")
+	globin.kurucz_input_fname = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
 	globin.rf_file_path = find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 
 	#--- get parameters from globin input file
@@ -194,71 +194,6 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	# instrument broadening: R or instrument profile provided
 	# strailight contribution
 	# opacity fudge coefficients
-
-	return None
-
-	#--- get parameters for inversions
-	if globin.mode>=1:
-		if globin.mode==2:
-			pass
-		elif globin.mode==3:
-			#--- line parameters to be fit
-			line_pars_path = find_value_by_key("line_parameters", globin.parameters_input, "optional")
-
-			if line_pars_path:
-				# if we provided line parameters for fit, read those parameters
-				lines_to_fit = globin.read_init_line_parameters(line_pars_path)
-
-				# get log(gf) parameters from line list
-				aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
-				aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
-				loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
-				loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
-				globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-				globin.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
-
-				self.atm.global_pars["loggf"] = np.zeros((1,1,len(aux_values)))
-				self.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-				self.atm.global_pars["loggf"][0,0] = aux_values
-				self.atm.line_no["loggf"][:] = aux_lineNo
-
-				# get dlam parameters from lines list
-				aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
-				aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
-				dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
-				dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
-				globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-				globin.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
-
-				self.atm.global_pars["dlam"] = np.zeros((1,1,len(aux_values)))
-				self.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-				self.atm.global_pars["dlam"][0,0] = aux_values
-				self.atm.line_no["dlam"][:] = aux_lineNo
-
-				#--- Kurucz line list for given spectral region
-				if globin.kurucz_input_fname:
-					# get path to line list which has original / expected values (will not be changed during execution)
-					linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-					# RLK_text_lines --> list of text lines with Kurucz line format (needed for outputing atomic line list later)
-					# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
-					self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
-
-					self.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_path.split('/')[-1]}"]
-
-					# write down initial atomic lines values
-					self.write_line_parameters(self.atm.line_lists_path[0],
-											   self.atm.global_pars["loggf"][0,0], self.atm.line_no["loggf"],
-											   self.atm.global_pars["dlam"][0,0], self.atm.line_no["dlam"])
-				else:
-					print("No path to 'kurucz.input' file.")
-					# print("There is no Kurucz line list file to write to.")
-					# print("If you want to invert for line parameters, you need to set")
-					# print("path to file where Kurucz line lists are (kurucz.input file).")
-					sys.exit()
-			else:
-				print("No atomic parameters to fit. You sure?\n")
 
 def get_atmosphere_range():
 	# determine which observations from cube to take into consideration
@@ -341,12 +276,15 @@ def read_mode_0(wave_file_path):
 	globin.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (globin.lmin + globin.lmax)*0.5 / globin.step
 
 	# get the name of the input line list
-	lines = open(globin.kurucz_input_fname, "r").readlines()
-	for line in lines:
-		line = line.replace(" ","")
-		if line[0]!="#":
-			line_list_path = line.split("/")[-1]
-	globin.atm.line_lists_path = [line_list_path]
+	linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
+	linelist_name = linelist_path.split("/")[-1]
+	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{linelist_name}",
+				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	if out.returncode!=0:
+		print(str(out.stdout, "utf-8"))
+		sys.exit()
+	else:
+		globin.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_name}"]
 
 	# reference atmosphere is the same as input one in synthesis mode
 	globin.ref_atm = copy.deepcopy(globin.atm)
@@ -491,6 +429,9 @@ def read_mode_2():
 		sp.run(f"rm runs/{globin.wd}/line_lists/*",
 			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
+	#--- Kurucz line list for given spectral region
+	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[-1])
+
 	#--- line parameters to be fit
 	line_pars_path = find_value_by_key("line_parameters", globin.parameters_input, "optional")
 
@@ -504,13 +445,13 @@ def read_mode_2():
 		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
 		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
 		globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-		globin.parameter_scale["loggf"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
+		globin.parameter_scale["loggf"] = np.ones((globin.atm.nx, globin.atm.ny, len(aux_values)))
 
-		self.atm.global_pars["loggf"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-		self.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+		globin.atm.global_pars["loggf"] = np.zeros((globin.atm.nx, globin.atm.ny, len(aux_values)))
+		globin.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
 
-		self.atm.global_pars["loggf"][:,:] = aux_values
-		self.atm.line_no["loggf"][:] = aux_lineNo
+		globin.atm.global_pars["loggf"][:,:] = aux_values
+		globin.atm.line_no["loggf"][:] = aux_lineNo
 
 		# get dlam parameters from lines list
 		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
@@ -518,48 +459,78 @@ def read_mode_2():
 		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
 		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
 		globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-		globin.parameter_scale["dlam"] = np.ones((self.atm.nx, self.atm.ny, len(aux_values)))
+		globin.parameter_scale["dlam"] = np.ones((globin.atm.nx, globin.atm.ny, len(aux_values)))
 
-		self.atm.global_pars["dlam"] = np.zeros((self.atm.nx, self.atm.ny, len(aux_values)))
-		self.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+		globin.atm.global_pars["dlam"] = np.zeros((globin.atm.nx, globin.atm.ny, len(aux_values)))
+		globin.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
 
-		self.atm.global_pars["dlam"][:,:] = aux_values
-		self.atm.line_no["dlam"][:] = aux_lineNo
+		globin.atm.global_pars["dlam"][:,:] = aux_values
+		globin.atm.line_no["dlam"][:] = aux_lineNo
 
 		# write these data into files
 
 		# make list of line lists paths (aka names)
-		self.atm.line_lists_path = []
-		for idx in range(self.atm.nx):
-			for idy in range(self.atm.ny):
+		globin.atm.line_lists_path = []
+		for idx in range(globin.atm.nx):
+			for idy in range(globin.atm.ny):
 				fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-				self.atm.line_lists_path.append(fpath)
+				globin.atm.line_lists_path.append(fpath)
 
-		#--- Kurucz line list for given spectral region
-		if globin.kurucz_input_fname:
-			# get path to line list which has original / expected values (will not be changed during execution)
-			linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-			# RLK_text_lines --> list of text lines with Kurucz line format (needed for outputing atomic line list later)
-			# RLK_lines --> Kurucz lines found in given line list (we use them to simply output log(gf) or dlam parameter during inversion)
-			self.RLK_text_lines, self.RLK_lines = globin.read_RLK_lines(linelist_path)
-
-			for idx in range(self.atm.nx):
-				for idy in range(self.atm.ny):
-					self.write_line_parameters(self.atm.line_lists_path[idx*self.atm.ny + idy],
-											   self.atm.global_pars["loggf"][idx,idy], self.atm.line_no["loggf"],
-											   self.atm.global_pars["dlam"][idx,idy], self.atm.line_no["dlam"])
-		else:
-			print("--> Error in read_input_files()")
-			print("    No path to 'kurucz.input' file.")
-			sys.exit()
+				write_line_parameters(fpath,
+									   globin.atm.global_pars["loggf"][idx,idy], globin.atm.line_no["loggf"],
+									   globin.atm.global_pars["dlam"][idx,idy], globin.atm.line_no["dlam"])
 	else:
 		print("No atomic parameters to fit. You sure?\n")
 
+def read_mode_3():
+	#--- Kurucz line list for given spectral region
+	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[0])
 
-def read_mode_1():
-	pass
+	#--- line parameters to be fit
+	line_pars_path = find_value_by_key("line_parameters", globin.parameters_input, "optional")
 
-def write_line_parameters(self, fpath, loggf_val, loggf_no, dlam_val, dlam_no):
+	if line_pars_path:
+		# if we provided line parameters for fit, read those parameters
+		lines_to_fit = globin.read_init_line_parameters(line_pars_path)
+
+		# get log(gf) parameters from line list
+		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+		aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+		globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+		globin.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
+
+		globin.atm.global_pars["loggf"] = np.zeros((1,1,len(aux_values)))
+		globin.atm.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+		globin.atm.global_pars["loggf"][0,0] = aux_values
+		globin.atm.line_no["loggf"][:] = aux_lineNo
+
+		# get dlam parameters from lines list
+		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+		aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+		globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+		globin.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
+
+		globin.atm.global_pars["dlam"] = np.zeros((1,1,len(aux_values)))
+		globin.atm.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+		globin.atm.global_pars["dlam"][0,0] = aux_values
+		globin.atm.line_no["dlam"][:] = aux_lineNo
+
+		# globin.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_path.split('/')[-1]}"]
+
+		# write down initial atomic lines values
+		globin.write_line_parameters(globin.atm.line_lists_path[0],
+								   globin.atm.global_pars["loggf"][0,0], globin.atm.line_no["loggf"],
+								   globin.atm.global_pars["dlam"][0,0], globin.atm.line_no["dlam"])
+	else:
+		print("No atomic parameters to fit. You sure?\n")
+
+def write_line_parameters(fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 	"""
 	Write out full Kurucz line list for all parameters.
 	"""
@@ -568,7 +539,7 @@ def write_line_parameters(self, fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 
 	# because of Python memory handling
 	# these two variables will be the same all the time!
-	linelist = self.RLK_text_lines
+	linelist = globin.RLK_lines_text
 
 	for no,val in zip(loggf_no, loggf_val):
 		character_list = list(linelist[no])
@@ -580,13 +551,13 @@ def write_line_parameters(self, fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 		# this one gives correct number of characters as input array. RH needs
 		# 160 character line, and I toke out one character from the 
 		# beginning of the line. That is why we need here 10.4 format.
-		character_list[0:10] = "{: 10.4f}".format(val/1e4 + self.RLK_lines[no].lam0)
+		character_list[0:10] = "{: 10.4f}".format(val/1e4 + globin.RLK_lines[no].lam0)
 		linelist[no] = ''.join(character_list)
 
 	out.writelines(linelist)
 	out.close()
 
-def write_line_par(self, fpath, par_val, par_no, parameter):
+def write_line_par(fpath, par_val, par_no, parameter):
 	"""
 	Write out parameter for one given line and parameter.
 
@@ -597,7 +568,7 @@ def write_line_par(self, fpath, par_val, par_no, parameter):
 
 	# because of Python memory handling
 	# these two variables will be the same all the time!
-	linelist = self.RLK_text_lines
+	linelist = globin.RLK_lines_text
 
 	if parameter=="loggf":
 		character_list = list(linelist[par_no])
@@ -609,7 +580,7 @@ def write_line_par(self, fpath, par_val, par_no, parameter):
 		# this one gives correct number of characters as input array. RH needs
 		# 160 character line, and I toke out one character from the 
 		# beginning of the line. That is why we need here 10.4 format.
-		character_list[0:10] = "{: 10.4f}".format(par_val/1e4 + self.RLK_lines[par_no].lam0)
+		character_list[0:10] = "{: 10.4f}".format(par_val/1e4 + globin.RLK_lines[par_no].lam0)
 		linelist[par_no] = ''.join(character_list)
 
 	out.writelines(linelist)

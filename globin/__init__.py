@@ -21,7 +21,8 @@ import numpy as np
 import subprocess as sp
 
 from .input import \
-	read_input, find_value_by_key, read_node_atmosphere, set_keyword
+	read_input, find_value_by_key, read_node_atmosphere, set_keyword, \
+	write_line_parameters, write_line_par
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars

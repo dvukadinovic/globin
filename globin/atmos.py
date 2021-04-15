@@ -1013,12 +1013,12 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):	
 								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-								init.write_line_par(fpath,
+								globin.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
-						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_plus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+					spec_plus,_,_ = compute_spectra(atmos)
 					spec_plus.broaden_spectra(atmos.vmac)
 
 					# negative perturbation
@@ -1027,12 +1027,12 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):	
 								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-								init.write_line_par(fpath,
+								globin.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
-						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_minus,_,_ = compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+					spec_minus,_,_ = compute_spectra(atmos)
 					spec_minus.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
@@ -1061,10 +1061,10 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
 								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"	
-								init.write_line_par(fpath,
+								globin.write_line_par(fpath,
 													values[idx,idy], line_no, parameter)
 					elif globin.mode==3:
-						init.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 
 	# print(globin.parameter_scale["loggf"])
 	# print(atmos.data[:,:,1])

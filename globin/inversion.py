@@ -222,7 +222,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					init.write_line_parameters(atmos.line_lists_path[idx*atmos.ny + idy],
+					fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+					globin.write_line_parameters(fpath,
 											   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
 											   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
@@ -266,7 +267,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			for ind in old_inds:
 				idx, idy = ind
-				init.write_line_parameters(atmos.line_lists_path[idx*atmos.ny + idy],
+				fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+				globin.write_line_parameters(fpath,
 										   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
 										   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
@@ -310,7 +312,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif relative_change<globin.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.\n")
-							print(np.log10(chi2[idx,idy,it_no-1]))
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
@@ -382,7 +383,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	return atmos, inverted_spectra
 
-def invert_global(init, save_output, verbose):
+def invert_global(save_output, verbose):
 	"""
 	As input we expect all data to be present :)
 
@@ -393,8 +394,8 @@ def invert_global(init, save_output, verbose):
 	init : InputData
 		InputData object in which we have everything stored.
 	"""
-	obs = init.obs
-	atmos = init.atm
+	obs = globin.obs
+	atmos = globin.atm
 
 	if verbose:
 		print("Initial parameters:")
@@ -402,7 +403,7 @@ def invert_global(init, save_output, verbose):
 		print(atmos.global_pars)
 		print()
 
-	Nw = len(init.wavelength)
+	Nw = len(globin.wavelength)
 	Npar = atmos.n_local_pars + atmos.n_global_pars
 
 	if Npar==0:
@@ -411,12 +412,12 @@ def invert_global(init, save_output, verbose):
 		sys.exit()
 
 	# indices for wavelengths min/max for which we are fiting; based on input
-	ind_min = np.argmin(abs(obs.wavelength - init.wavelength[0]))
-	ind_max = np.argmin(abs(obs.wavelength - init.wavelength[-1]))+1
+	ind_min = np.argmin(abs(obs.wavelength - globin.wavelength[0]))
+	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
-	if init.noise!=0:
+	if globin.noise!=0:
 		StokesI_cont = obs.spec[:,:,ind_min,0]
-		noise_lvl = init.noise * StokesI_cont
+		noise_lvl = globin.noise * StokesI_cont
 		# noise_wavelength = (nx, ny, nw)
 		noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
 		# noise = (nx, ny, nw)
@@ -438,9 +439,9 @@ def invert_global(init, save_output, verbose):
 	norm = np.sum(weights, axis=2)
 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 
-	chi2 = np.zeros(init.max_iter, dtype=np.float64)
-	LM_parameter = init.marq_lambda
-	dof = np.count_nonzero(init.weights) * Nw - Npar
+	chi2 = np.zeros(globin.max_iter, dtype=np.float64)
+	LM_parameter = globin.marq_lambda
+	dof = np.count_nonzero(globin.weights) * Nw - Npar
 
 	start = time.time()
 
@@ -450,7 +451,7 @@ def invert_global(init, save_output, verbose):
 
 	itter = 0
 	full_rf, old_local_parameters = None, None
-	while itter<init.max_iter:
+	while itter<globin.max_iter:
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
 			if verbose:
@@ -458,7 +459,7 @@ def invert_global(init, save_output, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, full_rf = globin.compute_rfs(init, atmos, full_rf, old_local_parameters)
+			rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_local_parameters)
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -471,15 +472,15 @@ def invert_global(init, save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			# scale RFs with weights and noise scale
-			rf *= init.weights
+			rf *= globin.weights
 			rf /= noise_scale_rf
 
 			# calculate difference between observation and synthesis
 			diff = obs.spec - spec.spec
-			diff *= init.weights
+			diff *= globin.weights
 
 			# calculate chi2
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2) / dof
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -527,17 +528,17 @@ def invert_global(init, save_output, verbose):
 		atmos.check_parameter_bounds()
 
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			init.write_line_parameters(atmos.line_lists_path[0],
+			globin.write_line_parameters(atmos.line_lists_path[0],
 									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes()
-		corrected_spec,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+		corrected_spec,_,_ = globin.compute_spectra(atmos)
 		corrected_spec.broaden_spectra(atmos.vmac)
 
 		new_diff = obs.spec - corrected_spec.spec
-		new_diff *= init.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * init.wavs_weight**2 * weights**2) / dof
+		new_diff *= globin.weights
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2) / dof
 
 		if chi2_new > chi2_old:
 			LM_parameter *= 10
@@ -553,7 +554,7 @@ def invert_global(init, save_output, verbose):
 			num_failed = 0
 
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			init.write_line_parameters(atmos.line_lists_path[0],
+			globin.write_line_parameters(atmos.line_lists_path[0],
 									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
 
@@ -574,10 +575,10 @@ def invert_global(init, save_output, verbose):
 			if chi2[itter-1]<1e-32:
 				print("chi2 is way low!\n")
 				break_flag = True
-			elif relative_change<init.chi2_tolerance:
+			elif relative_change<globin.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
-			elif chi2[itter-1] < 1 and init.noise!=0:
+			elif chi2[itter-1] < 1 and globin.noise!=0:
 				print("chi2 smaller than 1\n")
 				break_flag = True
 		
@@ -597,7 +598,7 @@ def invert_global(init, save_output, verbose):
 
 	atmos.build_from_nodes(False)
 	
-	inverted_spectra,_,_ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
@@ -610,7 +611,7 @@ def invert_global(init, save_output, verbose):
 
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
-		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", init.wavelength)
+		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	
 		end = time.time() - start
@@ -631,7 +632,7 @@ def invert_global(init, save_output, verbose):
 			# 		out_file.write("{:s}    {: 4d}    {: 5.4f}\n".format(par, atmos.line_no[par][i_]+1, atmos.global_pars[par][i_]))
 
 		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-		out_file.write(init.parameters_input)
+		out_file.write(globin.parameters_input)
 		out_file.write("\n\n     #===--- RH input file ---===#\n\n")
 		out_file.write(globin.keyword_input)
 
