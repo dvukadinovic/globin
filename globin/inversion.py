@@ -328,9 +328,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 					# we stop the convergence for given pixel
 					if it_no==globin.max_iter:
 						stop_flag[idx,idy] = 0
-						original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-						if globin.mode==2:
-							original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						print(f"--> [{idx},{idy}] : Maximum number of iterations reached. We break.\n")
 
 		if verbose:
