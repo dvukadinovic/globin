@@ -315,14 +315,14 @@ def read_inversion_base(wave_file_path):
 	globin.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 
 	linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-	linelist_name = linelist_path.split("/")[-1]
-	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{linelist_name}",
+	globin.linelist_name = linelist_path.split("/")[-1]
+	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{globin.linelist_name}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	if out.returncode!=0:
 		print(str(out.stdout, "utf-8"))
 		sys.exit()
 	else:
-		globin.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_name}"]
+		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 
 	atm_range = get_atmosphere_range()
 

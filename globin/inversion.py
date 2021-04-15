@@ -347,8 +347,12 @@ def invert_pxl_by_pxl(save_output, verbose):
 		for idy in range(atmos.ny):
 			fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 			atmos.atm_name_list.append(fpath)
-			fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-			atmos.line_lists_path.append(fpath)
+			if globin.mode==2:
+				fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+				atmos.line_lists_path.append(fpath)
+	if globin.mode==1:
+		fpath = f"runs/{globin.wd}/{globin.linelist_name}"
+		atmos.line_lists_path.append(fpath)
 
 	atmos.build_from_nodes(False)
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
