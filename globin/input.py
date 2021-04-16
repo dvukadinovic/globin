@@ -252,6 +252,7 @@ def read_mode_0(wave_file_path):
 	if path_to_atmosphere is None:
 		node_atmosphere_path = find_value_by_key("node_atmosphere", globin.parameters_input, "required")
 		globin.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
+		globin.atm.split_cube()
 	else:
 		globin.atm = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
 						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
@@ -277,14 +278,14 @@ def read_mode_0(wave_file_path):
 
 	# get the name of the input line list
 	linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-	linelist_name = linelist_path.split("/")[-1]
-	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{linelist_name}",
+	globin.linelist_name = linelist_path.split("/")[-1]
+	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{globin.linelist_name}",
 				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 	if out.returncode!=0:
 		print(str(out.stdout, "utf-8"))
 		sys.exit()
 	else:
-		globin.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_name}"]
+		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 
 	# reference atmosphere is the same as input one in synthesis mode
 	globin.ref_atm = copy.deepcopy(globin.atm)

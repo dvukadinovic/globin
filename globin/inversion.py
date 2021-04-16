@@ -272,13 +272,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 										   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
 										   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
-		if verbose:
-			print(atmos.values)
-			if globin.mode==2:
-				print(atmos.global_pars)
-			print(LM_parameter)
-			print(old_inds)
-
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if stop_flag[idx,idy]==1:
@@ -292,6 +285,13 @@ def invert_pxl_by_pxl(save_output, verbose):
 						if globin.mode==2:	
 							original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
+
+		if verbose:
+			print(atmos.values)
+			if globin.mode==2:
+				print(atmos.global_pars)
+			print(LM_parameter)
+			print(old_inds)
 
 		# we check if chi2 has converged for each pixel
 		# if yes, we set stop_flag to 0 (True)

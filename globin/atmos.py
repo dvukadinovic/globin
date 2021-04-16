@@ -638,6 +638,9 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 		if item is not None:
 			rh_obj, idx, idy = item.values()
 
+			# print(rh_obj.wave)
+			# sys.exit()
+
 			ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
 			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
 

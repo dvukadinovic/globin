@@ -20,7 +20,7 @@ unit = {"temp"  : "K",
 		"gamma" : "deg",
 		"chi"   : "deg"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=1, color="tab:blue"):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue"):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 

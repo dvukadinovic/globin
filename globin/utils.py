@@ -164,8 +164,8 @@ def make_synthetic_observations(atmos, vmac, atm_name="atmosphere.fits", node_at
         atmos = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
         atmos.vmac = vmac
 
-    # atmos.save_atmosphere(atm_name)
-
+    atmos.save_atmosphere(atm_name)
+    
     # for idx in range(atmos.nx):
     #     for idy in range(atmos.ny):
     #         # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
