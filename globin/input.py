@@ -412,7 +412,7 @@ def read_inversion_base(wave_file_path):
 	fpath = find_value_by_key("initial_atmosphere", globin.parameters_input, "optional")
 	if fpath is not None:
 		# read node parameters from .fits file
-		load_node_data(fpath)
+		load_node_data(fpath, atm_range)
 	else:
 		# read node parameters from .input file
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
