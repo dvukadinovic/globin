@@ -14,6 +14,10 @@ def invert(save_output=True, verbose=True):
 		return None, None
 	elif globin.mode>=1:
 		for cycle in range(globin.ncycle):
+			# double number of iterations in last cycle
+			if cycle==globin.ncycle-1 and globin.ncycle!=1:
+				globin.max_iter *= 2
+
 			if globin.mode==1 or globin.mode==2:
 				atm, spec = invert_pxl_by_pxl(save_output, verbose)
 			elif globin.mode==3:
@@ -355,10 +359,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	try:
-		atmos.compute_errors(JTJ, chi2_old)
-	except:
-		print("Failed to compute parameter errors\n")
+	# try:
+	atmos.compute_errors(JTJ, chi2_old)
+	# except:
+	# 	print("Failed to compute parameter errors\n")
 	
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"	
@@ -602,10 +606,10 @@ def invert_global(save_output, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	try:
-		atmos.compute_errors(JTJ, chi2_old)
-	except:
-		print("Failed to compute parameter errors\n")
+	# try:
+	atmos.compute_errors(JTJ, chi2_old)
+	# except:
+	# 	print("Failed to compute parameter errors\n")
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"

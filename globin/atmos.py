@@ -555,7 +555,7 @@ class Atmosphere(object):
 		for parameter in self.global_pars:
 			new_values = np.random.normal(loc=self.global_pars[parameter],
 										  scale=globin.smooth_std[parameter],
-										  size=len(self.global_pars[parameter]))
+										  size=self.global_pars[parameter].shape)
 			self.global_pars[parameter] = new_values
 
 	def compute_errors(self, H, chi2):
@@ -575,7 +575,7 @@ class Atmosphere(object):
 			low = up
 		for parameter in self.global_pars:
 			scale = globin.parameter_scale[parameter]
-			up += len(scale)
+			up += scale.size
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
