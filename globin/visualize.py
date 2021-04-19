@@ -3,6 +3,7 @@ import numpy as np
 import  copy
 from astropy.io import fits
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+import sys
 
 import globin
 
@@ -33,18 +34,26 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		nrows = int(np.ceil(n_plots/ncols))
 
 	for k_ in range(n_plots):	
-		parID = atmos.par_id[parameters[k_]]
+		parameter = parameters[k_]
+		parID = atmos.par_id[parameter]
 
-		# if parameters[k_]=="gamma":
+		# if parameter=="gamma":
 		# 	cube[parID] = np.arccos(cube[parID])
-		# elif parameters[k_]=="chi":
+		# elif parameter=="chi":
 		# 	cube[parID] = np.arcsin(cube[parID])
 
 		plt.subplot(nrows, ncols, k_+1)
 
-		plt.plot(logtau, cube[parID]*fact[parameters[k_]], ls=ls, lw=lw, color=color)
+		try:
+			x = atmos.nodes[parameter]
+			y = atmos.values[parameter][idx,idy]
+			plt.scatter(x, y, s=20, color=color)
+		except:
+			pass
+
+		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color)
 		plt.xlabel(r"$\log \tau$")
-		plt.ylabel(f"{globin.parameter_name[parameters[k_]]} [{unit[parameters[k_]]}]")
+		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 
 def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 	obs = copy.deepcopy(obs)
@@ -215,31 +224,38 @@ def plot_rf(rf=None, fpath=None):
 			print("No data to plot! Provide path to RF or give me the cube!")
 			sys.exit()
 
-	idx, idy = 0,0
+	idx, idy = 8,0
 	idp = 0
 
 	xpos = np.linspace(0, 200, num=11)
 	xvals = np.round(np.linspace(-1, 1, num=11), decimals=1)
 
 	ypos = np.linspace(0, 50, num=6)
-	yvals = np.round(np.linspace(-5, 1, num=6), decimals=1)
+	yvals = np.round(np.linspace(-4, 1, num=6), decimals=1)
 
 	# aux = np.sum(rf[idx, idy, idp, :, :, 0], axis=1)
 	# norm = np.sqrt(np.sum(aux**2))
 	# plt.plot(np.linspace(-4, 1, num=51), aux/norm)
 	# plt.show()
-	# return 
+	# return
+
+	# for idp in range(18):
+	plt.plot(rf[0,idy,5,0,:,0])
+	plt.plot(rf[4,idy,5,0,:,0])
+	plt.plot(rf[8,idy,5,0,:,0])
+	plt.show()
+	sys.exit()
 
 	fig = plt.figure(figsize=(9,9), dpi=150)
 	gs = fig.add_gridspec(nrows=1, ncols=1, wspace=0.35, hspace=0.5)
 
 	ax = fig.add_subplot(gs[0,0])
 	matrix = rf[idx, idy, idp, :, :, 0]
-	norm = np.sqrt(np.sum(matrix**2))
-	matrix /= norm
-	vmax = np.max(np.abs(matrix))
+	# norm = np.sqrt(np.sum(matrix**2))
+	# matrix /= norm
+	# vmax = np.max(np.abs(matrix))
 	# im = ax.imshow(rf[idx, idy, idp, :, :, 0], aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
-	im = ax.imshow(matrix, aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
+	im = ax.imshow(matrix, aspect="auto", cmap="OrRd", vmin=None, vmax=None)
 	add_colorbar(fig, ax, im)
 	ax.set_xticks(xpos)
 	ax.set_xticklabels(xvals)
@@ -287,8 +303,6 @@ def plot_rf(rf=None, fpath=None):
 	ax.set_yticks(ypos)
 	ax.set_yticklabels(yvals)
 	ax.grid(b=True, which="major", axis="y", lw=0.5)
-
-	plt.show()
 
 def add_colorbar(fig, ax, im, label=None):
 	axins = inset_axes(ax,
