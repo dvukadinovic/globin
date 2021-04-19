@@ -117,12 +117,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	start = time.time()
 
-	updated_pars = True
 	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 	# we iterate until one of the pixels reach maximum numbre of iterations
 	# other pixels will be blocked at max itteration earlier than or 
 	# will stop due to convergence criterium
-	rf, full_rf, old_atmos_parameters = None, None, None
+	full_rf, old_atmos_parameters = None, None
 
 	rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 	spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
@@ -328,11 +327,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-					# if given pixel iteration number has reached the maximum number of iterations
-					# we stop the convergence for given pixel
-					if it_no==globin.max_iter:
-						stop_flag[idx,idy] = 0
-						print(f"--> [{idx},{idy}] : Maximum number of iterations reached. We break.\n")
+				# if given pixel iteration number has reached the maximum number of iterations
+				# we stop the convergence for given pixel
+				if itter[idx,idy]==globin.max_iter-1:
+					stop_flag[idx,idy] = 0
+					print(f"--> [{idx},{idy}] : Maximum number of iterations reached. We break.\n")
 
 		if verbose:
 			print("\n--------------------------------------------------\n")
@@ -359,10 +358,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	# try:
-	atmos.compute_errors(JTJ, chi2_old)
-	# except:
-	# 	print("Failed to compute parameter errors\n")
+	try:
+		atmos.compute_errors(JTJ, chi2_old)
+	except:
+		print("Failed to compute parameter errors\n")
 	
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"	
@@ -444,7 +443,7 @@ def invert_global(save_output, verbose):
 	norm = np.sum(weights, axis=2)
 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 
-	chi2 = np.zeros(globin.max_iter, dtype=np.float64)
+	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda
 	dof = np.count_nonzero(globin.weights) * Nw - Npar
 
@@ -485,7 +484,7 @@ def invert_global(save_output, verbose):
 			diff *= globin.weights
 
 			# calculate chi2
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -543,16 +542,16 @@ def invert_global(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2) / dof
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 
-		if chi2_new > chi2_old:
+		if np.sum(chi2_new) > np.sum(chi2_old):
 			LM_parameter *= 10
 			atmos.values = old_local_parameters
 			atmos.global_pars = old_global_pars
 			updated_parameters = False
 			num_failed += 1
 		else:
-			chi2[itter] = chi2_new
+			chi2[...,itter] = chi2_new
 			LM_parameter /= 10
 			updated_parameters = True
 			itter += 1
@@ -576,14 +575,14 @@ def invert_global(save_output, verbose):
 		if (itter)>=3 and updated_parameters:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
-			relative_change = abs(chi2[itter-1]/chi2[itter-2] - 1)
-			if chi2[itter-1]<1e-32:
+			relative_change = abs(np.sum(chi2[...,itter-1])/np.sum(chi2[...,itter-2]) - 1)
+			if np.sum(chi2[...,itter-1])<1e-32:
 				print("chi2 is way low!\n")
 				break_flag = True
 			elif relative_change<globin.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
-			elif chi2[itter-1] < 1 and globin.noise!=0:
+			elif np.sum(chi2[...,itter-1]) < 1 and globin.noise!=0:
 				print("chi2 smaller than 1\n")
 				break_flag = True
 		
@@ -606,10 +605,13 @@ def invert_global(save_output, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	# try:
-	atmos.compute_errors(JTJ, chi2_old)
-	# except:
-	# 	print("Failed to compute parameter errors\n")
+	# diff = obs.spec - inverted_spectra.spec
+	# chi2 = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+
+	try:
+		atmos.compute_errors(JTJ, chi2_old)
+	except:
+		print("Failed to compute parameter errors\n")
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
