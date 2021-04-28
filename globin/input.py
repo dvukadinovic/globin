@@ -14,10 +14,20 @@ from .rh import write_wavs
 
 import globin
 
+class RHInput(object):
+	"""
+	Container for RH input fields and methods.
+	"""
+	def __init__(self):
+		pass
+
+	def set_keyword(self, key):
+		pass
+
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
 
-def find_value_by_key(key, text, key_type, default_val=None, conversion=str):
+def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 	"""
 	Regexp search of 'key' in given 'text'.
 
@@ -91,10 +101,10 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	rh_input_name : str
 		file name for RH input file. Default value is 'keyword.input'.
 	"""
-	globin.wd = run_name
+	globin.wd = run_name # --> to change into globin.run_name? There are a lot cases and in other files! Be careful!
 
 	# make runs directory if not existing
-	# here we store all runs with differenr run_name
+	# here we store all runs with different run_name
 	if not os.path.exists("runs"):
 		os.mkdir("runs")
 
@@ -120,45 +130,76 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.rh_input_name = rh_input_name
 
 	#--- get parameters from RH input file
-	file = open(globin.rh_input_name, "r")
-	text = file.read()
-	file.close()
+	text = open(globin.rh_input_name, "r").read()
 	globin.keyword_input = text
 
-	wave_file_path = find_value_by_key("WAVETABLE", globin.keyword_input, "required")
+	wave_file_path = _find_value_by_key("WAVETABLE", globin.keyword_input, "required")
 	wave_file_path = wave_file_path.split("/")[-1]
-	globin.rh_spec_name = find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
-	globin.solve_ne = find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
-	globin.kurucz_input_fname = find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
-	globin.rf_file_path = find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
+	globin.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
+	globin.solve_ne = _find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
+	globin.hydrostatic = _find_value_by_key("HYDROSTATIC", globin.keyword_input, "optional")
+	globin.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
+	globin.rf_file_path = _find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 
 	#--- get parameters from globin input file
-	file = open(globin_input_name, "r")
-	text = file.read()
-	file.close()
+	text = open(globin_input_name, "r").read()
 	globin.parameters_input = text
 
-	#--- find first mode of operation
-	globin.mode = find_value_by_key("mode", globin.parameters_input, "required", conversion=int)
+	globin.n_thread = _find_value_by_key("n_thread",globin.parameters_input, "default", 1, conversion=int)
+	globin.interp_degree = _find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
+	globin.mode = _find_value_by_key("mode", globin.parameters_input, "required", conversion=int)
 	
-	#--- path to RH main folder
-	rh_path = find_value_by_key("rh_path", globin.parameters_input, "required")
+	# path to RH main folder
+	rh_path = _find_value_by_key("rh_path", globin.parameters_input, "required")
 	if rh_path.rstrip("\n")[-1]=="/":
 		rh_path = rh_path.rstrip("/")
 	globin.rh_path = rh_path
 	
-	#--- find number of threads
-	globin.n_thread = find_value_by_key("n_thread",globin.parameters_input, "default", 1, conversion=int)
+	#--- get wavelength range and save it to file ('wave_file_path')
+	globin.lmin = _find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float)
+	globin.lmax = _find_value_by_key("wave_max", globin.parameters_input, "optional", conversion=float)
+	globin.step = _find_value_by_key("wave_step", globin.parameters_input, "optional", conversion=float)
+	if (globin.step is None) and (globin.lmin is None) and (globin.lmax is None):
+		wave_grid_path = _find_value_by_key("wave_grid", globin.parameters_input, "required")
+		globin.wavelength = np.loadtxt(wave_grid_path)/10
+		globin.lmin = min(globin.wavelength)
+		globin.lmax = max(globin.wavelength)
+		globin.step = globin.wavelength[1] - globin.wavelength[0]
+	else:
+		globin.lmin /= 10
+		globin.lmax /= 10
+		globin.step /= 10
+		globin.wavelength = np.arange(globin.lmin, globin.lmax+globin.step, globin.step)
+	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
 
-	#--- interpolation degree
-	globin.interp_degree = find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
+	# set value of WAVETABLE in 'keyword.input' file
+	globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
+
+	# common parameters for all modes
+	atm_range = get_atmosphere_range()
+	logtau_top = _find_value_by_key("logtau_top", globin.parameters_input, "default", -6,float)
+	logtau_bot = _find_value_by_key("logtau_bot", globin.parameters_input, "default", 1, float)
+	logtau_step = _find_value_by_key("logtau_step", globin.parameters_input, "default", 0.1, float)
+	globin.noise = _find_value_by_key("noise", globin.parameters_input, "default", 1e-3, float)
+	atm_type = _find_value_by_key("atm_type", globin.parameters_input, "default", "multi", str)
+	atm_type = atm_type.lower()
+
+	# get the name of the input line list
+	linelist_path = _find_value_by_key("linelist", globin.parameters_input, "required")
+	globin.linelist_name = linelist_path.split("/")[-1]
+	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{globin.linelist_name}",
+				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+	if out.returncode!=0:
+		print(str(out.stdout, "utf-8"))
+		sys.exit()
 
 	#--- read data for different modus operandi
 	if globin.mode==0:
-		read_mode_0(wave_file_path)
+		read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
+		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 	elif globin.mode>=1:
-		read_inversion_base(wave_file_path)
-
+		read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
+		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 		if globin.mode==2:
 			read_mode_2()
 		elif globin.mode==3:
@@ -173,7 +214,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		for parameter in globin.atm.global_pars:
 			globin.atm.n_global_pars += globin.atm.global_pars[parameter].shape[-1]
 	else:
-		print("--> Negative mode not supported.")
+		print("--> Negative mode not supported. Soon to be RF calculation.")
 		sys.exit()
 
 	#--- if we have more threads than atmospheres, reduce the number of used threads
@@ -194,10 +235,11 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	# instrument broadening: R or instrument profile provided
 	# strailight contribution
 	# opacity fudge coefficients
+	# norm --> flag for normalized spectra
 
 def get_atmosphere_range():
-	# determine which observations from cube to take into consideration
-	aux = find_value_by_key("range", globin.parameters_input, "default", [1,None,1,None])
+	#--- determine which observations from cube to take into consideration
+	aux = _find_value_by_key("range", globin.parameters_input, "default", [1,None,1,None])
 	atm_range = []
 	if type(aux)==str:
 		for item in aux.split(","):
@@ -231,26 +273,19 @@ def get_atmosphere_range():
 
 	return atm_range
 
-def read_mode_0(wave_file_path):
+def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	""" 
-	Get parameters for synthesis
+	Get parameters for synthesis.
 	"""
-	atm_range = get_atmosphere_range()
 
 	#--- default parameters
-	logtau_top = find_value_by_key("logtau_top", globin.parameters_input, "default", -6,float)
-	logtau_bot = find_value_by_key("logtau_bot", globin.parameters_input, "default", 1, float)
-	logtau_step = find_value_by_key("logtau_step", globin.parameters_input, "default", 0.1, float)
-	globin.output_spectra_path = find_value_by_key("spectrum", globin.parameters_input, "default", "spectrum.fits")
-	globin.noise = find_value_by_key("noise", globin.parameters_input, "default", 1e-3, float)
-	vmac = find_value_by_key("vmac", globin.parameters_input, "default", 0, float)
-	atm_type = find_value_by_key("atm_type", globin.parameters_input, "default", "multi", str)
-	atm_type = atm_type.lower()
+	globin.output_spectra_path = _find_value_by_key("spectrum", globin.parameters_input, "default", "spectrum.fits")
+	vmac = _find_value_by_key("vmac", globin.parameters_input, "default", 0, float)
 
 	#--- required parameters
-	path_to_atmosphere = find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
+	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
 	if path_to_atmosphere is None:
-		node_atmosphere_path = find_value_by_key("node_atmosphere", globin.parameters_input, "required")
+		node_atmosphere_path = _find_value_by_key("node_atmosphere", globin.parameters_input, "required")
 		globin.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
 		globin.atm.split_cube()
 	else:
@@ -259,76 +294,30 @@ def read_mode_0(wave_file_path):
 		globin.atm.split_cube()
 	globin.atm.vmac = np.abs(vmac) # [km/s]
 
-	#--- optional parameters
-	globin.lmin = find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float) / 10  # [nm]
-	globin.lmax = find_value_by_key("wave_max", globin.parameters_input, "optional", conversion=float) / 10  # [nm]
-	globin.step = find_value_by_key("wave_step", globin.parameters_input, "optional", conversion=float) / 10 # [nm]
-	if (globin.step is None) or (globin.lmin is None) or (globin.lmax is None):
-		wave_grid_path = find_value_by_key("wave_grid", globin.parameters_input, "required")
-		globin.wavelength = np.loadtxt(wave_grid_path)
-		globin.lmin = min(globin.wavelength)
-		globin.lmax = max(globin.wavelength)
-		globin.step = globin.wavelength[1] - globin.wavelength[0]
-	else:
-		globin.wavelength = np.arange(globin.lmin, globin.lmax+globin.step, globin.step)
-	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
-
 	# standard deviation of Gaussian kernel for macro broadening
 	globin.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (globin.lmin + globin.lmax)*0.5 / globin.step
-
-	# get the name of the input line list
-	linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-	globin.linelist_name = linelist_path.split("/")[-1]
-	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{globin.linelist_name}",
-				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	if out.returncode!=0:
-		print(str(out.stdout, "utf-8"))
-		sys.exit()
-	else:
-		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 
 	# reference atmosphere is the same as input one in synthesis mode
 	globin.ref_atm = copy.deepcopy(globin.atm)
 
-	# set path to WAVETABLE in 'keyword.input' file
-	globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
-
-def read_inversion_base(wave_file_path):
+def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	#--- default parameters
-	logtau_top = find_value_by_key("logtau_top", globin.parameters_input, "default", -6,float)
-	logtau_bot = find_value_by_key("logtau_bot", globin.parameters_input, "default", 1, float)
-	logtau_step = find_value_by_key("logtau_step", globin.parameters_input, "default", 0.1, float)
-	globin.noise = find_value_by_key("noise", globin.parameters_input, "default", 1e-3, float)
-	globin.marq_lambda = find_value_by_key("marq_lambda", globin.parameters_input, "default", 1e-3, float)
-	globin.max_iter = find_value_by_key("max_iter", globin.parameters_input, "default", 30, int)
-	globin.chi2_tolerance = find_value_by_key("chi2_tolerance", globin.parameters_input, "default", 1e-2, float)
-	globin.ncycle = find_value_by_key("ncycle", globin.parameters_input, "default", 1, int)
-	globin.rf_type = find_value_by_key("rf_type", globin.parameters_input, "default", "node", str)
-	values = find_value_by_key("weights", globin.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
+	globin.marq_lambda = _find_value_by_key("marq_lambda", globin.parameters_input, "default", 1e-3, float)
+	globin.max_iter = _find_value_by_key("max_iter", globin.parameters_input, "default", 30, int)
+	globin.chi2_tolerance = _find_value_by_key("chi2_tolerance", globin.parameters_input, "default", 1e-2, float)
+	globin.ncycle = _find_value_by_key("ncycle", globin.parameters_input, "default", 1, int)
+	globin.rf_type = _find_value_by_key("rf_type", globin.parameters_input, "default", "node", str)
+	values = _find_value_by_key("weights", globin.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
 	if type(values)==str:
 		values = values.split(",")
 		globin.weights = np.array([float(item) for item in values], dtype=np.float64)
-	vmac = find_value_by_key("vmac", globin.parameters_input, "default", default_val=0, conversion=float)
-	atm_type = find_value_by_key("atm_type", globin.parameters_input, "default", "multi", str)
-	atm_type = atm_type.lower()
+	vmac = _find_value_by_key("vmac", globin.parameters_input, "default", default_val=0, conversion=float)
 
 	# initialize container for atmosphere which we invert
 	globin.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 
-	linelist_path = find_value_by_key("linelist", globin.parameters_input, "required")
-	globin.linelist_name = linelist_path.split("/")[-1]
-	out = sp.run(f"cp {linelist_path} runs/{globin.wd}/{globin.linelist_name}",
-				shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	if out.returncode!=0:
-		print(str(out.stdout, "utf-8"))
-		sys.exit()
-	else:
-		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
-
-	atm_range = get_atmosphere_range()
-
 	#--- required parameters
-	path_to_observations = find_value_by_key("observation", globin.parameters_input, "required")
+	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")
 	globin.obs = Observation(path_to_observations, atm_range)
 	# set dimensions for atmosphere same as dimension of observations
 	globin.atm.nx = globin.obs.nx
@@ -338,13 +327,13 @@ def read_inversion_base(wave_file_path):
 			globin.atm.atm_name_list.append(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 	
 	#--- optional parameters
-	path_to_atmosphere = find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
+	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
 	if path_to_atmosphere is not None:
 		globin.ref_atm = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
 					logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 	# if user have not provided reference atmosphere try fidning node atmosphere
 	else:
-		path_to_node_atmosphere = find_value_by_key("node_atmosphere", globin.parameters_input, "optional")
+		path_to_node_atmosphere = _find_value_by_key("node_atmosphere", globin.parameters_input, "optional")
 		if path_to_node_atmosphere is not None:
 			globin.ref_atm = globin.construct_atmosphere_from_nodes(path_to_node_atmosphere, atm_range)
 		# if node atmosphere not given, set FAL C model as reference atmosphere
@@ -354,28 +343,7 @@ def read_inversion_base(wave_file_path):
 	#--- initialize invert atmosphere data from reference atmosphere
 	globin.atm.interpolate_atmosphere(globin.ref_atm.data[0,0,0], globin.ref_atm.data)
 
-	globin.lmin = find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float) / 10  # [nm]
-	globin.lmax = find_value_by_key("wave_max", globin.parameters_input, "optional", conversion=float) / 10  # [nm]
-	globin.step = find_value_by_key("wave_step", globin.parameters_input, "optional", conversion=float) / 10 # [nm]
-	if (globin.step is None) and (globin.lmin is None) and (globin.lmax is None):
-		wave_grid_path = find_value_by_key("wave_grid", globin.parameters_input, "required")
-		globin.wavelength = np.loadtxt(wave_grid_path)
-		globin.lmin = min(globin.wavelength)
-		globin.lmax = max(globin.wavelength)
-		globin.step = globin.wavelength[1] - globin.wavelength[0]
-	else:
-		globin.wavelength = np.arange(globin.lmin, globin.lmax+globin.step, globin.step)
-	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
-
-	# if all(globin.wavelength)!=all(globin.obs.wavelength):
-	# 	print("We do not have same wavelength grid in observations and synthesis.\n")
-	# 	print("  We break here: read_input_files().\n")
-	# 	sys.exit()
-
-	# set path to WAVETABLE in 'keyword.input' file
-	globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
-	
-	fpath = find_value_by_key("rf_weights", globin.parameters_input, "optional")
+	fpath = _find_value_by_key("rf_weights", globin.parameters_input, "optional")
 	globin.wavs_weight = np.ones((globin.atm.nx, globin.atm.ny, len(globin.wavelength),4))
 	if fpath is not None:
 		lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
@@ -410,7 +378,7 @@ def read_inversion_base(wave_file_path):
 	globin.ref_atm.vmac = abs(vmac)
 
 	#--- read initial node parameter values	
-	fpath = find_value_by_key("initial_atmosphere", globin.parameters_input, "optional")
+	fpath = _find_value_by_key("initial_atmosphere", globin.parameters_input, "optional")
 	if fpath is not None:
 		# read node parameters from .fits file
 		load_node_data(fpath, atm_range)
@@ -434,7 +402,7 @@ def read_mode_2():
 	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[-1])
 
 	#--- line parameters to be fit
-	line_pars_path = find_value_by_key("line_parameters", globin.parameters_input, "optional")
+	line_pars_path = _find_value_by_key("line_parameters", globin.parameters_input, "optional")
 
 	if line_pars_path:
 		# if we provided line parameters for fit, read those parameters
@@ -488,7 +456,7 @@ def read_mode_3():
 	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[0])
 
 	#--- line parameters to be fit
-	line_pars_path = find_value_by_key("line_parameters", globin.parameters_input, "optional")
+	line_pars_path = _find_value_by_key("line_parameters", globin.parameters_input, "optional")
 
 	if line_pars_path:
 		# if we provided line parameters for fit, read those parameters
@@ -599,9 +567,9 @@ def read_node_parameters(parameter, text):
 	text : str
 		loaded input file string from which we are searching for the node keywords.
 	"""
-	nodes = find_value_by_key(f"nodes_{parameter}", text, "optional")
-	values = find_value_by_key(f"nodes_{parameter}_values", text, "optional")
-	mask = find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
+	nodes = _find_value_by_key(f"nodes_{parameter}", text, "optional")
+	values = _find_value_by_key(f"nodes_{parameter}_values", text, "optional")
+	mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
 	
 	if (nodes is not None) and (values is not None):
 		globin.atm.nodes[parameter] = [float(item) for item in nodes.split(",")]
@@ -610,33 +578,23 @@ def read_node_parameters(parameter, text):
 		if len(values)!=len(globin.atm.nodes[parameter]):
 			sys.exit(f"Number of nodes and values for {parameter} are not the same!")
 
-		try:	
-			matrix = np.zeros((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])), dtype=np.float64)
-			matrix[:,:] = copy.deepcopy(values)
-			if parameter=="mag":
-				globin.atm.values[parameter] = copy.deepcopy(matrix) / 1e4
-			elif parameter=="gamma":
-				matrix *= np.pi/180
-				globin.atm.values[parameter] = copy.deepcopy(matrix)
-			elif parameter=="chi":
-				matrix *= np.pi/180
-				globin.atm.values[parameter] = copy.deepcopy(matrix)
-			else:
-				globin.atm.values[parameter] = copy.deepcopy(matrix)
-			
-			if mask is None:
-				globin.atm.mask[parameter] = np.ones(len(globin.atm.nodes[parameter]))
-			else:
-				mask = [float(item) for item in mask.split(",")]
-				globin.atm.mask[parameter] = np.array(mask)
+		matrix = np.zeros((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])), dtype=np.float64)
+		matrix[:,:] = copy.deepcopy(values)
+		if parameter=="mag":
+			globin.atm.values[parameter] = copy.deepcopy(matrix) / 1e4
+		elif parameter=="gamma" or parameter=="chi":
+			matrix *= np.pi/180
+			globin.atm.values[parameter] = copy.deepcopy(matrix)
+		else:
+			globin.atm.values[parameter] = copy.deepcopy(matrix)
+		
+		if mask is None:
+			globin.atm.mask[parameter] = np.ones(len(globin.atm.nodes[parameter]))
+		else:
+			mask = [float(item) for item in mask.split(",")]
+			globin.atm.mask[parameter] = np.array(mask)
 
-			globin.parameter_scale[parameter] = np.ones((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
-		except:
-			print(f"Can not store node values for parameter '{parameter}'.")
-			print("  Must read first observation file.")
-			sys.exit()
-	# if (nodes is not None) and (values is None):
-	# 	find_value_by_key(f"node_{parameter}_cube", text, "required")
+		globin.parameter_scale[parameter] = np.ones((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
 
 def load_node_data(fpath, atm_range):
 	hdu_list = fits.open(fpath)

@@ -53,6 +53,11 @@ File is structured in following sections:
 Rewrite output routines from RH of output spectrum? To write out only spectrum
 at highest mu?
 
+## RH changes
+
+1. Fixed problem with SOLVE_NE in ITERATION mode (check mail to Sowmya where it is explained what is changed)
+2. Hydrostatic() is done even if H atom is not in ACTIVE state (iterate.c)
+
 ## Requierments
 
 subprocess>=

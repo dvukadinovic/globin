@@ -8,6 +8,7 @@ import sys
 import globin
 
 fact = {"temp"  : 1,
+		"ne"    : 1,
 		"vz"    : 1,
 		"vmic"  : 1,
 		"mag"   : 1e4,
@@ -15,6 +16,7 @@ fact = {"temp"  : 1,
 		"chi"   : 180/np.pi}
 
 unit = {"temp"  : "K",
+		"ne"    : "1/3",
 		"vz"    : "km/s",
 		"vmic"  : "km/s",
 		"mag"   : "G",
@@ -52,6 +54,8 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			pass
 
 		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color)
+		if parameter=="ne":
+			plt.yscale("log")
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 

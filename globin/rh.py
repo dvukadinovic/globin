@@ -45,16 +45,16 @@ class Rhout:
         ''' Reads all the output data from a RH run.'''
         self.verbose = verbose
         self.fdir = fdir
-        self.read_input('{0}/input.out'.format(fdir))
-        self.read_geometry('{0}/geometry.out'.format(fdir))
-        self.read_atmosphere('{0}/atmos.out'.format(fdir))
+        self.read_input('input.out')
+        self.read_geometry('geometry.out')
+        self.read_atmosphere('atmos.out')
         # self.read_spectrum('{0}/spectrum.out'.format(fdir))
         # if os.path.isfile('{0}/spectrum_1.00'.format(fdir)):
         #     self.read_ray('{0}/spectrum_1.00'.format(fdir))
 
     def read_input(self, infile='input.out'):
         ''' Reads RH input.out file. '''
-        data = read_xdr_file(infile)
+        data = read_xdr_file('{0}/{1}'.format(self.fdir,infile))
         self.input = {}
         input_vars = [('magneto_optical', 'i'), ('PRD_angle_dep', 'i'),
                       ('XRD', 'i'), ('start_solution', 'i'),
@@ -66,7 +66,7 @@ class Rhout:
 
     def read_geometry(self, infile='geometry.out'):
         ''' Reads RH geometry.out file. '''
-        data = read_xdr_file(infile)
+        data = read_xdr_file('{0}/{1}'.format(self.fdir,infile))
         self.geometry = {}
         geom_type = ['ONE_D_PLANE', 'TWO_D_PLANE',
                      'SPHERICAL_SYMMETRIC', 'THREE_D_PLANE']
@@ -125,7 +125,7 @@ class Rhout:
             em = ('read_atmosphere: geometry data not loaded, '
                   'call read_geometry() first!')
             raise ValueError(em)
-        data = read_xdr_file(infile)
+        data = read_xdr_file('{0}/{1}'.format(self.fdir,infile))
         self.atmos = {}
         nhydr = read_xdr_var(data, ('i',))
         nelem = read_xdr_var(data, ('i',))

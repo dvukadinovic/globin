@@ -222,7 +222,7 @@ class Atmosphere(object):
 				data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
 
 				# Hydrogen population
-				data[idx,idy,8:] = self.distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
+				data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
 
 		return data
 
@@ -351,9 +351,9 @@ class Atmosphere(object):
 					self.data[idx,idy,parID] = splev(x_new, tck)
 
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
-		primary = fits.PrimaryHDU(self.data)
+		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
-
+		
 		primary.header.comments["NAXIS1"] = "depth points"
 		primary.header.comments["NAXIS2"] = "number of parameters"
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
@@ -490,7 +490,7 @@ class Atmosphere(object):
 					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
-				self.values[parameter] += step
+				self.values[parameter] += step * self.mask[parameter]
 
 			# update atomic parameters
 			for parameter in self.global_pars:
@@ -522,33 +522,6 @@ class Atmosphere(object):
 				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
-			
-	def distribute_hydrogen(self, temp, pg, pe):
-		from scipy.interpolate import interp1d
-
-		Ej = 13.59844
-		u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
-		u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
-		
-		u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
-		u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
-		
-		phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
-		
-		nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6
-		nH0 = nH / (1 + phi_t/pe)
-		nprot = nH - nH0
-
-		pops = np.zeros((6, len(temp)))
-
-		pops[-1] = nprot
-	
-		for lvl in range(5):
-			e_lvl = 13.59844*(1-1/(lvl+1)**2)
-			g = 2*(lvl+1)**2
-			pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
-
-		return pops
 
 	def smooth_parameters(self):
 		#--- atmospheric parameters
@@ -586,6 +559,65 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
+def distribute_hydrogen(temp, pg, pe):
+	# from scipy.interpolate import interp1d
+
+	# Ej = 13.59844
+	# Ediss = 0.75
+	# u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
+	# u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
+	
+	# u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
+	# u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
+	
+	# phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
+	# phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
+	 	
+	# nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
+	# nprot = phi_t/pe * nH0
+
+	# pops = np.zeros((6, len(temp)))
+
+	# pops[-1] = nprot
+
+	# for lvl in range(5):
+	# 	e_lvl = 13.59844*(1-1/(lvl+1)**2)
+	# 	g = 2*(lvl+1)**2
+	# 	pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
+	
+	# return pops
+	kb = 1.38064852e-23
+	h = 6.62607004e-34
+	me = 9.10938356e-31
+
+	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
+	ne = pe/10 / kb / temp / 1e6
+
+	Ej = 13.59844
+	Ej *= 1.60218e-19 # [eV --> J]
+	nstar = np.zeros((6, len(temp)))
+	for i_ in range(1,5):
+		n = i_+1
+		dE = Ej * (n**2 - 1) / n**2
+		gn = 2*n**2 / 2
+		nstar[i_] = gn * np.exp(-dE/kb/temp)
+		
+	nstar[5] = 1/2 * 2/ne * (2*np.pi*me*kb*temp)**(3/2) / h**3 * np.exp(-Ej/kb/temp)
+	
+	suma = 1 + np.sum(nstar[1:], axis=0)
+	nstar[0] = nH / suma
+
+	# plt.plot(nstar[0], label="ground")
+	for i_ in range(1,6):
+		nstar[i_] *= nstar[0]
+		# plt.plot(nstar[i_], label=f"{i_}")
+	
+	# plt.yscale("log")
+	# plt.legend()
+	# plt.show()
+
+	return nstar
+
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type
 	# into separate file and store them at 'fpath'.
@@ -607,13 +639,13 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Ndep\n")
 	out.write(f"  {nz}\n")
 	out.write("*\n")
-	out.write("* log tau    Temp[K]    n_e[m-3]    v_z[km/s]   v_turb[km/s]\n")
+	out.write("* log tau    Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
 
 	for i_ in range(nz):
 		out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
 
 	out.write("*\n")
-	out.write("* Hydrogen populations [m-3]\n")
+	out.write("* Hydrogen populations [cm-3]\n")
 	out.write("*     nh(1)        nh(2)        nh(3)        nh(4)        nh(5)        nh(6)\n")
 
 	for i_ in range(nz):
@@ -638,19 +670,16 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	spectra.lmax = globin.lmax
 	spectra.step = globin.step
 
-	atmospheres = np.zeros((Nx, Ny, 14, Nz), dtype=np.float64)
+	atmospheres = copy.deepcopy(globin.atm)
 	height = np.zeros((Nx, Ny, Nz), dtype=np.float64)
 
 	for item in lista:
 		if item is not None:
 			rh_obj, idx, idy = item.values()
 
-			# print(rh_obj.wave)
-			# sys.exit()
-
 			ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
 			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
-
+			
 			# Stokes vector
 			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max]
 			# if there is magnetic field, read the Stokes components
@@ -664,20 +693,20 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			# Atmospheres
 			# Atmopshere read here is one projected to local reference frame (from rhf1d) and
 			# not from solveray!
-			atmospheres[idx,idy,0] = np.log10(rh_obj.geometry["tau500"])
-			atmospheres[idx,idy,1] = rh_obj.atmos["T"]
-			atmospheres[idx,idy,2] = rh_obj.atmos["n_elec"] / 1e6 	# [1/cm3 --> 1/m3]
-			atmospheres[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  	# [m/s --> km/s]
-			atmospheres[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  	# [m/s --> km/s]
+			atmospheres.data[idx,idy,0] = np.log10(rh_obj.geometry["tau500"])
+			atmospheres.data[idx,idy,1] = rh_obj.atmos["T"]
+			atmospheres.data[idx,idy,2] = rh_obj.atmos["n_elec"] / 1e6 	# [1/m3 --> 1/cm3]
+			atmospheres.data[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  	# [m/s --> km/s]
+			atmospheres.data[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  	# [m/s --> km/s]
 			try:
-				atmospheres[idx,idy,5] = rh_obj.atmos["B"] #* 1e4    	# [T --> G]
-				atmospheres[idx,idy,6] = rh_obj.atmos["gamma_B"] #* 180/np.pi	# [rad --> deg]
-				atmospheres[idx,idy,7] = rh_obj.atmos["chi_B"] #* 180/np.pi    	# [rad --> deg]
+				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] #* 1e4    	# [T --> G]
+				atmospheres.data[idx,idy,6] = rh_obj.atmos["gamma_B"] #* 180/np.pi	# [rad --> deg]
+				atmospheres.data[idx,idy,7] = rh_obj.atmos["chi_B"] #* 180/np.pi    	# [rad --> deg]
 			except:
 				pass
 			height[idx,idy] = rh_obj.geometry["height"]
 			for i_ in range(rh_obj.atmos['nhydr']):
-				atmospheres[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
+				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
 
 	spectra.wave = rh_obj.wave
 
@@ -755,7 +784,6 @@ def synth_pool(args):
 			print("   ", line)
 		return None
 	else:
-
 		# if everything was fine, run solverray executable
 		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
@@ -769,7 +797,8 @@ def synth_pool(args):
 	rh_obj.read_ray()
 
 	dt = time.time() - start
-	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
+	if globin.mode==0:	
+		print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
@@ -838,17 +867,11 @@ def compute_spectra(atmos):
 			break
 	if kill:
 		print("--> Spectrum synthesis on all pixels have failed!\n")
-		globin.remove_dirs()
+		# globin.remove_dirs()
 		sys.exit()
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
 	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
-
-	# if we are only in synthesis mode,
-	# after we finish synthesis, remove working
-	# dirs in rh/rhf1d folder
-	# if globin.mode==0:
-	# 	globin.remove_dirs()
 
 	return spectra, atmospheres, height
 

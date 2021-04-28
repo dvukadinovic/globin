@@ -106,11 +106,26 @@ def invert_pxl_by_pxl(save_output, verbose):
 		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
 
+	# weights on Stokes vector based on dI over dlam (from observations)
+	from scipy.interpolate import splev, splrep	
+	weights = np.empty((obs.nx, obs.ny, Nw))
+	for idx in range(obs.nx):
+		for idy in range(obs.ny):
+			tck = splrep(obs.wavelength, obs.spec[idx,idy,:,0])
+			dIdlam = splev(obs.wavelength, tck, der=1)
+
+			norm = np.sum(np.abs(dIdlam))
+
+			weights[idx,idy,:] = (np.abs(dIdlam) / norm)[ind_min:ind_max]
+
+	weights = np.repeat(weights[:,:,:,np.newaxis], 4, axis=3)
+
 	# weights on Stokes vector based on observed Stokes I
-	aux = 1/obs.spec[...,0]
-	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-	norm = np.sum(weights, axis=2)
-	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	# aux = 1/obs.spec[...,0]
+	# weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	# norm = np.sum(weights, axis=2)
+	# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	# weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter))
 	dof = np.count_nonzero(globin.weights) * Nw - Npar
@@ -355,7 +370,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		atmos.line_lists_path.append(fpath)
 
 	atmos.build_from_nodes(False)
-	inverted_spectra,_,_ = globin.compute_spectra(atmos)
+	inverted_spectra, atm, _ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
@@ -364,8 +379,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 		print("Failed to compute parameter errors\n")
 	
 	if save_output is not None:
-		output_path = f"runs/{globin.wd}"	
+		output_path = f"runs/{globin.wd}"
 
+		atm.save_atmosphere(f"{output_path}/inverted_RH_atmos.fits")
+		
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		if atmos.n_global_pars>0:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
@@ -398,8 +415,20 @@ def invert_global(save_output, verbose):
 	init : InputData
 		InputData object in which we have everything stored.
 	"""
+	from scipy.interpolate import interp1d
+
 	obs = globin.obs
 	atmos = globin.atm
+
+	# new_spec = np.zeros((obs.nx, obs.ny, len(globin.wavelength), 4))
+	# for idx in range(obs.nx):
+	# 	for idy in range(obs.ny):
+	# 		for ids in range(4):
+	# 			new_spec[idx,idy,:,ids] = interp1d(obs.wavelength, obs.spec[idx,idy,:,ids], fill_value="extrapolate")(globin.wavelength)
+
+	# obs.spec = new_spec
+	# obs.wavelength = globin.wavelength
+	# obs.wave = globin.wavelength
 
 	if verbose:
 		print("Initial parameters:")
@@ -464,6 +493,9 @@ def invert_global(save_output, verbose):
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_local_parameters)
+
+			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
+			# plt.show()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))

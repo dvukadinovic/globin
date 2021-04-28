@@ -31,12 +31,8 @@ class Spectrum(object):
 			self.wavelength = np.empty(nw)
 			self.wavelength[:] = np.nan
 
-	def add_noise(self):
-		if self.noise is None:
-			print("--> Error in spec.add_noise()")
-			print("    We can not add noise of NoneType.")
-			globin.remove_dirs()
-			sys.exit()
+	def add_noise(self, noise):
+		self.noise = noise
 
 		self.mean = np.nanmean(np.max(self.spec[...,0], axis=2))
 		wavs_dependent_factor = np.sqrt(self.spec[...,0] / self.mean)

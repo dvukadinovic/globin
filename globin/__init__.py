@@ -16,12 +16,10 @@ Contributors:
 """
 
 import os
-import sys
 import numpy as np
-import subprocess as sp
 
 from .input import \
-	read_input, find_value_by_key, read_node_atmosphere, set_keyword, \
+	read_input, read_node_atmosphere, set_keyword, \
 	write_line_parameters, write_line_par
 
 from .atoms import \
@@ -53,21 +51,12 @@ __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visua
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
-#--- comment character in files read by wrapper
-COMMENT_CHAR = "#"
-
 #--- moduse operandi
 # 0 --> synthesis
 # 1 --> regular (pixle-by-pixel) inversion
 # 2 --> PSF inversion (not implemented yet)
 # 3 --> global inversion
 # mode = None
-
-#--- name of RH input file
-# rh_input_name = None
-
-#--- path to RH main folder
-# rh_path = None
 
 abundance = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
             		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
@@ -113,7 +102,7 @@ delta = {"temp"  : 1,		# K
 		 "mag"   : 1/1e4,	# G --> T
 		 "gamma" : 0.01,	# rad
 		 "chi"   : 0.01,	# rad
-		 "loggf" : 0.01,	# 
+		 "loggf" : 0.001,	# 
 		 "dlam"  : 1}		# mA
 
 #--- parameter differences for flaging if RF needs to be computed
@@ -126,6 +115,7 @@ diff = {"temp"   : 10,		# K
 
 #--- full names of parameters (for FITS header)
 parameter_name = {"temp"   : "Temperature",
+				  "ne"     : "Electron density",
 				  "vz"     : "Vertical_velocity",
 				  "vmic"   : "Microturbulent_velocity",
 				  "vmac"   : "Macroturbulent_velocity",
@@ -135,6 +125,7 @@ parameter_name = {"temp"   : "Temperature",
 
 #--- parameter units (for FITS header)
 parameter_unit = {"temp"   : "K",
+				  "ne"     : "1/3",
 				  "vz"     : "km/s",
 				  "vmic"   : "km/s",
 				  "vmac"   : "km/s",
@@ -147,14 +138,12 @@ cwd = os.getcwd()
 
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED
-from scipy.interpolate import splrep, splev
+from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(fpath=__path__ + "/data/falc.dat", atm_type="spinor")
+falc = Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
 
 # temperature interpolation
 temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
 falc_logt = falc.data[0,0,0]
-falc_ne = falc.data[0,0,2] 
-# ynew = splev(np.arange(0,1.5, 0.1), temp_tck, der=1)
-# print(ynew)
+falc_ne = falc.data[0,0,2]
