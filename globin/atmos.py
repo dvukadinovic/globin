@@ -1045,6 +1045,9 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 					line_no = atmos.line_no[parameter][idp]
 					values = copy.deepcopy(atmos.global_pars[parameter][:,:,idp])
 
+					print(parameter)
+					print(atmos.global_pars[parameter])
+
 					# positive perturbation
 					values += perturbation
 					# write atomic parameters in files

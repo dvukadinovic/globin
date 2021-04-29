@@ -401,7 +401,7 @@ def read_mode_2():
 			shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 
 	#--- Kurucz line list for given spectral region
-	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[-1])
+	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.linelist_name)
 
 	#--- line parameters to be fit
 	line_pars_path = _find_value_by_key("line_parameters", globin.parameters_input, "optional")
@@ -455,7 +455,7 @@ def read_mode_2():
 
 def read_mode_3():
 	#--- Kurucz line list for given spectral region
-	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.atm.line_lists_path[0])
+	globin.RLK_lines_text, globin.RLK_lines = globin.read_RLK_lines(globin.linelist_name)
 
 	#--- line parameters to be fit
 	line_pars_path = _find_value_by_key("line_parameters", globin.parameters_input, "optional")
