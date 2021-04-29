@@ -146,7 +146,6 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.parameters_input = text
 
 	globin.n_thread = _find_value_by_key("n_thread",globin.parameters_input, "default", 1, conversion=int)
-	globin.interp_degree = _find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
 	globin.mode = _find_value_by_key("mode", globin.parameters_input, "required", conversion=int)
 	
 	# path to RH main folder
@@ -301,6 +300,9 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	globin.ref_atm = copy.deepcopy(globin.atm)
 
 def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
+	# integration degree for Bezier interpolation
+	globin.interp_degree = _find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
+
 	#--- default parameters
 	globin.marq_lambda = _find_value_by_key("marq_lambda", globin.parameters_input, "default", 1e-3, float)
 	globin.max_iter = _find_value_by_key("max_iter", globin.parameters_input, "default", 30, int)

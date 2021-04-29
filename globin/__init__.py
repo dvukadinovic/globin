@@ -58,6 +58,9 @@ __path__ = os.path.dirname(__file__)
 # 3 --> global inversion
 # mode = None
 
+#--- interpolation degree
+interp_degree = 3
+
 abundance = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
             		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
             		  5.12, 6.36, 3.1, 4.99, 4.0, 5.67, 5.39, 7.44, 4.92,

@@ -32,7 +32,7 @@ def invert(save_output=True, verbose=True):
 			if (cycle+1)<globin.ncycle:
 				globin.atm.smooth_parameters()
 
-		globin.remove_dirs()
+		# globin.remove_dirs()
 
 		return atm, spec
 
@@ -125,7 +125,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
 	# norm = np.sum(weights, axis=2)
 	# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-	# weights = 1
+	weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter))
 	dof = np.count_nonzero(globin.weights) * Nw - Npar
@@ -471,6 +471,7 @@ def invert_global(save_output, verbose):
 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
 	norm = np.sum(weights, axis=2)
 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda

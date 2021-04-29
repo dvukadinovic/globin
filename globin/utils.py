@@ -129,11 +129,12 @@ def remove_dirs():
             print(out.stdout)
             sys.exit()
 
-def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmos_path=None):
+def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.read_node_atmosphere(node_atmosphere_path)
 
     # atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
     # atmos.data[:,:,0,:] = atmos.logtau
+    atmos.vmac = vmac
     atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
     atmos.build_from_nodes(False)
 
@@ -145,7 +146,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range, output_atmo
         atmos.data = atmos.data[xmin:xmax, ymin:ymax]
         atmos.nx, atmos.ny, atmos.npar, atmos.nz = atmos.data.shape
     
-    atmos.split_cube()
+    # atmos.split_cube()
 
     print("Constructed atmosphere from nodes: {}".format(node_atmosphere_path))
     print("  (nx, ny, nz, npar) = ({0}, {1}, {2}, {3})".format(atmos.nx, atmos.ny, atmos.nz, atmos.npar))

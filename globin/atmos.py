@@ -353,7 +353,7 @@ class Atmosphere(object):
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
-		
+
 		primary.header.comments["NAXIS1"] = "depth points"
 		primary.header.comments["NAXIS2"] = "number of parameters"
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
@@ -560,35 +560,37 @@ class Atmosphere(object):
 			low = up
 
 def distribute_hydrogen(temp, pg, pe):
-	# from scipy.interpolate import interp1d
+	from scipy.interpolate import interp1d
 
-	# Ej = 13.59844
-	# Ediss = 0.75
-	# u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
-	# u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
-	
-	# u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
-	# u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
-	
-	# phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
-	# phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
-	 	
-	# nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
-	# nprot = phi_t/pe * nH0
-
-	# pops = np.zeros((6, len(temp)))
-
-	# pops[-1] = nprot
-
-	# for lvl in range(5):
-	# 	e_lvl = 13.59844*(1-1/(lvl+1)**2)
-	# 	g = 2*(lvl+1)**2
-	# 	pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
-	
-	# return pops
 	kb = 1.38064852e-23
 	h = 6.62607004e-34
 	me = 9.10938356e-31
+
+	Ej = 13.59844
+	Ediss = 0.75
+	u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
+	u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
+	
+	u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
+	u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
+	
+	phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
+	phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
+	
+	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6 	
+	nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
+	nprot = phi_t/pe * nH0
+
+	pops = np.zeros((6, len(temp)))
+
+	pops[-1] = nprot
+
+	for lvl in range(5):
+		e_lvl = 13.59844*(1-1/(lvl+1)**2)
+		g = 2*(lvl+1)**2
+		pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
+	
+	return pops
 
 	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
 	ne = pe/10 / kb / temp / 1e6

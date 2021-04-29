@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import  copy
+import copy
 from astropy.io import fits
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import sys
@@ -201,11 +201,13 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 		for idx in range(nx):
 			for idy in range(ny):
 				inds_non_zero = np.nonzero(chi2[idx,idy])[0]
-				plt.plot(chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
+				x = np.arange(inds_non_zero[-1]+1) + 1
+				plt.plot(x, chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
 	elif chi2.ndim==1:
 		niter = chi2.shape
 		inds_non_zero = np.nonzero(chi2)[0]
-		plt.plot(chi2[inds_non_zero])
+		x = np.arange(inds_non_zero[-1]) + 1
+		plt.plot(x, chi2[inds_non_zero])
 
 	plt.xlabel("Iteration", fontsize=14)
 	plt.ylabel(r"$\chi^2$", fontsize=14)
