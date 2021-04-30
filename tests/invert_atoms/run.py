@@ -6,11 +6,11 @@ import sys
 import globin
 
 #--- generate initial values for atomic parameters
-lineNo = {"loggf" : np.arange(1,19)}
-globin.init_line_pars(lineNo, "lines_4016", "line_pars")
+# lineNo = {"loggf" : np.arange(1,19)}
+# globin.init_line_pars(lineNo, "lines_4016", "line_pars")
 
 #--- read input files
-run_name = "mode3"
+run_name = "dummy"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere

@@ -88,37 +88,36 @@ def invert_pxl_by_pxl(save_output, verbose):
 	ind_min = np.argmin(abs(obs.wavelength - globin.wavelength[0]))
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
-	if globin.noise!=0:
-		StokesI_cont = obs.spec[:,:,ind_min,0]
-		noise_lvl = globin.noise * StokesI_cont
-		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
-		# noise = (nx, ny, nw)
-		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
-		# noise_stokes_scale = (nx, ny, nw, 4)
-		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
-		# noise_stokes = (nx, ny, nw, 4)
-		noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
-		# noies_scale_rf = (nx, ny, npar, nw, 4)
-		noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
+	if globin.noise==0:
+		noise = 1e-4
 	else:
-		noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4), dtype=np.float64)
-		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
-		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
+		noise = globin.noise
+	StokesI_cont = obs.spec[:,:,ind_min,0]
+	noise_lvl = noise * StokesI_cont
+	# noise_wavelength = (nx, ny, nw)
+	noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
+	# noise = (nx, ny, nw)
+	noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
+	# noise_stokes_scale = (nx, ny, nw, 4)
+	noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
+	# noise_stokes = (nx, ny, nw, 4)
+	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
+	# noies_scale_rf = (nx, ny, npar, nw, 4)
+	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
 
 	# weights on Stokes vector based on dI over dlam (from observations)
-	from scipy.interpolate import splev, splrep	
-	weights = np.empty((obs.nx, obs.ny, Nw))
-	for idx in range(obs.nx):
-		for idy in range(obs.ny):
-			tck = splrep(obs.wavelength, obs.spec[idx,idy,:,0])
-			dIdlam = splev(obs.wavelength, tck, der=1)
+	# from scipy.interpolate import splev, splrep	
+	# weights = np.empty((obs.nx, obs.ny, Nw))
+	# for idx in range(obs.nx):
+	# 	for idy in range(obs.ny):
+	# 		tck = splrep(obs.wavelength, obs.spec[idx,idy,:,0])
+	# 		dIdlam = splev(obs.wavelength, tck, der=1)
 
-			norm = np.sum(np.abs(dIdlam))
+	# 		norm = np.sum(np.abs(dIdlam))
 
-			weights[idx,idy,:] = (np.abs(dIdlam) / norm)[ind_min:ind_max]
+	# 		weights[idx,idy,:] = (np.abs(dIdlam) / norm)[ind_min:ind_max]
 
-	weights = np.repeat(weights[:,:,:,np.newaxis], 4, axis=3)
+	# weights = np.repeat(weights[:,:,:,np.newaxis], 4, axis=3)
 
 	# weights on Stokes vector based on observed Stokes I
 	# aux = 1/obs.spec[...,0]
@@ -335,7 +334,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							if globin.mode==2:	
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-						elif chi2[idx,idy,it_no-1] < 1 and globin.noise!=0:
+						elif chi2[idx,idy,it_no-1] < 1:
 							print(f"--> [{idx},{idy}] : chi2 smaller than 1\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
@@ -415,20 +414,8 @@ def invert_global(save_output, verbose):
 	init : InputData
 		InputData object in which we have everything stored.
 	"""
-	from scipy.interpolate import interp1d
-
 	obs = globin.obs
 	atmos = globin.atm
-
-	# new_spec = np.zeros((obs.nx, obs.ny, len(globin.wavelength), 4))
-	# for idx in range(obs.nx):
-	# 	for idy in range(obs.ny):
-	# 		for ids in range(4):
-	# 			new_spec[idx,idy,:,ids] = interp1d(obs.wavelength, obs.spec[idx,idy,:,ids], fill_value="extrapolate")(globin.wavelength)
-
-	# obs.spec = new_spec
-	# obs.wavelength = globin.wavelength
-	# obs.wave = globin.wavelength
 
 	if verbose:
 		print("Initial parameters:")
@@ -448,29 +435,30 @@ def invert_global(save_output, verbose):
 	ind_min = np.argmin(abs(obs.wavelength - globin.wavelength[0]))
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
-	if globin.noise!=0:
-		StokesI_cont = obs.spec[:,:,ind_min,0]
-		noise_lvl = globin.noise * StokesI_cont
-		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
-		# noise = (nx, ny, nw)
-		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
-		# noise_stokes_scale = (nx, ny, nw, 4)
-		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
-		# noise_stokes = (nx, ny, nw, 4)
-		noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
-		# noies_scale_rf = (nx, ny, npar, nw, 4)
-		noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
+	noise = 1e-4
+	if globin.noise==0:
+		noise = 1e-4
 	else:
-		noise_scale_rf = np.ones((obs.nx, obs.ny, Npar, Nw, 4), dtype=np.float64)
-		noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
-		noise_stokes_scale = np.ones((obs.nx, obs.ny, Nw, 4), dtype=np.float64)
+		noise = globin.noise
+
+	StokesI_cont = obs.spec[:,:,ind_min,0]
+	noise_lvl = noise * StokesI_cont
+	# noise_wavelength = (nx, ny, nw)
+	noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
+	# noise = (nx, ny, nw)
+	noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
+	# noise_stokes_scale = (nx, ny, nw, 4)
+	noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
+	# noise_stokes = (nx, ny, nw, 4)
+	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
+	# noies_scale_rf = (nx, ny, npar, nw, 4)
+	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
 
 	# weights on Stokes vector based on observed Stokes I
-	aux = 1/obs.spec[...,0]
-	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-	norm = np.sum(weights, axis=2)
-	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	# aux = 1/obs.spec[...,0]
+	# weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	# norm = np.sum(weights, axis=2)
+	# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 	weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
@@ -615,7 +603,7 @@ def invert_global(save_output, verbose):
 			elif relative_change<globin.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
-			elif np.sum(chi2[...,itter-1]) < 1 and globin.noise!=0:
+			elif np.sum(chi2[...,itter-1]) < 1:
 				print("chi2 smaller than 1\n")
 				break_flag = True
 		
