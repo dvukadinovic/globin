@@ -199,7 +199,8 @@ class Atmosphere(object):
 			sys.exit()
 
 	def spinor2multi(self, atmos_data):
-		nx, ny, npar, nz = 1, 1, 14, atmos_data.shape[-1]
+		nx, ny, _, nz = atmos_data.shape
+		npar = 14
 		data = np.zeros((nx, ny, npar, nz))
 
 		for idx in range(nx):
@@ -1230,6 +1231,8 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	return rf
 
 def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
+	from tqdm import tqdm
+
 	# set reference atmosphere
 	atmos = globin.ref_atm
 	atmos = copy.deepcopy(globin.atm)
@@ -1264,12 +1267,12 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 
 	i_ = -1
 	if local_params is not None:
-		for i_, parameter in enumerate(local_params):
+		for i_, parameter in tqdm(enumerate(local_params)):
 			print(parameter)
 			perturbation = globin.delta[parameter]
 			parID = atmos.par_id[parameter]
 
-			for zID in range(atmos.nz):
+			for zID in tqdm(range(atmos.nz)):
 				model_plus.data[:,:,parID,zID] += perturbation
 				model_plus.write_atmosphere()
 				spec_plus,_,_ = compute_spectra(model_plus)

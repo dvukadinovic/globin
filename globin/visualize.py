@@ -203,11 +203,6 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 				inds_non_zero = np.nonzero(chi2[idx,idy])[0]
 				x = np.arange(inds_non_zero[-1]+1) + 1
 				plt.plot(x, chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
-	elif chi2.ndim==1:
-		niter = chi2.shape
-		inds_non_zero = np.nonzero(chi2)[0]
-		x = np.arange(inds_non_zero[-1]) + 1
-		plt.plot(x, chi2[inds_non_zero])
 
 	plt.xlabel("Iteration", fontsize=14)
 	plt.ylabel(r"$\chi^2$", fontsize=14)

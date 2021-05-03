@@ -32,7 +32,7 @@ def invert(save_output=True, verbose=True):
 			if (cycle+1)<globin.ncycle:
 				globin.atm.smooth_parameters()
 
-		# globin.remove_dirs()
+		globin.remove_dirs()
 
 		return atm, spec
 
