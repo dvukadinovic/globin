@@ -284,9 +284,13 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	#--- required parameters
 	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
 	if path_to_atmosphere is None:
-		node_atmosphere_path = _find_value_by_key("node_atmosphere", globin.parameters_input, "required")
-		globin.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
-		globin.atm.split_cube()
+		node_atmosphere_path = _find_value_by_key("node_atmosphere", globin.parameters_input, "optional")
+		if node_atmosphere_path is not None:
+			globin.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
+			globin.atm.split_cube()
+		else:
+			globin.atm = globin.falc
+			globin.atm.split_cube()
 	else:
 		globin.atm = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
 						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)

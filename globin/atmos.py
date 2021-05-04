@@ -210,7 +210,7 @@ class Atmosphere(object):
 				# Temperature [K]
 				data[idx,idy,1] = atmos_data[idx,idy,2]
 				# Electron density [1/m3]
-				data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2]
+				data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2] / 1e6
 				# Vertical velocity [cm/s] --> [km/s]
 				data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
 				# Microturbulent velocitu [cm/s] --> [km/s]
@@ -227,7 +227,7 @@ class Atmosphere(object):
 
 		return data
 
-	def sir2multi():
+	def sir2multi(self):
 		pass
 
 	def get_atmos(self, idx, idy):

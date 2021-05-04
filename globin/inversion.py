@@ -435,7 +435,6 @@ def invert_global(save_output, verbose):
 	ind_min = np.argmin(abs(obs.wavelength - globin.wavelength[0]))
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
-	noise = 1e-4
 	if globin.noise==0:
 		noise = 1e-4
 	else:
@@ -463,7 +462,10 @@ def invert_global(save_output, verbose):
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda
-	dof = np.count_nonzero(globin.weights) * Nw - Npar
+	dof = np.count_nonzero(globin.weights)*Nw - Npar
+
+	Natmos = len(atmos.atm_name_list)
+	Ndof = np.count_nonzero(globin.weights)*Nw*Natmos - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
 	start = time.time()
 
@@ -505,7 +507,7 @@ def invert_global(save_output, verbose):
 			diff *= globin.weights
 
 			# calculate chi2
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -563,7 +565,7 @@ def invert_global(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 
 		if np.sum(chi2_new) > np.sum(chi2_old):
 			LM_parameter *= 10
@@ -596,14 +598,16 @@ def invert_global(save_output, verbose):
 		if (itter)>=3 and updated_parameters:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
-			relative_change = abs(np.sum(chi2[...,itter-1])/np.sum(chi2[...,itter-2]) - 1)
-			if np.sum(chi2[...,itter-1])<1e-32:
+			new_chi2 = np.sum(chi2[...,itter-1]) / Ndof
+			old_chi2 = np.sum(chi2[...,itter-2]) / Ndof
+			relative_change = abs(new_chi2/old_chi2 - 1)
+			if new_chi2<1e-32:
 				print("chi2 is way low!\n")
 				break_flag = True
 			elif relative_change<globin.chi2_tolerance:
 				print("chi2 relative change is smaller than given value.\n")
 				break_flag = True
-			elif np.sum(chi2[...,itter-1]) < 1:
+			elif new_chi2 < 1:
 				print("chi2 smaller than 1\n")
 				break_flag = True
 		
@@ -640,7 +644,7 @@ def invert_global(save_output, verbose):
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
-		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
+		globin.save_chi2(chi2 / dof, f"{output_path}/chi2.fits")
 	
 		end = time.time() - start
 		print("Finished in: {0}\n".format(end))
