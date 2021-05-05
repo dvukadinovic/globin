@@ -62,6 +62,7 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 	match = pattern(key).search(text)
 	if match:
 		value = match.group(2)
+		value = value.replace(" ", "")
 		return conversion(value)
 	else:
 		if key_type=="required":
@@ -147,6 +148,14 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 
 	globin.n_thread = _find_value_by_key("n_thread",globin.parameters_input, "default", 1, conversion=int)
 	globin.mode = _find_value_by_key("mode", globin.parameters_input, "required", conversion=int)
+	norm = _find_value_by_key("norm", globin.parameters_input, "optional")
+	if norm is not None:
+		if norm.lower()=="true":
+			globin.norm = True
+		elif norm.lower()=="false":
+			globin.norm = False
+	else:
+		globin.norm = False
 	
 	# path to RH main folder
 	rh_path = _find_value_by_key("rh_path", globin.parameters_input, "required")

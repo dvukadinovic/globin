@@ -683,15 +683,18 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
 			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
 			
+			if globin.norm:
+				sI_cont = rh_obj.int[ind_min]
+			else:
+				sI_cont = 1
+
 			# Stokes vector
-			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max]
+			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max] / sI_cont
 			# if there is magnetic field, read the Stokes components
-			try:
-				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max]
-				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max]
-				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max]
-			except:
-				pass
+			if rh_obj.stokes:
+				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max] / sI_cont
+				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max] / sI_cont
+				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max] / sI_cont
 
 			# Atmospheres
 			# Atmopshere read here is one projected to local reference frame (from rhf1d) and
