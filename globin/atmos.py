@@ -182,7 +182,7 @@ class Atmosphere(object):
 			if not np.array_equal(multi_atmos[0,0,0], self.logtau):
 				self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
 			else:
-				self.data = np.zeros((*multi_atmos.shape))
+				self.data = np.zeros(multi_atmos.shape)
 				self.data = multi_atmos
 		elif self.type=="sir":
 			self.sir2multi()
