@@ -41,7 +41,7 @@ from .tools import \
 	save_chi2, bezier_spline
 
 from .visualize import \
-	plot_atmosphere, plot_spectra, plot_chi2
+	plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 
 from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
