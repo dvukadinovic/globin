@@ -104,6 +104,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
 	# noies_scale_rf = (nx, ny, npar, nw, 4)
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
+	noise_scale_rf = 1
 
 	# weights on Stokes vector based on dI over dlam (from observations)
 	# from scipy.interpolate import splev, splrep	
@@ -452,6 +453,7 @@ def invert_global(save_output, verbose):
 	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
 	# noies_scale_rf = (nx, ny, npar, nw, 4)
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
+	noise_scale_rf = 1
 
 	# weights on Stokes vector based on observed Stokes I
 	# aux = 1/obs.spec[...,0]
