@@ -10,7 +10,7 @@ import globin
 # globin.init_line_pars(lineNo, "lines_4016", "line_pars")
 
 #--- read input files
-run_name = "dummy"
+run_name = "mode3"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere

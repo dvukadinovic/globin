@@ -1,4 +1,4 @@
-Run time:      460.0
+Run time:     1200.8
 
 
 
@@ -64,7 +64,7 @@ line_parameters = line_pars
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits
 #node_atmosphere = node_atmosphere
-range = 1,1,1,1
+#range = 1,1,1,1
 
 #--- RH root folder path
 rh_path = /media/dusan/storage/RH/rh
