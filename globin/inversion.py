@@ -166,7 +166,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 			if globin.rf_type=="snapi":	
 				rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_atmos_parameters)
 			elif globin.rf_type=="node":
-				rf, spec, _ = globin.compute_rfs(atmos)
+				rf, spec, _ = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes_scale)
 
 			# copy old RF into new for new itteration inversion
 			if len(old_inds)>0:
@@ -186,13 +186,14 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			#--- scale RFs with weights and noise scale
-			_rf = rf#*noise_scale_rf
+			# _rf = rf/noise_scale_rf
+			_rf = rf
 
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			# diff /= noise_stokes_scale
+			diff /= noise_stokes_scale
 
 			# plt.plot(noise_stokes[0,0,:,0]) #  ~1e-12
 			# plt.plot(noise_stokes_scale[0,0,:,0]) # ~1
@@ -499,7 +500,7 @@ def invert_global(save_output, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_local_parameters)
+			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes_scale)#, full_rf, old_local_parameters)
 
 			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
 			# plt.show()
@@ -524,7 +525,7 @@ def invert_global(save_output, verbose):
 			# calculate chi2
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			# diff /= noise_stokes_scale
+			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
 			aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -592,7 +593,6 @@ def invert_global(save_output, verbose):
 			num_failed += 1
 		else:
 			chi2[...,itter] = chi2_new / Ndof
-			print(itter+1, chi2_new / Ndof)
 			LM_parameter /= 10
 			updated_parameters = True
 			itter += 1

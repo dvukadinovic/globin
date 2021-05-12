@@ -881,7 +881,7 @@ def compute_spectra(atmos):
 
 	return spectra, atmospheres, height
 
-def compute_rfs(atmos, old_rf=None, old_pars=None):
+def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes()
 	spec, _, _ = compute_spectra(atmos)
@@ -986,6 +986,7 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
 			node_RF *= globin.weights
+			node_RF /= rf_noise_scale
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 
 			for idx in range(atmos.nx):
