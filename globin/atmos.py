@@ -985,6 +985,7 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
+			node_RF *= globin.weights
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 
 			for idx in range(atmos.nx):
@@ -1014,6 +1015,9 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 				if parameter!="gamma" or parameter!="chi":
 					model_minus.values[parameter][:,:,nodeID] += perturbation
 
+	# continuum intensity for each pixel (need to scale RFs for global parameters in mode=3)
+	sIcont = spec.spec[:,:,0,0]
+	fact = sIcont / sIcont[0,0]
 	#--- loop through global parameters and calculate RFs
 	if atmos.n_global_pars>0:
 		#--- loop through global parameters and calculate RFs
@@ -1078,15 +1082,49 @@ def compute_rfs(atmos, old_rf=None, old_pars=None):
 					spec_minus,_,_ = compute_spectra(atmos)
 					spec_minus.broaden_spectra(atmos.vmac)
 
+					# sIcont = spec_plus.spec[:,:,0,0]
+					# print(sIcont)
+					# spec_plus.spec[0,0] /= sIcont[0,0]
+					# spec_plus.spec[0,1] /= sIcont[0,1]
+					# spec_plus.spec[0,2] /= sIcont[0,2]
+					# sIcont = spec_minus.spec[:,:,0,0]
+					# print(sIcont)
+					# spec_minus.spec[0,0] /= sIcont[0,0]
+					# spec_minus.spec[0,1] /= sIcont[0,1]
+					# spec_minus.spec[0,2] /= sIcont[0,2]
+
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+
+					# scale2 = np.sqrt(np.sum(diff**2, axis=(2,3)))
+					# scale3 = np.sqrt(np.sum(diff**2))
+
+					# plt.subplot(2,1,1)
+					# plt.plot(diff[0,0,:,:].flatten(order="F") / scale2[0,0])
+					# plt.plot(diff[0,1,:,:].flatten(order="F") / scale2[0,1])
+					# plt.plot(diff[0,2,:,:].flatten(order="F") / scale2[0,2])
+					# plt.xlim([100,200])
+					
+					# plt.subplot(2,1,2)
+					# plt.plot(diff[0,0,:,:].flatten(order="F") / scale3)# / fact[0,0])
+					# plt.plot(diff[0,1,:,:].flatten(order="F") / scale3)# / fact[0,1])
+					# plt.plot(diff[0,2,:,:].flatten(order="F") / scale3)# / fact[0,2])
+					# plt.xlim([100,200])
+
+					# plt.show()
+
+					# sys.exit()
+
+					diff *= globin.weights
 
 					if globin.mode==2:
 						scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
 						for idx in range(atmos.nx):
 							for idy in range(atmos.ny):
 								if not np.isnan(np.sum(scale[idx,idy])):
-									globin.parameter_scale[parameter][...,idp] = scale
+									globin.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
 					elif globin.mode==3:
+						# print(fact)
+						# diff = np.einsum("ijkl,ij->ijkl", diff, 1/fact)
 						scale = np.sqrt(np.sum(diff**2))
 						globin.parameter_scale[parameter][...,idp] = scale
 

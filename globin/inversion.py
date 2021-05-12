@@ -96,16 +96,16 @@ def invert_pxl_by_pxl(save_output, verbose):
 	noise_lvl = noise * StokesI_cont
 	# noise_wavelength = (nx, ny, nw)
 	noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
-	# noise = (nx, ny, nw)
-	noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 	# noise_stokes_scale = (nx, ny, nw, 4)
 	noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
+	# noise = (nx, ny, nw)
+	noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 	# noise_stokes = (nx, ny, nw, 4)
 	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
 	# noies_scale_rf = (nx, ny, npar, nw, 4)
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
-	noise_scale_rf = 1
-	noise_stokes_scale = 1
+	# noise_scale_rf = 1
+	# noise_stokes_scale = 1
 
 	# weights on Stokes vector based on dI over dlam (from observations)
 	# from scipy.interpolate import splev, splrep	
@@ -129,7 +129,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter))
-	dof = np.count_nonzero(globin.weights) * Nw - Npar
+	Ndof = np.count_nonzero(globin.weights) * Nw # - Npar
 
 	start = time.time()
 
@@ -186,13 +186,18 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			#--- scale RFs with weights and noise scale
-			_rf = rf*globin.weights
-			_rf /= noise_scale_rf
+			_rf = rf*noise_scale_rf
 
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
 			diff /= noise_stokes_scale
+
+			# plt.plot(noise_stokes[0,0,:,0]) #  ~1e-12
+			# plt.plot(noise_stokes_scale[0,0,:,0]) # ~1
+			# plt.show()
+			# sys.exit()
 
 			"""
 			Gymnastics with indices for solving LM equations for
@@ -203,6 +208,12 @@ def invert_pxl_by_pxl(save_output, verbose):
 			J = np.moveaxis(J, 2, 3)
 			# JT = (nx, ny, npar, 4*nw)
 			JT = np.einsum("ijlk", J)
+
+			# print(np.sum(JT[0,0]*J[0,0].T))
+			# print(np.sum(JT[0,1]*J[0,1].T))
+			# print(np.sum(JT[0,2]*J[0,2].T))
+			# sys.exit()
+
 			# JTJ = (nx, ny, npar, npar)
 			JTJ = np.einsum("...ij,...jk", JT, J)
 			# get diagonal elements from hessian matrix
@@ -252,7 +263,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2, axis=(2,3))
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
@@ -271,7 +283,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						old_inds.append((idx,idy))
 						updated_pars[idx,idy] = 0
 					else:
-						chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy]
+						chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy] / Ndof
 						LM_parameter[idx,idy] /= 10
 						itter[idx,idy] += 1
 						updated_pars[idx,idy] = 1
@@ -454,8 +466,8 @@ def invert_global(save_output, verbose):
 	noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
 	# noies_scale_rf = (nx, ny, npar, nw, 4)
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
-	noise_scale_rf = 1
-	noise_stokes_scale = 1
+	# noise_scale_rf = 1
+	# noise_stokes_scale = 1
 
 	# weights on Stokes vector based on observed Stokes I
 	# aux = 1/obs.spec[...,0]
@@ -469,7 +481,7 @@ def invert_global(save_output, verbose):
 	dof = np.count_nonzero(globin.weights)*Nw - Npar
 
 	Natmos = len(atmos.atm_name_list)
-	Ndof = np.count_nonzero(globin.weights)*Nw*Natmos - atmos.n_local_pars*Natmos - atmos.n_global_pars
+	Ndof = np.count_nonzero(globin.weights)*Nw*Natmos # - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
 	start = time.time()
 
@@ -503,7 +515,6 @@ def invert_global(save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			# scale RFs with weights and noise scale
-			rf *= globin.weights
 			rf /= noise_scale_rf
 
 			# calculate difference between observation and synthesis
@@ -511,7 +522,8 @@ def invert_global(save_output, verbose):
 			diff *= globin.weights
 
 			# calculate chi2
-			chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
+			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
+			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
 			diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
@@ -569,7 +581,8 @@ def invert_global(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
+		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
+		chi2_new = np.sum(new_diff**2 / noise_stokes**2, axis=(2,3))
 
 		if np.sum(chi2_new) > np.sum(chi2_old):
 			LM_parameter *= 10
@@ -578,7 +591,8 @@ def invert_global(save_output, verbose):
 			updated_parameters = False
 			num_failed += 1
 		else:
-			chi2[...,itter] = chi2_new
+			chi2[...,itter] = chi2_new / Ndof
+			print(itter+1, chi2_new / Ndof)
 			LM_parameter /= 10
 			updated_parameters = True
 			itter += 1
@@ -602,8 +616,8 @@ def invert_global(save_output, verbose):
 		if (itter)>=3 and updated_parameters:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
-			new_chi2 = np.sum(chi2[...,itter-1]) / Ndof
-			old_chi2 = np.sum(chi2[...,itter-2]) / Ndof
+			new_chi2 = np.sum(chi2[...,itter-1])
+			old_chi2 = np.sum(chi2[...,itter-2])
 			relative_change = abs(new_chi2/old_chi2 - 1)
 			if new_chi2<1e-32:
 				print("chi2 is way low!\n")
@@ -634,9 +648,6 @@ def invert_global(save_output, verbose):
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
 	inverted_spectra.broaden_spectra(atmos.vmac)
 
-	# diff = obs.spec - inverted_spectra.spec
-	# chi2 = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
-
 	try:
 		atmos.compute_errors(JTJ, chi2_old)
 	except:
@@ -648,7 +659,7 @@ def invert_global(save_output, verbose):
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
-		globin.save_chi2(chi2 / dof, f"{output_path}/chi2.fits")
+		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
 	
 		end = time.time() - start
 		print("Finished in: {0}\n".format(end))
