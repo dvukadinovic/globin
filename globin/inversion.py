@@ -186,13 +186,13 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			#--- scale RFs with weights and noise scale
-			_rf = rf*noise_scale_rf
+			_rf = rf#*noise_scale_rf
 
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			diff /= noise_stokes_scale
+			# diff /= noise_stokes_scale
 
 			# plt.plot(noise_stokes[0,0,:,0]) #  ~1e-12
 			# plt.plot(noise_stokes_scale[0,0,:,0]) # ~1
