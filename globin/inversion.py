@@ -515,7 +515,7 @@ def invert_global(save_output, verbose):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 			
 			# scale RFs with weights and noise scale
-			rf /= noise_scale_rf
+			# rf /= noise_scale_rf
 
 			# calculate difference between observation and synthesis
 			diff = obs.spec - spec.spec
@@ -524,7 +524,7 @@ def invert_global(save_output, verbose):
 			# calculate chi2
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			diff /= noise_stokes_scale
+			# diff /= noise_stokes_scale
 
 			# make Jacobian matrix and fill with RF values
 			aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
