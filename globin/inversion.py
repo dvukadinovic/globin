@@ -166,7 +166,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 			if globin.rf_type=="snapi":	
 				rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_atmos_parameters)
 			elif globin.rf_type=="node":
-				rf, spec, _ = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes_scale)
+				rf, spec, _ = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)
 
 			# copy old RF into new for new itteration inversion
 			if len(old_inds)>0:
@@ -191,9 +191,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
+			diff /= noise_stokes
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
-			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			diff /= noise_stokes_scale
+			chi2_old = np.sum(diff**2, axis=(2,3))
+			# diff /= noise_stokes_scale
 
 			# plt.plot(noise_stokes[0,0,:,0]) #  ~1e-12
 			# plt.plot(noise_stokes_scale[0,0,:,0]) # ~1
@@ -264,8 +265,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
+		new_diff /= noise_stokes
 		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2, axis=(2,3))
+		chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
@@ -482,7 +484,7 @@ def invert_global(save_output, verbose):
 	dof = np.count_nonzero(globin.weights)*Nw - Npar
 
 	Natmos = len(atmos.atm_name_list)
-	Ndof = np.count_nonzero(globin.weights)*Nw*Natmos # - atmos.n_local_pars*Natmos - atmos.n_global_pars
+	Ndof = np.count_nonzero(globin.weights)*Nw # - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
 	start = time.time()
 
@@ -500,7 +502,7 @@ def invert_global(save_output, verbose):
 			
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
-			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes_scale)#, full_rf, old_local_parameters)
+			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)#, full_rf, old_local_parameters)
 
 			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
 			# plt.show()
@@ -524,8 +526,8 @@ def invert_global(save_output, verbose):
 
 			# calculate chi2
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
-			chi2_old = np.sum(diff**2 / noise_stokes**2, axis=(2,3))
-			diff /= noise_stokes_scale
+			diff /= noise_stokes
+			chi2_old = np.sum(diff**2, axis=(2,3))
 
 			# make Jacobian matrix and fill with RF values
 			aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -582,8 +584,9 @@ def invert_global(save_output, verbose):
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
+		new_diff /= noise_stokes
 		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
-		chi2_new = np.sum(new_diff**2 / noise_stokes**2, axis=(2,3))
+		chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 		if np.sum(chi2_new) > np.sum(chi2_old):
 			LM_parameter *= 10
@@ -616,8 +619,8 @@ def invert_global(save_output, verbose):
 		if (itter)>=3 and updated_parameters:
 			# need to get -2 and -1 because I already rised itter by 1 
 			# when chi2 list was updated.
-			new_chi2 = np.sum(chi2[...,itter-1])
-			old_chi2 = np.sum(chi2[...,itter-2])
+			new_chi2 = np.sum(chi2[...,itter-1]) / Natmos
+			old_chi2 = np.sum(chi2[...,itter-2]) / Natmos
 			relative_change = abs(new_chi2/old_chi2 - 1)
 			if new_chi2<1e-32:
 				print("chi2 is way low!\n")
