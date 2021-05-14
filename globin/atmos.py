@@ -524,20 +524,13 @@ class Atmosphere(object):
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
 
-	def smooth_parameters(self):
-		#--- atmospheric parameters
-		for parameter in self.nodes:
-			new_values = np.random.normal(loc=self.values[parameter], 
-										  scale=globin.smooth_std[parameter], 
-										  size=self.values[parameter].shape)
-			self.values[parameter] = new_values
+	def smooth_parameters(self, cycleID):
+		stds = [5,3,1]
+		std = stds[cycleID]
 
-		#--- global parameters
-		for parameter in self.global_pars:
-			new_values = np.random.normal(loc=self.global_pars[parameter],
-										  scale=globin.smooth_std[parameter],
-										  size=self.global_pars[parameter].shape)
-			self.global_pars[parameter] = new_values
+		for parameter in self.nodes:
+			for nodeID in range(len(self.nodes[parameter])):
+				self.values[parameter][...,nodeID] = gaussian_filter(self.values[parameter][...,nodeID], std)
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)

@@ -30,7 +30,7 @@ def invert(save_output=True, verbose=True):
 			
 			# in last cycle we do not smooth atmospheric parameters
 			if (cycle+1)<globin.ncycle:
-				globin.atm.smooth_parameters()
+				globin.atm.smooth_parameters(cycle)
 
 		globin.remove_dirs()
 

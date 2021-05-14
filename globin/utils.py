@@ -176,11 +176,11 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
     #         globin.plot_atmosphere(atm, ["ne"], idx, idy, color="tab:orange")
     # plt.show()
 
-    for idx in range(atmos.nx):
-        for idy in range(atmos.ny):
-            globin.plot_spectra(spec, idx=idx, idy=idy)
-            plt.savefig(f"runs/{globin.wd}/spec_x{idx}y{idy}.png")
-            plt.close()
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         globin.plot_spectra(spec, idx=idx, idy=idy)
+    #         plt.savefig(f"runs/{globin.wd}/spec_x{idx}y{idy}.png")
+    #         plt.close()
 
     # globin.remove_dirs()
 

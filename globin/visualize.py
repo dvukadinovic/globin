@@ -196,13 +196,12 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	fig = plt.figure(figsize=(12,10))
 	
-	if chi2.ndim==3:	
-		nx, ny, niter = chi2.shape
-		for idx in range(nx):
-			for idy in range(ny):
-				inds_non_zero = np.nonzero(chi2[idx,idy])[0]
-				x = np.arange(inds_non_zero[-1]+1) + 1
-				plt.plot(x, chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
+	nx, ny, niter = chi2.shape
+	for idx in range(nx):
+		for idy in range(ny):
+			inds_non_zero = np.nonzero(chi2[idx,idy])[0]
+			x = np.arange(inds_non_zero[-1]+1) + 1
+			plt.plot(x, chi2[idx,idy,inds_non_zero], label=f"[{idx+1},{idy+1}]")
 
 	plt.xlabel("Iteration", fontsize=14)
 	plt.ylabel(r"$\chi^2$", fontsize=14)
@@ -241,9 +240,9 @@ def plot_rf(rf=None, fpath=None):
 	# return
 
 	# for idp in range(18):
-	plt.plot(rf[0,idy,5,0,:,0])
-	plt.plot(rf[4,idy,5,0,:,0])
-	plt.plot(rf[8,idy,5,0,:,0])
+	plt.plot(rf[0,idy,0,0,:,0])
+	plt.plot(rf[4,idy,0,0,:,0])
+	plt.plot(rf[8,idy,0,0,:,0])
 	plt.show()
 	sys.exit()
 
