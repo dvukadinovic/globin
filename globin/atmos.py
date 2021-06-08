@@ -18,7 +18,7 @@ import time
 import copy
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 from scipy.ndimage.filters import _gaussian_kernel1d
-from scipy.interpolate import splev, splrep
+from scipy.interpolate import splev, splrep, interp1d
 import matplotlib.pyplot as plt
 
 import globin
@@ -99,8 +99,11 @@ class Atmosphere(object):
 			extension = fpath.split(".")[-1]
 
 			# read atmosphere by the type
-			if extension=="dat" or extension=="txt":
-				self.read_spinor(fpath)
+			if extension=="dat" or extension=="txt" or extension=="atmos":
+				if self.type=="spinor":
+					self.read_spinor(fpath)
+				elif self.type=="multi":
+					self.read_multi(fpath)
 			# read fits / fit / cube type atmosphere
 			elif extension=="fits" or extension=="fit":
 				self.read_fits(fpath, atm_range)
@@ -173,25 +176,59 @@ class Atmosphere(object):
 	def read_sir(self):
 		pass
 
-	def read_multi(self):
-		pass
+	def read_multi(self, fpath):
+		lines = open(fpath, "r").readlines()
+
+		# remove commented lines
+		lines = [line.rstrip("\n") for line in lines if "*" not in line]
+
+		# get number of depth points
+		ndpth = int(lines[3].replace(" ", ""))
+
+		self.nz = ndpth
+		self.nx, self.ny = 1, 1
+		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+
+		for i_ in range(ndpth):
+			# read first part of the atmosphere
+			lista = list(filter(None,lines[4+i_].split(" ")))
+			self.data[0,0,0,i_], \
+			self.data[0,0,1,i_], \
+			self.data[0,0,2,i_], \
+			self.data[0,0,3,i_], \
+			self.data[0,0,4,i_] = [float(element) for element in lista]
+
+			# read H populations
+			lista = list(filter(None,lines[4+ndpth+i_].split(" ")))
+			self.data[0,0,8,i_], \
+			self.data[0,0,9,i_], \
+			self.data[0,0,10,i_], \
+			self.data[0,0,11,i_], \
+			self.data[0,0,12,i_], \
+			self.data[0,0,13,i_] = [float(element) for element in lista]			
 
 	def convert_atmosphere(self, logtau, atmos_data):
 		if self.type=="spinor":
 			multi_atmos = self.spinor2multi(atmos_data)
-			if not np.array_equal(multi_atmos[0,0,0], self.logtau):
-				self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
-			else:
-				self.data = np.zeros(multi_atmos.shape)
-				self.data = multi_atmos
+			# if not np.array_equal(multi_atmos[0,0,0], self.logtau):
+			# 	self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
+			# else:
+			# 	self.logtau = multi_atmos[0,0,0]
+			# 	self.data = multi_atmos
+			# DV: removed interpolation when we convert from SPINOR;
+			#     we use optical depth scale from input atmosphere
+			self.logtau = multi_atmos[0,0,0]
+			self.data = multi_atmos
 		elif self.type=="sir":
 			self.sir2multi()
 		elif self.type=="multi":
-			if not np.array_equal(logtau, self.logtau):
-				self.interpolate_atmosphere(x_new=logtau, ref_atm=atmos_data)
-			else:
-				self.logtau = logtau
-				self.data = atmos_data
+			# if not np.array_equal(logtau, self.logtau):
+			# 	self.interpolate_atmosphere(x_new=logtau, ref_atm=atmos_data)
+			# else:
+			# DV: removed interpolation when we use MULTI type;
+			#     we use optical depth scale from input atmosphere
+			self.logtau = logtau
+			self.data = atmos_data
 		else:
 			print("--> Error in atmos.read_fits()")
 			print(f"    Currently not recognized atmosphere type: {self.type}")
@@ -326,6 +363,37 @@ class Atmosphere(object):
 					fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 					write_multi_atmosphere(self.data[idx,idy], fpath)
 
+	# def interpolate_density(self, parID):
+	# 	top = globin.falc.data[0,0,0,0]
+	# 	bot = globin.falc.data[0,0,0,-1]
+
+	# 	a = 1 / (bot - top)
+	# 	b = -top / (bot - top)
+
+	# 	x = a * globin.falc.data[0,0,0] + b
+	# 	y = globin.falc.data[0,0,parID]
+
+	# 	function = interp1d(x, y)
+
+	# 	top = self.logtau[0]
+	# 	bot = self.logtau[-1]
+	# 	a = 1 / (bot - top)
+	# 	b = -top / (bot - top)
+
+	# 	xx = np.linspace(top, bot, num=globin.falc.nz)
+	# 	xx = a*xx + b
+	# 	yy = function(xx)
+
+	# 	fun = interp1d(xx, yy)
+	# 	yy = fun(self.logtau)
+
+	# 	# plt.plot(globin.falc.data[0,0,0], y)
+	# 	# plt.plot(self.logtau, yy)
+	# 	# plt.yscale("log")
+	# 	# plt.show()
+
+	# 	return yy
+
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
@@ -350,7 +418,22 @@ class Atmosphere(object):
 					elif nx*ny==1:
 						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
-
+				
+				# for T, velocity and magnetic field vector
+				# for parID in [1,3,4,5,6,7]:
+				# 	if nx*ny>1:
+				# 		tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
+				# 	elif nx*ny==1:
+				# 		tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
+				# 	self.data[idx,idy,parID] = splev(x_new, tck)
+				
+				# for ne and nH we do in a way to conserve
+				# total number of particles in atmosphere;
+				# values are to be approximate since RH will
+				# recompute them in HSE
+				# for parID in [2,8,9,10,11,12,13]:
+				# 	self.data[idx,idy,parID] = self.interpolate_density(parID)
+				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
@@ -553,9 +636,7 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
-def distribute_hydrogen(temp, pg, pe):
-	from scipy.interpolate import interp1d
-
+def distribute_hydrogen(temp, pg, pe, vtr=0):
 	kb = 1.38064852e-23
 	h = 6.62607004e-34
 	me = 9.10938356e-31
@@ -571,7 +652,7 @@ def distribute_hydrogen(temp, pg, pe):
 	phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
 	phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
 	
-	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6 	
+	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
 	nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
 	nprot = phi_t/pe * nH0
 

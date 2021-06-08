@@ -144,9 +144,11 @@ from scipy.constants import c as LIGHT_SPEED
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
+falc = Atmosphere(fpath=f"{__path__}/data/falc.atmos", atm_type="multi")
 
 # temperature interpolation
 temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
 falc_logt = falc.data[0,0,0]
 falc_ne = falc.data[0,0,2]
+
+# Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
