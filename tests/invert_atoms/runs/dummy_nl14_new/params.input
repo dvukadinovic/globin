@@ -1,0 +1,60 @@
+# Mode values: 
+#   0 --> synthesis
+#   1 --> pixel-by-pixel inversion (atmosphere only)
+#   2 --> pixel-by-pixel inversion (atmosphere + atoms)
+#   3 --> global inversion (atmosphere + atoms + macro velocity)
+
+#--- General parameters
+n_thread = 3
+interp_degree = 3
+mode = 3
+
+#--- Spectra to be fitted
+observation = obs.fits
+noise = 1e-8
+weights = 1,1,1,1
+vmac = 0
+
+#--- Output spectra
+#spectrum = obs.fits
+
+#--- atmospheric parameters: nodes and values
+#nodes_temp = -2.2, -1.6, -0.9, 0
+#nodes_temp_values = 4800, 5200, 6500, 7500
+
+#nodes_vz = -2, -0.5
+#nodes_vz_values = 0.2, 0
+
+#nodes_vmic = 0
+#nodes_vmic_values = 2
+
+#nodes_mag = -2, -0.5
+#nodes_mag_values = 100, 300
+
+#nodes_gamma = 0
+#nodes_gamma_values = 145
+
+#nodes_chi = 0
+#nodes_chi_values = 55
+
+#--- wavelength window (in Angstroms)
+linelist = lines_4016
+wave_min = 4015
+wave_max = 4017
+wave_step = 0.01
+
+#--- Levenberg-Marquardt parameters
+marq_lambda = 1e-1
+max_iter = 30
+chi2_tolerance = 1e-3
+
+#--- Line parameters
+line_parameters = line_pars
+
+#--- Reference atmosphere (optional)
+cube_atmosphere = atmos.fits
+#node_atmosphere = node_atmosphere
+#range = 1,1,1,1
+
+#--- RH root folder path
+rh_path = /media/dusan/storage/RH/rh

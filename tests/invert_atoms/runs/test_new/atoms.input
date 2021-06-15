@@ -1,0 +1,20 @@
+# Nmetal
+   11
+
+# Metals
+#  model file             ACTIVE/PASSIVE  INITIAL_SOLUTION   population file
+
+# continuum contributers + their lines
+  ../../Atoms/H_6.atom        PASSIVE     LTE_POPULATIONS   pops.H.out
+  ../../Atoms/He.atom         PASSIVE     LTE_POPULATIONS   pops.HE.out
+  ../../Atoms/C.atom	        PASSIVE     LTE_POPULATIONS   pops.C.out
+  ../../Atoms/N.atom	        PASSIVE     LTE_POPULATIONS   pops.N.out
+  ../../Atoms/O.atom          PASSIVE     LTE_POPULATIONS   pops.O.out
+  ../../Atoms/S.atom	        PASSIVE     LTE_POPULATIONS   pops.S.out
+  ../../Atoms/Fe.atom         PASSIVE     LTE_POPULATIONS   pops.FE.out
+  ../../Atoms/Si.atom	        PASSIVE     LTE_POPULATIONS   pops.SI.out
+  ../../Atoms/Al.atom	        PASSIVE     LTE_POPULATIONS   pops.AL.out
+  ../../Atoms/Na.atom         PASSIVE     LTE_POPULATIONS   pops.NA.out
+  ../../Atoms/Mg.atom         PASSIVE     LTE_POPULATIONS   pops.MG.out
+
+#
