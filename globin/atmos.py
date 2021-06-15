@@ -84,11 +84,11 @@ class Atmosphere(object):
 		self.logtau = np.linspace(logtau_top, logtau_bot, num=self.nz)
 
 		# if we provided nx and ny, make empty atmosphere; otherwise set it to None
-		# if (self.nx is not None) and (self.ny is not None):
-		# 	self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-		# 	self.data[:,:,0,:] = self.logtau
-		# else:
-		self.data = None
+		if (self.nx is not None) and (self.ny is not None):
+			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+			self.data[:,:,0,:] = self.logtau
+		else:
+			self.data = None
 
 		self.path = None
 		self.atm_name_list = []
@@ -235,7 +235,7 @@ class Atmosphere(object):
 			print("    Recognized ones are: spinor, sir and multi.")
 			sys.exit()
 
-	def spinor2multi(self, atmos_data):
+	def spinor2multi(self, atmos_data, do_HSE=False):
 		nx, ny, _, nz = atmos_data.shape
 		npar = 14
 		data = np.zeros((nx, ny, npar, nz))
@@ -259,8 +259,12 @@ class Atmosphere(object):
 				# Azimuth [deg] --> [rad]
 				data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
 
-				# Hydrogen population
-				data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
+				if do_HSE:
+					self.data[idx,idy,1] = atmos_data[idx,idy,2]
+					self.makeHSE(idx,idy)
+				else:
+					# Hydrogen population
+					data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
 
 		return data
 
