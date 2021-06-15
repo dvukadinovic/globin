@@ -142,7 +142,7 @@ parameter_unit = {"temp"   : "K",
 cwd = os.getcwd()
 
 #--- path to input file for modcon routines (for HSE atmospheres)
-modconinp = f"{__path__}/data/modconinp.dat"
+modconinp = f"{__path__}/globin/modcon/modconinp.dat"
 
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED
