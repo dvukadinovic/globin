@@ -47,6 +47,8 @@ from .utils import \
 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
 	calculate_chi2, remove_dirs
 
+from .modcon import makehse
+
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
@@ -138,6 +140,9 @@ parameter_unit = {"temp"   : "K",
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
+
+#--- path to input file for modcon routines (for HSE atmospheres)
+modconinp = f"{__path__}/data/modconinp.dat"
 
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED

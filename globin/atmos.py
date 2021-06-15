@@ -358,42 +358,69 @@ class Atmosphere(object):
 					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
+				self.makeHSE(idx, idy)
+
 				#--- save interpolated atmosphere to appropriate file
 				if save_atmos:
 					fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 					write_multi_atmosphere(self.data[idx,idy], fpath)
 
-	# def interpolate_density(self, parID):
-	# 	top = globin.falc.data[0,0,0,0]
-	# 	bot = globin.falc.data[0,0,0,-1]
+	def makeHSE(self, idx, idy):
+		ndpth = self.nz
 
-	# 	a = 1 / (bot - top)
-	# 	b = -top / (bot - top)
+		logt = np.zeros(4000)
+		logt[:ndpth] = self.logtau
+		temp = np.zeros(4000)
+		temp[:ndpth] = self.data[idx,idy,self.par_id["temp"]]
+		press = np.zeros(4000)
+		pel = np.zeros(4000)
+		dens = np.zeros(4000)
+		kappa = np.zeros(4000)
 
-	# 	x = a * globin.falc.data[0,0,0] + b
-	# 	y = globin.falc.data[0,0,parID]
+		globin.makehse(logt, temp, ndpth, press, pel, kappa, dens, globin.modconinp)
+		
+		# print(dens[:ndpth])
+		# print(press[:ndpth])
+		# print(pel[:ndpth])
 
-	# 	function = interp1d(x, y)
+		# electron density
+		self.data[idx,idy,self.par_id["ne"]] = pel[:ndpth]/10/globin.K_BOLTZMAN/temp[:ndpth]/1e6
 
-	# 	top = self.logtau[0]
-	# 	bot = self.logtau[-1]
-	# 	a = 1 / (bot - top)
-	# 	b = -top / (bot - top)
+		self.data[idx,idy,8:] = distribute_hydrogen(temp[:ndpth], press[:ndpth], pel[:ndpth])
 
-	# 	xx = np.linspace(top, bot, num=globin.falc.nz)
-	# 	xx = a*xx + b
-	# 	yy = function(xx)
+	# obsolete
+	def interpolate_density(self, parID):
+		top = globin.falc.data[0,0,0,0]
+		bot = globin.falc.data[0,0,0,-1]
 
-	# 	fun = interp1d(xx, yy)
-	# 	yy = fun(self.logtau)
+		a = 1 / (bot - top)
+		b = -top / (bot - top)
 
-	# 	# plt.plot(globin.falc.data[0,0,0], y)
-	# 	# plt.plot(self.logtau, yy)
-	# 	# plt.yscale("log")
-	# 	# plt.show()
+		x = a * globin.falc.data[0,0,0] + b
+		y = globin.falc.data[0,0,parID]
 
-	# 	return yy
+		function = interp1d(x, y)
 
+		top = self.logtau[0]
+		bot = self.logtau[-1]
+		a = 1 / (bot - top)
+		b = -top / (bot - top)
+
+		xx = np.linspace(top, bot, num=globin.falc.nz)
+		xx = a*xx + b
+		yy = function(xx)
+
+		fun = interp1d(xx, yy)
+		yy = fun(self.logtau)
+
+		# plt.plot(globin.falc.data[0,0,0], y)
+		# plt.plot(self.logtau, yy)
+		# plt.yscale("log")
+		# plt.show()
+
+		return yy
+
+	# obsolete
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
@@ -642,28 +669,50 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	me = 9.10938356e-31
 
 	Ej = 13.59844
-	Ediss = 0.75
-	u0_coeffs=[2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00000e+00, 2.00001e+00, 2.00003e+00, 2.00015e+00], 
-	u1_coeffs=[1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00, 1.00000e+00],
+	u1 = 1
+	u0 = 2
+
+	ne = pe/10 / kb/temp
+
+	C1 = ne/2 * h**3 / (2*np.pi*me*kb*temp)**(3/2)
 	
-	u1 = interp1d(np.linspace(3000,10000,num=8), u1_coeffs, fill_value="extrapolate")(temp)
-	u0 = interp1d(np.linspace(3000,10000,num=8), u0_coeffs, fill_value="extrapolate")(temp)
-	
-	phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
-	phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
+	# phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
+	# phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
 	
 	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
-	nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
-	nprot = phi_t/pe * nH0
+	# nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
+	# nprot = phi_t/pe * nH0
 
 	pops = np.zeros((6, len(temp)))
 
-	pops[-1] = nprot
+	# pops[-1] = nprot
 
-	for lvl in range(5):
-		e_lvl = 13.59844*(1-1/(lvl+1)**2)
+	suma = np.ones(len(temp))
+	fact = np.ones((6, len(temp)))
+	for lvl in range(1,6):
+		e_lvl = Ej*(1-1/(lvl+1)**2)
 		g = 2*(lvl+1)**2
-		pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
+		# print(e_lvl*1.60218e-19/kb/temp[0])
+		# print(5040/temp[0] * e_lvl)
+		fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/kb/temp)
+		if lvl==5:
+			g = 1
+			e_lvl = Ej
+			fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/kb/temp)
+			fact[lvl] /= C1
+		suma += fact[lvl]
+
+	# print(fact[:,10])
+
+	# for zid in range(len(temp)):
+	# 	print("{:5.4e}".format(suma[zid]))
+
+	pops[0] = nH/suma
+
+	for lvl in range(6):
+		pops[lvl] = fact[lvl] * pops[0]
+
+	# 	pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
 	
 	return pops
 
