@@ -106,7 +106,7 @@ c zeroset weights
 c
 c wavelength sets
 c rosseland
-      call vaagl(nlbro,xl,wros)
+      call vaagl(nlbro,xla,wros)
       nl(1)=nlbro
 c wavelengths for transport equation
       call vaagl(nlb,xla,w)
