@@ -83,7 +83,7 @@ c
       common /ca1/duma(mkomp,12),nextt,nutzt
       common /cfil/ireset(10),islask,ireat
       common /cxlset/nset,nl(10),xl(20,10)
-      common /cros/wros(20)
+      common /cros/wros(500)
       common /utput/iread,iwrit
       common /coutr/nto,ntpo(10)
       common /cvaagl/nlb,xla(500),w(500)
