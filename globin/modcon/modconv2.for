@@ -30,7 +30,7 @@ C TIME.
 
 C IBOT: The number of height (depth) points of the output atmosphere
 
-	SUBROUTINE makeHSE(TLOG_IN, T_IN, ND_, PG_, PE_, K_, RHO_, MI_)
+	SUBROUTINE makeHSE(TLOG_IN, T_IN, ND_, MI_, PG_, PE_, K_, RHO_)
 
 	PARAMETER (NDIM=4000)
 
@@ -47,11 +47,17 @@ C IBOT: The number of height (depth) points of the output atmosphere
 	CHARACTER TYPINP*1, DIREC*25, gravnew*1
 	CHARACTER MI_*100
 	LOGICAL   ZGOOD
-	REAL*8    TLOG_IN(NDIM), T_IN(NDIM)
-	REAL*8    PG_(NDIM), PE_(NDIM), K_(NDIM), RHO_(NDIM)
+	REAL*8    TLOG_IN(ND_), T_IN(ND_)
+	REAL*8    PG_(ND_), PE_(ND_), K_(ND_), RHO_(ND_)
 
 	INTEGER   NRAY, ND_
 	REAL      WAVELEN
+
+Cf2py   INTENT(IN) ND_, MI_
+Cf2py   INTENT(IN) TLOG_IN, T_IN
+Cf2py   DEPEND(ND_) TLOG_IN, T_IN
+Cf2py   INTENT(OUT) PG_, PE_, K_, RHO_
+Cf2py   DEPEND(ND_) PG_, PE_, K_, RHO_
 
 	COMMON/IBOT/IBOT
 	COMMON/OUTNAM/OUTNAM

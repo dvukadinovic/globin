@@ -370,27 +370,13 @@ class Atmosphere(object):
 					write_multi_atmosphere(self.data[idx,idy], fpath)
 
 	def makeHSE(self, idx, idy):
-		ndpth = self.nz
-
-		logt = np.zeros(4000)
-		logt[:ndpth] = self.logtau
-		temp = np.zeros(4000)
-		temp[:ndpth] = self.data[idx,idy,self.par_id["temp"]]
-		press = np.zeros(4000)
-		pel = np.zeros(4000)
-		dens = np.zeros(4000)
-		kappa = np.zeros(4000)
-
-		globin.makehse(logt, temp, ndpth, press, pel, kappa, dens, globin.modconinp)
+		press, pel, kappa, dens = globin.makehse(self.logtau, self.data[idx,idy,1], self.nz, globin.modconinp)
 		
-		# print(dens[:ndpth])
-		# print(press[:ndpth])
-		# print(pel[:ndpth])
-
 		# electron density
-		self.data[idx,idy,self.par_id["ne"]] = pel[:ndpth]/10/globin.K_BOLTZMAN/temp[:ndpth]/1e6
+		self.data[idx,idy,self.par_id["ne"]] = pel/10/globin.K_BOLTZMAN/self.data[idx,idy,1]/1e6
 
-		self.data[idx,idy,8:] = distribute_hydrogen(temp[:ndpth], press[:ndpth], pel[:ndpth])
+		# Hydrogen populations
+		self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], press, pel)
 
 	# obsolete
 	def interpolate_density(self, parID):
@@ -668,85 +654,33 @@ class Atmosphere(object):
 			low = up
 
 def distribute_hydrogen(temp, pg, pe, vtr=0):
-	kb = 1.38064852e-23
-	h = 6.62607004e-34
-	me = 9.10938356e-31
-
 	Ej = 13.59844
-	u1 = 1
-	u0 = 2
 
-	ne = pe/10 / kb/temp
-
-	C1 = ne/2 * h**3 / (2*np.pi*me*kb*temp)**(3/2)
+	ne = pe/10 / globin.K_BOLTZMAN/temp
+	C1 = ne/2 * globin.PLANCK**3 / (2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN*temp)**(3/2)
 	
-	# phi_t = 0.6665 * u1/u0 * temp**(5/2) * 10**(-5040/temp*Ej)
-	# phi_Hminus_t = 0.6665 * u0/1 * temp**(5/2) * 10**(-5040/temp*Ediss)
-	
-	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
-	# nH0 = nH / (1 + phi_t/pe + pe/phi_Hminus_t)
-	# nprot = phi_t/pe * nH0
+	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6
 
 	pops = np.zeros((6, len(temp)))
-
-	# pops[-1] = nprot
 
 	suma = np.ones(len(temp))
 	fact = np.ones((6, len(temp)))
 	for lvl in range(1,6):
 		e_lvl = Ej*(1-1/(lvl+1)**2)
 		g = 2*(lvl+1)**2
-		# print(e_lvl*1.60218e-19/kb/temp[0])
-		# print(5040/temp[0] * e_lvl)
-		fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/kb/temp)
+		fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/globin.K_BOLTZMAN/temp)
 		if lvl==5:
-			g = 1
 			e_lvl = Ej
-			fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/kb/temp)
+			fact[lvl] = 1/2 * np.exp(-e_lvl*1.60218e-19/globin.K_BOLTZMAN/temp)
 			fact[lvl] /= C1
 		suma += fact[lvl]
 
-	# print(fact[:,10])
-
-	# for zid in range(len(temp)):
-	# 	print("{:5.4e}".format(suma[zid]))
-
 	pops[0] = nH/suma
 
-	for lvl in range(6):
+	for lvl in range(1,6):
 		pops[lvl] = fact[lvl] * pops[0]
-
-	# 	pops[lvl] = nH0/u0 * g * np.exp(-5040/temp * e_lvl)
 	
 	return pops
-
-	nH = (pg-pe)/10 / kb / temp / np.sum(10**(globin.abundance-12)) / 1e6
-	ne = pe/10 / kb / temp / 1e6
-
-	Ej = 13.59844
-	Ej *= 1.60218e-19 # [eV --> J]
-	nstar = np.zeros((6, len(temp)))
-	for i_ in range(1,5):
-		n = i_+1
-		dE = Ej * (n**2 - 1) / n**2
-		gn = 2*n**2 / 2
-		nstar[i_] = gn * np.exp(-dE/kb/temp)
-		
-	nstar[5] = 1/2 * 2/ne * (2*np.pi*me*kb*temp)**(3/2) / h**3 * np.exp(-Ej/kb/temp)
-	
-	suma = 1 + np.sum(nstar[1:], axis=0)
-	nstar[0] = nH / suma
-
-	# plt.plot(nstar[0], label="ground")
-	for i_ in range(1,6):
-		nstar[i_] *= nstar[0]
-		# plt.plot(nstar[i_], label=f"{i_}")
-	
-	# plt.yscale("log")
-	# plt.legend()
-	# plt.show()
-
-	return nstar
 
 def write_multi_atmosphere(atm, fpath):
 	# write atmosphere 'atm' of MULTI type

@@ -142,10 +142,12 @@ parameter_unit = {"temp"   : "K",
 cwd = os.getcwd()
 
 #--- path to input file for modcon routines (for HSE atmospheres)
-modconinp = f"{__path__}/globin/modcon/modconinp.dat"
+modconinp = f"{__path__}/modcon/modconinp.dat"
 
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED
+from scipy.constants import h as PLANCK
+from scipy.constants import m_e as ELECTRON_MASS
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
