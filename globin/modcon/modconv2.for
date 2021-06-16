@@ -47,8 +47,8 @@ C IBOT: The number of height (depth) points of the output atmosphere
 	CHARACTER TYPINP*1, DIREC*25, gravnew*1
 	CHARACTER MI_*100
 	LOGICAL   ZGOOD
-	REAL*8    TLOG_IN(ND_), T_IN(ND_)
-	REAL*8    PG_(ND_), PE_(ND_), K_(ND_), RHO_(ND_)
+	REAL      TLOG_IN(ND_), T_IN(ND_)
+	REAL      PG_(ND_), PE_(ND_), K_(ND_), RHO_(ND_)
 
 	INTEGER   NRAY, ND_
 	REAL      WAVELEN
@@ -74,6 +74,10 @@ C Commons used by INITAB.
 	NDD=NDIM
 
 	IBOT = ND_
+
+	DO I=1,IBOT
+		PRINT*, 'T TLOG', T_IN(I), TLOG_IN(I)
+	END DO
 
 C Set constants
 
