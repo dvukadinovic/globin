@@ -370,12 +370,12 @@ class Atmosphere(object):
 					write_multi_atmosphere(self.data[idx,idy], fpath)
 
 	def makeHSE(self, idx, idy):
-		press, pel, kappa, dens = globin.makehse(self.logtau, self.data[idx,idy,1], self.nz, globin.modconinp)
+		press, pel, kappa = globin.makeHSE(5000, self.logtau, self.data[idx,idy,1])
 		
-		# electron density
+		# electron density [1/cm3]
 		self.data[idx,idy,self.par_id["ne"]] = pel/10/globin.K_BOLTZMAN/self.data[idx,idy,1]/1e6
 
-		# Hydrogen populations
+		# # Hydrogen populations [1/cm3]
 		self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], press, pel)
 
 	# obsolete

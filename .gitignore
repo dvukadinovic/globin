@@ -2,3 +2,4 @@
 globin.egg-info/
 globin/__pycache__/
 comments
+*.so
