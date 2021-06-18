@@ -237,8 +237,8 @@ def makeHSE(wave, logt, temp):
 		pg[0] = pg_
 
 		niter_pg += 1
-		if niter_pg==20:
-			print("Max iter in Pg loop.")
+		if niter_pg==100:
+			print("Max iter in Pg loop @ top.")
 			break
 
 	#--- iterate over atmosphere points for Pg, Pe and Kappa
@@ -259,8 +259,8 @@ def makeHSE(wave, logt, temp):
 			pg[i_] = pg_
 
 			niter_pg += 1
-			if niter_pg==20:
-				print("Max iter in Pg loop.")
+			if niter_pg==100:
+				print(f"Max iter in Pg loop @ k={i_}.")
 				break
 
 	return pg, pe, kappa
