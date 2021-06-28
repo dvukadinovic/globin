@@ -138,7 +138,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	wave_file_path = wave_file_path.split("/")[-1]
 	globin.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", globin.keyword_input, "default", "spectrum.out")
 	globin.solve_ne = _find_value_by_key("SOLVE_NE", globin.keyword_input, "optional")
-	globin.hydrostatic = _find_value_by_key("HYDROSTATIC", globin.keyword_input, "optional")
+	# globin.hydrostatic = _find_value_by_key("HYDROSTATIC", globin.keyword_input, "optional")
 	globin.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
 	globin.rf_file_path = _find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 
@@ -162,6 +162,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	if rh_path.rstrip("\n")[-1]=="/":
 		rh_path = rh_path.rstrip("/")
 	globin.rh_path = rh_path
+
+	# flag for HSE computation; by default we do HSE
+	# globin.hydrostatic = _find_value_by_key("hydrostatic", globin.parameters_input, "default", 1, conversion=int)
 	
 	#--- get wavelength range and save it to file ('wave_file_path')
 	globin.lmin = _find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float)

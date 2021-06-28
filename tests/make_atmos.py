@@ -74,7 +74,7 @@ atmos.data = np.zeros((nx,ny, atmos.npar, atmos.nz))
 atmos.data[:,:,0,:] = atmos.logtau
 
 # get electron density
-atmos.data[:,:,2,:] = interpolate_density(falc[4]/10/k_b/falc[2]/1e6)
+# atmos.data[:,:,2,:] = interpolate_density(falc[4]/10/k_b/falc[2]/1e6)
 
 Tnodes = [-2.5, -1.6, -0.9, 0]
 NTnodes = len(Tnodes)
@@ -99,17 +99,17 @@ atmos.build_from_nodes(False)
 # plt.legend()
 # plt.show()
 
-# for node in Tnodes:
-# 	plt.axvline(node, color="k")
-# # plot atmosphere
-# for idx in range(nx):
-# 	for idy in range(ny):
-# 		plt.plot(atmos.logtau, atmos.data[idx,idy,1])
+for node in Tnodes:
+	plt.axvline(node, color="k")
+# plot atmosphere
+for idx in range(nx):
+	for idy in range(ny):
+		plt.plot(atmos.logtau, atmos.data[idx,idy,1])
 
-# plt.show()
+plt.show()
 
 # save atmosphere
-# atmos.save_atmosphere("test_atmosphere_newHpops.fits")
+atmos.save_atmosphere("test_atmosphere_HSE.fits")
 
 # atm = atmos.get_atmos(0,0)
 # globin.atmos.write_multi_atmosphere(atm, "sample)nonHSE.atmos")
