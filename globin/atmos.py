@@ -362,7 +362,8 @@ class Atmosphere(object):
 					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
 
-				self.makeHSE(idx, idy)
+				if globin.hydrostatic: 
+					self.makeHSE(idx, idy)
 
 				#--- save interpolated atmosphere to appropriate file
 				if save_atmos:
@@ -410,7 +411,6 @@ class Atmosphere(object):
 
 		return yy
 
-	# obsolete
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
@@ -435,6 +435,8 @@ class Atmosphere(object):
 					elif nx*ny==1:
 						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
+
+		print("Interpolated atmosphere from reference one.")
 				
 				# for T, velocity and magnetic field vector
 				# for parID in [1,3,4,5,6,7]:
