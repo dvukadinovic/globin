@@ -164,7 +164,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.rh_path = rh_path
 
 	# flag for HSE computation; by default we do HSE
-	# globin.hydrostatic = _find_value_by_key("hydrostatic", globin.parameters_input, "default", 1, conversion=int)
+	globin.hydrostatic = _find_value_by_key("hydrostatic", globin.parameters_input, "default", 1, conversion=int)
 	
 	#--- get wavelength range and save it to file ('wave_file_path')
 	globin.lmin = _find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float)
