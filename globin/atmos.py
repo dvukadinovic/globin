@@ -856,7 +856,9 @@ def synth_pool(args):
 		# if everything was fine, run solverray executable
 		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+		stdout = str(out.stdout,"utf-8").split("\n")
 		if out.returncode!=0:
+			print(stdout)
 			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
 			return None
 
@@ -1156,6 +1158,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 							for idy in range(atmos.ny):
 								if not np.isnan(np.sum(scale[idx,idy])):
 									globin.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
+								else:
+									globin.parameter_scale[parameter][idx,idy,idp] = 1
 					elif globin.mode==3:
 						# print(fact)
 						# diff = np.einsum("ijkl,ij->ijkl", diff, 1/fact)
