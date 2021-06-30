@@ -858,7 +858,6 @@ def synth_pool(args):
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 		stdout = str(out.stdout,"utf-8").split("\n")
 		if out.returncode!=0:
-			print(stdout)
 			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
 			return None
 
