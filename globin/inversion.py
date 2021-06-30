@@ -507,26 +507,26 @@ def invert_global(save_output, verbose):
 			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
 			# plt.show()
 
-			atmos.global_pars["loggf"][0,0,0] = -1.9
-			globin.write_line_parameters(atmos.line_lists_path[0],
-									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
-									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
-			spec1, _, _ = globin.compute_spectra(atmos)
+			# atmos.global_pars["loggf"][0,0,0] = -1.9
+			# globin.write_line_parameters(atmos.line_lists_path[0],
+			# 						   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
+			# 						   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
+			# spec1, _, _ = globin.compute_spectra(atmos)
 
-			atmos.global_pars["loggf"][0,0,0] = -2.0
-			globin.write_line_parameters(atmos.line_lists_path[0],
-									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
-									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
-			spec2, _, _ = globin.compute_spectra(atmos)
+			# atmos.global_pars["loggf"][0,0,0] = -2.0
+			# globin.write_line_parameters(atmos.line_lists_path[0],
+			# 						   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
+			# 						   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
+			# spec2, _, _ = globin.compute_spectra(atmos)
 			
 			# plt.plot(spec1.spec[0,0,:,0] - spec2.spec[0,0,:,0], lw=1, c="k")
 			# plt.plot(obs.spec[0,0,:,0] - spec1.spec[0,0,:,0])
 			# plt.plot(obs.spec[0,0,:,0] - spec2.spec[0,0,:,0])
 			# plt.show()
 
-			print(obs.spec[0,0,:,0] - spec1.spec[0,0,:,0])
+			# print(obs.spec[0,0,:,0] - spec1.spec[0,0,:,0])
 
-			sys.exit()
+			# sys.exit()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
