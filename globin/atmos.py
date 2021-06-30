@@ -856,10 +856,10 @@ def synth_pool(args):
 		# if everything was fine, run solverray executable
 		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-		stdout = str(out.stdout,"utf-8").split("\n")
-		if out.returncode!=0:
-			print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
-			return None
+		# stdout = str(out.stdout,"utf-8").split("\n")
+		# if out.returncode!=0:
+		# 	print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
+		# 	return None
 
 	# read output spectra and spectrum ray from RH
 	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
