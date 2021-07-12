@@ -225,7 +225,7 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     np.savetxt("globin_atm_0_0.dat", spinor_atm[:,0,0,:].T, header=f"{atmos.nz}\tdummy.dat", comments="", 
         fmt="%3.2f %5.4e %6.2f %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4f %5.4f")
 
-def calculate_chi2(init, pars, fname):
+def calculate_chi2(pars, fname):
     # pars:
     #   atmospheric --> [node, values, idx, idy]
     #   atomic      --> [line, values]
@@ -243,15 +243,15 @@ def calculate_chi2(init, pars, fname):
     # set all node values to expected ones;
     # for that we use reference atmosphere
     for par in atmos_par_names:
-        nodes = init.atm.nodes[par]
+        nodes = globin.atm.nodes[par]
 
-        par_id = init.ref_atm.par_id[par]
-        value = init.ref_atm.data[:,:,par_id,:]
+        par_id = globin.ref_atm.par_id[par]
+        value = globin.ref_atm.data[:,:,par_id,:]
 
         for i_,node in enumerate(nodes):
-            ind = np.argmin(np.abs(init.ref_atm.logtau - node))
+            ind = np.argmin(np.abs(globin.ref_atm.logtau - node))
             par_in_node = value[:,:,ind]
-            init.atm.values[par][:,:,i_] = par_in_node
+            globin.atm.values[par][:,:,i_] = par_in_node
 
     # set shape of chi2
     shape = [len(item[2]) for item in pars]
@@ -279,15 +279,21 @@ def calculate_chi2(init, pars, fname):
             except:
                 idx, idy = None, None
             args = par, node, value, idx, idy
-            init = set_parameter(init, args)
+            set_parameter(args)
 
         # build atmosphere and compute spectra
-        init.atm.build_from_nodes()
-        spec, _, _ = globin.compute_spectra(init.atm, init.rh_spec_name, init.wavelength)
+        globin.atm.build_from_nodes()
+        spec, _, _ = globin.compute_spectra(globin.atm)
+        spec.broaden_spectra(globin.atm.vmac)
 
         # compute chi2
-        diff = init.obs.spec - spec.spec
-        chi2[ind] = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2) / dof
+        diff = globin.obs.spec - spec.spec
+        
+        # plt.plot(globin.obs.spec[0,0,:,0])
+        # plt.plot(spec.spec[0,0,:,0])
+        # plt.show()
+
+        chi2[ind] = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2) / dof
 
     #--- save chi2 into fits file
     primary = fits.PrimaryHDU(chi2)
@@ -320,9 +326,9 @@ def calculate_chi2(init, pars, fname):
 
     return chi2
 
-def set_parameter(init, args):
+def set_parameter(args):
     # koji parametar --> parameters
-    # ind / line_no
+    # ind / line_no / None
     # value
     # idx, idy = None, None
     # 
@@ -333,12 +339,13 @@ def set_parameter(init, args):
 
     #--- set the initial parameters
     if parameter in atmos_pars:
-        init.atm.values[parameter][idx, idy, ind] = value
+        globin.atm.values[parameter][idx, idy, ind] = value
     if parameter in global_pars:
         if ind is not None:
-            init.atm.global_pars[parameter][ind] = value
-            init.write_line_par(value, ind, parameter)
+            globin.atm.global_pars[parameter][ind] = value
+            fpath = globin.atm.line_lists_path[0]
+            line_no = int(globin.atm.line_no[parameter][ind])
+            globin.write_line_par(fpath, value, line_no, parameter)
         else:
-            init.atm.global_pars[parameter] = value
-
-    return init
+            globin.atm.global_pars[parameter] = value
+            globin.atm.vmac = value

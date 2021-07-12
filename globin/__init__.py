@@ -85,7 +85,7 @@ limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"vz"    : [-10, 10],		# [km/s]
 				"vmic"  : [1e-3, 10],		# [km/s]
 				"vmac"  : [1e-3, 30],		# [km/s]
-				"mag"   : [0, 5000/1e4],	# [T]
+				"mag"   : [0, 5000],		# [G]
 				"gamma" : [0, np.pi],		# [rad]
 				"chi"   : [0, 2*np.pi]}		# [rad]
 
@@ -93,7 +93,7 @@ limit_values = {"temp"  : [3000, 10000], 	# [K]
 smooth_std = {"temp"   : 50, 	# [K]
 			  "vz"     : 0.1,	# [km/s]
 			  "vmic"   : 0.1,	# [km/s]
-			  "mag"    : 25e-4,	# [T]
+			  "mag"    : 25,	# [G]
 			  "gamma"  : 0.087, # [rad == 5deg]
 			  "chi"    : 0.087,	# [rad == 5deg]
 			  "vmac"   : 0.1,	# [km/s]
@@ -104,7 +104,7 @@ smooth_std = {"temp"   : 50, 	# [K]
 delta = {"temp"  : 1,		# K
 		 "vz"    : 1/1e3,	# m/s --> km/s
 		 "vmic"  : 1/1e3,	# m/s --> km/s
-		 "mag"   : 1/1e4,	# G --> T
+		 "mag"   : 1,		# G
 		 "gamma" : 0.01,	# rad
 		 "chi"   : 0.01,	# rad
 		 "loggf" : 0.001,	# 
@@ -114,7 +114,7 @@ delta = {"temp"  : 1,		# K
 diff = {"temp"   : 10,		# K
 		"vz"     : 0.01,	# km/s
 		"vmic"   : 0.01,	# km/s
-		"mag"    : 10/1e4,	# T
+		"mag"    : 10,		# G
 		"gamma"  : 0.001,	# rad = 0.057 deg
 		"chi"    : 0.001}	# rad = 0.057 deg
 
@@ -140,9 +140,6 @@ parameter_unit = {"temp"   : "K",
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
-
-#--- path to input file for modcon routines (for HSE atmospheres)
-modconinp = f"{__path__}/modcon/modconinp.dat"
 
 from scipy.constants import k as K_BOLTZMAN
 from scipy.constants import c as LIGHT_SPEED

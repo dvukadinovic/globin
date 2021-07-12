@@ -89,7 +89,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
 	if globin.noise==0:
-		noise = 1e-4
+		noise = 1e-8
 	else:
 		noise = globin.noise
 	StokesI_cont = obs.spec[:,:,ind_min,0]
@@ -106,6 +106,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
 	# noise_scale_rf = 1
 	# noise_stokes_scale = 1
+	# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
 
 	# weights on Stokes vector based on dI over dlam (from observations)
 	# from scipy.interpolate import splev, splrep	
@@ -196,11 +197,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 			chi2_old = np.sum(diff**2, axis=(2,3))
 			# diff /= noise_stokes_scale
 
-			# plt.plot(noise_stokes[0,0,:,0]) #  ~1e-12
-			# plt.plot(noise_stokes_scale[0,0,:,0]) # ~1
-			# plt.show()
-			# sys.exit()
-
 			"""
 			Gymnastics with indices for solving LM equations for
 			next step parameters.
@@ -210,11 +206,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 			J = np.moveaxis(J, 2, 3)
 			# JT = (nx, ny, npar, 4*nw)
 			JT = np.einsum("ijlk", J)
-
-			# print(np.sum(JT[0,0]*J[0,0].T))
-			# print(np.sum(JT[0,1]*J[0,1].T))
-			# print(np.sum(JT[0,2]*J[0,2].T))
-			# sys.exit()
 
 			# JTJ = (nx, ny, npar, npar)
 			JTJ = np.einsum("...ij,...jk", JT, J)
@@ -453,7 +444,7 @@ def invert_global(save_output, verbose):
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
 	if globin.noise==0:
-		noise = 1e-4
+		noise = 1e-8
 	else:
 		noise = globin.noise
 
@@ -471,6 +462,7 @@ def invert_global(save_output, verbose):
 	noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
 	# noise_scale_rf = 1
 	# noise_stokes_scale = 1
+	# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
 
 	# weights on Stokes vector based on observed Stokes I
 	# aux = 1/obs.spec[...,0]
@@ -503,30 +495,6 @@ def invert_global(save_output, verbose):
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)#, full_rf, old_local_parameters)
-
-			# globin.plot_spectra(obs, inv=spec, idx=0, idy=0)
-			# plt.show()
-
-			# atmos.global_pars["loggf"][0,0,0] = -1.9
-			# globin.write_line_parameters(atmos.line_lists_path[0],
-			# 						   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
-			# 						   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
-			# spec1, _, _ = globin.compute_spectra(atmos)
-
-			# atmos.global_pars["loggf"][0,0,0] = -2.0
-			# globin.write_line_parameters(atmos.line_lists_path[0],
-			# 						   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
-			# 						   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
-			# spec2, _, _ = globin.compute_spectra(atmos)
-			
-			# plt.plot(spec1.spec[0,0,:,0] - spec2.spec[0,0,:,0], lw=1, c="k")
-			# plt.plot(obs.spec[0,0,:,0] - spec1.spec[0,0,:,0])
-			# plt.plot(obs.spec[0,0,:,0] - spec2.spec[0,0,:,0])
-			# plt.show()
-
-			# print(obs.spec[0,0,:,0] - spec1.spec[0,0,:,0])
-
-			# sys.exit()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))

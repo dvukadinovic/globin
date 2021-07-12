@@ -6,15 +6,13 @@ import sys
 import globin
 
 #--- initialize input object and read input files
-run_name = "synth_dummy"
+run_name = "m1"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
 if globin.mode==0:
-	spec = globin.make_synthetic_observations(globin.atm, globin.noise, 
+	globin.make_synthetic_observations(globin.atm, globin.noise, 
 		atm_fpath=None)
-	globin.plot_spectra(spec)
-	plt.show()
 	sys.exit()
 
 #--- do inversion

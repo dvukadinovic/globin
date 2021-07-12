@@ -252,8 +252,8 @@ class Atmosphere(object):
 				data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
 				# Microturbulent velocitu [cm/s] --> [km/s]
 				data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
-				# Magnetic field strength [G] --> [T]
-				data[idx,idy,5] = atmos_data[idx,idy,7]/1e4
+				# Magnetic field strength [G]
+				data[idx,idy,5] = atmos_data[idx,idy,7]
 				# Inclination [deg] --> [rad]
 				data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
 				# Azimuth [deg] --> [rad]
@@ -379,38 +379,6 @@ class Atmosphere(object):
 		# # Hydrogen populations [1/cm3]
 		self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], press, pel)
 
-	# obsolete
-	def interpolate_density(self, parID):
-		top = globin.falc.data[0,0,0,0]
-		bot = globin.falc.data[0,0,0,-1]
-
-		a = 1 / (bot - top)
-		b = -top / (bot - top)
-
-		x = a * globin.falc.data[0,0,0] + b
-		y = globin.falc.data[0,0,parID]
-
-		function = interp1d(x, y)
-
-		top = self.logtau[0]
-		bot = self.logtau[-1]
-		a = 1 / (bot - top)
-		b = -top / (bot - top)
-
-		xx = np.linspace(top, bot, num=globin.falc.nz)
-		xx = a*xx + b
-		yy = function(xx)
-
-		fun = interp1d(xx, yy)
-		yy = fun(self.logtau)
-
-		# plt.plot(globin.falc.data[0,0,0], y)
-		# plt.plot(self.logtau, yy)
-		# plt.yscale("log")
-		# plt.show()
-
-		return yy
-
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
@@ -435,23 +403,6 @@ class Atmosphere(object):
 					elif nx*ny==1:
 						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
-
-		print("Interpolated atmosphere from reference one.")
-				
-				# for T, velocity and magnetic field vector
-				# for parID in [1,3,4,5,6,7]:
-				# 	if nx*ny>1:
-				# 		tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
-				# 	elif nx*ny==1:
-				# 		tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
-				# 	self.data[idx,idy,parID] = splev(x_new, tck)
-				
-				# for ne and nH we do in a way to conserve
-				# total number of particles in atmosphere;
-				# values are to be approximate since RH will
-				# recompute them in HSE
-				# for parID in [2,8,9,10,11,12,13]:
-				# 	self.data[idx,idy,parID] = self.interpolate_density(parID)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
@@ -462,11 +413,11 @@ class Atmosphere(object):
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
 
-		primary.header["VMAC"] = ("{:5.3f}".format(self.vmac), "macro-turbulen velocity")
-		if "vmac" in self.global_pars:
-			primary.header["VMAC_FIT"] = ("TRUE", "flag for fitting macro velocity")
-		else:
-			primary.header["VMAC_FIT"] = ("FALSE", "flag for fitting macro velocity")
+		# primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity")
+		# if "vmac" in self.global_pars:
+		# 	primary.header["VMAC_FIT"] = ("TRUE", "flag for fitting macro velocity")
+		# else:
+		# 	primary.header["VMAC_FIT"] = ("FALSE", "flag for fitting macro velocity")
 
 		# add keys from kwargs (as dict)
 		if kwargs:
@@ -477,7 +428,7 @@ class Atmosphere(object):
 
 		for parameter in self.nodes:
 			matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
-			matrix[0] *= self.nodes[parameter]
+			matrix[0] = self.nodes[parameter]
 			matrix[1] = self.values[parameter]
 
 			par_hdu = fits.ImageHDU(matrix)
@@ -495,6 +446,10 @@ class Atmosphere(object):
 
 	def save_atomic_parameters(self, fpath="inverted_atoms.fits", kwargs=None):
 		pars = list(self.global_pars.keys())
+		try:
+			pars.remove("vmac")
+		except:
+			pass
 
 		primary = fits.PrimaryHDU()
 		hdulist = fits.HDUList([primary])
@@ -550,10 +505,10 @@ class Atmosphere(object):
 			if parameter=="vmac":
 				# minimum check
 				if self.global_pars[parameter]<globin.limit_values[parameter][0]:
-					self.global_pars[parameter] = np.array(globin.limit_values[parameter][0])
+					self.global_pars[parameter] = np.array([globin.limit_values[parameter][0]])
 				# maximum check
 				if self.global_pars[parameter]>globin.limit_values[parameter][1]:
-					self.global_pars[parameter] = np.array(globin.limit_values[parameter][1])
+					self.global_pars[parameter] = np.array([globin.limit_values[parameter][1]])
 				self.vmac = self.global_pars["vmac"]
 			else:
 				if globin.mode==2:
@@ -720,7 +675,7 @@ def write_multi_atmosphere(atm, fpath):
 	out.close()
 
 	# store now and magnetic field vector
-	globin.write_B(f"{fpath}.B", atm[5], atm[6], atm[7])
+	globin.write_B(f"{fpath}.B", atm[5]/1e4, atm[6], atm[7])
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)
@@ -768,7 +723,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			atmospheres.data[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  	# [m/s --> km/s]
 			atmospheres.data[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  	# [m/s --> km/s]
 			try:
-				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] #* 1e4    	# [T --> G]
+				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] * 1e4    	# [T --> G]
 				atmospheres.data[idx,idy,6] = rh_obj.atmos["gamma_B"] #* 180/np.pi	# [rad --> deg]
 				atmospheres.data[idx,idy,7] = rh_obj.atmos["chi_B"] #* 180/np.pi    	# [rad --> deg]
 			except:
@@ -950,10 +905,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	atmos.build_from_nodes()
 	spec, _, _ = compute_spectra(atmos)
 
-	# globin.plot_atmosphere(atmos, ["temp"])
-	# globin.plot_atmosphere(globin.ref_atm, ["temp"], color="tab:red")
-	# plt.show()
-
 	if globin.rf_type=="snapi":	
 		# full_rf.shape = (nx, ny, np, nz, nw, 4)
 		# check weather we need to recalculate RF for atmospheric parameters;
@@ -969,7 +920,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 			# 			par_flag[i_] = True
 			# 		else:
 			# 			par_flag[i_] = False
-			full_rf = RH_compute_RF(atmos, par_flag, init.rh_spec_name, init.wavelength)
+			full_rf = RH_compute_RF(atmos, par_flag, globin.rh_spec_name, globin.wavelength)
 			for i_,par in enumerate(pars):
 				rfID = rf_id[par]
 				if not par_flag[i_]:
@@ -982,13 +933,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 		print("Not proper RF type calculation.\n")
 		globin.remove_dirs()
 		sys.exit()
-
-	# for i_,par in enumerate(pars):
-	# 	rfID = rf_id[par]
-	# 	plt.figure(i_+1)
-	# 	plt.imshow(full_rf[0,0,rfID,:,:,0], aspect="auto")
-	# 	plt.colorbar()
-	# plt.show()
 
 	#--- get total number of parameters (local + global)
 	Npar = atmos.n_local_pars + atmos.n_global_pars
@@ -1094,7 +1038,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				phi = np.exp(-x**2/kernel_sigma**2)
 				# normalaizing the profile
 				phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-				kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / init.step
+				kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / globin.step
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
@@ -1108,7 +1052,11 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 						for sID in range(4):
 							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
 							# rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
-							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * init.step / atmos.global_pars["vmac"]
+							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / atmos.global_pars["vmac"]
+
+				globin.parameter_scale[parameter] = 1 # np.sum(rf[:,:,free_par_ID,:,:])
+				rf /= globin.parameter_scale[parameter]
+
 				free_par_ID += 1
 
 			elif parameter=="loggf" or parameter=="dlam":
@@ -1160,10 +1108,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 								else:
 									globin.parameter_scale[parameter][idx,idy,idp] = 1
 					elif globin.mode==3:
-						# print(fact)
-						# diff = np.einsum("ijkl,ij->ijkl", diff, 1/fact)
 						scale = np.sqrt(np.sum(diff**2))
-						globin.parameter_scale[parameter][...,idp] = scale
+						globin.parameter_scale[parameter][...,idp] = 1#scale
 
 					if globin.mode==2:
 						for idx in range(atmos.nx):
@@ -1184,10 +1130,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 					elif globin.mode==3:
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 
-	# print(globin.parameter_scale["loggf"])
-	# print(atmos.data[:,:,1])
-	# sys.exit()
-
 	#--- broaden the spectra
 	spec.broaden_spectra(atmos.vmac)
 
@@ -1195,6 +1137,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# 	for parID in range(Npar):
 	# 		plt.figure(parID+1)
 	# 		plt.plot(rf[0, idy, parID, :, 0] + 0.1*idy)
+	# 		plt.savefig(f"{parID+1}_.png")
+	# 		plt.close()
 	# plt.show()
 	# sys.exit()
 

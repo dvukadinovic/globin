@@ -599,7 +599,7 @@ def read_node_parameters(parameter, text):
 		matrix = np.zeros((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])), dtype=np.float64)
 		matrix[:,:] = copy.deepcopy(values)
 		if parameter=="mag":
-			globin.atm.values[parameter] = copy.deepcopy(matrix) / 1e4
+			globin.atm.values[parameter] = copy.deepcopy(matrix) # / 1e4
 		elif parameter=="gamma" or parameter=="chi":
 			matrix *= np.pi/180
 			globin.atm.values[parameter] = copy.deepcopy(matrix)
@@ -687,8 +687,8 @@ def read_node_atmosphere(fpath):
                     temps = slice_line(lines[i_+2+j_])
                     atmos.values[parameter][idx, idy] = np.array(temps)
 
-                if parameter=="mag":
-                    atmos.values[parameter] /= 1e4 # [G --> T]
+                # if parameter=="mag":
+                #     atmos.values[parameter] /= 1e4 # [G --> T]
                 if parameter=="gamma" or parameter=="chi":
                     atmos.values[parameter] *= np.pi/180 # [deg --> rad]
 

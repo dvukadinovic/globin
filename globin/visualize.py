@@ -11,7 +11,7 @@ fact = {"temp"  : 1,
 		"ne"    : 1,
 		"vz"    : 1,
 		"vmic"  : 1,
-		"mag"   : 1e4,
+		"mag"   : 1,
 		"gamma" : 180/np.pi,
 		"chi"   : 180/np.pi}
 
@@ -48,7 +48,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 
 		try:
 			x = atmos.nodes[parameter]
-			y = atmos.values[parameter][idx,idy]
+			y = atmos.values[parameter][idx,idy] * fact[parameter]
 			plt.scatter(x, y, s=20, color=color)
 		except:
 			pass
@@ -224,7 +224,10 @@ def plot_rf(rf=None, fpath=None):
 			print("No data to plot! Provide path to RF or give me the cube!")
 			sys.exit()
 
-	idx, idy = 8,0
+	# nx, ny, np, nz=51, nw=201, ns=4
+	print(rf.shape)
+
+	idx, idy = 0,0
 	idp = 0
 
 	xpos = np.linspace(0, 200, num=11)
@@ -240,11 +243,11 @@ def plot_rf(rf=None, fpath=None):
 	# return
 
 	# for idp in range(18):
-	plt.plot(rf[0,idy,0,0,:,0])
-	plt.plot(rf[4,idy,0,0,:,0])
-	plt.plot(rf[8,idy,0,0,:,0])
-	plt.show()
-	sys.exit()
+	# plt.plot(rf[0,idy,0,0,:,0])
+	# plt.plot(rf[4,idy,0,0,:,0])
+	# plt.plot(rf[8,idy,0,0,:,0])
+	# plt.show()
+	# sys.exit()
 
 	fig = plt.figure(figsize=(9,9), dpi=150)
 	gs = fig.add_gridspec(nrows=1, ncols=1, wspace=0.35, hspace=0.5)
