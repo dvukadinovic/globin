@@ -234,6 +234,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# delta = (nx, ny, npar)
 		delta = np.einsum("...pw,...w", JT, flatted_diff)
 		# proposed_steps = (nx, ny, npar)
+		gammas = np.linalg.svd(H, compute_uv=False)
+		inds = np.argwhere(gammas==0)
+		for ind in inds:
+			idx, idy, idp = ind
+			H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
 		proposed_steps = np.linalg.solve(H, delta)
 
 		old_atmos_parameters = copy.deepcopy(atmos.values)
