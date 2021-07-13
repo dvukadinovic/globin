@@ -361,7 +361,7 @@ class Atmosphere(object):
 
 					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new
-
+					
 				if globin.hydrostatic: 
 					self.makeHSE(idx, idy)
 
