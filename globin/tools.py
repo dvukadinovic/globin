@@ -119,3 +119,15 @@ if __name__=="__main__":
     plt.legend()
 
     plt.show()
+
+    # xintp = np.linspace(-4, 1, num=61)
+
+    # x = np.array([-2, 0])
+    # y = np.array([300, 0])
+    # K0, Kn = 0, 0
+
+    # yintp = bezier_spline(x, y, xintp, K0=K0, Kn=Kn, degree=3)
+
+    # plt.plot(xintp, yintp)
+    # plt.scatter(x, y)
+    # plt.show()

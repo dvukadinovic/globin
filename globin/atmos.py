@@ -348,16 +348,16 @@ class Atmosphere(object):
 							if globin.limit_values["vz"][0]>(y[0] + K0 * (self.logtau[0]-x[0])):
 								K0 = (globin.limit_values["vz"][0] - y[0]) / (self.logtau[0] - x[0])
 							# similar for the bottom for maximum values
-							if globin.limit_values["vz"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
+							if globin.limit_values["vz"][1]<(y[-1] + Kn * (self.logtau[-1]-x[-1])):
 								Kn = (globin.limit_values["vz"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-					elif parameter=="mag":
-						if len(x)>=2:
-							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-							#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
-							if globin.limit_values["mag"][1]<(y[-1] + K0 * (self.logtau[-1]-x[-1])):
-								Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-							if globin.limit_values["mag"][0]>(y[-1] + K0 * (self.logtau[-1]-x[-1])):
-								Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
+					# elif parameter=="mag":
+					# 	if len(x)>=2:
+					# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+					# 		#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
+					# 		# if globin.limit_values["mag"][1]<(y[-1] + Kn * (self.logtau[-1]-x[-1])):
+					# 		# 	Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
+					# 		if globin.limit_values["mag"][0]>(y[-1] + Kn * (self.logtau[-1]-x[-1])):
+					# 			Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
 
 					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 					self.data[idx,idy,self.par_id[parameter],:] = y_new

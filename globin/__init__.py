@@ -84,8 +84,8 @@ parameter_scale = {}
 limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"vz"    : [-10, 10],		# [km/s]
 				"vmic"  : [0, 10],			# [km/s]
-				"vmac"  : [0, 30],			# [km/s]
-				"mag"   : [0, 5000],		# [G]
+				"vmac"  : [0, 5],			# [km/s]
+				"mag"   : [0, 10000],		# [G]
 				"gamma" : [0, np.pi],		# [rad]
 				"chi"   : [0, 2*np.pi]}		# [rad]
 
