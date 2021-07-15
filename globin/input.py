@@ -282,6 +282,8 @@ def get_atmosphere_range():
 	atm_range[0] -= 1
 	atm_range[2] -= 1
 
+	globin.atm_range = atm_range
+
 	return atm_range
 
 def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):

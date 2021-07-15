@@ -155,4 +155,7 @@ temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
 falc_logt = falc.data[0,0,0]
 falc_ne = falc.data[0,0,2]
 
+#--- flag for HSE computation (here defined when we do not read params.input)
+hydrostatic = 1
+
 # Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")

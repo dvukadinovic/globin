@@ -250,7 +250,7 @@ def plot_rf(rf=None, fpath=None):
 	# sys.exit()
 
 	fig = plt.figure(figsize=(9,9), dpi=150)
-	gs = fig.add_gridspec(nrows=1, ncols=1, wspace=0.35, hspace=0.5)
+	gs = fig.add_gridspec(nrows=4, ncols=1, wspace=0.35, hspace=0.5)
 
 	ax = fig.add_subplot(gs[0,0])
 	matrix = rf[idx, idy, idp, :, :, 0]
@@ -265,8 +265,6 @@ def plot_rf(rf=None, fpath=None):
 	ax.set_yticks(ypos)
 	ax.set_yticklabels(yvals)
 	ax.grid(b=True, which="major", axis="y", lw=0.5)
-	plt.show()
-	return 
 
 	ax = fig.add_subplot(gs[1,0])
 	matrix = rf[idx, idy, idp, :, :, 1]
@@ -306,6 +304,8 @@ def plot_rf(rf=None, fpath=None):
 	ax.set_yticks(ypos)
 	ax.set_yticklabels(yvals)
 	ax.grid(b=True, which="major", axis="y", lw=0.5)
+
+	plt.show()
 
 def add_colorbar(fig, ax, im, label=None):
 	axins = inset_axes(ax,
