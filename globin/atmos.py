@@ -254,10 +254,10 @@ class Atmosphere(object):
 				data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
 				# Magnetic field strength [G]
 				data[idx,idy,5] = atmos_data[idx,idy,7]
-				# Inclination [deg] --> [rad]
-				data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
-				# Azimuth [deg] --> [rad]
-				data[idx,idy,7] = atmos_data[idx,idy,-1] * np.pi/180
+				# Inclination [rad]
+				data[idx,idy,6] = atmos_data[idx,idy,-2]# * np.pi/180
+				# Azimuth [rad]
+				data[idx,idy,7] = atmos_data[idx,idy,-1]# * np.pi/180
 
 				if do_HSE and globin.hydrostatic:
 					self.data[idx,idy,1] = atmos_data[idx,idy,2]
