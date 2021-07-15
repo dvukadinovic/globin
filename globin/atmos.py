@@ -252,8 +252,8 @@ class Atmosphere(object):
 				data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
 				# Microturbulent velocitu [cm/s] --> [km/s]
 				data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
-				# Magnetic field strength [G] --> [T]
-				data[idx,idy,5] = atmos_data[idx,idy,7]/1e4
+				# Magnetic field strength [G]
+				data[idx,idy,5] = atmos_data[idx,idy,7]
 				# Inclination [deg] --> [rad]
 				data[idx,idy,6] = atmos_data[idx,idy,-2] * np.pi/180
 				# Azimuth [deg] --> [rad]
