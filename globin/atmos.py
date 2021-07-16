@@ -273,7 +273,7 @@ class Atmosphere(object):
 					self.makeHSE(idx,idy)
 					data[idx,idy,2] = self.data[idx,idy,2]
 					for idp in range(6):
-						data[idx,idy,8+idp] = self.data[idx,idy,idp]
+						data[idx,idy,8+idp] = self.data[idx,idy,8+idp]
 				else:
 					# Hydrogen population
 					data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
