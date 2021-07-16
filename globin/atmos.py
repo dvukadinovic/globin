@@ -134,6 +134,10 @@ class Atmosphere(object):
 		new.vmac = copy.deepcopy(self.vmac)
 		new.sigma = copy.deepcopy(self.sigma)
 		new.line_lists_path = copy.deepcopy(self.line_lists_path)
+		new.xmin = copy.deepcopy(self.xmin)
+		new.xmax = copy.deepcopy(self.xmax)
+		new.ymin = copy.deepcopy(self.ymin)
+		new.ymax = copy.deepcopy(self.ymax)
 		try:
 			new.n_local_pars = copy.deepcopy(self.n_local_pars)
 			new.n_global_pars = copy.deepcopy(self.n_global_pars)

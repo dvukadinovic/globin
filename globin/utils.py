@@ -161,7 +161,6 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
         globin.remove_dirs()
         sys.exit()
     
-
     spec, atm, _ = globin.compute_spectra(atmos)
     spec.xmin = atmos.xmin
     spec.xmax = atmos.xmax
