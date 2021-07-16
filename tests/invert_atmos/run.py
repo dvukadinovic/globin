@@ -6,7 +6,7 @@ import sys
 import globin
 
 #--- initialize input object and read input files
-run_name = "m1"
+run_name = "test"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
@@ -17,6 +17,14 @@ if globin.mode==0:
 
 #--- do inversion
 inv_atm, inv = globin.invert()
+
+atm = globin.Atmosphere("runs/test/inverted_atmos.fits")
+print(repr(atm.header))
+
+inv = globin.Observation("runs/test/inverted_spectra.fits")
+print(repr(inv.header))
+
+sys.exit()
 
 #--- analysis of the inverted data
 atm = globin.ref_atm

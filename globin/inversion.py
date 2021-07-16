@@ -393,13 +393,18 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
+		inverted_spectra.xmin = obs.xmin
+		inverted_spectra.xmax = obs.xmax
+		inverted_spectra.ymin = obs.ymin
+		inverted_spectra.ymax = obs.ymax
+
 		atm.save_atmosphere(f"{output_path}/inverted_RH_atmos.fits")
 		
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		if atmos.n_global_pars>0:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
-		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
+		globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
 		
 		end = time.time() - start
 		print("\nFinished in: {0}\n".format(end))
@@ -653,10 +658,15 @@ def invert_global(save_output, verbose):
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
+		inverted_spectra.xmin = obs.xmin
+		inverted_spectra.xmax = obs.xmax
+		inverted_spectra.ymin = obs.ymin
+		inverted_spectra.ymax = obs.ymax
+
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
-		globin.save_chi2(chi2, f"{output_path}/chi2.fits")
+		globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
 	
 		end = time.time() - start
 		print("Finished in: {0}\n".format(end))

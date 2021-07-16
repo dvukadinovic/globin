@@ -25,11 +25,11 @@ import globin
 
 # order of parameters RFs in output file from 'rf_ray'
 rf_id = {"temp"  : 0,
-		 "vz"    : 1,
-		 "vmic"  : 2,
-		 "mag"   : 3,
-		 "gamma" : 4,
-		 "chi"   : 5}
+		 		 "vz"    : 1,
+		 		 "vmic"  : 2,
+		 		 "mag"   : 3,
+		 		 "gamma" : 4,
+		 		 "chi"   : 5}
 
 class Atmosphere(object):
 	"""
@@ -92,6 +92,11 @@ class Atmosphere(object):
 
 		self.path = None
 		self.atm_name_list = []
+
+		self.xmin = atm_range[0]
+		self.xmax = atm_range[1]
+		self.ymin = atm_range[2]
+		self.ymax = atm_range[3]
 
 		# if we provide path to atmosphere, read in data
 		if fpath is not None:
@@ -262,6 +267,9 @@ class Atmosphere(object):
 				if do_HSE and globin.hydrostatic:
 					self.data[idx,idy,1] = atmos_data[idx,idy,2]
 					self.makeHSE(idx,idy)
+					data[idx,idy,2] = self.data[idx,idy,2]
+					for idp in range(6):
+						data[idx,idy,8+idp] = self.data[idx,idy,idp]
 				else:
 					# Hydrogen population
 					data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
@@ -412,6 +420,19 @@ class Atmosphere(object):
 		primary.header.comments["NAXIS2"] = "number of parameters"
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
+
+		primary.header["XMIN"] = f"{self.xmin+1}"
+		if self.xmax is None:
+			self.xmax = self.nx
+		primary.header["XMAX"] = f"{self.xmax}"
+		primary.header["YMIN"] = f"{self.ymin+1}"
+		if self.ymax is None:
+			self.ymax = self.ny
+		primary.header["YMAX"] = f"{self.ymax}"
+
+		primary.header["NX"] = self.nx
+		primary.header["NY"] = self.ny
+		primary.header["NZ"] = self.nz
 
 		# primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity")
 		# if "vmac" in self.global_pars:

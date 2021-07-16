@@ -92,10 +92,24 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 
     return yintp
 
-def save_chi2(chi2, fpath="chi2.fits"):
+def save_chi2(chi2, fpath="chi2.fits", xmin=0, xmax=None, ymin=0, ymax=None):
     from astropy.io import fits
 
+    nx, ny = chi2.shape
+
     primary = fits.PrimaryHDU(chi2)
+
+    primary.header["XMIN"] = xmin+1
+    if xmax is None:
+        primary.header["XMAX"] = nx
+    else:
+        primary.header["XMAX"] = xmax
+    primary.header["YMIN"] = ymin+1
+    if ymax is None:
+        primary.header["YMAX"] = ny
+    else:
+        primary.header["YMAX"] = ymax
+
     hdulist = fits.HDUList([primary])
     hdulist.writeto(fpath, overwrite=True)
 

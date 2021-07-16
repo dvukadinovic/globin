@@ -282,8 +282,6 @@ def get_atmosphere_range():
 	atm_range[0] -= 1
 	atm_range[2] -= 1
 
-	globin.atm_range = atm_range
-
 	return atm_range
 
 def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
@@ -334,7 +332,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	vmac = _find_value_by_key("vmac", globin.parameters_input, "default", default_val=0, conversion=float)
 
 	# initialize container for atmosphere which we invert
-	globin.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
+	globin.atm = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
 
 	#--- required parameters
 	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")

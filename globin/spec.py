@@ -11,7 +11,10 @@ class Spectrum(object):
 	Custom class for storing computed spectra object. It is rebuilt from RH
 	class.
 	"""
-	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None):
+	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None):
+		if fpath:
+			self.read(fpath)
+
 		self.nx = nx
 		self.ny = ny
 		self.nw = nw
@@ -104,6 +107,19 @@ class Spectrum(object):
 		data[...,1:] = self.spec
 		
 		primary = fits.PrimaryHDU(data)
+
+		primary.header["XMIN"] = self.xmin+1
+		if self.xmax is None:
+			self.xmax = self.nx
+		primary.header["XMAX"] = self.xmax
+		primary.header["YMIN"] = self.ymin+1
+		if self.ymax is None:
+			self.ymax = self.ny
+		primary.header["YMAX"] = self.ymax
+
+		primary.header["NX"] = self.nx
+		primary.header["NY"] = self.ny
+		primary.header["NW"] = len(wavelength)
 		
 		if self.noise is None:
 			self.noise = -1
@@ -111,6 +127,9 @@ class Spectrum(object):
 
 		hdulist = fits.HDUList([primary])
 		hdulist.writeto(fpath, overwrite=True)
+
+	def read(self, fpath):
+		return 
 
 class Observation(Spectrum):
 	"""
@@ -124,6 +143,11 @@ class Observation(Spectrum):
 	def __init__(self, fpath, atm_range=[0,None,0,None]):
 		super().__init__()
 		ftype = fpath.split(".")[-1]
+
+		self.xmin = atm_range[0]
+		self.xmax = atm_range[1]
+		self.ymin = atm_range[2]
+		self.ymax = atm_range[3]
 
 		if ftype=="txt" or ftype=="dat":
 			print("  Currently unsupported type of observation file.")
