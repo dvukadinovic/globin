@@ -95,7 +95,7 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 def save_chi2(chi2, fpath="chi2.fits", xmin=0, xmax=None, ymin=0, ymax=None):
     from astropy.io import fits
 
-    nx, ny = chi2.shape
+    nx, ny, _ = chi2.shape
 
     primary = fits.PrimaryHDU(chi2)
 
