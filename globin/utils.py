@@ -161,7 +161,12 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
         globin.remove_dirs()
         sys.exit()
     
+
     spec, atm, _ = globin.compute_spectra(atmos)
+    spec.xmin = atmos.xmin
+    spec.xmax = atmos.xmax
+    spec.ymin = atmos.ymin
+    spec.ymax = atmos.ymax
     spec.broaden_spectra(atmos.vmac)
     spec.add_noise(noise)
     spec.save(globin.output_spectra_path, globin.wavelength)
