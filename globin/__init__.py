@@ -49,7 +49,7 @@ from .utils import \
 
 from .makeHSE import makeHSE
 
-import mppools
+from .mppools import pool_write_atmosphere, pool_build_from_nodes, pool_rf, pool_synth
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"

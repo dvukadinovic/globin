@@ -291,7 +291,7 @@ class Atmosphere(object):
 	def write_atmosphere(self):
 		atmos = [self]*(self.nx*self.ny)
 		args = zip(atmos, globin.idx, globin.idy)
-		globin.pool.map(func=globin.mppools.pool_write_atmosphere, iterable=args)
+		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
 
 	def build_from_nodes(self, save_atmos=True):
 		"""
@@ -319,7 +319,7 @@ class Atmosphere(object):
 		save = [save_atmos]*(self.nx*self.ny)
 		args = zip(atmos, globin.idx, globin.idy, save)
 
-		globin.pool.map(func=globin.mppools.pool_build_from_nodes, iterable=args)
+		globin.pool.map(func=globin.pool_build_from_nodes, iterable=args)
 
 	def makeHSE(self, idx, idy):
 		press, pel, kappa = globin.makeHSE(5000, self.logtau, self.data[idx,idy,1])
@@ -755,7 +755,7 @@ def compute_spectra(atmos):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	rh_obj_list = globin.pool.map(func=globin.mppools.pool_synth, iterable=args)
+	rh_obj_list = globin.pool.map(func=globin.pool_synth, iterable=args)
 
 	#--- exit if all spectra returned from child process are None (failed synthesis)
 	kill = True
@@ -1060,7 +1060,7 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 				key = "RF_" + item.upper()
 				globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
-			rf_list = globin.pool.map(func=globin.mppools.pool_rf, iterable=args)
+			rf_list = globin.pool.map(func=globin.pool_rf, iterable=args)
 
 			for item in rf_list:
 				if item is not None:
