@@ -7,6 +7,7 @@ from .atmos import write_multi_atmosphere, extract_spectra_and_atmospheres
 import time
 import multiprocessing as mp
 import subprocess as sp
+from scipy.interpolate import splev, splrep
 
 import globin
 
