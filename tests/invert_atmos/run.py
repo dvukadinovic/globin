@@ -15,14 +15,12 @@ if globin.mode==0:
 		atm_fpath=None)
 	sys.exit()
 
+#--- RFs
+globin.atmos.compute_full_rf(local_params=["temp"], global_params=None)
+sys.exit()
+
 #--- do inversion
 inv_atm, inv = globin.invert()
-
-atm = globin.Atmosphere("runs/test/inverted_atmos.fits")
-print(repr(atm.header))
-
-inv = globin.Observation("runs/test/inverted_spectra.fits")
-print(repr(inv.header))
 
 sys.exit()
 

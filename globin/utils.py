@@ -145,8 +145,6 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
         xmin, xmax, ymin, ymax = atm_range
         atmos.data = atmos.data[xmin:xmax, ymin:ymax]
         atmos.nx, atmos.ny, atmos.npar, atmos.nz = atmos.data.shape
-    
-    # atmos.split_cube()
 
     print("Constructed atmosphere from nodes: {}".format(node_atmosphere_path))
     print("  (nx, ny, nz, npar) = ({0}, {1}, {2}, {3})".format(atmos.nx, atmos.ny, atmos.nz, atmos.npar))
@@ -161,6 +159,7 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
         globin.remove_dirs()
         sys.exit()
     
+    atmos.write_atmosphere()
     spec, atm, _ = globin.compute_spectra(atmos)
     spec.xmin = atmos.xmin
     spec.xmax = atmos.xmax

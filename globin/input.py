@@ -242,11 +242,19 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
 			os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
 
+	idx,idy = np.meshgrid(np.arange(globin.atm.nx), np.arange(globin.atm.ny))
+	globin.idx = idx.flatten()
+	globin.idy = idy.flatten()
+
+	for idx in range(globin.atm.nx):
+		for idy in range(globin.atm.ny):
+			fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
+			globin.atm.atm_name_list.append(fpath)
+
 	#--- missing parameters
 	# instrument broadening: R or instrument profile provided
 	# strailight contribution
 	# opacity fudge coefficients
-	# norm --> flag for normalized spectra
 
 def get_atmosphere_range():
 	#--- determine which observations from cube to take into consideration
@@ -288,6 +296,8 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	""" 
 	Get parameters for synthesis.
 	"""
+	# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
+	# globin.atm.atm_name_list.append(fpath)
 
 	#--- default parameters
 	globin.output_spectra_path = _find_value_by_key("spectrum", globin.parameters_input, "default", "spectrum.fits")
@@ -299,18 +309,12 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		node_atmosphere_path = _find_value_by_key("node_atmosphere", globin.parameters_input, "optional")
 		if node_atmosphere_path is not None:
 			globin.atm = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
-			globin.atm.split_cube()
 		else:
 			globin.atm = globin.falc
-			globin.atm.split_cube()
 	else:
 		globin.atm = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
 						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
-		globin.atm.split_cube()
 	globin.atm.vmac = np.abs(vmac) # [km/s]
-
-	# standard deviation of Gaussian kernel for macro broadening
-	globin.atm.sigma = lambda vmac: vmac / globin.LIGHT_SPEED * (globin.lmin + globin.lmax)*0.5 / globin.step
 
 	# reference atmosphere is the same as input one in synthesis mode
 	globin.ref_atm = copy.deepcopy(globin.atm)
@@ -378,13 +382,12 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	
 	# standard deviation of Gaussian kernel for macro broadening
 	globin.atm.vmac = vmac # [km/s]
-	globin.atm.sigma = lambda vmac: vmac*1e3 / globin.LIGHT_SPEED * (globin.lmin + globin.lmax)*0.5 / globin.step
 
 	# if macro-turbulent velocity is negative, we fit it
 	if globin.atm.vmac<0:
 		# check if initial macro veclocity is larger than the step size in wavelength
 		vmac = np.abs(vmac)
-		kernel_sigma = globin.atm.sigma(vmac)
+		kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (globin.lmin + globin.lmax)*0.5 / globin.step
 		if kernel_sigma<0.5:
 			vmac = 0.5 * globin.LIGHT_SPEED / ((globin.lmin + globin.lmax)*0.5) * globin.step
 			vmac /= 1e3

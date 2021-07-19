@@ -5,7 +5,7 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 2
+n_thread = 3
 interp_degree = 3
 mode = 1
 
@@ -45,7 +45,7 @@ wave_step = 0.01
 
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e-2
-max_iter = 3
+max_iter = 10
 chi2_tolerance = 1e-3
 
 #--- Line parameters
@@ -53,7 +53,7 @@ line_parameters = line_pars
 
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits
-range = 1,1,1,1
+#range = 1,1,1,1
 
 #--- RH root folder path
 rh_path = /media/dusan/storage/RH/rh

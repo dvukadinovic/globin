@@ -9,16 +9,13 @@ Contributors:
 """
 
 import subprocess as sp
-import multiprocessing as mp
 from astropy.io import fits
 import numpy as np
 import os
 import sys
-import time
 import copy
-from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
-from scipy.ndimage.filters import _gaussian_kernel1d
-from scipy.interpolate import splev, splrep, interp1d
+from scipy.ndimage import gaussian_filter, correlate1d
+from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 
 import globin
@@ -132,7 +129,6 @@ class Atmosphere(object):
 		new.global_pars = copy.deepcopy(self.global_pars)
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
-		new.sigma = copy.deepcopy(self.sigma)
 		new.line_lists_path = copy.deepcopy(self.line_lists_path)
 		new.xmin = copy.deepcopy(self.xmin)
 		new.xmax = copy.deepcopy(self.xmax)
@@ -293,23 +289,9 @@ class Atmosphere(object):
 			sys.exit()
 
 	def write_atmosphere(self):
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				atm = self.get_atmos(idx, idy)
-				fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-				write_multi_atmosphere(atm, fpath)
-
-	def split_cube(self):
-		# go through each atmosphere and extract it to separate file
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				atm = self.get_atmos(idx, idy)
-				fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-				self.atm_name_list.append(fpath)
-				write_multi_atmosphere(atm, fpath)
-
-		if self.verbose:
-			print("Extracted all atmospheres into folder 'atmospheres'\n")
+		atmos = [self]*(self.nx*self.ny)
+		args = zip(atmos, globin.idx, globin.idy)
+		globin.pool.map(func=globin.mppools.pool_write_atmosphere, iterable=args)
 
 	def build_from_nodes(self, save_atmos=True):
 		"""
@@ -332,55 +314,12 @@ class Atmosphere(object):
 		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
 		STiC].
 		"""
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for parameter in self.nodes:
-					# K0, Kn by default; True for vmic, gamma and chi
-					K0, Kn = 0, 0
 
-					x = self.nodes[parameter]
-					y = self.values[parameter][idx,idy]
+		atmos = [self]*(self.nx*self.ny)
+		save = [save_atmos]*(self.nx*self.ny)
+		args = zip(atmos, globin.idx, globin.idy, save)
 
-					if parameter=="temp":
-						if len(x)>=2:
-							K0 = (y[1]-y[0]) / (x[1]-x[0])
-							# check if extrapolation at the top atmosphere point goes below the minimum
-							# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
-							if globin.limit_values["temp"][0]>(y[0] + K0 * (self.logtau[0]-x[0])):
-								K0 = (globin.limit_values["temp"][0] - y[0]) / (self.logtau[0] - x[0])
-						# bottom node slope for extrapolation based on temperature gradient from FAL C model
-						Kn = splev(x[-1], globin.temp_tck, der=1)
-					elif parameter=="vz":
-						if len(x)>=2:
-							K0 = (y[1]-y[0]) / (x[1]-x[0])
-							Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-							#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
-							# check if extrapolation at the top atmosphere point goes below the minimum
-							# if does, change the slopte so that at top point we have vzmin (globin.limit_values["vz"][0])
-							if globin.limit_values["vz"][0]>(y[0] + K0 * (self.logtau[0]-x[0])):
-								K0 = (globin.limit_values["vz"][0] - y[0]) / (self.logtau[0] - x[0])
-							# similar for the bottom for maximum values
-							if globin.limit_values["vz"][1]<(y[-1] + Kn * (self.logtau[-1]-x[-1])):
-								Kn = (globin.limit_values["vz"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-					# elif parameter=="mag":
-					# 	if len(x)>=2:
-					# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-					# 		#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
-					# 		# if globin.limit_values["mag"][1]<(y[-1] + Kn * (self.logtau[-1]-x[-1])):
-					# 		# 	Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-					# 		if globin.limit_values["mag"][0]>(y[-1] + Kn * (self.logtau[-1]-x[-1])):
-					# 			Kn = (globin.limit_values["mag"][1] - y[-1]) / (self.logtau[-1] - x[-1])
-
-					y_new = globin.bezier_spline(x, y, self.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
-					self.data[idx,idy,self.par_id[parameter],:] = y_new
-
-				if globin.hydrostatic: 
-					self.makeHSE(idx, idy)
-
-				#--- save interpolated atmosphere to appropriate file
-				if save_atmos:
-					fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-					write_multi_atmosphere(self.data[idx,idy], fpath)
+		globin.pool.map(func=globin.mppools.pool_build_from_nodes, iterable=args)
 
 	def makeHSE(self, idx, idy):
 		press, pel, kappa = globin.makeHSE(5000, self.logtau, self.data[idx,idy,1])
@@ -761,97 +700,6 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 
 	return spectra, atmospheres, height
 
-def synth_pool(args):
-	"""
-	Function which executes what to be done on single thread in multicore
-    mashine.
-
-	Here we check if directory for given process exits ('pid_##') and copy all
-	input files there for smooth run of RH code. We change the atmosphere path to
-	path to pixel atmosphere for which we want to syntesise spectrum (and same
-	for magnetic field).
-
-	Also, if the directory has files from old runs, then too speed calculation we
-	use old J.
-
-	After the successful synthesis, we read and store spectrum in variable
-	'spec'.
-
-	Parameters:
-	---------------
-	atm_path : string
-		Atmosphere path located in directory 'atmospheres'.
-	rh_spec_name : string
-		File name in which spectrum is written on a disk (read from keyword.input
-        file).
-    """
-	start = time.time()
-
-	atm_path, line_list_path = args
-
-	# get process ID number
-	pid = mp.current_process()._identity[0]
-	set_old_J = True
-
-	#--- copy *.input files from 'runs/globin.wd' directory
-	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
-		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
-	set_old_J = False
-
-	# re-read 'keyword.input' file for given pID
-	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
-
-	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
-	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
-	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
-
-	# make kurucz.input file in rhf1d/globin.wd_pid and give the line list path
-	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.kurucz_input_fname}", "w")
-	out.write(f"{globin.cwd}/{line_list_path}\n")
-	out.close()
-
-	# make log file
-	aux = atm_path.split("_")
-	idx, idy = aux[-2], aux[-1]
-	log_file = open(f"{globin.cwd}/runs/{globin.wd}/logs/log_{idx}_{idy}", "w")
-	
-	# run rhf1d executable
-	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rhf1d -i {globin.rh_input_name}",
-			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	
-	# store log file
-	log_file.writelines(str(out.stdout, "utf-8"))
-	log_file.close()
-
-	stdout = str(out.stdout,"utf-8").split("\n")
-
-	# check if rhf1d executed normaly
-	if out.returncode!=0:
-		print("*** RH error (synth_pool)")
-		print(f"    Failed to synthesize spectra for pixel ({idx},{idy}).\n")
-		for line in stdout[-5:]:
-			print("   ", line)
-		return None
-	else:
-		# if everything was fine, run solverray executable
-		out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../solveray",
-			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-		# stdout = str(out.stdout,"utf-8").split("\n")
-		# if out.returncode!=0:
-		# 	print(f"Could not synthesize the spectrum for the ray! --> ({idx},{idy})\n")
-		# 	return None
-
-	# read output spectra and spectrum ray from RH
-	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
-	rh_obj.read_spectrum(globin.rh_spec_name)
-	rh_obj.read_ray()
-
-	dt = time.time() - start
-	if globin.mode==0:	
-		print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
-
-	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
-
 def compute_spectra(atmos):
 	"""
 	Function which computes spectrum from input atmosphere. It will distribute
@@ -907,7 +755,7 @@ def compute_spectra(atmos):
 			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
 
 	#--- distribute the process to threads
-	rh_obj_list = globin.pool.map(func=synth_pool, iterable=args)
+	rh_obj_list = globin.pool.map(func=globin.mppools.pool_synth, iterable=args)
 
 	#--- exit if all spectra returned from child process are None (failed synthesis)
 	kill = True
@@ -1176,59 +1024,12 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 
 	return rf, spec, full_rf
 
-def rf_pool(args):
-	start = time.time()
-
-	atm_path, rh_spec_name = args
-
-	#--- for each thread process create separate directory
-	pid = mp.current_process()._identity[0]
-	
-	#--- copy *.input files
-	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
-		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
-
-	# re-read 'keyword.input' file for given pID
-	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
-
-	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
-	globin.keyword_input = globin.set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
-	globin.keyword_input = globin.set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
-	
-	aux = atm_path.split("_")
-	idx, idy = aux[-2], aux[-1]
-	log_file = open(f"{globin.cwd}/runs/{globin.wd}/logs/log_{idx}_{idy}", "w")
-	out = sp.run(f"cd {globin.rh_path}/rhf1d/{globin.wd}_{pid}; ../rf_ray -i {globin.rh_input_name}",
-			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	log_file.writelines(str(out.stdout, "utf-8"))
-	log_file.close()
-
-	stdout = str(out.stdout,"utf-8").split("\n")
-
-	if out.returncode!=0:
-		print("*** RH error (rf_pool)")
-		print(f"    Failed to compute RF for pixel ({idx},{idy}).\n")
-		for line in stdout[-5:]:
-			print("   ", line)
-		return None
-
-	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
-	rh_obj.read_spectrum(rh_spec_name)
-	rh_obj.read_ray()
-
-	rf = np.loadtxt(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rf_file_path}")
-	
-	dt = time.time() - start
-	# print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
-
-	return {"rf" : rf, "wave" : rh_obj.wave, "idx" : idx, "idy" : idy}
-
 def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	compute_spectra(atmos, rh_spec_name, wavelength)
 	
 	lmin, lmax = wavelength[0], wavelength[-1]
 
-	#--- arguments for 'rf_pool' function
+	#--- arguments for 'pool_rf' function
 	args = [[name,rh_spec_name] for name in atmos.atm_name_list]
 
 	#--- make directory in which we will save logs of running 'rf_ray'
@@ -1259,7 +1060,7 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 				key = "RF_" + item.upper()
 				globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
-			rf_list = globin.pool.map(func=rf_pool, iterable=args)
+			rf_list = globin.pool.map(func=globin.mppools.pool_rf, iterable=args)
 
 			for item in rf_list:
 				if item is not None:
@@ -1281,11 +1082,9 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 	from tqdm import tqdm
 
 	# set reference atmosphere
-	atmos = globin.ref_atm
 	atmos = copy.deepcopy(globin.atm)
-	atmos.split_cube()
+	atmos.write_atmosphere()
 	atmos.line_lists_path = globin.atm.line_lists_path
-	atmos.sigma = globin.atm.sigma
 
 	atmos.line_no = globin.atm.line_no
 	atmos.global_pars = globin.atm.global_pars
