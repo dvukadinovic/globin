@@ -49,6 +49,8 @@ from .utils import \
 
 from .makeHSE import makeHSE
 
+import mppools
+
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
