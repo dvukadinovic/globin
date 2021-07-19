@@ -5,15 +5,13 @@ import sys
 
 import globin
 
-sys.exit()
-
 #--- generate initial values for atomic parameters
 # lineNo = {"loggf" : np.arange(1,19)}
 # lineNo = {"loggf" : np.array([1,2,3,4,5,6,7,8,9,10,11,12,13,14])}
 # globin.init_line_pars(lineNo, "lines_4016", "line_pars")
 
 #--- read input files
-run_name = "dummy_m0"
+run_name = "test"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
@@ -34,20 +32,20 @@ globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
 
 lista = list(globin.atm.nodes)
 
-diff = (inv_atm.data[:,:,1] - atm.data[:,:,1])
-rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
-print(rmsd)
+# diff = (inv_atm.data[:,:,1] - atm.data[:,:,1])
+# rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
+# print(rmsd)
 
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
-		fig = plt.figure(figsize=(12,10))
+		# fig = plt.figure(figsize=(12,10))
 
-		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
-		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy, color="tab:red")
+		# globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
+		# globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy, color="tab:red")
 		# plt.plot(atm.data[idx,idy,1])
 		# plt.plot(inv_atm.data[idx,idy,1])
-		plt.savefig(f"runs/{run_name}/inv_vs_atm_{idx}_{idy}.png")
-		plt.close()
+		# plt.savefig(f"runs/{run_name}/inv_vs_atm_{idx}_{idy}.png")
+		# plt.close()
 
 		globin.plot_spectra(obs, inv=inv, idx=idx, idy=idy)
 		plt.savefig(f"runs/{run_name}/obs_vs_inv_{idx}_{idy}.png")

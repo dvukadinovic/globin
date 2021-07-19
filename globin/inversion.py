@@ -275,8 +275,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 						if globin.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-							fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-							line_lists_path.remove(fpath)
+							# fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+							# line_lists_path.remove(fpath)
 						fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 						atm_name_list.remove(fpath)
 						old_inds.append((idx,idy))
