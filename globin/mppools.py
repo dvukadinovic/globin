@@ -207,7 +207,7 @@ def pool_synth(args):
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
 
 def pool_spinor2multi(args):
-	start = time.time()
+	# start = time.time()
 
 	data, idx, idy, do_HSE, atmos_data = args
 	
@@ -240,6 +240,6 @@ def pool_spinor2multi(args):
 		# Hydrogen population
 		data[8:] = globin.atmos.distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
 
-	print(f"Finished converting atmosphere ({idx+1},{idy+1}) in {time.time() - start}s")
+	# print(f"Finished converting atmosphere ({idx+1},{idy+1}) in {time.time() - start}s")
 
 	return data
