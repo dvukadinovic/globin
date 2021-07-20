@@ -243,36 +243,21 @@ class Atmosphere(object):
 	def spinor2multi(self, atmos_data, do_HSE=False):
 		nx, ny, _, nz = atmos_data.shape
 		npar = 14
+
+		data = [np.zeros((npar, nz))]*(nx*ny)
+		atmos_data = atmos_data.reshape(nx*ny, 12, nz)
+
+		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
+		idx = idx.flatten()
+		idy = idy.flatten()
+
+		args = zip(data, idx, idy, [do_HSE]*(nx*ny), atmos_data)
+
+		atmos = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
+
 		data = np.zeros((nx, ny, npar, nz))
-
-		for idx in range(nx):
-			for idy in range(ny):	
-				# log(tau)
-				data[idx,idy,0] = atmos_data[idx,idy,0]
-				# Temperature [K]
-				data[idx,idy,1] = atmos_data[idx,idy,2]
-				# Electron density [1/m3]
-				data[idx,idy,2] = atmos_data[idx,idy,4]/10 / 1.380649e-23 / atmos_data[idx,idy,2] / 1e6
-				# Vertical velocity [cm/s] --> [km/s]
-				data[idx,idy,3] = atmos_data[idx,idy,9]/1e5
-				# Microturbulent velocitu [cm/s] --> [km/s]
-				data[idx,idy,4] = atmos_data[idx,idy,8]/1e5
-				# Magnetic field strength [G]
-				data[idx,idy,5] = atmos_data[idx,idy,7]
-				# Inclination [rad]
-				data[idx,idy,6] = atmos_data[idx,idy,-2]# * np.pi/180
-				# Azimuth [rad]
-				data[idx,idy,7] = atmos_data[idx,idy,-1]# * np.pi/180
-
-				if do_HSE and globin.hydrostatic:
-					self.data[idx,idy,1] = atmos_data[idx,idy,2]
-					self.makeHSE(idx,idy)
-					data[idx,idy,2] = self.data[idx,idy,2]
-					for idp in range(6):
-						data[idx,idy,8+idp] = self.data[idx,idy,8+idp]
-				else:
-					# Hydrogen population
-					data[idx,idy,8:] = distribute_hydrogen(atmos_data[idx,idy,2], atmos_data[idx,idy,3], atmos_data[idx,idy,4])
+		for ind in range(nx*ny):
+			data[idx[ind],idy[ind]] = atmos[ind]
 
 		return data
 

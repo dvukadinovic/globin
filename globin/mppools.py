@@ -205,3 +205,37 @@ def pool_synth(args):
 		print("Finished synthesis of '{:}' in {:4.2f} s".format(atm_path, dt))
 
 	return {"rh_obj":rh_obj, "idx":int(idx), "idy":int(idy)}
+
+def pool_spinor2multi(args):
+	data, idx, idy, do_HSE, atmos_data = args
+	
+	# log(tau)
+	data[0] = atmos_data[0]
+	# Temperature [K]
+	data[1] = atmos_data[2]
+	# Electron density [1/m3]
+	data[2] = atmos_data[4]/10 / 1.380649e-23 / atmos_data[2] / 1e6
+	# Vertical velocity [cm/s] --> [km/s]
+	data[3] = atmos_data[9]/1e5
+	# Microturbulent velocitu [cm/s] --> [km/s]
+	data[4] = atmos_data[8]/1e5
+	# Magnetic field strength [G]
+	data[5] = atmos_data[7]
+	# Inclination [rad]
+	data[6] = atmos_data[-2]# * np.pi/180
+	# Azimuth [rad]
+	data[7] = atmos_data[-1]# * np.pi/180
+
+	if do_HSE and globin.hydrostatic:
+		press, pel, kappa = globin.makeHSE(5000, data[0], data[1])
+		
+		# electron density [1/cm3]
+		data[2] = pel/10/globin.K_BOLTZMAN/data[1]/1e6
+
+		# Hydrogen populations [1/cm3]
+		data[8:] = globin.atmos.distribute_hydrogen(data[1], press, pel)
+	else:
+		# Hydrogen population
+		data[8:] = globin.atmos.distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+
+	return data
