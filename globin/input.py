@@ -296,8 +296,6 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	""" 
 	Get parameters for synthesis.
 	"""
-	# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-	# globin.atm.atm_name_list.append(fpath)
 
 	#--- default parameters
 	globin.output_spectra_path = _find_value_by_key("spectrum", globin.parameters_input, "default", "spectrum.fits")
@@ -344,10 +342,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	# set dimensions for atmosphere same as dimension of observations
 	globin.atm.nx = globin.obs.nx
 	globin.atm.ny = globin.obs.ny
-	for idx in range(globin.atm.nx):
-		for idy in range(globin.atm.ny):
-			globin.atm.atm_name_list.append(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-	
+
 	#--- optional parameters
 	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
 	if path_to_atmosphere is not None:

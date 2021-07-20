@@ -743,10 +743,8 @@ def compute_spectra(atmos):
 	if globin.mode==0 or globin.mode==1 or globin.mode==3:
 		args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
 	elif globin.mode==2:
-		# if len(atmos.line_lists_path)>1:	
+		print(len(atmos.atm_name_list), len(atmos.line_lists_path))
 		args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
-		# else:
-		# 	args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
 	else:
 		print("--> Error in compute_spectra()")
 		print("    We can not make a list of arguments for computing spectra.")

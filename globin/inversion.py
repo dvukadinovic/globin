@@ -275,8 +275,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 						if globin.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-							# fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-							# line_lists_path.remove(fpath)
+							fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+							line_lists_path.remove(fpath)
 						fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 						atm_name_list.remove(fpath)
 						old_inds.append((idx,idy))
@@ -338,22 +338,28 @@ def invert_pxl_by_pxl(save_output, verbose):
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							if globin.mode==2:	
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif relative_change<globin.chi2_tolerance:
 							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							if globin.mode==2:	
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif chi2[idx,idy,it_no-1] < 1:
 							print(f"--> [{idx},{idy}] : chi2 smaller than 1\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 				# if given pixel iteration number has reached the maximum number of iterations
 				# we stop the convergence for given pixel
 				if itter[idx,idy]==globin.max_iter-1:
