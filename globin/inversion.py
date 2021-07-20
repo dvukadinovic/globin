@@ -397,8 +397,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 		inverted_spectra.xmax = obs.xmax
 		inverted_spectra.ymin = obs.ymin
 		inverted_spectra.ymax = obs.ymax
-
-		atm.save_atmosphere(f"{output_path}/inverted_RH_atmos.fits")
 		
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		if atmos.n_global_pars>0:

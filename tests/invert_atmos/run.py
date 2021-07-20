@@ -6,7 +6,7 @@ import sys
 import globin
 
 #--- initialize input object and read input files
-run_name = "test"
+run_name = "test_cont"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
@@ -16,13 +16,13 @@ if globin.mode==0:
 	sys.exit()
 
 #--- RFs
-globin.atmos.compute_full_rf(local_params=["temp"], global_params=None)
-sys.exit()
+# globin.atmos.compute_full_rf(local_params=["temp"], global_params=None)
+# sys.exit()
 
 #--- do inversion
 inv_atm, inv = globin.invert()
 
-sys.exit()
+# sys.exit()
 
 #--- analysis of the inverted data
 atm = globin.ref_atm

@@ -66,6 +66,8 @@ def pool_build_from_nodes(args):
 		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 		write_multi_atmosphere(atmos.data[idx,idy], fpath)
 
+	return atmos
+
 def pool_rf(args):
 	start = time.time()
 

@@ -1,4 +1,4 @@
-Run time:       79.1
+Run time:       17.5
 
 
 
@@ -25,14 +25,16 @@ vmac = 0
 spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
+initial_atmosphere = runs/test/inverted_atmos.fits
+
 #nodes_temp = -2.2, -1.6, -0.9, 0
 #nodes_temp_values = 4800, 5500, 6500, 7500
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = 0.2, 0
 
-nodes_vmic = 0
-nodes_vmic_values = 2
+#nodes_vmic = 0
+#nodes_vmic_values = 2
 
 #nodes_mag = -2, -0.5
 #nodes_mag_values = 100, 300
@@ -92,7 +94,7 @@ rh_path = /media/dusan/storage/RH/rh
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = /media/dusan/storage/RH/globin/tests/invert_atmos/runs/test/win_4015_two_lines.wave
+  WAVETABLE = /media/dusan/storage/RH/globin/tests/invert_atmos/runs/test_cont/win_4015_two_lines.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs

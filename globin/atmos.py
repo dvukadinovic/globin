@@ -319,7 +319,13 @@ class Atmosphere(object):
 		save = [save_atmos]*(self.nx*self.ny)
 		args = zip(atmos, globin.idx, globin.idy, save)
 
-		globin.pool.map(func=globin.pool_build_from_nodes, iterable=args)
+		atm = globin.pool.map(func=globin.pool_build_from_nodes, iterable=args)
+
+		# we need to assign built atmosphere structure to self atmosphere
+		# otherwise self.data would be only 0's.
+		for idl in range(self.nx*self.ny):
+			idx, idy = globin.idx[idl], globin.idy[idl]
+			self.data[idx,idy] = atm[idl].data[idx,idy]
 
 	def makeHSE(self, idx, idy):
 		press, pel, kappa = globin.makeHSE(5000, self.logtau, self.data[idx,idy,1])
