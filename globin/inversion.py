@@ -399,17 +399,18 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
-		if atmos.line_no["loggf"].size>0:
-			mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
-		else:
-			mean_loggf = None
-		if atmos.line_no["dlam"].size>0:
-			mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
-		else:
-			mean_dlam = None
+		if globin.mode==2:
+			if atmos.line_no["loggf"].size>0:
+				mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
+			else:
+				mean_loggf = None
+			if atmos.line_no["dlam"].size>0:
+				mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
+			else:
+				mean_dlam = None
 
-		globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
-															  mean_dlam, atmos.line_no["dlam"])
+			globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
+																  mean_dlam, atmos.line_no["dlam"])
 
 		inverted_spectra.xmin = obs.xmin
 		inverted_spectra.xmax = obs.xmax
@@ -417,7 +418,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		inverted_spectra.ymax = obs.ymax
 		
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-		if atmos.n_global_pars>0:
+		if globin.mode==2:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)

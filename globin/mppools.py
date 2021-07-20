@@ -20,7 +20,7 @@ def pool_build_from_nodes(args):
 	atmos, idx, idy, save_atmos = args
 
 	for parameter in atmos.nodes:
-		# K0, Kn by default; True for vmic, gamma and chi
+		# K0, Kn by default; True for vmic, mag, gamma and chi
 		K0, Kn = 0, 0
 
 		x = atmos.nodes[parameter]
@@ -47,14 +47,6 @@ def pool_build_from_nodes(args):
 				# similar for the bottom for maximum values
 				if globin.limit_values["vz"][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					Kn = (globin.limit_values["vz"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-		# elif parameter=="mag":
-		# 	if len(x)>=2:
-		# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-		# 		#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
-		# 		# if globin.limit_values["mag"][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-		# 		# 	Kn = (globin.limit_values["mag"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-		# 		if globin.limit_values["mag"][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-		# 			Kn = (globin.limit_values["mag"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 		y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
