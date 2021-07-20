@@ -23,7 +23,7 @@ from .input import \
 	write_line_parameters, write_line_par
 
 from .atoms import \
-	Line, read_RLK_lines, read_init_line_parameters, init_line_pars
+	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
 
 from .rh import \
 	write_wavs, Rhout, write_B

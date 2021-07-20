@@ -213,6 +213,27 @@ def check_init_loggf():
     """
     pass
 
+def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None):
+    out = open(fpath, "w")
+
+    if loggf is not None:
+        for val,idl in zip(loggf, loggfID):
+            out.write("loggf    ")
+            out.write("{: 3d}    ".format(idl+1))
+            out.write("{: 4.3f}    ".format(val))
+            out.write("{: 4.3f}    ".format(val-0.5))
+            out.write("{: 4.3f}\n".format(val+0.5))
+    
+    if dlam is not None:
+        for val,idl in zip(dlam, dlamID):
+            out.write("dlam     ")
+            out.write("{: 3d}   ".format(idl+1))
+            out.write("{: 5.3f}   ".format(val))
+            out.write("{: 5.3f}   ".format(val-25))
+            out.write("{: 5.3f}\n".format(val+25))
+
+    out.close()
+
 if __name__=="__main__":
     lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}
     init_line_pars(lineNo, "../../rh/Atoms/Kurucz/spinor_window_original", "/home/dusan/line_pars")

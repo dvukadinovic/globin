@@ -393,6 +393,18 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
+		if atmos.line_no["loggf"].size>0:
+			mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
+		else:
+			mean_loggf = None
+		if atmos.line_no["dlam"].size>0:
+			mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
+		else:
+			mean_dlam = None
+
+		globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
+															  mean_dlam, atmos.line_no["dlam"])
+
 		inverted_spectra.xmin = obs.xmin
 		inverted_spectra.xmax = obs.xmax
 		inverted_spectra.ymin = obs.ymin
@@ -655,6 +667,9 @@ def invert_global(save_output, verbose):
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
+
+		globin.write_line_pars(f"{output_path}/line_pars_m3", atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
+															  atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
 
 		inverted_spectra.xmin = obs.xmin
 		inverted_spectra.xmax = obs.xmax
