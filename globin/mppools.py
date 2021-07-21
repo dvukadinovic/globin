@@ -204,6 +204,8 @@ def pool_spinor2multi(args):
 	# start = time.time()
 
 	data, idx, idy, do_HSE, atmos_data = args
+
+	print(atmos_data.shape)
 	
 	# log(tau)
 	data[0] = atmos_data[0]

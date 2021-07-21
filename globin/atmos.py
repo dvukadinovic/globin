@@ -246,11 +246,12 @@ class Atmosphere(object):
 		npar = 14
 
 		data = [np.zeros((npar, nz))]*(nx*ny)
-		atmos_data = atmos_data.reshape(nx*ny, 12, nz)
 
 		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
 		idx = idx.flatten()
 		idy = idy.flatten()
+
+		atmos_data = [atmos_data[IDx,IDy] for IDx,IDy in zip(idx,idy)]
 
 		args = zip(data, idx, idy, [do_HSE]*(nx*ny), atmos_data)
 
