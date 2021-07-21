@@ -17,6 +17,7 @@ import copy
 from scipy.ndimage import gaussian_filter, correlate1d
 from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 
 import globin
 
@@ -253,13 +254,15 @@ class Atmosphere(object):
 
 		args = zip(data, idx, idy, [do_HSE]*(nx*ny), atmos_data)
 
+		print("Converting atmosphere...")
 		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
 
 		data = np.zeros((nx, ny, npar, nz))
-		for item in items:
-			data = item["data"]
+		print("Assigning values to data cube")
+		for item in tqdm(items):
+			in_data = item["data"]
 			idx, idy = item["idx"], item["idy"]
-			data[idx,idy] = data
+			data[idx,idy] = in_data
 
 		return data
 
