@@ -35,6 +35,8 @@ def pool_build_from_nodes(args):
 					K0 = (globin.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
 			# bottom node slope for extrapolation based on temperature gradient from FAL C model
 			Kn = splev(x[-1], globin.temp_tck, der=1)
+			# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
+			# print(Kn, Knp)
 		elif parameter=="vz":
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
@@ -234,4 +236,4 @@ def pool_spinor2multi(args):
 
 	# print(f"Finished converting atmosphere ({idx+1},{idy+1}) in {time.time() - start}s")
 
-	return data
+	return {"data" : data, "idx" : idx, "idy" : idy}

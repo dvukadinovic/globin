@@ -253,11 +253,13 @@ class Atmosphere(object):
 
 		args = zip(data, idx, idy, [do_HSE]*(nx*ny), atmos_data)
 
-		atmos = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
+		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
 
 		data = np.zeros((nx, ny, npar, nz))
-		for ind in range(nx*ny):
-			data[idx[ind],idy[ind]] = atmos[ind]
+		for item in items:
+			data = item["data"]
+			idx, idy = item["idx"], item["idy"]
+			data[idx,idy] = data
 
 		return data
 
