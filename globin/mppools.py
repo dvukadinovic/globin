@@ -8,6 +8,7 @@ import time
 import multiprocessing as mp
 import subprocess as sp
 from scipy.interpolate import splev, splrep
+import numpy as np
 
 import globin
 
@@ -203,7 +204,10 @@ def pool_synth(args):
 def pool_spinor2multi(args):
 	# start = time.time()
 
-	data, idx, idy, do_HSE, atmos_data = args
+	do_HSE, atmos_data = args
+
+	_, nz = atmos_data.shape
+	data = np.zeros((14, nz))
 
 	# log(tau)
 	data[0] = atmos_data[0]
@@ -236,4 +240,4 @@ def pool_spinor2multi(args):
 
 	# print(f"Finished converting atmosphere ({idx+1},{idy+1}) in {time.time() - start}s")
 
-	return {"data" : data, "idx" : idx, "idy" : idy}
+	return data

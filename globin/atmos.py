@@ -245,27 +245,24 @@ class Atmosphere(object):
 		nx, ny, _, nz = atmos_data.shape
 		npar = 14
 
-		data = [np.zeros((npar, nz))]*(nx*ny)
-
 		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
 		idx = idx.flatten()
 		idy = idy.flatten()
 
 		atmos_data = [atmos_data[IDx,IDy] for IDx,IDy in zip(idx,idy)]
 
-		args = zip(data, idx, idy, [do_HSE]*(nx*ny), atmos_data)
+		args = zip([do_HSE]*(nx*ny), atmos_data)
 
 		print("Converting atmosphere...")
 		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
 
-		data = np.zeros((nx, ny, npar, nz))
+		atmos = np.zeros((nx, ny, npar, nz))
 		print("Assigning values to data cube")
-		for item in tqdm(items):
-			in_data = item["data"]
-			idx, idy = item["idx"], item["idy"]
-			data[idx,idy] = in_data
+		for i_,in_data in enumerate(items):
+			IDx, IDy = idx[i_], idy[i_]
+			atmos[IDx,IDy] = in_data
 
-		return data
+		return atmos
 
 	def sir2multi(self):
 		pass
