@@ -38,18 +38,18 @@ def pool_build_from_nodes(args):
 			Kn = splev(x[-1], globin.temp_tck, der=1)
 			# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
 			# print(Kn, Knp)
-		elif parameter=="vz":
-			if len(x)>=2:
-				K0 = (y[1]-y[0]) / (x[1]-x[0])
-				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-				#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
-				# check if extrapolation at the top atmosphere point goes below the minimum
-				# if does, change the slopte so that at top point we have vzmin (globin.limit_values["vz"][0])
-				if globin.limit_values["vz"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (globin.limit_values["vz"][0] - y[0]) / (atmos.logtau[0] - x[0])
-				# similar for the bottom for maximum values
-				if globin.limit_values["vz"][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					Kn = (globin.limit_values["vz"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+		# elif parameter=="vz":
+		# 	if len(x)>=2:
+		# 		K0 = (y[1]-y[0]) / (x[1]-x[0])
+		# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+		# 		#--- this checks does not make any sense to me now (23.12.2020.) --> Recheck this later
+		# 		# check if extrapolation at the top atmosphere point goes below the minimum
+		# 		# if does, change the slopte so that at top point we have vzmin (globin.limit_values["vz"][0])
+		# 		if globin.limit_values["vz"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+		# 			K0 = (globin.limit_values["vz"][0] - y[0]) / (atmos.logtau[0] - x[0])
+		# 		# similar for the bottom for maximum values
+		# 		if globin.limit_values["vz"][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+		# 			Kn = (globin.limit_values["vz"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 		y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new

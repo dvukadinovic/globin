@@ -318,7 +318,7 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	globin.ref_atm = copy.deepcopy(globin.atm)
 
 def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
-	# integration degree for Bezier interpolation
+	# interpolation degree for Bezier polynomial
 	globin.interp_degree = _find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
 
 	#--- default parameters

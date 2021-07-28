@@ -29,7 +29,7 @@ from .rh import \
 	write_wavs, Rhout, write_B
 
 from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf
 
 from .spec import \
 	Observation, Spectrum
