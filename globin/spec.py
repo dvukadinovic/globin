@@ -38,7 +38,7 @@ class Spectrum(object):
 		self.noise = noise
 
 		self.mean = np.nanmean(np.max(self.spec[...,0], axis=2))
-		wavs_dependent_factor = np.sqrt(self.spec[...,0] / self.mean)
+		wavs_dependent_factor = 1 # np.sqrt(self.spec[...,0] / self.mean)
 		
 		gauss_noise = np.random.normal(0, self.noise, size=(self.nx, self.ny, self.nw, 4))
 		SI_cont_err = gauss_noise * self.mean

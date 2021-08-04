@@ -51,6 +51,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			y = atmos.values[parameter][idx,idy] * fact[parameter]
 			plt.scatter(x, y, s=20, color=color)
 		except:
+			# print(f"globin::visualize --> no nodes for parameter {parameter}")
 			pass
 
 		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color)
@@ -59,11 +60,24 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 
-def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
-	obs = copy.deepcopy(obs)
+def plot_spectra(obs, wavelength, inv=None, title=None):
+	"""
+	Plot spectra.
 
-	lmin = np.min(obs.wavelength)
-	lmax = np.max(obs.wavelength)
+	Parameters
+	----------
+	obs : ndarray
+		Observed spectrum. Assumed shape is (nw, 4).
+	wavelength : ndarray
+		Array of wavelngths in nm for which the obs is taken.
+	inv : ndarray (optional)
+		Inverted spectra. Used to compare with observed one.
+		Same shape as 'obs'.
+	title : string (optional)
+		Figure title.
+	"""
+	lmin = np.min(wavelength)
+	lmax = np.max(wavelength)
 	dlam = (lmax - lmin) * 10
 
 	# Icont = np.max(obs.spec[idx,idy,:,0])
@@ -84,25 +98,25 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 		# Stokes I
 		plt.subplot(2,2,1)
 		plt.title("Stokes I")
-		plt.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,0])
+		plt.plot((wavelength - lmin)*10, obs[:,0])
 		plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		plt.xlim([0, dlam])
 		# Stokes Q
 		plt.subplot(2,2,2)
 		plt.title("Stokes Q")
-		plt.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,1])
+		plt.plot((wavelength - lmin)*10, obs[:,1])
 		plt.xlim([0, dlam])
 		# Stokes U
 		plt.subplot(2,2,3)
 		plt.title("Stokes U")
-		plt.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,2])
+		plt.plot((wavelength - lmin)*10, obs[:,2])
 		plt.xlim([0, dlam])
 		plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 		plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		# Stokes V
 		plt.subplot(2,2,4)
 		plt.title("Stokes V")
-		plt.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,3])
+		plt.plot((wavelength - lmin)*10, obs[:,3])
 		plt.xlim([0, dlam])
 		plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
 	else:
@@ -114,18 +128,18 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax0 = fig.add_subplot(gsSI[0,0])
 		ax0.set_title("Stokes I")
-		ax0.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,0], "k-", markersize=2)
-		ax0.plot((inv.wavelength - lmin)*10, inv.spec[idx,idy,:,0], color="tab:red", lw=1.5)
+		ax0.plot((wavelength - lmin)*10, obs[:,0], "k-", markersize=2)
+		ax0.plot((wavelength - lmin)*10, inv[:,0], color="tab:red", lw=1.5)
 		# ax0.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0.set_ylabel("I")
 		ax0.set_xticks([], [])
 		ax0.set_xlim([0, dlam])
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs.spec[idx, idy, :, 0] - inv.spec[idx,idy,:,0]
-		# difference /= obs.spec[idx,idy, :, 0] / 100
+		difference = obs[:,0] - inv[:,0]
+		# difference /= obs[:,0] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		ax1.set_ylabel(r"$\Delta I$")
 		ax1.set_xlim([0, dlam])
@@ -135,18 +149,18 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax0 = fig.add_subplot(gsSI[0,0])
 		ax0.set_title("Stokes Q")
-		ax0.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,1], "k-", markersize=2)
-		ax0.plot((inv.wavelength - lmin)*10, inv.spec[idx,idy,:,1], color="tab:red", lw=1.5)
+		ax0.plot((wavelength - lmin)*10, obs[:,1], "k-", markersize=2)
+		ax0.plot((wavelength - lmin)*10, inv[:,1], color="tab:red", lw=1.5)
 		# ax0.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0.set_ylabel("Q")
 		ax0.set_xticks([], [])
 		ax0.set_xlim([0, dlam])
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs.spec[idx, idy, :, 1] - inv.spec[idx,idy,:,1]
-		# difference /= obs.spec[idx,idy, :, 1] / 100
+		difference = obs[:,1] - inv[:,1]
+		# difference /= obs[:,1] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		ax1.set_ylabel(r"$\Delta Q$")
 		ax1.set_xlim([0, dlam])
@@ -156,18 +170,18 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax0 = fig.add_subplot(gsSI[0,0])
 		ax0.set_title("Stokes U")
-		ax0.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,2], "k-", markersize=2)
-		ax0.plot((inv.wavelength - lmin)*10, inv.spec[idx,idy,:,2], color="tab:red", lw=1.5)
+		ax0.plot((wavelength - lmin)*10, obs[:,2], "k-", markersize=2)
+		ax0.plot((wavelength - lmin)*10, inv[:,2], color="tab:red", lw=1.5)
 		# ax0.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0.set_ylabel("U")
 		ax0.set_xticks([], [])
 		ax0.set_xlim([0, dlam])
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs.spec[idx, idy, :, 2] - inv.spec[idx,idy,:,2]
-		# difference /= obs.spec[idx,idy, :, 2] / 100
+		difference = obs[:,2] - inv[:,2]
+		# difference /= obs[:,2] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		ax1.set_ylabel(r"$\Delta U$")
 		ax1.set_xlim([0, dlam])
@@ -177,18 +191,18 @@ def plot_spectra(obs, idx=0, idy=0, inv=None, title=None):
 
 		ax0 = fig.add_subplot(gsSI[0,0])
 		ax0.set_title("Stokes V")
-		ax0.plot((obs.wavelength - lmin)*10, obs.spec[idx,idy,:,3], "k-", markersize=2)
-		ax0.plot((inv.wavelength - lmin)*10, inv.spec[idx,idy,:,3], color="tab:red", lw=1.5)
+		ax0.plot((wavelength - lmin)*10, obs[:,3], "k-", markersize=2)
+		ax0.plot((wavelength - lmin)*10, inv[:,3], color="tab:red", lw=1.5)
 		# ax0.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0.set_ylabel("V")
 		ax0.set_xticks([], [])
 		ax0.set_xlim([0, dlam])
 
 		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs.spec[idx, idy, :, 3] - inv.spec[idx,idy,:,3]
-		# difference /= obs.spec[idx,idy, :, 3] / 100
+		difference = obs[:,3] - inv[:,3]
+		# difference /= obs[ :, 3] / 100
 		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((inv.wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
 		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		ax1.set_ylabel(r"$\Delta V$")
 		ax1.set_xlim([0, dlam])
