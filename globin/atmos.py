@@ -610,6 +610,10 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Model file\n")
 	out.write("*\n")
 	out.write(f"  {fname}\n")
+	print(globin.atm_scale)
+	print(globin.atm_scale=="tau")
+	print(globin.atm_scale=="cmass")
+	print(type(globin.atm_scale))
 	if globin.atm_scale=="tau":	
 		out.write("  Tau scale\n")
 	elif globin.atm_scale=="cmass":

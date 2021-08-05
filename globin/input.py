@@ -195,7 +195,6 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	atm_type = _find_value_by_key("atm_type", globin.parameters_input, "default", "multi", str)
 	atm_type = atm_type.lower()
 	globin.atm_scale = _find_value_by_key("atm_scale", globin.parameters_input, "default", "tau", str)
-	print(globin.atm_scale)
 
 	# get the name of the input line list
 	linelist_path = _find_value_by_key("linelist", globin.parameters_input, "required")
