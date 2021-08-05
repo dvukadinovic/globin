@@ -610,7 +610,13 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Model file\n")
 	out.write("*\n")
 	out.write(f"  {fname}\n")
-	out.write("  Tau scale\n")
+	if globin.atm_scale=="tau":	
+		out.write("  Tau scale\n")
+	elif globin.atm_scale=="cmass":
+		out.write("  Mass scale\n")
+	else:
+		print(f"Error: Not supported {globin.atm_scale} atmosphere scale.")
+		sys.exit()
 	out.write("*\n")
 	out.write("* log(g) [cm s^-2]\n")
 	out.write("  4.44\n")
