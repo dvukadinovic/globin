@@ -610,10 +610,6 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Model file\n")
 	out.write("*\n")
 	out.write(f"  {fname}\n")
-	print(globin.atm_scale)
-	print(globin.atm_scale=="tau")
-	print(globin.atm_scale=="cmass")
-	print(type(globin.atm_scale))
 	if globin.atm_scale=="tau":	
 		out.write("  Tau scale\n")
 	elif globin.atm_scale=="cmass":
@@ -628,10 +624,14 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Ndep\n")
 	out.write(f"  {nz}\n")
 	out.write("*\n")
-	out.write("* log tau    Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
-
-	for i_ in range(nz):
-		out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+	if globin.atm_scale=="tau":
+		out.write("* log tau    Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
+		for i_ in range(nz):
+			out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+	elif globin.atm_scale=="cmass":
+		out.write("* log cmass      Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
+		for i_ in range(nz):
+			out.write("  {:+8.6f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
 
 	out.write("*\n")
 	out.write("* Hydrogen populations [cm-3]\n")
