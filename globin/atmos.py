@@ -508,7 +508,7 @@ class Atmosphere(object):
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.values[parameter] += step * self.mask[parameter]
 
-			# update atomic parameters
+			# update atomic parameters + vmac
 			for parameter in self.global_pars:
 				low_ind = up_ind
 				up_ind += self.line_no[parameter].size
@@ -531,7 +531,7 @@ class Atmosphere(object):
 						np.nan_to_num(step, nan=0.0, copy=False)
 						self.values[parameter][idx,idy] += step * self.mask[parameter]
 
-			# update atomic parameters
+			# update atomic parameters + vmac
 			for parameter in self.global_pars:
 				low_ind = up_ind
 				up_ind += self.global_pars[parameter].size
@@ -916,19 +916,15 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
-				"""
-				Miss here the good parameter scaling as is done for
-				other parameters.
-				"""
-
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
 						for sID in range(4):
 							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
-							# rf[idx,idy,free_par_ID,:,sID] *= globin.parameter_scale["vmac"]
 							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / atmos.global_pars["vmac"]
+							rf[idx,idy,free_par_ID,:,sID] *= globin.weights[sID]
+							rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
 
-				globin.parameter_scale[parameter] = 1 # np.sum(rf[:,:,free_par_ID,:,:])
+				globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
 				rf /= globin.parameter_scale[parameter]
 
 				free_par_ID += 1
@@ -983,7 +979,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 									globin.parameter_scale[parameter][idx,idy,idp] = 1
 					elif globin.mode==3:
 						scale = np.sqrt(np.sum(diff**2))
-						globin.parameter_scale[parameter][...,idp] = 1#scale
+						globin.parameter_scale[parameter][...,idp] = scale
 
 					if globin.mode==2:
 						for idx in range(atmos.nx):

@@ -391,6 +391,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 		
 		globin.atm.vmac = abs(vmac)
 		globin.atm.global_pars["vmac"] = np.array([globin.atm.vmac])
+		globin.parameter_scale["vmac"] = 1
 
 	globin.ref_atm.vmac = abs(vmac)
 
