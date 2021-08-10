@@ -671,7 +671,10 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			
 			if globin.norm:
 				# sI_cont = rh_obj.int[ind_min]
-				sI_cont = np.max(rh_obj.int[ind_min:ind_max])
+				# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
+				k = (rh_obj.int[ind_max-1] - rh_obj.int[ind_min]) / (globin.lmax - globin.lmin)
+				n = rh_obj.int[ind_max-1] - k*globin.lmax
+				sI_cont = k*rh_obj.wave[ind_min:ind_max] + n
 			else:
 				sI_cont = 1
 
