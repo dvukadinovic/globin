@@ -42,6 +42,16 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
+			# index of parameters in self.data ndarray
+	par_id = {"logtau" : 0,
+					  "temp"   : 1,
+					  "ne"     : 2,
+					  "vz"     : 3,
+					  "vmic"   : 4,
+					  "mag"    : 5,
+					  "gamma"  : 6,
+					  "chi"    : 7}
+
 	def __init__(self, fpath=None, atm_type="multi", verbose=False, atm_range=[0,None,0,None], nx=None, ny=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.verbose = verbose
 		self.fpath = fpath
@@ -64,16 +74,6 @@ class Atmosphere(object):
 		self.global_pars = {}
 		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {}
-
-		# index of parameters in self.data ndarray
-		self.par_id = {"logtau" : 0,
-					   "temp"   : 1,
-					   "ne"     : 2,
-					   "vz"     : 3,
-					   "vmic"   : 4,
-					   "mag"    : 5,
-					   "gamma"  : 6,
-					   "chi"    : 7}
 
 		self.nx, self.ny, self.npar = nx, ny, 14
 
@@ -670,7 +670,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
 			
 			if globin.norm:
-				sI_cont = rh_obj.int[ind_min]
+				# sI_cont = rh_obj.int[ind_min]
+				sI_cont = np.max(rh_obj.int[ind_min:ind_max])
 			else:
 				sI_cont = 1
 
