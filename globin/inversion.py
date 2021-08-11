@@ -523,10 +523,6 @@ def invert_global(save_output, verbose):
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)#, full_rf, old_local_parameters)
 
-			plt.plot(obs.spec[0,0,:,0])
-			plt.plot(spec.spec[0,0,:,0])
-			plt.show()
-
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
 			# for idx in range(atmos.nx):
