@@ -170,6 +170,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		mac_vel = _find_value_by_key("mac_vel", globin.parameters_input, "required")
 		globin.mac_vel = [float(item) for item in mac_vel.split(",")]
 
+		items = _find_value_by_key("filling_factor", globin.parameters_input, "required")
+		globin.filling_factor = [float(item) for item in items.split(",")]
+
 	# path to RH main folder
 	rh_path = _find_value_by_key("rh_path", globin.parameters_input, "required")
 	if rh_path.rstrip("\n")[-1]=="/":

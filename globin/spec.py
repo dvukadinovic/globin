@@ -90,6 +90,7 @@ class Spectrum(object):
 
 	def mean_spectrum(self):
 		if globin.mean:
+			weights = np.zeros((self.nx, self.ny, self.nw, 4))
 			for idx in range(self.nx):
 				for idy in range(self.ny):
 					vmac = globin.mac_vel[idx*self.ny + idy]
@@ -104,7 +105,9 @@ class Spectrum(object):
 					for sID in range(4):
 						self.spec[idx,idy,:,sID] = correlate1d(self.spec[idx,idy,:,sID], kernel)
 
-			mean = np.mean(self.spec, axis=(0,1))
+					weights[idx,idy] = globin.filling_factor[idx*self.ny + idy]
+
+			mean = np.average(self.spec, axis=(0,1), weights=weights)
 
 			self.nx, self.ny = 1, 1
 			self.spec = np.zeros((self.nx, self.ny, self.nw, 4))
