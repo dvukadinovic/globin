@@ -92,10 +92,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 		noise = 1e-8
 	else:
 		noise = globin.noise
-	StokesI_cont = obs.spec[:,:,ind_min,0]
+	StokesI_cont = obs.spec[...,ind_min,0]
 	noise_lvl = noise * StokesI_cont
 	# noise_wavelength = (nx, ny, nw)
-	noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
+	noise_wavelength = np.sqrt(obs.spec[...,ind_min:ind_max,0].T / StokesI_cont.T).T
 	# noise_stokes_scale = (nx, ny, nw, 4)
 	noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
 	# noise = (nx, ny, nw)
@@ -475,10 +475,10 @@ def invert_global(save_output, verbose):
 	else:
 		noise = globin.noise
 
-	StokesI_cont = obs.spec[:,:,ind_min,0]
+	StokesI_cont = obs.spec[...,ind_min,0]
 	noise_lvl = noise * StokesI_cont
 	# noise_wavelength = (nx, ny, nw)
-	noise_wavelength = np.sqrt(obs.spec[:,:,ind_min:ind_max,0].T / StokesI_cont.T).T
+	noise_wavelength = np.sqrt(obs.spec[...,ind_min:ind_max,0].T / StokesI_cont.T).T
 	# noise = (nx, ny, nw)
 	noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
 	# noise_stokes_scale = (nx, ny, nw, 4)
@@ -498,7 +498,7 @@ def invert_global(save_output, verbose):
 	# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 	weights = 1
 
-	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
+	chi2 = np.zeros((obs.nx, obs.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda
 	dof = np.count_nonzero(globin.weights)*Nw - Npar
 
@@ -523,6 +523,10 @@ def invert_global(save_output, verbose):
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)#, full_rf, old_local_parameters)
 
+			plt.plot(obs.spec[0,0,:,0])
+			plt.plot(spec.spec[0,0,:,0])
+			plt.show()
+
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
 			# for idx in range(atmos.nx):
@@ -546,15 +550,15 @@ def invert_global(save_output, verbose):
 			chi2_old = np.sum(diff**2, axis=(2,3))
 
 			# make Jacobian matrix and fill with RF values
-			aux = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+			aux = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
 			
-			J = np.zeros((4*Nw*(atmos.nx*atmos.ny), atmos.n_local_pars*(atmos.nx*atmos.ny) + atmos.n_global_pars))
-			flatted_diff = np.zeros(atmos.nx*atmos.ny*Nw*4)
+			J = np.zeros((4*Nw*(obs.nx*obs.ny), atmos.n_local_pars*(obs.nx*obs.ny) + atmos.n_global_pars))
+			flatted_diff = np.zeros(obs.nx*obs.ny*Nw*4)
 
 			l = 4*Nw
 			n_atmosphere = 0
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
+			for idx in range(obs.nx):
+				for idy in range(obs.ny):
 					low = n_atmosphere*l
 					up = low + l 
 					ll = n_atmosphere*atmos.n_local_pars
@@ -564,8 +568,8 @@ def invert_global(save_output, verbose):
 					n_atmosphere += 1
 
 			n_atmosphere = 0
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
+			for idx in range(obs.nx):
+				for idy in range(obs.ny):
 					low = n_atmosphere*l
 					up = low+l
 					for gID in range(atmos.n_global_pars):

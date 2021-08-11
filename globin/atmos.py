@@ -334,7 +334,9 @@ class Atmosphere(object):
 			return
 
 		self.nz = len(x_new)
-		nx, ny, _, _ = ref_atm.shape
+		self.nx, self.ny, _, _ = ref_atm.shape
+
+		oneD = (self.nx*self.ny==1)
 
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
 		self.data[:,:,0,:] = x_new
@@ -343,10 +345,10 @@ class Atmosphere(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for parID in range(1,self.npar):
-					if nx*ny>1:
-						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
-					elif nx*ny==1:
+					if oneD:
 						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
+					else:
+						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
@@ -668,23 +670,14 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 
 			ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
 			ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
-			
-			if globin.norm:
-				# sI_cont = rh_obj.int[ind_min]
-				# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
-				k = (rh_obj.int[ind_max-1] - rh_obj.int[ind_min]) / (globin.lmax - globin.lmin)
-				n = rh_obj.int[ind_max-1] - k*globin.lmax
-				sI_cont = k*rh_obj.wave[ind_min:ind_max] + n
-			else:
-				sI_cont = 1
 
 			# Stokes vector
-			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max] / sI_cont
+			spectra.spec[idx,idy,:,0] = rh_obj.int[ind_min:ind_max]# / sI_cont
 			# if there is magnetic field, read the Stokes components
 			if rh_obj.stokes:
-				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max] / sI_cont
-				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max] / sI_cont
-				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max] / sI_cont
+				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max]# / sI_cont
+				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max]# / sI_cont
+				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max]# / sI_cont
 
 			# Atmospheres
 			# Atmopshere read here is one projected to local reference frame (from rhf1d) and
@@ -775,6 +768,8 @@ def compute_spectra(atmos):
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
 	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
+	spectra.mean_spectrum()
+	spectra.norm()
 
 	return spectra, atmospheres, height
 
@@ -815,8 +810,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- get total number of parameters (local + global)
 	Npar = atmos.n_local_pars + atmos.n_global_pars
 	
-	rf = np.zeros((atmos.nx, atmos.ny, Npar, len(globin.wavelength), 4), dtype=np.float64)
-	node_RF = np.zeros((atmos.nx, atmos.ny, len(globin.wavelength), 4))
+	rf = np.zeros((spec.nx, spec.ny, Npar, len(globin.wavelength), 4), dtype=np.float64)
+	node_RF = np.zeros((spec.nx, spec.ny, len(globin.wavelength), 4))
 
 	model_plus = copy.deepcopy(atmos)
 	model_minus = copy.deepcopy(atmos)
@@ -837,6 +832,9 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 
 		for nodeID in range(len(nodes)):
 			if globin.rf_type=="snapi":
+				#---
+				# This is "broken" from the point we introduced key mean for the spectrum.
+				#---
 				#===--- computing RFs for given parameter (proper way as in SNAPI)
 				# positive perturbation
 				atmos.values[parameter][:,:,nodeID] += perturbation
@@ -851,8 +849,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# derivative of parameter distribution to node perturbation
 				dy_dnode = (positive - negative) / 2 / perturbation
 
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
+				for idx in range(spec.nx):
+					for idy in range(spec.ny):
 						node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
 			elif globin.rf_type=="node":
 				#===--- Computing RFs in nodes
@@ -875,8 +873,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 			node_RF /= rf_noise_scale
 			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
+			for idx in range(spec.nx):
+				for idy in range(spec.ny):
 					if scale[idx,idy]==0:
 						# print("scale==0 for --> ", parameter)
 						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
@@ -887,8 +885,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
 			# else:
 			
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
+			for idx in range(spec.nx):
+				for idy in range(spec.ny):
 					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
 			free_par_ID += 1
 
@@ -902,9 +900,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				if parameter!="gamma" or parameter!="chi":
 					model_minus.values[parameter][:,:,nodeID] += perturbation
 
-	# continuum intensity for each pixel (need to scale RFs for global parameters in mode=3)
-	sIcont = spec.spec[:,:,0,0]
-	fact = sIcont / sIcont[0,0]
 	#--- loop through global parameters and calculate RFs
 	if atmos.n_global_pars>0:
 		#--- loop through global parameters and calculate RFs
@@ -920,8 +915,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
+				for idx in range(spec.nx):
+					for idy in range(spec.ny):
 						for sID in range(4):
 							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
 							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / atmos.global_pars["vmac"]
@@ -1005,7 +1000,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 
 	#--- broaden the spectra
-	spec.broaden_spectra(atmos.vmac)
+	if not globin.mean:
+		spec.broaden_spectra(atmos.vmac)
 
 	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):

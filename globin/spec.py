@@ -76,6 +76,40 @@ class Spectrum(object):
 					# plt.plot(output[idx,idy,:,1+sID])
 					# plt.show()
 
+	def norm(self):
+		if globin.norm:
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					# sI_cont = rh_obj.int[ind_min]
+					# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
+					k = (self.spec[idx,idy,-1,0] - self.spec[idx,idy,0,0]) / (self.wavelength[-1] - self.wavelength[0])
+					n = self.spec[idx,idy,-1,0] - k*self.wavelength[-1]
+					sI_cont = k*self.wavelength + n
+					sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
+					self.spec[idx,idy] /= sI_cont
+
+	def mean_spectrum(self):
+		if globin.mean:
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					vmac = globin.mac_vel[idx*self.ny + idy]
+					kernel_sigma = self.get_kernel_sigma(vmac)
+					radius = int(4*kernel_sigma + 0.5)
+					x = np.arange(-radius, radius+1)
+					phi = np.exp(-x**2/kernel_sigma**2)
+					kernel = phi/phi.sum()
+					# since we are correlating, we need to reverse the order of data
+					kernel = kernel[::-1]
+
+					for sID in range(4):
+						self.spec[idx,idy,:,sID] = correlate1d(self.spec[idx,idy,:,sID], kernel)
+
+			mean = np.mean(self.spec, axis=(0,1))
+
+			self.nx, self.ny = 1, 1
+			self.spec = np.zeros((self.nx, self.ny, self.nw, 4))
+			self.spec[0,0] = mean
+
 	def save(self, fpath, wavelength):
 		"""
 		Get list of spectra computed for every pixel and store them in fits file.

@@ -156,7 +156,20 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 			globin.norm = False
 	else:
 		globin.norm = False
-	
+
+	mean = _find_value_by_key("mean", globin.parameters_input, "optional")
+	if mean is not None:
+		if mean.lower()=="true":
+			globin.mean = True
+		elif mean.lower()=="false":
+			globin.mean = False
+	else:
+		globin.mean = False
+
+	if globin.mean:
+		mac_vel = _find_value_by_key("mac_vel", globin.parameters_input, "required")
+		globin.mac_vel = [float(item) for item in mac_vel.split(",")]
+
 	# path to RH main folder
 	rh_path = _find_value_by_key("rh_path", globin.parameters_input, "required")
 	if rh_path.rstrip("\n")[-1]=="/":
@@ -230,10 +243,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		sys.exit()
 
 	#--- if we have more threads than atmospheres, reduce the number of used threads
-	if globin.mode>=1:
-		if globin.n_thread > globin.atm.nx*globin.atm.ny:
-			globin.n_thread = globin.atm.nx*globin.atm.ny
-			print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
+	if globin.n_thread > globin.atm.nx*globin.atm.ny:
+		globin.n_thread = globin.atm.nx*globin.atm.ny
+		print(f"\nWarning: reduced the number of threads to {globin.n_thread}.\n")
 
 	#--- initialize Pool() object
 	globin.pool = mp.Pool(globin.n_thread)
@@ -341,8 +353,8 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")
 	globin.obs = Observation(path_to_observations, atm_range)
 	# set dimensions for atmosphere same as dimension of observations
-	globin.atm.nx = globin.obs.nx
-	globin.atm.ny = globin.obs.ny
+	# globin.atm.nx = globin.obs.nx
+	# globin.atm.ny = globin.obs.ny
 
 	#--- optional parameters
 	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
@@ -513,8 +525,6 @@ def read_mode_3():
 		globin.atm.global_pars["dlam"][0,0] = aux_values
 		globin.atm.line_no["dlam"][:] = aux_lineNo
 
-		# globin.atm.line_lists_path = [f"runs/{globin.wd}/{linelist_path.split('/')[-1]}"]
-
 		# write down initial atomic lines values
 		globin.write_line_parameters(globin.atm.line_lists_path[0],
 								   globin.atm.global_pars["loggf"][0,0], globin.atm.line_no["loggf"],
@@ -526,7 +536,6 @@ def write_line_parameters(fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 	"""
 	Write out full Kurucz line list for all parameters.
 	"""
-	# out = open(self.RLK_path, "w")
 	out = open(fpath, "w")
 
 	# because of Python memory handling
@@ -555,7 +564,6 @@ def write_line_par(fpath, par_val, par_no, parameter):
 
 	Used when we are computing RFs.
 	"""
-	# out = open(self.RLK_path, "w")
 	out = open(fpath, "w")
 
 	# because of Python memory handling
