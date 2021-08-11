@@ -257,7 +257,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos)
-		corrected_spec.broaden_spectra(atmos.vmac)
+		if not globin.mean:
+			corrected_spec.broaden_spectra(atmos.vmac)
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
@@ -389,7 +390,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	atmos.build_from_nodes(False)
 	inverted_spectra, atm, _ = globin.compute_spectra(atmos)
-	inverted_spectra.broaden_spectra(atmos.vmac)
+	if not globin.mean:
+		inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
 		atmos.compute_errors(JTJ, chi2_old)
@@ -596,7 +598,8 @@ def invert_global(save_output, verbose):
 
 		atmos.build_from_nodes()
 		corrected_spec,_,_ = globin.compute_spectra(atmos)
-		corrected_spec.broaden_spectra(atmos.vmac)
+		if not globin.mean:
+			corrected_spec.broaden_spectra(atmos.vmac)
 
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
@@ -665,7 +668,8 @@ def invert_global(save_output, verbose):
 	atmos.build_from_nodes(False)
 	
 	inverted_spectra,_,_ = globin.compute_spectra(atmos)
-	inverted_spectra.broaden_spectra(atmos.vmac)
+	if not globin.mean:	
+		inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
 		atmos.compute_errors(JTJ, chi2_old)
