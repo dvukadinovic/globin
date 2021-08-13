@@ -186,12 +186,14 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.lmin = _find_value_by_key("wave_min", globin.parameters_input, "optional", conversion=float)
 	globin.lmax = _find_value_by_key("wave_max", globin.parameters_input, "optional", conversion=float)
 	globin.step = _find_value_by_key("wave_step", globin.parameters_input, "optional", conversion=float)
+	globin.interpolate_obs = False
 	if (globin.step is None) and (globin.lmin is None) and (globin.lmax is None):
 		wave_grid_path = _find_value_by_key("wave_grid", globin.parameters_input, "required")
 		globin.wavelength = np.loadtxt(wave_grid_path)/10
 		globin.lmin = min(globin.wavelength)
 		globin.lmax = max(globin.wavelength)
 		globin.step = globin.wavelength[1] - globin.wavelength[0]
+		globin.interpolate_obs = True
 	else:
 		globin.lmin /= 10
 		globin.lmax /= 10
@@ -355,9 +357,8 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	#--- required parameters
 	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")
 	globin.obs = Observation(path_to_observations, atm_range)
-	# set dimensions for atmosphere same as dimension of observations
-	# globin.atm.nx = globin.obs.nx
-	# globin.atm.ny = globin.obs.ny
+	if globin.interpolate_obs:
+		globin.obs.interpolate(globin.wavelength)
 
 	#--- optional parameters
 	path_to_atmosphere = _find_value_by_key("cube_atmosphere", globin.parameters_input, "optional")
@@ -380,6 +381,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	globin.wavs_weight = np.ones((globin.atm.nx, globin.atm.ny, len(globin.wavelength),4))
 	if fpath is not None:
 		lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
+		# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
 		if len(lam)==len(globin.wavelength):
 			globin.wavs_weight[...,0] = wI
 			globin.wavs_weight[...,1] = wQ

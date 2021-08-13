@@ -3,6 +3,7 @@ from astropy.io import fits
 import numpy as np
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 import matplotlib.pyplot as plt
+from scipy.interpolate import splev, splrep
 
 import globin
 
@@ -206,3 +207,16 @@ class Observation(Spectrum):
 		self.spec = data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
+
+	def interpolate(self, wavs):
+		self.nw = len(wavs)
+		spectra = np.zeros((self.nx, self.ny, self.nw, 4))
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				for ids in range(4):
+					tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
+					spectra[idx,idy,:,ids] = splev(wavs, tck)
+
+		self.spec = spectra
+		self.wavelength = wavs
