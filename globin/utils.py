@@ -65,8 +65,6 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
     spec.xmax = atmos.xmax
     spec.ymin = atmos.ymin
     spec.ymax = atmos.ymax
-    spec.mean_spectrum()
-    spec.norm()
     if not globin.mean:
         spec.broaden_spectra(atmos.vmac)
     spec.add_noise(noise)
