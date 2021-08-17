@@ -17,6 +17,9 @@ Contributors:
 
 import os
 import numpy as np
+import multiprocessing as mp
+
+pool = mp.Pool(1)
 
 from .input import \
 	read_input, read_node_atmosphere, set_keyword, \
@@ -166,7 +169,7 @@ from scipy.constants import m_e as ELECTRON_MASS
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
+falc = Atmosphere(fpath=f"{__path__}/data/falc_multi.atmos")
 
 # temperature interpolation
 temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
