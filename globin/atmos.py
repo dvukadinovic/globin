@@ -948,8 +948,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
 					spec_plus,_,_ = compute_spectra(atmos)
-					spec_plus.broaden_spectra(atmos.vmac)
-
+					
 					# negative perturbation
 					values -= 2*perturbation
 					if globin.mode==2:
@@ -962,7 +961,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
 					spec_minus,_,_ = compute_spectra(atmos)
-					spec_minus.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 					diff *= globin.weights
@@ -1087,7 +1085,8 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 	atmos.global_pars = globin.atm.global_pars
 
 	spec, _,_ = compute_spectra(atmos)
-	spec.broaden_spectra(atmos.vmac)
+	if not globin.mean:
+		spec.broaden_spectra(atmos.vmac)
 
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
@@ -1119,12 +1118,14 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 				model_plus.data[:,:,parID,zID] += perturbation
 				model_plus.write_atmosphere()
 				spec_plus,_,_ = compute_spectra(model_plus)
-				spec_plus.broaden_spectra(atmos.vmac)
+				if not globin.mean:
+					spec.broaden_spectra(atmos.vmac)
 
 				model_minus.data[:,:,parID,zID] -= perturbation
 				model_minus.write_atmosphere()
 				spec_minus,_,_ = compute_spectra(model_minus)
-				spec_minus.broaden_spectra(atmos.vmac)
+				if not globin.mean:
+					spec.broaden_spectra(atmos.vmac)
 
 				diff = spec_plus.spec - spec_minus.spec
 
@@ -1175,7 +1176,8 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
 					spec_plus,_,_ = compute_spectra(atmos)
-					spec_plus.broaden_spectra(atmos.vmac)
+					if not globin.mean:
+						spec.broaden_spectra(atmos.vmac)
 
 					# negative perturbation
 					values -= 2*perturbation
@@ -1188,7 +1190,8 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
 					spec_minus,_,_ = compute_spectra(atmos)
-					spec_minus.broaden_spectra(atmos.vmac)
+					if not globin.mean:
+						spec.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 

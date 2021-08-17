@@ -188,7 +188,8 @@ def calculate_chi2(pars, fname):
         # build atmosphere and compute spectra
         globin.atm.build_from_nodes()
         spec, _, _ = globin.compute_spectra(globin.atm)
-        spec.broaden_spectra(globin.atm.vmac)
+        if not globin.mean:
+            spec.broaden_spectra(globin.atm.vmac)
 
         # compute chi2
         diff = globin.obs.spec - spec.spec
