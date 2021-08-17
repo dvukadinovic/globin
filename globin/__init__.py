@@ -17,9 +17,6 @@ Contributors:
 
 import os
 import numpy as np
-import multiprocessing as mp
-
-pool = mp.Pool(1)
 
 from .input import \
 	read_input, read_node_atmosphere, set_keyword, \
