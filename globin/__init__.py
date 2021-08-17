@@ -166,7 +166,7 @@ from scipy.constants import m_e as ELECTRON_MASS
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(fpath=f"{__path__}/data/falc.atmos", atm_type="multi")
+falc = Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
 
 # temperature interpolation
 temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
