@@ -5,20 +5,22 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 3
+n_thread = 2
 interp_degree = 3
 mode = 1
 
 #--- Spectra to be fitted
 observation = obs.fits
 noise = 0
-weights = 1,10,10,5
+weights = 1,0,0,0
 vmac = 0
 
 #--- Output spectra
 spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
+#initial_atmosphere = runs/test/inverted_atmos.fits
+
 #nodes_temp = -2.2, -1.6, -0.9, 0
 #nodes_temp_values = 4800, 5500, 6500, 7500
 

@@ -528,8 +528,9 @@ class Atmosphere(object):
 						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter][idx,idy]
 						# RH returns RFs in m/s and we are working with km/s in globin
 						# so we have to return the values from m/s to km/s
-						if parameter=="vz" or parameter=="vmic":
-							step /= 1e3
+						if globin.rf_type=="snapi":
+							if parameter=="vz" or parameter=="vmic":
+								step /= 1e3
 						np.nan_to_num(step, nan=0.0, copy=False)
 						self.values[parameter][idx,idy] += step * self.mask[parameter]
 

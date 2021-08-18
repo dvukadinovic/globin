@@ -6,7 +6,7 @@ import sys
 import globin
 
 #--- initialize input object and read input files
-run_name = "test_cont"
+run_name = "test"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
