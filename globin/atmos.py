@@ -924,7 +924,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 							rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
 
 				globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
-				rf /= globin.parameter_scale[parameter]
+				rf[:,:,free_par_ID,:,:] /= globin.parameter_scale[parameter]
 
 				free_par_ID += 1
 
@@ -1003,11 +1003,11 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 
 	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):
-	# 		plt.figure(parID+1)
-	# 		plt.plot(rf[0, idy, parID, :, 0] + 0.1*idy)
-	# 		plt.savefig(f"{parID+1}_.png")
-	# 		plt.close()
-	# plt.show()
+	# 		# plt.figure(parID+1)
+	# 		plt.plot(rf[0, idy, parID, :, 0])
+	# 		# plt.savefig(f"{parID+1}_.png")
+	# 		# plt.close()
+	# 		plt.show()
 	# sys.exit()
 
 	#--- compare RFs for single parameter
