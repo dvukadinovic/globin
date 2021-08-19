@@ -774,6 +774,32 @@ def compute_spectra(atmos):
 
 	return spectra, atmospheres, height
 
+def broaden_rfs(rf, vmac, skip_par):
+	if vmac==0:
+		return
+
+	nx, ny, npar, nw, ns = rf.shape
+
+	step = globin.wavelength[1] - globin.wavelength[0]
+	kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (globin.wavelength[0] + globin.wavelength[-1])*0.5 / step
+
+	# we assume equidistant seprataion
+	radius = int(4*kernel_sigma + 0.5)
+	x = np.arange(-radius, radius+1)
+	phi = np.exp(-x**2/kernel_sigma**2)
+	kernel = phi/phi.sum()
+	# since we are correlating, we need to reverse the order of data
+	kernel = kernel[::-1]
+
+	for idx in range(nx):
+		for idy in range(ny):
+			for sID in range(ns):
+				for pID in range(npar):
+					if pID!=skip_par:
+						rf[idx,idy,pID,:,sID] = correlate1d(rf[idx,idy,pID,:,sID], kernel)
+
+	return rf
+
 def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes()
@@ -902,6 +928,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 					model_minus.values[parameter][:,:,nodeID] += perturbation
 
 	#--- loop through global parameters and calculate RFs
+	skip_par = -1
 	if atmos.n_global_pars>0:
 		#--- loop through global parameters and calculate RFs
 		for parameter in atmos.global_pars:
@@ -927,6 +954,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
 				rf[:,:,free_par_ID,:,:] /= globin.parameter_scale[parameter]
 
+				skip_par = free_par_ID
 				free_par_ID += 1
 
 			elif parameter=="loggf" or parameter=="dlam":
@@ -1001,6 +1029,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- broaden the spectra
 	if not globin.mean:
 		spec.broaden_spectra(atmos.vmac)
+
+	rf = broaden_rfs(rf, atmos.vmac, skip_par)
 
 	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):
