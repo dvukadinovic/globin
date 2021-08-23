@@ -187,9 +187,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.lmax = _find_value_by_key("wave_max", globin.parameters_input, "optional", conversion=float)
 	globin.step = _find_value_by_key("wave_step", globin.parameters_input, "optional", conversion=float)
 	globin.interpolate_obs = False
-	if (globin.step is None) and (globin.lmin is None) and (globin.lmax is None):
+	if (globin.step is None) or (globin.lmin is None) or (globin.lmax is None):
 		wave_grid_path = _find_value_by_key("wave_grid", globin.parameters_input, "required")
-		globin.wavelength = np.loadtxt(wave_grid_path)/10
+		globin.wavelength = np.loadtxt(wave_grid_path)
 		globin.lmin = min(globin.wavelength)
 		globin.lmax = max(globin.wavelength)
 		globin.step = globin.wavelength[1] - globin.wavelength[0]
@@ -357,7 +357,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	#--- required parameters
 	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")
 	globin.obs = Observation(path_to_observations, atm_range)
-	if globin.interpolate_obs:
+	if globin.interpolate_obs or (not np.array_equal(globin.obs.wavelength, globin.wavelength)):
 		globin.obs.interpolate(globin.wavelength)
 
 	#--- optional parameters
