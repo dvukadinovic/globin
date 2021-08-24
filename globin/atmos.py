@@ -668,7 +668,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	if globin.lmin>500:
 		ind_min, ind_max = 1, None
 	if globin.lmax<500:
-		ind_min, ind_max = 0, -2
+		ind_min, ind_max = 0, -1
 
 	for item in lista:
 		if item is not None:
