@@ -786,7 +786,7 @@ def compute_spectra(atmos):
 
 def broaden_rfs(rf, vmac, skip_par):
 	if vmac==0:
-		return
+		return rf
 
 	nx, ny, npar, nw, ns = rf.shape
 
@@ -1039,8 +1039,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- broaden the spectra
 	if not globin.mean:
 		spec.broaden_spectra(atmos.vmac)
+		rf = broaden_rfs(rf, atmos.vmac, skip_par)
 
-	rf = broaden_rfs(rf, atmos.vmac, skip_par)
 
 	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):
