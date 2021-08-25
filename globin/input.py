@@ -11,6 +11,7 @@ from astropy.io import fits
 from .atmos import Atmosphere
 from .spec import Observation
 from .rh import write_wavs
+from .utils import _set_keyword, _slice_line
 
 import globin
 
@@ -202,7 +203,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
 
 	# set value of WAVETABLE in 'keyword.input' file
-	globin.keyword_input = set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
+	globin.keyword_input = _set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
 
 	# common parameters for all modes
 	atm_range = get_atmosphere_range()
@@ -415,8 +416,16 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	#--- read initial node parameter values	
 	fpath = _find_value_by_key("initial_atmosphere", globin.parameters_input, "optional")
 	if fpath is not None:
-		# read node parameters from .fits file
-		load_node_data(fpath, atm_range)
+		# read node parameters from .fits file that is inverted atmosphere
+		# from older inversion run
+		globin.atm = read_inverted_atmosphere(fpath, atm_range)
+		if (globin.atm.nx!=globin.obs.nx) or (globin.atm.ny!=globin.obs.ny):
+			print("--> Error in input.read_inverted_atmosphere()")
+			print("    initial atmosphere does not have same dimensions")
+			print("    as observations:")
+			print(f"    -- atm = ({globin.atm.nx},{globin.atm.ny})")
+			print(f"    -- obs = ({globin.obs.nx},{globin.obs.ny})")
+			sys.exit()
 	else:
 		# read node parameters from .input file
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
@@ -630,10 +639,40 @@ def read_node_parameters(parameter, text):
 
 		globin.parameter_scale[parameter] = np.ones((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
 
-def load_node_data(fpath, atm_range):
-	hdu_list = fits.open(fpath)
+def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
+	"""
+	Read atmosphere retrieved after inversion and store it in
+	Atmosphere() object. We load fully stratified atmosphere and
+	node position and values in nodes for all inverted 
+	atmospheric parameters.
+
+	Parameters:
+	-----------
+	fpath : string
+		file path to inverted atmosphere. It should be .fits file.
+	atm_range : list
+		list containing [xmin,xmax,ymin,ymax] that define part of the
+		cube to be read.
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere() object
+	"""
+	try:
+		hdu_list = fits.open(fpath)
+	except:
+		print("--> Error in input.read_inverted_atmosphere()")
+		print(f"    Atmosphere file with path '{fpath}' does not exist.")
+		sys.exit()
 
 	xmin, xmax, ymin, ymax = atm_range
+
+	data = hdu_list[0].data[xmin:xmax, ymin:ymax]
+	nx, ny, npar, nz = data.shape
+
+	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
+	atmos.data = data
+	atmos.logtau = data[0,0,0]
 
 	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 		try:
@@ -641,100 +680,154 @@ def load_node_data(fpath, atm_range):
 			data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
 			_, nx, ny, nnodes = data.shape
 
-			globin.atm.nx, globin.atm.ny = nx, ny
+			atmos.nodes[parameter] = data[0,0,0]
+			atmos.values[parameter] = data[1]
+			atmos.mask[parameter] = np.ones(len(atmos.nodes[parameter]))
 
-			if globin.atm.nx!=globin.obs.nx or globin.atm.ny!=globin.obs.ny:
-				print("--> Error in input.load_node_data()")
-				print("    initial atmosphere does not have same dimensions")
-				print("    as observations.")
-				print(f"    -- atm = ({globin.atm.nx},{globin.atm.ny})")
-				print(f"    -- obs = ({globin.obs.nx},{globin.obs.ny})")
-				sys.exit()
-
-			globin.atm.nodes[parameter] = data[0,0,0]
-			globin.atm.values[parameter] = data[1]
-			globin.atm.mask[parameter] = np.ones(len(globin.atm.nodes[parameter]))
-
-			globin.parameter_scale[parameter] = np.ones((globin.atm.nx, globin.atm.ny, nnodes))
+			globin.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
 		except:
 			pass
 
-def slice_line(line, dtype=float):
-    # remove 'new line' character
-    line = line.rstrip("\n")
-    # split line data based on 'space' separation
-    line = line.split(" ")
-    # filter out empty entries and convert to list
-    lista = list(filter(None, line))
-    # map read values into given data type
-    lista = map(dtype, lista)
-    # return list of values
-    return list(lista)
+	return atmos
+
+def read_multi(fpath):
+	"""
+	Read MULTI type atmosphere data and store it in
+	Atmosphere() object.
+
+	Parameter:
+	----------
+	fpath : string
+		path to the MULTI type atmosphere.
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere() object
+	"""
+	lines = open(fpath, "r").readlines()
+
+	# remove commented lines
+	lines = [line.rstrip("\n") for line in lines if "*" not in line]
+
+	# get number of depth points
+	ndpth = int(lines[3].replace(" ", ""))
+
+	nz = ndpth
+	nx, ny = 1, 1
+
+	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
+
+	for i_ in range(ndpth):
+		# read first part of the atmosphere
+		lista = list(filter(None,lines[4+i_].split(" ")))
+		atmos.data[0,0,0,i_], \
+		atmos.data[0,0,1,i_], \
+		atmos.data[0,0,2,i_], \
+		atmos.data[0,0,3,i_], \
+		atmos.data[0,0,4,i_] = [float(element) for element in lista]
+
+		# read H populations
+		lista = list(filter(None,lines[4+ndpth+i_].split(" ")))
+		atmos.data[0,0,8,i_], \
+		atmos.data[0,0,9,i_], \
+		atmos.data[0,0,10,i_], \
+		atmos.data[0,0,11,i_], \
+		atmos.data[0,0,12,i_], \
+		atmos.data[0,0,13,i_] = [float(element) for element in lista]
+
+	atmos.logtau = atmos.data[0,0,0]
+
+	return atmos
+
+def read_spinor(fpath):
+	atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+	# nz = atmos_data.shape[1]
+	
+	# atmos = globin.Atmosphere(nx=1, ny=1, nz=nz)
+	# atmos.logtau = atmos_data[0]
+	# atmos.data = atmos_data
+	
+	atmos = globin.atmos.convert_atmosphere(atmos_data[0], atmos_data, "spinor")
+
+	return atmos
+
+def read_sir(self):
+	pass
 
 def read_node_atmosphere(fpath):
-    parameters = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
+	"""
+	Read atmosphere from file having the following structure:
 
-    lines = open(fpath, "r").readlines()
+	________________________________________________________
+	nx, ny
 
-    nx, ny = slice_line(lines[0], int)
+	parameter_1
+	logtau_node_1 logtau_node_2 ...
+	T1 T2 ...
+	T1 T2 ...
+	.
+	.
+	.
 
-    # number of data for given parameter
-    # we have nx*ny data points
-    # and 1 line for the name of the variable
-    # and 1 line for the node positions
-    nlines = nx*ny + 2
+	parameter_2
+	logtau_node_1 logtau_node_2 ...
+	T1 T2 ...
+	T1 T2 ...
+	.
+	.
+	.
+	________________________________________________________
 
-    atmos = Atmosphere(nx=nx, ny=ny)
+	Blank lines are mandatory!
 
-    i_ = 2
-    for parID in range(6):
-        parameter = parameters[parID]
-        if i_<len(lines):
-            if lines[i_].rstrip("\n")==parameter:
-                nodes = slice_line(lines[i_+1])
-                atmos.nodes[parameter] = np.array(nodes)
-                num_nodes = len(nodes)
-                atmos.values[parameter] = np.zeros((nx, ny, num_nodes))
+	velocity is assumed to be in km/s, 
+	magnetic field strength in G and angles in deg.
 
-                for j_ in range(nx*ny):
-                    idx = j_//ny
-                    idy = j_%ny
+	Parameters:
+	-----------
+	fpath : string
+		file path to atmosphere
 
-                    temps = slice_line(lines[i_+2+j_])
-                    atmos.values[parameter][idx, idy] = np.array(temps)
+	Return:
+	-------
+	atmos : globin.Atmosphere object
+		atmosphere with nodes and values set from input file.
 
-                if parameter=="gamma" or parameter=="chi":
-                    atmos.values[parameter] *= np.pi/180 # [deg --> rad]
+	"""
+	parameters = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 
-                i_ += nlines+1
+	lines = open(fpath, "r").readlines()
 
-    return atmos
+	nx, ny = _slice_line(lines[0], int)
 
-def set_keyword(text, key, value, fpath=None):
-	lines = text.split("\n")
-		
-	line_num = None
-	for num, line in enumerate(lines):
-		line = line.replace(" ","")
-		if len(line)>0:
-			if line[0]!="#":
-				if key in line:
-					line_num = num
-					break
+	# number of data for given parameter
+	# 1 line for the name of the parameter
+	# 1 line for the node positions
+	# nx*ny lines for the values in the nodes
+	nlines = nx*ny + 2
 
-	if line_num is not None:
-		lines[num] = "  " + key + " = " + value
-	else:
-		line = "  " + key + " = " + value
-		lines.insert(0, line)
-		pass
+	atmos = Atmosphere(nx=nx, ny=ny)
 
-	lines = [line + "\n" for line in lines]
-	
-	if fpath is not None:
-		out = open(fpath, "w")
-		out.writelines(lines)
-		out.close()
-		return "".join(lines)
-	else:
-		return "".join(lines)
+	i_ = 2
+	for parID in range(6):
+		parameter = parameters[parID]
+		if i_<len(lines):
+			if lines[i_].rstrip("\n")==parameter:
+				nodes = _slice_line(lines[i_+1])
+				atmos.nodes[parameter] = np.array(nodes)
+				num_nodes = len(nodes)
+				atmos.values[parameter] = np.zeros((nx, ny, num_nodes))
+
+				for j_ in range(nx*ny):
+					idx = j_//ny
+					idy = j_%ny
+
+					temps = _slice_line(lines[i_+2+j_])
+					atmos.values[parameter][idx, idy] = np.array(temps)
+
+				if parameter=="gamma" or parameter=="chi":
+					atmos.values[parameter] *= np.pi/180 # [deg --> rad]
+
+				i_ += nlines+1
+
+	return atmos

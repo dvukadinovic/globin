@@ -52,44 +52,27 @@ class Atmosphere(object):
 					  "gamma"  : 6,
 					  "chi"    : 7}
 
-	def __init__(self, fpath=None, atm_type="multi", verbose=False, atm_range=[0,None,0,None], nx=None, ny=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
-		self.verbose = verbose
+	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.fpath = fpath
 		self.type = atm_type
 
 		# list of fpath's to line lists (in mode=2)
 		self.line_lists_path = []
+		# list of fpath's to each atmosphere column
+		self.atm_name_list = []
 
-		# nodes: each atmosphere has the same nodes
+		# nodes: each atmosphere has the same nodes for given parameter
 		self.nodes = {}
-		
+		# parameters in nodes: shape = (nx, ny, nnodes)
+		self.values = {}
 		# node mask: we can specify only which nodes to invert (mask==1)
 		# structure and ordering same as self.nodes
 		self.mask = {}
-		
-		# parameters in nodes: shape = (nx, ny, nnodes)
-		self.values = {}
 		
 		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {}
 		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {}
-
-		self.nx, self.ny, self.npar = nx, ny, 14
-
-		# define log(tau) scale
-		self.nz = int((logtau_bot - logtau_top) / logtau_step) + 1
-		self.logtau = np.linspace(logtau_top, logtau_bot, num=self.nz)
-
-		# if we provided nx and ny, make empty atmosphere; otherwise set it to None
-		if (self.nx is not None) and (self.ny is not None):
-			self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-			self.data[:,:,0,:] = self.logtau
-		else:
-			self.data = None
-
-		self.path = None
-		self.atm_name_list = []
 
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
@@ -97,24 +80,35 @@ class Atmosphere(object):
 		self.ymax = atm_range[3]
 
 		# if we provide path to atmosphere, read in data
-		if fpath is not None:
-			# by file extension determine atmosphere type / format
-			extension = fpath.split(".")[-1]
+		if self.fpath is not None:
+			extension = self.fpath.split(".")[-1]
 
-			# read atmosphere by the type
 			if extension=="dat" or extension=="txt" or extension=="atmos":
 				if self.type=="spinor":
-					self.read_spinor(fpath)
+					atmos = globin.input.read_spinor(self.fpath)
 				elif self.type=="multi":
-					self.read_multi(fpath)
-			# read fits / fit / cube type atmosphere
-			elif extension=="fits" or extension=="fit":
-				self.read_fits(fpath, atm_range)
+					atmos = globin.input.read_multi(self.fpath)
+					print()
+			elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
+				atmos = globin.input.read_inverted_atmosphere(self.fpath, atm_range)
 			else:
 				print("--> Error in atmos.Atmosphere()")
 				print(f"    Unsupported extension '{extension}' of atmosphere file.")
 				print("    Supported extensions are: .dat, .txt, .fit(s)")
 				sys.exit()
+			
+			self.nx, self.ny, self.npar, self.nz = atmos.data.shape
+			self.data = atmos.data
+			self.logtau = atmos.logtau
+			self.nodes = atmos.nodes
+			self.values = atmos.values
+			self.mask = atmos.mask
+		else:
+			if (nx is not None) and (ny is not None) and (nz is not None):
+				self.nx, self.ny, self.npar, self.nz = nx, ny, 14, nz
+				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+			else:
+				self.data = None
 
 	def __deepcopy__(self, memo):
 		new = Atmosphere()
@@ -145,127 +139,6 @@ class Atmosphere(object):
 
 	def __str__(self):
 		return "<Atmosphere: fpath = {}, (nx,ny,npar,nz) = ({},{},{},{})>".format(self.fpath, self.nx, self.ny, self.npar, self.nz)
-
-	def read_fits(self, fpath, atm_range):
-		try:
-			atmos = fits.open(fpath)[0]
-		except:
-			print("--> Error in atmos.read_fits()")
-			print(f"    Atmosphere file with path '{fpath}' does not exist.")
-			sys.exit()
-
-		self.header = atmos.header
-		atmos_data = np.array(atmos.data, dtype=np.float64)
-		xmin, xmax, ymin, ymax = atm_range
-		atmos_data = atmos_data[xmin:xmax, ymin:ymax]
-		logtau = atmos_data[0,0,0]
-		self.path = fpath
-		self.nx, self.ny, self.nz = atmos_data.shape[0], atmos_data.shape[1], atmos_data.shape[3]
-
-		self.convert_atmosphere(logtau, atmos_data)
-
-		print(f"Read atmosphere '{self.path}' with dimensions:")
-		print(f"  (nx, ny, npar, nz) = {self.data.shape}\n")
-
-	def read_spinor(self, fpath):
-		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
-		logtau = atmos_data[0]
-		self.nz = atmos_data.shape[1]
-		self.nx = 1
-		self.ny = 1
-		
-		aux = np.zeros((self.nx, self.ny, *atmos_data.shape))
-		aux[0,0] = atmos_data
-
-		self.convert_atmosphere(logtau, aux)
-
-	def read_sir(self):
-		pass
-
-	def read_multi(self, fpath):
-		lines = open(fpath, "r").readlines()
-
-		# remove commented lines
-		lines = [line.rstrip("\n") for line in lines if "*" not in line]
-
-		# get number of depth points
-		ndpth = int(lines[3].replace(" ", ""))
-
-		self.nz = ndpth
-		self.nx, self.ny = 1, 1
-		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-
-		for i_ in range(ndpth):
-			# read first part of the atmosphere
-			lista = list(filter(None,lines[4+i_].split(" ")))
-			self.data[0,0,0,i_], \
-			self.data[0,0,1,i_], \
-			self.data[0,0,2,i_], \
-			self.data[0,0,3,i_], \
-			self.data[0,0,4,i_] = [float(element) for element in lista]
-
-			# read H populations
-			lista = list(filter(None,lines[4+ndpth+i_].split(" ")))
-			self.data[0,0,8,i_], \
-			self.data[0,0,9,i_], \
-			self.data[0,0,10,i_], \
-			self.data[0,0,11,i_], \
-			self.data[0,0,12,i_], \
-			self.data[0,0,13,i_] = [float(element) for element in lista]			
-
-	def convert_atmosphere(self, logtau, atmos_data):
-		if self.type=="spinor":
-			multi_atmos = self.spinor2multi(atmos_data)
-			# if not np.array_equal(multi_atmos[0,0,0], self.logtau):
-			# 	self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
-			# else:
-			# 	self.logtau = multi_atmos[0,0,0]
-			# 	self.data = multi_atmos
-			# DV: removed interpolation when we convert from SPINOR;
-			#     we use optical depth scale from input atmosphere
-			self.logtau = multi_atmos[0,0,0]
-			self.data = multi_atmos
-		elif self.type=="sir":
-			self.sir2multi()
-		elif self.type=="multi":
-			# if not np.array_equal(logtau, self.logtau):
-			# 	self.interpolate_atmosphere(x_new=logtau, ref_atm=atmos_data)
-			# else:
-			# DV: removed interpolation when we use MULTI type;
-			#     we use optical depth scale from input atmosphere
-			self.logtau = logtau
-			self.data = atmos_data
-		else:
-			print("--> Error in atmos.read_fits()")
-			print(f"    Currently not recognized atmosphere type: {self.type}")
-			print("    Recognized ones are: spinor, sir and multi.")
-			sys.exit()
-
-	def spinor2multi(self, atmos_data, do_HSE=False):
-		nx, ny, _, nz = atmos_data.shape
-		npar = 14
-
-		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
-		idx = idx.flatten()
-		idy = idy.flatten()
-
-		atmos_data = [atmos_data[IDx,IDy] for IDx,IDy in zip(idx,idy)]
-
-		args = zip([do_HSE]*(nx*ny), atmos_data)
-
-		print("Converting atmosphere...")
-		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
-
-		atmos = np.zeros((nx, ny, npar, nz))
-		print("Assigning values to data cube")
-		for i_,in_data in enumerate(items):
-			IDx, IDy = idx[i_], idy[i_]
-			atmos[IDx,IDy] = in_data
-
-		return atmos
-
-	def sir2multi(self):
-		pass
 
 	def get_atmos(self, idx, idy):
 		# return atmosphere from cube with given indices 'idx' and 'idy'.
@@ -316,7 +189,7 @@ class Atmosphere(object):
 			self.data[idx,idy] = atm[idl].data[idx,idy]
 
 	def makeHSE(self, idx, idy):
-		press, pel, kappa = globin.makeHSE(5000, self.logtau, self.data[idx,idy,1])
+		press, pel, kappa = globin.makeHSE(5000, self.data[idx,idy,0], self.data[idx,idy,1])
 		
 		# electron density [1/cm3]
 		self.data[idx,idy,2] = pel/10/globin.K_BOLTZMAN/self.data[idx,idy,1]/1e6
@@ -1088,13 +961,13 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 		if par_flag[i_]:
 			rfID = rf_id[par]
 			key = "RF_" + par.upper()
-			globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
+			globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
 			
 			pars = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 			pars.remove(par)
 			for item in pars:
 				key = "RF_" + item.upper()
-				globin.keyword_input = globin.set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
+				globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
 			rf_list = globin.pool.map(func=globin.pool_rf, iterable=args)
 
@@ -1268,3 +1141,99 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 		fits.writeto(fpath, rf, overwrite=True)
 
 	return rf, spec
+
+def convert_atmosphere(logtau, atmos_data, atm_type):
+	"""
+	Routine for general conversion of the input 'atmos_data' from 'atm_type' 
+	to MULTI type atmosphere. We return globin.atmos.Atmosphere() object.
+
+	Parameters:
+	-----------
+	atmos_data : ndarray
+		atmosphere data to be converted. Can have dimensions of (npar, nz) or
+		(nx, ny, npar, nz).
+	atm_type : string
+		type of input atmosphere to be converted
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere() object
+	"""
+	if atm_type=="spinor":
+		atmos = spinor2multi(atmos_data)
+		# if not np.array_equal(multi_atmos[0,0,0], self.logtau):
+		# 	self.interpolate_atmosphere(x_new=self.logtau, ref_atm=multi_atmos)
+		# else:
+		# 	self.logtau = multi_atmos[0,0,0]
+		# 	self.data = multi_atmos
+		# DV: removed interpolation when we convert from SPINOR;
+		#     we use optical depth scale from input atmosphere
+		# self.logtau = multi_atmos[0,0,0]
+		# self.data = multi_atmos
+	elif atm_type=="sir":
+		atmos = sir2multi(atmos_data)
+	else:
+		print("--> Error in atmos.convert_atmosphere()")
+		print(f"    Currently not recognized atmosphere type: {atm_type}")
+		print("    Recognized ones are: spinor, sir.")
+		sys.exit()
+
+	return atmos
+
+def spinor2multi(atmos_data, do_HSE=False, nproc=1):
+	"""
+	Routine for converting 'atmos_data' from SPINOR to MULTI type.
+
+	Parameters:
+	-----------
+	atmos_data : ndarray
+		atmosphere data to be converted. Can have dimensions of (npar, nz) or
+		(nx, ny, npar, nz).
+	do_HSE : bool (optional)
+		flag which defines if we are seting H pops from temperature of input atmosphere.
+		Otherwise, we use Pe and Pg from input atmosphere (default).
+	nproc : int (optional)
+		number of proceses to be used for conversion. Default is 1.
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere()
+	"""
+	dim = atmos_data.ndim
+	if dim==2:
+		_, nz = atmos_data.shape
+		nx, ny = 1, 1
+		idx, idy = [0], [0]
+		atmos_data = [atmos_data]
+	elif dim==4:
+		nx, ny, _, nz = atmos_data.shape
+		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
+		idx = idx.flatten()
+		idy = idy.flatten()
+		atmos_data = [atmos_data[IDx,IDy] for IDx,IDy in zip(idx,idy)]
+	else:
+		print("--> Error: unknown number of dimensions for atmosphere")
+		print("    to be converted from SPINOR to MULTI format.\n")
+		sys.exit()
+
+	args = zip([do_HSE]*(nx*ny), atmos_data)
+
+	print("Converting atmosphere...")
+	try:
+		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
+	except:
+		import multiprocessing as mp
+		with mp.Pool(nproc) as pool:
+			items = pool.map(func=globin.pool_spinor2multi, iterable=args)
+	print("Done!")
+
+	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+	for i_,in_data in enumerate(items):
+		IDx, IDy = idx[i_], idy[i_]
+		atmos.data[IDx,IDy] = in_data
+	atmos.logtau = atmos.data[0,0,0]
+
+	return atmos
+
+def sir2multi(atmos_data):
+	pass

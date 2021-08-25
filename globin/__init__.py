@@ -18,18 +18,19 @@ Contributors:
 import os
 import numpy as np
 
+from .atmos import \
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf
+
 from .input import \
-	read_input, read_node_atmosphere, set_keyword, \
-	write_line_parameters, write_line_par
+	read_input, read_node_atmosphere, \
+	write_line_parameters, write_line_par, \
+	read_inverted_atmosphere
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
 
 from .rh import \
 	write_wavs, Rhout, write_B
-
-from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf
 
 from .spec import \
 	Observation, Spectrum

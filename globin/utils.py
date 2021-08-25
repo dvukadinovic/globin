@@ -254,3 +254,68 @@ def set_parameter(args):
         else:
             globin.atm.global_pars[parameter] = value
             globin.atm.vmac = value
+
+def _set_keyword(text, key, value, fpath=None):
+    """
+    Go through 'text' and set the value of 'key' to 'value'. 
+    Optionaly, save the text into file 'fpath'
+
+    Parameters:
+    -----------
+    text : string
+        text to be processed
+    key : string
+        name of the key to be set
+    value : string
+        value to assign to 'key'
+    fpath : string (optional)
+        path to which 
+
+    Return:
+    -------
+    text : string
+        text with new 'value' for the 'key'
+    -------
+    """
+    lines = text.split("\n")
+        
+    line_num = None
+    for num, line in enumerate(lines):
+        line = line.replace(" ","")
+        if len(line)>0:
+            if line[0]!="#":
+                if key in line:
+                    line_num = num
+                    break
+
+    # if we found a key in the text, change it's value
+    if line_num is not None:
+        lines[num] = "  " + key + " = " + value
+    # if we have not found a key in the text, we add it at the begin
+    else:
+        line = "  " + key + " = " + value
+        lines.insert(0, line)
+        pass
+
+    lines = [line + "\n" for line in lines]
+    
+    # concatanate all the lines into signle string
+    if fpath is not None:
+        out = open(fpath, "w")
+        out.writelines(lines)
+        out.close()
+        return "".join(lines)
+    else:
+        return "".join(lines)
+
+def _slice_line(line, dtype=float):
+    # remove 'new line' character
+    line = line.rstrip("\n")
+    # split line data based on 'space' separation
+    line = line.split(" ")
+    # filter out empty entries and convert to list
+    lista = list(filter(None, line))
+    # map read values into given data type
+    lista = map(dtype, lista)
+    # return list of values
+    return list(lista)
