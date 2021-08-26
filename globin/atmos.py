@@ -79,6 +79,8 @@ class Atmosphere(object):
 		self.ymin = atm_range[2]
 		self.ymax = atm_range[3]
 
+		self.npar = 14
+
 		# if we provide path to atmosphere, read in data
 		if self.fpath is not None:
 			extension = self.fpath.split(".")[-1]
@@ -105,7 +107,7 @@ class Atmosphere(object):
 			self.mask = atmos.mask
 		else:
 			if (nx is not None) and (ny is not None) and (nz is not None):
-				self.nx, self.ny, self.npar, self.nz = nx, ny, 14, nz
+				self.nx, self.ny, self.nz = nx, ny, nz
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 			else:
 				self.data = None
