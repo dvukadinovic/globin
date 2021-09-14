@@ -7,7 +7,8 @@ class Line(object):
     def __init__(self, lineNo=None, lam0=None,
                     loggf=None, loggf_min=None, loggf_max=None,
                     dlam=None, dlam_min=None, dlam_max=None,
-                    ion=None, state=None, e1=None, e2=None):
+                    ion=None, state=None, e1=None, e2=None,
+                    gLlow=None, gLup=None):
         self.lineNo = lineNo
         self.lam0 = lam0
         self.loggf = loggf
@@ -21,6 +22,9 @@ class Line(object):
         self.state = state
         self.e1 = e1
         self.e2 = e2
+
+        self.gLlow = gLlow
+        self.gLup = gLup
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
@@ -57,15 +61,19 @@ def read_RLK_lines(fpath):
         state = round(decimal*100)
         e1 = float(line[23:35])*0.00012 # [1/cm --> eV]
         e2 = float(line[51:63])*0.00012 # [1/cm --> eV]
+        gLlow = float(line[144:149])
+        gLup = float(line[150:155])
 
         if e1>e2:
             RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
                                   ion=ion, state=state,
-                                  e1=e2, e2=e1))
+                                  e1=e2, e2=e1,
+                                  gLlow=gLlow, gLup=gLup))
         else:
             RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
                                   ion=ion, state=state,
-                                  e1=e1, e2=e2))
+                                  e1=e1, e2=e2,
+                                  gLlow=gLlow, gLup=gLup))
 
     return text_lines, RLK_lines
 
@@ -213,7 +221,7 @@ def check_init_loggf():
     """
     pass
 
-def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None):
+def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None, min_max={"loggf" : 1, "dlam" : 25}):
     out = open(fpath, "w")
 
     if loggf is not None:
@@ -221,16 +229,16 @@ def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None):
             out.write("loggf    ")
             out.write("{: 3d}    ".format(idl+1))
             out.write("{: 4.3f}    ".format(val))
-            out.write("{: 4.3f}    ".format(val-0.5))
-            out.write("{: 4.3f}\n".format(val+0.5))
+            out.write("{: 4.3f}    ".format(val-min_max["loggf"]))
+            out.write("{: 4.3f}\n".format(val+min_max["loggf"]))
     
     if dlam is not None:
         for val,idl in zip(dlam, dlamID):
             out.write("dlam     ")
             out.write("{: 3d}   ".format(idl+1))
             out.write("{: 5.3f}   ".format(val))
-            out.write("{: 5.3f}   ".format(val-25))
-            out.write("{: 5.3f}\n".format(val+25))
+            out.write("{: 5.3f}   ".format(val-min_max["dlam"]))
+            out.write("{: 5.3f}\n".format(val+min_max["dlam"]))
 
     out.close()
 
