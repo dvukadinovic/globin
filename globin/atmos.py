@@ -991,6 +991,9 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	return rf
 
 def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
+	if (local_params is None) and (global_params is None):
+		return
+
 	from tqdm import tqdm
 
 	# set reference atmosphere
@@ -1027,8 +1030,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 			perturbation = globin.delta[parameter]
 			parID = atmos.par_id[parameter]
 
-			# for zID in tqdm(range(atmos.nz)):
-			for zID in tqdm(range(1)):
+			for zID in tqdm(range(atmos.nz)):
 				model_plus.data[:,:,parID,zID] += perturbation
 				model_plus.write_atmosphere()
 				spec_plus,_,_ = compute_spectra(model_plus)
