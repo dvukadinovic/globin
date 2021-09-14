@@ -225,7 +225,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		sys.exit()
 
 	#--- read data for different modus operandi
-	if globin.mode==0:
+	if globin.mode<=0:
 		read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
 		globin.atm.line_lists_path = [f"runs/{globin.wd}/{globin.linelist_name}"]
 	elif globin.mode>=1:

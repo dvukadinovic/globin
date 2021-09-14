@@ -622,7 +622,7 @@ def compute_spectra(atmos):
 		globin.remove_dirs()
 		sys.exit()
 
-	if globin.mode==0 or globin.mode==1 or globin.mode==3:
+	if globin.mode<=0 or globin.mode==1 or globin.mode==3:
 		args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
 	elif globin.mode==2:
 		args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
@@ -1001,10 +1001,6 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 	atmos.line_no = globin.atm.line_no
 	atmos.global_pars = globin.atm.global_pars
 
-	spec, _,_ = compute_spectra(atmos)
-	if not globin.mean:
-		spec.broaden_spectra(atmos.vmac)
-
 	#--- copy current atmosphere to new model atmosphere with +/- perturbation
 	model_plus = copy.deepcopy(atmos)
 	model_minus = copy.deepcopy(atmos)
@@ -1031,18 +1027,19 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 			perturbation = globin.delta[parameter]
 			parID = atmos.par_id[parameter]
 
-			for zID in tqdm(range(atmos.nz)):
+			# for zID in tqdm(range(atmos.nz)):
+			for zID in tqdm(range(1)):
 				model_plus.data[:,:,parID,zID] += perturbation
 				model_plus.write_atmosphere()
 				spec_plus,_,_ = compute_spectra(model_plus)
 				if not globin.mean:
-					spec.broaden_spectra(atmos.vmac)
+					spec_plus.broaden_spectra(atmos.vmac)
 
 				model_minus.data[:,:,parID,zID] -= perturbation
 				model_minus.write_atmosphere()
 				spec_minus,_,_ = compute_spectra(model_minus)
 				if not globin.mean:
-					spec.broaden_spectra(atmos.vmac)
+					spec_minus.broaden_spectra(atmos.vmac)
 
 				diff = spec_plus.spec - spec_minus.spec
 
@@ -1067,6 +1064,10 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 				kernel = phi*(2*x**2/kernel_sigma**2 - 1)
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
+
+				spec, _,_ = compute_spectra(atmos)
+				if not globin.mean:
+					spec.broaden_spectra(atmos.vmac)
 
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
@@ -1094,7 +1095,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 					
 					spec_plus,_,_ = compute_spectra(atmos)
 					if not globin.mean:
-						spec.broaden_spectra(atmos.vmac)
+						spec_plus.broaden_spectra(atmos.vmac)
 
 					# negative perturbation
 					values -= 2*perturbation
@@ -1108,7 +1109,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 					
 					spec_minus,_,_ = compute_spectra(atmos)
 					if not globin.mean:
-						spec.broaden_spectra(atmos.vmac)
+						spec_minus.broaden_spectra(atmos.vmac)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
@@ -1141,9 +1142,52 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 				print(f"Parameter {parameter} not yet Supported.\n")
 
 	if fpath is not None:
-		fits.writeto(fpath, rf, overwrite=True)
+		primary = fits.PrimaryHDU(rf)
+		primary.name = "RF"
 
-	return rf, spec
+		np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(globin.wavelength), 4), dtype=np.float64)
+
+		primary.header.comments["NAXIS1"] = "stokes components"
+		primary.header.comments["NAXIS2"] = "number of wavelengths"
+		primary.header.comments["NAXIS3"] = "depth points"
+		primary.header.comments["NAXIS4"] = "number of parameters"
+		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
+		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
+
+		primary.header["STOKESV"] = ("IQUV", "ordering of Stokes vector")
+
+		i_ = 1
+		if local_params:
+			for par in local_params:
+				primary.header[f"PAR{i_}"] = (par, "parameter")
+				primary.header[f"PARID{i_}"] = (i_, "parameter ID")
+				i_ += 1
+		if global_params:
+			for par in global_params:
+				primary.header[f"PAR{i_}"] = (par, "parameter")
+				primary.header[f"PARID{i_}"] = (i_, "parameter ID")
+				i_ += 1
+
+		hdulist = fits.HDUList([primary])
+
+		#--- wavelength list
+		par_hdu = fits.ImageHDU(globin.wavelength)
+		par_hdu.name = "wavelength"
+		par_hdu.header["UNIT"] = "Angstrom"
+		par_hdu.header.comments["NAXIS1"] = "wavelengths"
+		hdulist.append(par_hdu)
+
+		#--- depth list
+		par_hdu = fits.ImageHDU(atmos.logtau)
+		par_hdu.name = "depths"
+		par_hdu.header["UNIT"] = "optical depth"
+		par_hdu.header.comments["NAXIS1"] = "depth stratification"
+		hdulist.append(par_hdu)
+
+		#--- save HUDs to fits file
+		hdulist.writeto(fpath, overwrite=True)
+
+	return rf
 
 def convert_atmosphere(logtau, atmos_data, atm_type):
 	"""
