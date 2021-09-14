@@ -357,7 +357,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 
 	#--- required parameters
 	path_to_observations = _find_value_by_key("observation", globin.parameters_input, "required")
-	globin.obs = Observation(path_to_observations, atm_range)
+	globin.obs = Observation(path_to_observations)
 	if globin.interpolate_obs or (not np.array_equal(globin.obs.wavelength, globin.wavelength)):
 		globin.obs.interpolate(globin.wavelength)
 
