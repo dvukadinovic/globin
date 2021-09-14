@@ -99,7 +99,8 @@ class Atmosphere(object):
 				print("    Supported extensions are: .dat, .txt, .fit(s)")
 				sys.exit()
 			
-			self.nx, self.ny, self.npar, self.nz = atmos.data.shape
+			self.shape = atmos.data.shape
+			self.nx, self.ny, self.npar, self.nz = self.shape
 			self.data = atmos.data
 			self.logtau = atmos.logtau
 			self.nodes = atmos.nodes

@@ -221,7 +221,7 @@ def makeHSE(wave, logt, temp):
 	pe = np.zeros(nz)
 	kappa = np.zeros(nz)
 
-	#--- get Pg, Pe and Kappa for top point of atmosphere
+	#--- get Pg and Pe for the top point of atmosphere
 	pg[0] = splev(np.log10(tau[0]), pg0_tck)
 	pe[0] = 1
 
@@ -266,9 +266,15 @@ def makeHSE(wave, logt, temp):
 	return pg, pe, kappa
 
 if __name__=="__main__":
-	wave = 5000
-	logt, _, temp = np.loadtxt("/media/dusan/storage/RH/hse/spinor.atmos", skiprows=1).T
+	import globin
+	from scipy.constants import k
 
-	pg, pe, kappa = makeHSE(wave, logt, temp)
-	print("electron pressure:")
-	print(pe)
+	atmos = globin.Atmosphere("./data/falc_multi.atmos")
+
+	# print(atmos.data[0,0,2] * 1e7 * k * atmos.data[0,0,1])
+
+	wave = 5000
+
+	pg, pe, kappa = makeHSE(wave, atmos.data[0,0,0], atmos.data[0,0,1])
+	# print("electron pressure:")
+	# print(pe)
