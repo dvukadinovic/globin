@@ -418,7 +418,10 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	if fpath is not None:
 		# read node parameters from .fits file that is inverted atmosphere
 		# from older inversion run
-		globin.atm = read_inverted_atmosphere(fpath, atm_range)
+		init_atmosphere = read_inverted_atmosphere(fpath, atm_range)
+		globin.atm.nodes = init_atmosphere.nodes
+		globin.atm.values = init_atmosphere.values
+		globin.atm.mask = init_atmosphere.mask
 		if (globin.atm.nx!=globin.obs.nx) or (globin.atm.ny!=globin.obs.ny):
 			print("--> Error in input.read_inverted_atmosphere()")
 			print("    initial atmosphere does not have same dimensions")
@@ -673,6 +676,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
 	atmos.data = data
 	atmos.logtau = data[0,0,0]
+	atmos.header = hdu_list[0].header
 
 	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 		try:

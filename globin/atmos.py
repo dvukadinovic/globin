@@ -106,7 +106,9 @@ class Atmosphere(object):
 			self.nodes = atmos.nodes
 			self.values = atmos.values
 			self.mask = atmos.mask
+			self.header = atmos.header
 		else:
+			self.header = None
 			if (nx is not None) and (ny is not None) and (nz is not None):
 				self.nx, self.ny, self.nz = nx, ny, nz
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)

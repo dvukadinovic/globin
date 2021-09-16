@@ -40,7 +40,6 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
     """
     n = len(x)
     x = np.round(x, 2)
-    # xintp = np.round(xintp, 2)
 
     # in single node case, we return constant value
     if n==1:
@@ -78,7 +77,7 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
             f = y[i+1] - dx_0/3 * y_prim[i+1]
             curves[i] = get_func3(y[i], e, f, y[i+1])
 
-    # evaluete spline at given points
+    # evalueate spline at given points
     yintp = np.zeros(len(xintp), dtype=np.float64)
     for j in range(len(xintp)):
         for k in range(n-1):

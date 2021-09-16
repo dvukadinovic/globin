@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import copy
 from astropy.io import fits
-from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 import sys
 
 import globin
@@ -227,101 +226,97 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(rf=None, fpath=None):
-	"""
-	rf.shape = (nx, ny, 6, nz, nw, 4))
-	"""
+def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", norm=True):
+	cmap = {"temp"  : "YlOrRd", 
+			"vmic"  : "bwr",
+			"vz"    : "bwr", 
+			"mag"   : "bwr", 
+			"gamma" : "bwr",
+			"chi"   : "bwr"}
+	cbar_label = {"temp"   : "T [K]", 
+				  "vmic"   : r"$v_\mathrm{mic}$",
+				  "vz"     : r"$v_z$ [km/s]", 
+				  "mag"    : "B [G]", 
+				  "gamma"  : r"$\gamma$", 
+				  "chi"    : r"$\chi$"}
+	stokesV = {"I" : 0, "Q" : 1, "U" : 2, "V" : 3}
+
 	if fpath is not None:
-		rf = fits.open(fpath)[0].data
+		hdulist = fits.open(fpath)
+		print(repr(hdulist[0].header))
 	else:
-		if rf is None:
-			print("No data to plot! Provide path to RF or give me the cube!")
-			sys.exit()
+		sys.exit("No RF file to open.")
 
-	# nx, ny, np, nz=51, nw=201, ns=4
-	print(rf.shape)
+	logtau = hdulist["depths"].data
+	wavs = hdulist["wavelength"].data
+	lam_min, lam_max = wavs[0], wavs[-1]
+	lam0 = (lam_max + lam_min)/2
 
-	idx, idy = 0,0
-	idp = 0
+	# rf.shape = (nx, ny, 6, nz, nw, 4)
+	rf = hdulist["RF"].data
+	nx, ny, npar, nz, nw, ns = rf.shape
 
-	xpos = np.linspace(0, 200, num=11)
-	xvals = np.round(np.linspace(-1, 1, num=11), decimals=1)
+	pars = [hdulist["RF"].header[f"PAR{i_+1}"] for i_ in range(npar)]
+	parIDs = [hdulist["RF"].header[f"PARID{i_+1}"]-1 for i_ in range(npar)]
+	pars = dict(zip(pars, parIDs))
 
-	ypos = np.linspace(0, 50, num=6)
-	yvals = np.round(np.linspace(-4, 1, num=6), decimals=1)
+	stokes_range = []
+	stokes_labels = []
+	for item in Stokes:
+		item = item.upper()
+		stokes_range.append(stokesV[item])
+		stokes_labels.append(f"Stokes {item}")
 
-	# aux = np.sum(rf[idx, idy, idp, :, :, 0], axis=1)
-	# norm = np.sqrt(np.sum(aux**2))
-	# plt.plot(np.linspace(-4, 1, num=51), aux/norm)
-	# plt.show()
-	# return
+	NZ = np.int((logtau[-1] - logtau[0]))
 
-	# for idp in range(18):
-	# plt.plot(rf[0,idy,0,0,:,0])
-	# plt.plot(rf[4,idy,0,0,:,0])
-	# plt.plot(rf[8,idy,0,0,:,0])
-	# plt.show()
-	# sys.exit()
+	nrows = len(params)
+	ncols = len(stokes_range)
+	NW = 11
+	if ncols!=1:
+		NW = 5
 
-	fig = plt.figure(figsize=(9,9), dpi=150)
-	gs = fig.add_gridspec(nrows=4, ncols=1, wspace=0.35, hspace=0.5)
+	xpos = np.linspace(0, nw, num=NW)
+	xvals = np.round(np.linspace(lam_min-lam0, lam_max-lam0, num=NW), decimals=2)
+	ypos = np.linspace(0, nz, num=NZ)
+	yvals = np.round(np.linspace(logtau[0], logtau[-1], num=NZ), decimals=2)
+	
+	fig = plt.figure(figsize=(12,10), dpi=150)
+	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.35, hspace=0.5)
 
-	ax = fig.add_subplot(gs[0,0])
-	matrix = rf[idx, idy, idp, :, :, 0]
-	# norm = np.sqrt(np.sum(matrix**2))
-	# matrix /= norm
-	# vmax = np.max(np.abs(matrix))
-	# im = ax.imshow(rf[idx, idy, idp, :, :, 0], aspect="auto", cmap="OrRd", vmin=0, vmax=vmax)
-	im = ax.imshow(matrix, aspect="auto", cmap="OrRd", vmin=None, vmax=None)
-	add_colorbar(fig, ax, im)
-	ax.set_xticks(xpos)
-	ax.set_xticklabels(xvals)
-	ax.set_yticks(ypos)
-	ax.set_yticklabels(yvals)
-	ax.grid(b=True, which="major", axis="y", lw=0.5)
+	for i_, parameter in enumerate(params):
+		try:
+			idp = pars[parameter]
+		except:
+			sys.exit(f"No RF for parameter {parameter}")
 
-	ax = fig.add_subplot(gs[1,0])
-	matrix = rf[idx, idy, idp, :, :, 1]
-	norm = np.sqrt(np.sum(matrix**2))
-	matrix /= norm
-	vmax = np.max(np.abs(matrix))
-	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
-	add_colorbar(fig, ax, im)
-	ax.set_xticks(xpos)
-	ax.set_xticklabels(xvals)
-	ax.set_yticks(ypos)
-	ax.set_yticklabels(yvals)
-	ax.grid(b=True, which="major", axis="y", lw=0.5)
-
-	ax = fig.add_subplot(gs[2,0])
-	matrix = rf[idx, idy, idp, :, :, 2]
-	norm = np.sqrt(np.sum(matrix**2))
-	matrix /= norm
-	vmax = np.max(np.abs(matrix))
-	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
-	add_colorbar(fig, ax, im)
-	ax.set_xticks(xpos)
-	ax.set_xticklabels(xvals)
-	ax.set_yticks(ypos)
-	ax.set_yticklabels(yvals)
-	ax.grid(b=True, which="major", axis="y", lw=0.5)
-
-	ax = fig.add_subplot(gs[3,0])
-	matrix = rf[idx, idy, idp, :, :, 3]
-	norm = np.sqrt(np.sum(matrix**2))
-	matrix /= norm
-	vmax = np.max(np.abs(matrix))
-	im = ax.imshow(matrix, aspect="auto", cmap="seismic", vmin=-vmax, vmax=vmax)
-	add_colorbar(fig, ax, im)
-	ax.set_xticks(xpos)
-	ax.set_xticklabels(xvals)
-	ax.set_yticks(ypos)
-	ax.set_yticklabels(yvals)
-	ax.grid(b=True, which="major", axis="y", lw=0.5)
+		for j_, ids in enumerate(stokes_range):
+			ax = fig.add_subplot(gs[i_,j_])
+			if i_==0:
+				ax.set_title(stokes_labels[j_])
+			matrix = rf[idx, idy, idp, :, :, ids]
+			if norm:
+				norm = np.sqrt(np.sum(matrix**2))
+				matrix /= norm
+			vmax = np.max(np.abs(matrix))
+			vmin = -vmax
+			par_cmap = cmap[parameter]
+			if parameter=="temp":
+				if ids!=0:
+					par_cmap = "bwr"
+				else:
+					vmin = 0
+			im = ax.imshow(matrix, aspect="auto", cmap=par_cmap, vmin=vmin, vmax=vmax)
+			add_colorbar(fig, ax, im, label=cbar_label[parameter])
+			ax.set_xticks(xpos)
+			ax.set_xticklabels(xvals)
+			ax.set_yticks(ypos)
+			ax.set_yticklabels(yvals)
+			ax.grid(b=True, which="major", axis="y", lw=0.5)
 
 	plt.show()
 
 def add_colorbar(fig, ax, im, label=None):
+	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 	axins = inset_axes(ax,
 	                   width="2%",
 	                   height="100%",
