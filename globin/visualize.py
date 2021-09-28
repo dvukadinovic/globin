@@ -59,7 +59,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 
-def plot_spectra(obs, wavelength, inv=None, title=None):
+def plot_spectra(obs, wavelength, inv=None, axes=None, norm=False, color="tab:blue", lw=1, title=None, subtitles=False):
 	"""
 	Plot spectra.
 
@@ -79,132 +79,144 @@ def plot_spectra(obs, wavelength, inv=None, title=None):
 	lmax = np.max(wavelength)
 	dlam = (lmax - lmin) * 10
 
-	# Icont = np.max(obs.spec[idx,idy,:,0])
-
-	# obs.spec /= Icont
-	# if inv is not None:
-	# 	print("Normed inverted spec")
-	# 	inv.spec /= Icont
-	# for ids in range(1,4):
-	# 	obs.spec[:,:,:,ids] *= 100
-	# 	if inv is not None:	
-	# 		inv.spec[:,:,:,ids] *= 100
+	if norm:
+		coeff = (obs[0,0] - obs[-1,0]) / (wavelength[0] - wavelength[-1])
+		n = obs[0,0] - coeff * wavelength[0]
+		Icont = coeff * wavelength + n
+		for ids in range(4):
+			obs[:,ids] /= Icont
 
 	if title:
-		fig.suptitle(title, fontsize=16)
+		fig.suptitle(title)
 
 	if inv is None:
-		# Stokes I
-		plt.subplot(2,2,1)
-		plt.title("Stokes I")
-		plt.plot((wavelength - lmin)*10, obs[:,0])
-		plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		plt.xlim([0, dlam])
-		# Stokes Q
-		plt.subplot(2,2,2)
-		plt.title("Stokes Q")
-		plt.plot((wavelength - lmin)*10, obs[:,1])
-		plt.xlim([0, dlam])
-		# Stokes U
-		plt.subplot(2,2,3)
-		plt.title("Stokes U")
-		plt.plot((wavelength - lmin)*10, obs[:,2])
-		plt.xlim([0, dlam])
-		plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
-		plt.ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		# Stokes V
-		plt.subplot(2,2,4)
-		plt.title("Stokes V")
-		plt.plot((wavelength - lmin)*10, obs[:,3])
-		plt.xlim([0, dlam])
-		plt.xlabel(r"$\Delta \lambda$ [$\AA$]")
-	else:
-		fig = plt.figure(figsize=(9,9), dpi=150)
-		gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.5)
-		
+		if axes is None:
+			fig = plt.figure(figsize=(8,6))
+			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.3, hspace=0.3)
+			axI = fig.add_subplot(gs[0,0])
+			axQ = fig.add_subplot(gs[0,1])
+			axU = fig.add_subplot(gs[1,0])
+			axV = fig.add_subplot(gs[1,1])
+		else:
+			axI, axQ, axU, axV = axes
+
 		#--- Stokes I
-		gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-
-		ax0 = fig.add_subplot(gsSI[0,0])
-		ax0.set_title("Stokes I")
-		ax0.plot((wavelength - lmin)*10, obs[:,0], "k-", markersize=2)
-		ax0.plot((wavelength - lmin)*10, inv[:,0], color="tab:red", lw=1.5)
-		# ax0.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0.set_ylabel("I")
-		ax0.set_xticks([], [])
-		ax0.set_xlim([0, dlam])
-
-		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs[:,0] - inv[:,0]
-		# difference /= obs[:,0] / 100
-		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-		ax1.set_ylabel(r"$\Delta I$")
-		ax1.set_xlim([0, dlam])
+		if subtitles:
+			axI.set_title("Stokes I")
+			axQ.set_title("Stokes Q")
+			axU.set_title("Stokes U")
+			axV.set_title("Stokes V")
+		
+		axI.plot((wavelength - lmin)*10, obs[:,0], lw=lw, color=color)
+		axI.set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		axI.set_xlim([0, dlam])
 
 		#--- Stokes Q
-		gsSI = gs[0,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-
-		ax0 = fig.add_subplot(gsSI[0,0])
-		ax0.set_title("Stokes Q")
-		ax0.plot((wavelength - lmin)*10, obs[:,1], "k-", markersize=2)
-		ax0.plot((wavelength - lmin)*10, inv[:,1], color="tab:red", lw=1.5)
-		# ax0.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0.set_ylabel("Q")
-		ax0.set_xticks([], [])
-		ax0.set_xlim([0, dlam])
-
-		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs[:,1] - inv[:,1]
-		# difference /= obs[:,1] / 100
-		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-		ax1.set_ylabel(r"$\Delta Q$")
-		ax1.set_xlim([0, dlam])
-
+		axQ.plot((wavelength - lmin)*10, obs[:,1]*100, lw=lw, color=color)
+		axQ.set_ylabel(r"Stokes Q/I$_\mathrm{c}$ [%]")
+		axQ.set_xlim([0, dlam])
+		
 		#--- Stokes U
-		gsSI = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-
-		ax0 = fig.add_subplot(gsSI[0,0])
-		ax0.set_title("Stokes U")
-		ax0.plot((wavelength - lmin)*10, obs[:,2], "k-", markersize=2)
-		ax0.plot((wavelength - lmin)*10, inv[:,2], color="tab:red", lw=1.5)
-		# ax0.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0.set_ylabel("U")
-		ax0.set_xticks([], [])
-		ax0.set_xlim([0, dlam])
-
-		ax1 = fig.add_subplot((gsSI[1,0]))
-		difference = obs[:,2] - inv[:,2]
-		# difference /= obs[:,2] / 100
-		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-		ax1.set_ylabel(r"$\Delta U$")
-		ax1.set_xlim([0, dlam])
+		axU.plot((wavelength - lmin)*10, obs[:,2]*100, lw=lw, color=color)
+		axU.set_xlim([0, dlam])
+		axU.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [%]")
 		
 		#--- Stokes V
-		gsSI = gs[1,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+		axV.plot((wavelength - lmin)*10, obs[:,3]*100, lw=lw, color=color)
+		axV.set_xlim([0, dlam])
+		axV.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [%]")
 
-		ax0 = fig.add_subplot(gsSI[0,0])
-		ax0.set_title("Stokes V")
-		ax0.plot((wavelength - lmin)*10, obs[:,3], "k-", markersize=2)
-		ax0.plot((wavelength - lmin)*10, inv[:,3], color="tab:red", lw=1.5)
-		# ax0.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0.set_ylabel("V")
-		ax0.set_xticks([], [])
-		ax0.set_xlim([0, dlam])
+		return axI, axQ, axU, axV
+	else:
+		if axes is None:
+			fig = plt.figure(figsize=(9,9))
+			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.3, hspace=0.3)
+			gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+			ax0_SI = fig.add_subplot(gsSI[0,0])
+			ax1_SI = fig.add_subplot((gsSI[1,0]))
+			gsSQ = gs[0,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+			ax0_SQ = fig.add_subplot(gsSQ[0,0])
+			ax1_SQ = fig.add_subplot((gsSQ[1,0]))
+			gsSU = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+			ax0_SU = fig.add_subplot(gsSU[0,0])
+			ax1_SU = fig.add_subplot((gsSU[1,0]))
+			gsSV = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+			ax0_SV = fig.add_subplot(gsSV[0,0])
+			ax1_SV = fig.add_subplot((gsSV[1,0]))
+		else:
+			ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV = axes	
+		
+		#--- Stokes I
+		ax0_SI.set_title("Stokes I")
+		ax0_SI.plot((wavelength - lmin)*10, obs[:,0], "k-", markersize=2)
+		ax0_SI.plot((wavelength - lmin)*10, inv[:,0], color="tab:red", lw=1.5)
+		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		ax0_SI.set_ylabel("I")
+		ax0_SI.set_xticks([], [])
+		ax0_SI.set_xlim([0, dlam])
 
-		ax1 = fig.add_subplot((gsSI[1,0]))
+		difference = obs[:,0] - inv[:,0]
+		# difference /= obs[:,0] / 100
+		ax1_SI.plot([0, dlam], [0,0], color="k", lw=0.5)
+		ax1_SI.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SI.set_ylabel(r"$\Delta I$")
+		ax1_SI.set_xlim([0, dlam])
+
+		#--- Stokes Q
+		ax0_SQ.set_title("Stokes Q")
+		ax0_SQ.plot((wavelength - lmin)*10, obs[:,1], "k-", markersize=2)
+		ax0_SQ.plot((wavelength - lmin)*10, inv[:,1], color="tab:red", lw=1.5)
+		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		ax0_SQ.set_ylabel("Q")
+		ax0_SQ.set_xticks([], [])
+		ax0_SQ.set_xlim([0, dlam])
+
+		difference = obs[:,1] - inv[:,1]
+		# difference /= obs[:,1] / 100
+		ax1_SQ.plot([0, dlam], [0,0], color="k", lw=0.5)
+		ax1_SQ.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SQ.set_ylabel(r"$\Delta Q$")
+		ax1_SQ.set_xlim([0, dlam])
+
+		#--- Stokes U
+		ax0_SU.set_title("Stokes U")
+		ax0_SU.plot((wavelength - lmin)*10, obs[:,2], "k-", markersize=2)
+		ax0_SU.plot((wavelength - lmin)*10, inv[:,2], color="tab:red", lw=1.5)
+		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		ax0_SU.set_ylabel("U")
+		ax0_SU.set_xticks([], [])
+		ax0_SU.set_xlim([0, dlam])
+
+		difference = obs[:,2] - inv[:,2]
+		# difference /= obs[:,2] / 100
+		ax1_SU.plot([0, dlam], [0,0], color="k", lw=0.5)
+		ax1_SU.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SU.set_ylabel(r"$\Delta U$")
+		ax1_SU.set_xlim([0, dlam])
+		
+		#--- Stokes V
+		ax0_SV.set_title("Stokes V")
+		ax0_SV.plot((wavelength - lmin)*10, obs[:,3], "k-", markersize=2)
+		ax0_SV.plot((wavelength - lmin)*10, inv[:,3], color="tab:red", lw=1.5)
+		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		ax0_SV.set_ylabel("V")
+		ax0_SV.set_xticks([], [])
+		ax0_SV.set_xlim([0, dlam])
+
 		difference = obs[:,3] - inv[:,3]
 		# difference /= obs[ :, 3] / 100
-		ax1.plot([0, dlam], [0,0], color="k", lw=0.5)
-		ax1.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
-		ax1.set_ylabel(r"$\Delta V$")
-		ax1.set_xlim([0, dlam])
+		ax1_SV.plot([0, dlam], [0,0], color="k", lw=0.5)
+		ax1_SV.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
+		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SV.set_ylabel(r"$\Delta V$")
+		ax1_SV.set_xlim([0, dlam])
+
+		return ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV
 
 def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	fig = plt.figure(figsize=(12,10))
@@ -226,7 +238,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", norm=True):
+def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-5, logtau_bot=1, Stokes="I", norm=True):
 	cmap = {"temp"  : "YlOrRd", 
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
@@ -243,7 +255,6 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", 
 
 	if fpath is not None:
 		hdulist = fits.open(fpath)
-		print(repr(hdulist[0].header))
 	else:
 		sys.exit("No RF file to open.")
 
@@ -252,9 +263,13 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", 
 	lam_min, lam_max = wavs[0], wavs[-1]
 	lam0 = (lam_max + lam_min)/2
 
+	ind_top = np.argmin(np.abs(logtau - logtau_top))
+	ind_bot = np.argmin(np.abs(logtau - logtau_bot))+1
+
 	# rf.shape = (nx, ny, 6, nz, nw, 4)
-	rf = hdulist["RF"].data
+	rf = hdulist["RF"].data[:,:,:, ind_top:ind_bot, :, :]
 	nx, ny, npar, nz, nw, ns = rf.shape
+	logtau = logtau[ind_top:ind_bot]
 
 	pars = [hdulist["RF"].header[f"PAR{i_+1}"] for i_ in range(npar)]
 	parIDs = [hdulist["RF"].header[f"PARID{i_+1}"]-1 for i_ in range(npar)]
@@ -267,7 +282,7 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", 
 		stokes_range.append(stokesV[item])
 		stokes_labels.append(f"Stokes {item}")
 
-	NZ = np.int((logtau[-1] - logtau[0]))
+	NZ = int(np.int((logtau[-1] - logtau[0])) / 0.5) + 1
 
 	nrows = len(params)
 	ncols = len(stokes_range)
@@ -287,6 +302,7 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, Stokes="I", 
 		try:
 			idp = pars[parameter]
 		except:
+			print(repr(hdulist[0].header))
 			sys.exit(f"No RF for parameter {parameter}")
 
 		for j_, ids in enumerate(stokes_range):

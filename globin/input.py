@@ -606,7 +606,7 @@ def write_line_par(fpath, par_val, par_no, parameter):
 def read_node_parameters(parameter, text):
 	"""
 	For a given parameter read from input file node positions, values and 
-	parameter mask.
+	parameter mask (optional).
 
 	Parameters:
 	---------------

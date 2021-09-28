@@ -14,7 +14,7 @@ import numpy as np
 import os
 import sys
 import copy
-from scipy.ndimage import gaussian_filter, correlate1d
+from scipy.ndimage import correlate1d
 from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -421,6 +421,8 @@ class Atmosphere(object):
 				self.global_pars[parameter] += step
 
 	def smooth_parameters(self, cycleID):
+		from scipy.ndimage import gaussian_filter
+
 		stds = [5,3,1]
 		std = stds[cycleID]
 
