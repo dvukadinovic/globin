@@ -142,7 +142,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, norm=False, color="tab:bl
 			gsSU = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 			ax0_SU = fig.add_subplot(gsSU[0,0])
 			ax1_SU = fig.add_subplot((gsSU[1,0]))
-			gsSV = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
+			gsSV = gs[1,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 			ax0_SV = fig.add_subplot(gsSV[0,0])
 			ax1_SV = fig.add_subplot((gsSV[1,0]))
 		else:

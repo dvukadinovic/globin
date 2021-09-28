@@ -346,6 +346,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	globin.chi2_tolerance = _find_value_by_key("chi2_tolerance", globin.parameters_input, "default", 1e-2, float)
 	globin.ncycle = _find_value_by_key("ncycle", globin.parameters_input, "default", 1, int)
 	globin.rf_type = _find_value_by_key("rf_type", globin.parameters_input, "default", "node", str)
+	globin.weight_type = _find_value_by_key("weight_type", globin.parameters_input, "default", "StokesI", str)
 	values = _find_value_by_key("weights", globin.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
 	if type(values)==str:
 		values = values.split(",")
