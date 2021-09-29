@@ -123,13 +123,13 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# weights = np.repeat(weights[:,:,:,np.newaxis], 4, axis=3)
 
 	# weights on Stokes vector based on observed Stokes I
-	if globin.weight_type=="StokesI":
-		aux = 1/obs.spec[...,0]
-		weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-		norm = np.sum(weights, axis=2)
-		weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-	else:
-		weights = 1
+	# if globin.weight_type=="StokesI":
+	# 	aux = 1/obs.spec[...,0]
+	# 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	# 	norm = np.sum(weights, axis=2)
+	# 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	# else:
+	weights = 1
 
 	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter))
 	Ndof = np.count_nonzero(globin.weights) * Nw # - Npar
@@ -496,13 +496,13 @@ def invert_global(save_output, verbose):
 	# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
 
 	# weights on Stokes vector based on observed Stokes I
-	if globin.weight_type=="StokesI":
-		aux = 1/obs.spec[...,0]
-		weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-		norm = np.sum(weights, axis=2)
-		weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-	else:
-		weights = 1
+	# if globin.weight_type=="StokesI":
+	# 	aux = 1/obs.spec[...,0]
+	# 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+	# 	norm = np.sum(weights, axis=2)
+	# 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	# else:
+	weights = 1
 
 	chi2 = np.zeros((obs.nx, obs.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda
