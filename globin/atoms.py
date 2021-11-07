@@ -1,3 +1,4 @@
+from astropy.io import fits
 import numpy as np
 
 class Line(object):
@@ -8,7 +9,8 @@ class Line(object):
                     loggf=None, loggf_min=None, loggf_max=None,
                     dlam=None, dlam_min=None, dlam_max=None,
                     ion=None, state=None, e1=None, e2=None,
-                    gLlow=None, gLup=None):
+                    gLlow=None, gLup=None, Jlow=None, Jup=None,
+                    swap=None):
         self.lineNo = lineNo
         self.lam0 = lam0
         self.loggf = loggf
@@ -18,6 +20,9 @@ class Line(object):
         self.dlam_min = dlam_min
         self.dlam_max = dlam_max
 
+        self.Jlow = Jlow
+        self.Jup = Jup
+
         self.ion = ion
         self.state = state
         self.e1 = e1
@@ -25,6 +30,8 @@ class Line(object):
 
         self.gLlow = gLlow
         self.gLup = gLup
+
+        self.swap = swap
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
@@ -61,19 +68,25 @@ def read_RLK_lines(fpath):
         state = round(decimal*100)
         e1 = float(line[23:35])*0.00012 # [1/cm --> eV]
         e2 = float(line[51:63])*0.00012 # [1/cm --> eV]
-        gLlow = float(line[144:149])
-        gLup = float(line[150:155])
+        gLlow = float(line[144:149]) / 1e3
+        gLup = float(line[150:155]) / 1e3
+        Jlow = float(line[35:40])
+        Jup = float(line[63:68])
 
         if e1>e2:
             RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
                                   ion=ion, state=state,
                                   e1=e2, e2=e1,
-                                  gLlow=gLlow, gLup=gLup))
+                                  gLlow=gLup, gLup=gLlow, 
+                                  Jlow=Jup, Jup=Jlow,
+                                  swap=True))
         else:
             RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
                                   ion=ion, state=state,
                                   e1=e1, e2=e2,
-                                  gLlow=gLlow, gLup=gLup))
+                                  gLlow=gLlow, gLup=gLup,
+                                  Jlow=Jlow, Jup=Jup,
+                                  swap=False))
 
     return text_lines, RLK_lines
 
@@ -241,6 +254,47 @@ def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None, min
             out.write("{: 5.3f}\n".format(val+min_max["dlam"]))
 
     out.close()
+
+class AtomPars(object):
+    """
+    Class storing atomic parameters from inversion for easier access and
+    analysis of results.
+    """
+    units = {"loggf" : "dex",
+            "dlam"  : "mA"}
+
+    def __init__(self, fpath=None):
+        self.data = {"loggf"    : None,
+                     "loggfIDs" : None,
+                     "dlam"     : None,
+                     "dlamIDs"  : None}
+
+        self.header = {"loggf"  : None,
+                       "dlam"   : None}
+
+        self.nx, self.ny = None, None
+        self.nl = {"loggf" : None,
+                   "dlam"  : None}
+
+        if fpath:
+            self.read_atom_pars(fpath)
+
+    def read_atom_pars(self, fpath):
+        hdu = fits.open(fpath)
+
+        pars = ["loggf", "dlam"]
+        hdu_ind = []
+        for parameter in pars:
+            try:
+                ind = hdu.index_of(parameter)
+                self.header[parameter] = hdu[ind].header
+                self.data[parameter] = hdu[ind].data[:,:,1,:]
+                self.data[parameter+"IDs"] = np.array(hdu[ind].data[0,0,0], dtype=np.int)
+                self.nx, self.ny = self.data[parameter].shape[:-1]
+                self.nl[parameter] = len(self.data[parameter+"IDs"])
+            except Exception as e:
+                print(parameter)
+                print(e)
 
 if __name__=="__main__":
     lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}

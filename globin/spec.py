@@ -95,16 +95,17 @@ class Spectrum(object):
 			for idx in range(self.nx):
 				for idy in range(self.ny):
 					vmac = globin.mac_vel[idx*self.ny + idy]
-					kernel_sigma = self.get_kernel_sigma(vmac)
-					radius = int(4*kernel_sigma + 0.5)
-					x = np.arange(-radius, radius+1)
-					phi = np.exp(-x**2/kernel_sigma**2)
-					kernel = phi/phi.sum()
-					# since we are correlating, we need to reverse the order of data
-					kernel = kernel[::-1]
+					if vmac!=0:
+						kernel_sigma = self.get_kernel_sigma(vmac)
+						radius = int(4*kernel_sigma + 0.5)
+						x = np.arange(-radius, radius+1)
+						phi = np.exp(-x**2/kernel_sigma**2)
+						kernel = phi/phi.sum()
+						# since we are correlating, we need to reverse the order of data
+						kernel = kernel[::-1]
 
-					for sID in range(4):
-						self.spec[idx,idy,:,sID] = correlate1d(self.spec[idx,idy,:,sID], kernel)
+						for sID in range(4):
+							self.spec[idx,idy,:,sID] = correlate1d(self.spec[idx,idy,:,sID], kernel)
 
 					weights[idx,idy] = globin.filling_factor[idx*self.ny + idy]
 
@@ -178,14 +179,14 @@ class Observation(Spectrum):
 	row in last axis is reserved for wavelength and rest 4 are for Stokes vector.
 	"""
 
-	def __init__(self, fpath, atm_range=[0,None,0,None]):
+	def __init__(self, fpath, obs_range=[0,None,0,None]):
 		super().__init__()
 		ftype = fpath.split(".")[-1]
 
-		self.xmin = atm_range[0]
-		self.xmax = atm_range[1]
-		self.ymin = atm_range[2]
-		self.ymax = atm_range[3]
+		self.xmin = obs_range[0]
+		self.xmax = obs_range[1]
+		self.ymin = obs_range[2]
+		self.ymax = obs_range[3]
 
 		if ftype=="txt" or ftype=="dat":
 			print("  Currently unsupported type of observation file.")
@@ -193,13 +194,13 @@ class Observation(Spectrum):
 			sys.exit()
 
 		if ftype=="fits" or ftype=="fit":
-			self.read_fits(fpath, atm_range)
+			self.read_fits(fpath, obs_range)
 
-	def read_fits(self, fpath, atm_range):
+	def read_fits(self, fpath, obs_range):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
 
-		xmin, xmax, ymin, ymax = atm_range
+		xmin, xmax, ymin, ymax = obs_range
 		data = np.array(hdu.data[xmin:xmax,ymin:ymax], dtype=np.float64)
 
 		# we assume that wavelngth is same for every pixel in observation
@@ -207,6 +208,7 @@ class Observation(Spectrum):
 		self.spec = data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
+		self.shape = self.spec.shape
 
 	def interpolate(self, wavs):
 		self.nw = len(wavs)
@@ -220,3 +222,6 @@ class Observation(Spectrum):
 
 		self.spec = spectra
 		self.wavelength = wavs
+
+	def norm(self):
+		Spectrum.norm(self)

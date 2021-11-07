@@ -1281,7 +1281,7 @@ def spinor2multi(atmos_data, do_HSE=False, nproc=1):
 	print("Done!")
 
 	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
-	for i_,in_data in enumerate(items):
+	for i_, in_data in enumerate(items):
 		IDx, IDy = idx[i_], idy[i_]
 		atmos.data[IDx,IDy] = in_data
 	atmos.logtau = atmos.data[0,0,0]

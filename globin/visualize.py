@@ -22,7 +22,7 @@ unit = {"temp"  : "K",
 		"gamma" : "deg",
 		"chi"   : "deg"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue"):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 
@@ -53,13 +53,13 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			# print(f"globin::visualize --> no nodes for parameter {parameter}")
 			pass
 
-		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color)
+		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color, label=label)
 		if parameter=="ne":
 			plt.yscale("log")
 		plt.xlabel(r"$\log \tau$")
 		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 
-def plot_spectra(obs, wavelength, inv=None, axes=None, norm=False, color="tab:blue", lw=1, title=None, subtitles=False):
+def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
 	"""
 	Plot spectra.
 
@@ -79,7 +79,9 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, norm=False, color="tab:bl
 	lmax = np.max(wavelength)
 	dlam = (lmax - lmin) * 10
 
+	fact = 1
 	if norm:
+		fact = 100
 		coeff = (obs[0,0] - obs[-1,0]) / (wavelength[0] - wavelength[-1])
 		n = obs[0,0] - coeff * wavelength[0]
 		Icont = coeff * wavelength + n
@@ -100,30 +102,39 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, norm=False, color="tab:bl
 		else:
 			axI, axQ, axU, axV = axes
 
-		#--- Stokes I
-		if subtitles:
+		if subtitles_flag:
 			axI.set_title("Stokes I")
 			axQ.set_title("Stokes Q")
 			axU.set_title("Stokes U")
 			axV.set_title("Stokes V")
 		
+		#--- Stokes I
+		if shift:
+			if norm:
+				obs[:,0] += shift/Icont[0]
+			else:
+				obs[:,0] += shift
+
 		axI.plot((wavelength - lmin)*10, obs[:,0], lw=lw, color=color)
-		axI.set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
+		if norm:
+			axI.set_ylabel("Normalaized intensity")
+		else:
+			axI.set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		axI.set_xlim([0, dlam])
 
 		#--- Stokes Q
-		axQ.plot((wavelength - lmin)*10, obs[:,1]*100, lw=lw, color=color)
+		axQ.plot((wavelength - lmin)*10, obs[:,1]*fact, lw=lw, color=color)
 		axQ.set_ylabel(r"Stokes Q/I$_\mathrm{c}$ [%]")
 		axQ.set_xlim([0, dlam])
 		
 		#--- Stokes U
-		axU.plot((wavelength - lmin)*10, obs[:,2]*100, lw=lw, color=color)
+		axU.plot((wavelength - lmin)*10, obs[:,2]*fact, lw=lw, color=color)
 		axU.set_xlim([0, dlam])
 		axU.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [%]")
 		
 		#--- Stokes V
-		axV.plot((wavelength - lmin)*10, obs[:,3]*100, lw=lw, color=color)
+		axV.plot((wavelength - lmin)*10, obs[:,3]*fact, lw=lw, color=color)
 		axV.set_xlim([0, dlam])
 		axV.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [%]")

@@ -19,7 +19,7 @@ import os
 import numpy as np
 
 from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere
 
 from .input import \
 	read_input, read_node_atmosphere, \
@@ -176,5 +176,8 @@ falc_ne = falc.data[0,0,2]
 
 #--- flag for HSE computation (here defined when we do not read params.input)
 hydrostatic = 1
+
+#--- flag for normalizing spectra
+norm = True
 
 # Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")

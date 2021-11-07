@@ -51,7 +51,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
 
     return atmos
 
-def make_synthetic_observations(atmos, noise, atm_fpath=None):
+def make_synthetic_observations(atmos, noise, atm_fpath=None, save_height=False):
     if globin.mode!=0:
         print(f"  Current mode is {globin.mode}.")
         print("  We can make synthetic observations only in mode = 0.")
@@ -60,7 +60,7 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
         sys.exit()
     
     atmos.write_atmosphere()
-    spec, atm, _ = globin.compute_spectra(atmos)
+    spec, atm, height = globin.compute_spectra(atmos)
     spec.xmin = atmos.xmin
     spec.xmax = atmos.xmax
     spec.ymin = atmos.ymin
@@ -70,21 +70,13 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None):
     spec.add_noise(noise)
     spec.save(globin.output_spectra_path, globin.wavelength)
 
+    if save_height:
+        height *= 1e2 # [m --> cm]
+        primary = fits.PrimaryHDU(height)
+        primary.writeto("height.fits", overwrite=True)
+
     if atm_fpath is not None:
         atm.save_atmosphere(atm_fpath)
-
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
-    #         # globin.plot_atmosphere(atmos, ["temp", "vz", "mag", "gamma", "chi"], idx, idy)
-    #         globin.plot_atmosphere(atmos, ["ne"], idx, idy, color="tab:blue")
-    #         globin.plot_atmosphere(atm, ["ne"], idx, idy, color="tab:orange")
-    # plt.show()
-
-    # for idx in range(atmos.nx):
-    #     for idy in range(atmos.ny):
-    #         globin.plot_spectra(spec, idx=idx, idy=idy)
-    #         plt.savefig(f"runs/{globin.wd}/spec_x{idx}y{idy}.png")
-    #         plt.close()
 
     # globin.remove_dirs()
 
