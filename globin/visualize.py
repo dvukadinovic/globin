@@ -140,13 +140,13 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		#--- Stokes U
 		axU.plot((wavelength - lmin)*10, obs[:,2]*fact, lw=lw, color=color)
 		axU.set_xlim([0, dlam])
-		axU.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		axU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [%]")
 		
 		#--- Stokes V
 		axV.plot((wavelength - lmin)*10, obs[:,3]*fact, lw=lw, color=color)
 		axV.set_xlim([0, dlam])
-		axV.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		axV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [%]")
 
 		return axI, axQ, axU, axV
@@ -182,7 +182,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		# difference /= obs[:,0] / 100
 		ax1_SI.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1_SI.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		ax1_SI.set_ylabel(r"$\Delta I$")
 		ax1_SI.set_xlim([0, dlam])
 
@@ -199,7 +199,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		# difference /= obs[:,1] / 100
 		ax1_SQ.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1_SQ.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		ax1_SQ.set_ylabel(r"$\Delta Q$")
 		ax1_SQ.set_xlim([0, dlam])
 
@@ -216,7 +216,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		# difference /= obs[:,2] / 100
 		ax1_SU.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1_SU.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		ax1_SU.set_ylabel(r"$\Delta U$")
 		ax1_SU.set_xlim([0, dlam])
 		
@@ -233,7 +233,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		# difference /= obs[ :, 3] / 100
 		ax1_SV.plot([0, dlam], [0,0], color="k", lw=0.5)
 		ax1_SV.plot((wavelength - lmin)*10, difference, color="tab:blue", lw=1.5)
-		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\AA$]")
+		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		ax1_SV.set_ylabel(r"$\Delta V$")
 		ax1_SV.set_xlim([0, dlam])
 

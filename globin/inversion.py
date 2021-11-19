@@ -7,13 +7,15 @@ import matplotlib.pyplot as plt
 
 import globin
 
-def pretty_print_parameters(atmos):
+def pretty_print_parameters(atmos, conv_flag=None):
 	for parameter in atmos.values:
 		print(parameter)
 		parID = atmos.par_id[parameter]
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+				if conv_flag is not None:
+					if conv_flag[idx,idy]==1:
+						print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
@@ -334,7 +336,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			pretty_print_parameters(atmos)
+			pretty_print_parameters(atmos, stop_flag)
 			print(LM_parameter)
 			print(old_inds)
 
