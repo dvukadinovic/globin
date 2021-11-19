@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 import globin
 
-def print_atmos_pars(atmos):
+def print_pars(atmos):
 	for parameter in atmos.values:
 		print(parameter)
 		parID = atmos.par_id[parameter]
@@ -334,7 +334,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			print_atmos_pars(atmos)
+			print_pars(atmos)
 			print(LM_parameter)
 			print(old_inds)
 
