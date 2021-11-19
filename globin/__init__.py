@@ -181,3 +181,6 @@ hydrostatic = 1
 norm = True
 
 # Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
+
+#--- axes for atmosphere plot (duumy idea?)
+atmos_axs = None

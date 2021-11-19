@@ -34,6 +34,16 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		ncols = 2
 		nrows = int(np.ceil(n_plots/ncols))
 
+	if globin.atmos_axs is not None:
+		fig = plt.figure()
+		gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
+		axs = [None]*nrows*ncols
+		for idx in range(ncols):
+			for idy in range(nrows):
+				ida = idx * nrows + idy
+				axs[ida] = gs.add_subplot(gs[idx,idy])
+		globin.atmos_axs = axs
+
 	for k_ in range(n_plots):	
 		parameter = parameters[k_]
 		parID = atmos.par_id[parameter]

@@ -3,12 +3,11 @@ import sys
 import os
 import copy
 import time
-from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 
 import globin
 
-def print_pars(atmos):
+def pretty_print_parameters(atmos):
 	for parameter in atmos.values:
 		print(parameter)
 		parID = atmos.par_id[parameter]
@@ -22,11 +21,11 @@ def print_pars(atmos):
 
 def invert(save_output=True, verbose=True):
 	if globin.mode==0:
-		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
+		print("Parameters for synthesis mode are read. We can not run thr inversion.\n  Change the mode before running again.\n")
 		return None, None
 	elif globin.mode>=1:
 		for cycle in range(globin.ncycle):
-			# double number of iterations in last cycle
+			# double the number of iterations in the last cycle
 			if cycle==globin.ncycle-1 and globin.ncycle!=1:
 				globin.max_iter *= 2
 
@@ -37,12 +36,13 @@ def invert(save_output=True, verbose=True):
 			elif globin.mode==4:
 				atm, spec = invert_mcmc(save_output, verbose)
 			else:
-				print(f"Not supported mode {globin.mode} currently.")
+				print(f"Not supported mode {globin.mode}, currently.")
 				return None, None
 			
 			# in last cycle we do not smooth atmospheric parameters
 			if (cycle+1)<globin.ncycle:
 				globin.atm.smooth_parameters(cycle)
+				globin.marq_lambda /= 10
 
 		globin.remove_dirs()
 
@@ -64,7 +64,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		print_pars(atmos)
+		pretty_print_parameters(atmos)
 		print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
@@ -334,7 +334,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			print_pars(atmos)
+			pretty_print_parameters(atmos)
 			print(LM_parameter)
 			print(old_inds)
 
@@ -470,8 +470,7 @@ def invert_global(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		print(atmos.values)
-		print(atmos.global_pars)
+		pretty_print_parameters(atmos)
 		print()
 
 	Nw = len(globin.wavelength)
@@ -668,8 +667,7 @@ def invert_global(save_output, verbose):
 				break_flag = True
 		
 		if updated_parameters and verbose:
-			print(atmos.values)
-			print(atmos.global_pars)
+			pretty_print_parameters(atmos)
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
 
