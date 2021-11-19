@@ -60,7 +60,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		print(atmos.values)
+		# print(atmos.values)
+		print_atmos_pars(atmos)
 		if globin.mode==2:
 			print(atmos.global_pars)
 		print()
@@ -186,9 +187,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 					rf[idx,idy] = old_rf[idx,idy]
 					spec.spec[idx,idy] = old_spec.spec[idx,idy]
 
-			axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
-			globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
-			plt.show()
+			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
+			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
+			# plt.show()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
