@@ -14,7 +14,7 @@ def pretty_print_parameters(atmos):
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
-	if globin.mode==2:
+	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
 			print(atmos.global_pars[parameter])
