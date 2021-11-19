@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import globin
 
 def print_atmos_pars(atmos):
-	for parameter in atmos:
+	for parameter in atmos.values:
 		print(parameter)
 		parID = atmos.par_id[parameter]
 		for idx in range(atmos.nx):
