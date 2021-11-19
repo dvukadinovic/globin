@@ -8,6 +8,14 @@ import matplotlib.pyplot as plt
 
 import globin
 
+def print_atmos_pars(atmos):
+	for parameter in atmos:
+		print(parameter)
+		parID = atmos.par_id[parameter]
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+
 def invert(save_output=True, verbose=True):
 	if globin.mode==0:
 		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
@@ -324,7 +332,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			print(atmos.values)
+			# print(atmos.values)
+			print_atmos_pars(atmos)
 			if globin.mode==2:
 				print(atmos.global_pars)
 			print(LM_parameter)

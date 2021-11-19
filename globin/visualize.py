@@ -57,7 +57,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		if parameter=="ne":
 			plt.yscale("log")
 		plt.xlabel(r"$\log \tau$")
-		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
+		# plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
 	"""
