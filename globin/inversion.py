@@ -7,15 +7,14 @@ import matplotlib.pyplot as plt
 
 import globin
 
-def pretty_print_parameters(atmos, conv_flag=None):
+def pretty_print_parameters(atmos, conv_flag):
 	for parameter in atmos.values:
 		print(parameter)
 		parID = atmos.par_id[parameter]
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				if conv_flag is not None:
-					if conv_flag[idx,idy]==1:
-						print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+				if conv_flag[idx,idy]==1:
+					print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
@@ -64,11 +63,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 	obs = globin.obs
 	atmos = globin.atm
 
-	if verbose:
-		print("Initial parameters:")
-		pretty_print_parameters(atmos)
-		print()
-
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion
@@ -77,6 +71,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# in which we converged we will not change parameters, but, the calculations
 	# will be done, as well as RFs... Find smarter way around it.
 	stop_flag = np.ones((obs.nx, obs.ny), dtype=np.float64)
+	
+	if verbose:
+		print("Initial parameters:")
+		pretty_print_parameters(atmos, stop_flag)
+		print()
 
 	Nw = len(globin.wavelength)
 	# this is number of local parameters only (we are doing pxl-by-pxl)
@@ -472,7 +471,7 @@ def invert_global(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		pretty_print_parameters(atmos)
+		pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 		print()
 
 	Nw = len(globin.wavelength)
@@ -669,7 +668,7 @@ def invert_global(save_output, verbose):
 				break_flag = True
 		
 		if updated_parameters and verbose:
-			pretty_print_parameters(atmos)
+			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
 
