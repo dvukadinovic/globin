@@ -15,6 +15,10 @@ def print_atmos_pars(atmos):
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+	if globin.mode==2:
+		for parameter in atmos.global_pars:
+			print(parameter)
+			print(atmos.global_pars[parameter])
 
 def invert(save_output=True, verbose=True):
 	if globin.mode==0:
@@ -60,10 +64,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		# print(atmos.values)
-		print_atmos_pars(atmos)
-		if globin.mode==2:
-			print(atmos.global_pars)
+		print_pars(atmos)
 		print()
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
@@ -333,10 +334,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			# print(atmos.values)
 			print_atmos_pars(atmos)
-			if globin.mode==2:
-				print(atmos.global_pars)
 			print(LM_parameter)
 			print(old_inds)
 
