@@ -3,18 +3,30 @@ import sys
 import os
 import copy
 import time
-from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 
 import globin
 
+def pretty_print_parameters(atmos, conv_flag):
+	for parameter in atmos.values:
+		print(parameter)
+		parID = atmos.par_id[parameter]
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				if conv_flag[idx,idy]==1:
+					print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+	if globin.mode>=2:
+		for parameter in atmos.global_pars:
+			print(parameter)
+			print(atmos.global_pars[parameter])
+
 def invert(save_output=True, verbose=True):
 	if globin.mode==0:
-		print("Parameters for synthesis mode are read. We can not run inversion.\n  Change mode before running again.\n")
+		print("Parameters for synthesis mode are read. We can not run thr inversion.\n  Change the mode before running again.\n")
 		return None, None
 	elif globin.mode>=1:
 		for cycle in range(globin.ncycle):
-			# double number of iterations in last cycle
+			# double the number of iterations in the last cycle
 			if cycle==globin.ncycle-1 and globin.ncycle!=1:
 				globin.max_iter *= 2
 
@@ -25,12 +37,13 @@ def invert(save_output=True, verbose=True):
 			elif globin.mode==4:
 				atm, spec = invert_mcmc(save_output, verbose)
 			else:
-				print(f"Not supported mode {globin.mode} currently.")
+				print(f"Not supported mode {globin.mode}, currently.")
 				return None, None
 			
 			# in last cycle we do not smooth atmospheric parameters
 			if (cycle+1)<globin.ncycle:
 				globin.atm.smooth_parameters(cycle)
+				globin.marq_lambda /= 10
 
 		globin.remove_dirs()
 
@@ -50,13 +63,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 	obs = globin.obs
 	atmos = globin.atm
 
-	if verbose:
-		print("Initial parameters:")
-		print(atmos.values)
-		if globin.mode==2:
-			print(atmos.global_pars)
-		print()
-
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion
@@ -65,6 +71,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# in which we converged we will not change parameters, but, the calculations
 	# will be done, as well as RFs... Find smarter way around it.
 	stop_flag = np.ones((obs.nx, obs.ny), dtype=np.float64)
+	
+	if verbose:
+		print("Initial parameters:")
+		pretty_print_parameters(atmos, stop_flag)
+		print()
 
 	Nw = len(globin.wavelength)
 	# this is number of local parameters only (we are doing pxl-by-pxl)
@@ -178,9 +189,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 					rf[idx,idy] = old_rf[idx,idy]
 					spec.spec[idx,idy] = old_spec.spec[idx,idy]
 
-			axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
-			globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
-			plt.show()
+			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
+			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
+			# plt.show()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
@@ -324,9 +335,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 		if verbose:
-			print(atmos.values)
-			if globin.mode==2:
-				print(atmos.global_pars)
+			pretty_print_parameters(atmos, stop_flag)
 			print(LM_parameter)
 			print(old_inds)
 
@@ -462,8 +471,7 @@ def invert_global(save_output, verbose):
 
 	if verbose:
 		print("Initial parameters:")
-		print(atmos.values)
-		print(atmos.global_pars)
+		pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 		print()
 
 	Nw = len(globin.wavelength)
@@ -660,8 +668,7 @@ def invert_global(save_output, verbose):
 				break_flag = True
 		
 		if updated_parameters and verbose:
-			print(atmos.values)
-			print(atmos.global_pars)
+			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print(LM_parameter)
 			print("\n--------------------------------------------------\n")
 
