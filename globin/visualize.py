@@ -37,6 +37,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 	if globin.atmos_axs is not None:
 		fig = plt.figure()
 		gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
+		fig.subplots_adjust(top=0.95, bottom=0.1, left=0.15, right=0.9)
 		axs = [None]*nrows*ncols
 		for idx in range(ncols):
 			for idy in range(nrows):
@@ -68,7 +69,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			plt.yscale("log")
 
 		plt.xlabel(r"log$\tau$")
-		# plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
+		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 		ax = plt.gca()
 		ax.set_xticklabels(ax.get_xticks())
 		ax.set_yticklabels(ax.get_yticks())
@@ -187,7 +188,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2)
 		ax0_SI.plot((wavelength - lam0)*10, inv[:,0], color="tab:red", lw=1.5)
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0_SI.set_ylabel("I")
+		ax0_SI.set_ylabel(r"$I$")
 		ax0_SI.set_xticks([], [])
 		ax0_SI.set_xlim([-dlam, dlam])
 
@@ -204,7 +205,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SQ.plot((wavelength - lam0)*10, obs[:,1], "k-", markersize=2)
 		ax0_SQ.plot((wavelength - lam0)*10, inv[:,1], color="tab:red", lw=1.5)
 		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0_SQ.set_ylabel("Q")
+		ax0_SQ.set_ylabel(r"$Q$")
 		ax0_SQ.set_xticks([], [])
 		ax0_SQ.set_xlim([-dlam, dlam])
 
@@ -221,7 +222,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SU.plot((wavelength - lam0)*10, obs[:,2], "k-", markersize=2)
 		ax0_SU.plot((wavelength - lam0)*10, inv[:,2], color="tab:red", lw=1.5)
 		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0_SU.set_ylabel("U")
+		ax0_SU.set_ylabel(r"$U$")
 		ax0_SU.set_xticks([], [])
 		ax0_SU.set_xlim([-dlam, dlam])
 
@@ -239,7 +240,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SV.plot((wavelength - lam0)*10, obs[:,3], "k-", markersize=2)
 		ax0_SV.plot((wavelength - lam0)*10, inv[:,3], color="tab:red", lw=1.5)
 		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		ax0_SV.set_ylabel("V")
+		ax0_SV.set_ylabel(r"$V$")
 		ax0_SV.set_xticks([], [])
 		ax0_SV.set_xlim([-dlam, dlam])
 

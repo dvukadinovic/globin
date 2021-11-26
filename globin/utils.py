@@ -35,7 +35,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
     # atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
     # atmos.data[:,:,0,:] = atmos.logtau
     atmos.vmac = vmac
-    atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
+    # atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
     atmos.build_from_nodes(False)
 
     if output_atmos_path is not None:

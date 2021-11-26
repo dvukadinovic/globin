@@ -766,6 +766,8 @@ def read_node_atmosphere(fpath):
 	________________________________________________________
 	nx, ny
 
+	lgtau_top, lgtau_bot, lgtau_inc
+
 	parameter_1
 	logtau_node_1 logtau_node_2 ...
 	T1 T2 ...
@@ -805,6 +807,8 @@ def read_node_atmosphere(fpath):
 
 	nx, ny = _slice_line(lines[0], int)
 
+	lgtop, lgbot, lginc = _slice_line(lines[2], float)
+
 	# number of data for given parameter
 	# 1 line for the name of the parameter
 	# 1 line for the node positions
@@ -813,7 +817,7 @@ def read_node_atmosphere(fpath):
 
 	atmos = Atmosphere(nx=nx, ny=ny)
 
-	i_ = 2
+	i_ = 4
 	for parID in range(6):
 		parameter = parameters[parID]
 		if i_<len(lines):

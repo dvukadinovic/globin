@@ -140,7 +140,7 @@ diff = {"temp"   : 10,		# K
 #--- full names of parameters (for FITS header)
 parameter_name = {"temp"   : "Temperature",
 				  "ne"     : "Electron density",
-				  "vz"     : "Vertical_velocity",
+				  "vz"     : "Vertical velocity",
 				  "vmic"   : "Microturbulent_velocity",
 				  "vmac"   : "Macroturbulent_velocity",
 				  "mag"    : "Magnetic_field_strength",
