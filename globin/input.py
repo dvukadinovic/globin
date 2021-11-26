@@ -815,7 +815,19 @@ def read_node_atmosphere(fpath):
 	# nx*ny lines for the values in the nodes
 	nlines = nx*ny + 2
 
-	atmos = Atmosphere(nx=nx, ny=ny)
+	logtau = np.arange(lgtop, lgbot+lginc, lginc)
+	nz = len(logtau)
+
+	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+	atmos.logtau = logtau
+	atmos.data[:,:,0] = logtau
+
+	idx,idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny))
+	globin.idx = idx.flatten()
+	globin.idy = idy.flatten()
+
+	# !!! added by hand..
+	globin.pool = mp.Pool(2)
 
 	i_ = 4
 	for parID in range(6):

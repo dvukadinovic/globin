@@ -300,11 +300,11 @@ def _set_keyword(text, key, value, fpath=None):
     else:
         return "".join(lines)
 
-def _slice_line(line, dtype=float):
+def _slice_line(line, dtype=float, separator=" "):
     # remove 'new line' character
     line = line.rstrip("\n")
     # split line data based on 'space' separation
-    line = line.split(" ")
+    line = line.split(separator)
     # filter out empty entries and convert to list
     lista = list(filter(None, line))
     # map read values into given data type
