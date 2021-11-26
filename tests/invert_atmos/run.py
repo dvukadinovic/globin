@@ -6,7 +6,7 @@ import sys
 import globin
 
 #--- initialize input object and read input files
-run_name = "test"
+run_name = "m3"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
@@ -28,14 +28,16 @@ inv_atm, inv = globin.invert()
 atm = globin.ref_atm
 obs = globin.obs
 
-chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
-globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
+#chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
+#globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
 
 lista = list(globin.atm.nodes)
 
 diff = (inv_atm.data[:,:,1] - atm.data[:,:,1])
 rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
 print(rmsd)
+
+sys.exit()
 
 for idx in range(inv_atm.nx):
 	for idy in range(inv_atm.ny):
