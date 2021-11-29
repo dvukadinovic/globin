@@ -1317,10 +1317,10 @@ def multi2spinor(multi_atmosphere, fname=None):
 	spinor_atmosphere[:,:,11,:] = multi_atmosphere[:,:,7,:]
 
 	if fname:
-		primary = fits.PrimaryHDU()
-		primary.header["LTTOP"] = min(multi_atmosphere[0,0,0])
-		primary.header["LTBOT"] = max(multi_atmosphere[0,0,0])
-		primary.header["LTINC"] = multi_atmosphere[0,0,0,1] - multi_atmosphere[0,0,0,0]
+		primary = fits.PrimaryHDU(spinor_atmosphere)
+		primary.header["LTTOP"] = min(spinor_atmosphere[0,0,0])
+		primary.header["LTBOT"] = max(spinor_atmosphere[0,0,0])
+		primary.header["LTINC"] = spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0]
 		primary.header["LOGTAU"] = (1, "optical depth scale")
 		primary.header["HEIGHT"] = (2, "height scale (cm)")
 		primary.header["TEMP"] = (3, "temperature (K)")
