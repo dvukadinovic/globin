@@ -1293,8 +1293,9 @@ def sir2multi(atmos_data):
 	pass
 
 def multi2spinor(multi_atmosphere, fname=None):
-	from scipy.constants import k
-	nx, ny, npar, nz = multi_atmosphere.shape
+	from .makeHSE import Axmu
+
+	nx, ny, _, nz = multi_atmosphere.shape
 
 	height = np.zeros(nz)
 	spinor_atmosphere = np.zeros((nx,ny,nz,12))
@@ -1309,7 +1310,11 @@ def multi2spinor(multi_atmosphere, fname=None):
 			spinor_atmosphere[idx,idy,:,4] = pe
 			spinor_atmosphere[idx,idy,:,5] = kappa
 			spinor_atmosphere[idx,idy,:,6] = rho
-			
+
+			# nHtot = np.sum(multi_atmosphere[idx,idy,8:], axis=0)
+			# avg_mass = np.mean(Axmu)
+			# rho = nHtot * avg_mass
+
 			for idz in range(nz-2,-1,-1):
 				height[idz] = height[idz+1] + 2*(kappa[idz+1] - kappa[idz]) / (rho[idz+1] + rho[idz])
 
