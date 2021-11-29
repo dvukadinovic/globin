@@ -5,8 +5,13 @@ import sys
 
 import globin
 
+# run_name = "m1"
+# chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
+# globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
+# sys.exit()
+
 #--- initialize input object and read input files
-run_name = "m3"
+run_name = "m1"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
@@ -33,23 +38,10 @@ obs = globin.obs
 
 lista = list(globin.atm.nodes)
 
-diff = (inv_atm.data[:,:,1] - atm.data[:,:,1])
-rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
-print(rmsd)
-
-sys.exit()
-
-for idx in range(inv_atm.nx):
-	for idy in range(inv_atm.ny):
-		fig = plt.figure(figsize=(12,10))
-
-		globin.plot_atmosphere(atm, parameters=lista, idx=idx, idy=idy)
-		globin.plot_atmosphere(inv_atm, parameters=lista, idx=idx, idy=idy, color="tab:red")
-		# plt.plot(atm.data[idx,idy,1])
-		# plt.plot(inv_atm.data[idx,idy,1])
-		plt.savefig(f"runs/{run_name}/inv_vs_atm_{idx}_{idy}.png")
-		plt.close()
-
-		globin.plot_spectra(obs, inv=inv, idx=idx, idy=idy)
-		plt.savefig(f"runs/{run_name}/obs_vs_inv_{idx}_{idy}.png")
-		plt.close()
+for par in lista:
+	print(par)
+	idp = inv_atm.par_id[par]
+	diff = (inv_atm.data[:,:,idp] - atm.data[:,:,idp])
+	rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
+	print(rmsd)
+	print("-----------------------")

@@ -229,7 +229,7 @@ def pool_spinor2multi(args):
 	data[7] = atmos_data[-1]# * np.pi/180
 
 	if do_HSE and globin.hydrostatic:
-		press, pel, kappa = globin.makeHSE(5000, data[0], data[1])
+		press, pel, kappa, rho = globin.makeHSE(5000, data[0], data[1])
 		
 		# electron density [1/cm3]
 		data[2] = pel/10/globin.K_BOLTZMAN/data[1]/1e6

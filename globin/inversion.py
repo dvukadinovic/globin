@@ -256,7 +256,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 		for ind in inds:
 			idx, idy, idp = ind
 			H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
+		# print("*** ", H)
 		proposed_steps = np.linalg.solve(H, delta)
+		# print("*** ", proposed_steps)
 
 		old_atmos_parameters = copy.deepcopy(atmos.values)
 		if globin.mode==2:

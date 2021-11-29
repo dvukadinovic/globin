@@ -19,7 +19,8 @@ import os
 import numpy as np
 
 from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere
+	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \
+	multi2spinor
 
 from .input import \
 	read_input, read_node_atmosphere, \

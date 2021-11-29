@@ -3,6 +3,7 @@ from scipy.interpolate import splev, splrep
 from scipy.constants import Rydberg
 from scipy.constants import c as LIGHT_SPEED
 from scipy.constants import h as PLANCK
+from scipy.constants import k as K_BOLTZMAN
 import sys
 
 Rydberg /= 1e10 # [1/m --> 1/A]
@@ -214,6 +215,14 @@ def solve_ne(temp, pg, pe, eps=1e-2):
 	return pe
 
 def makeHSE(wave, logt, temp):
+	"""
+	Routine from D. F. Gray. 
+
+	Only one ionization stage of an atom is assumed.
+	No molecules.
+
+	CGS unit system.
+	"""
 	tau = 10**(logt)
 	nz = len(tau)
 
@@ -263,11 +272,12 @@ def makeHSE(wave, logt, temp):
 				print(f"Max iter in Pg loop @ k={i_}.")
 				break
 
-	return pg, pe, kappa
+	rho = (pg-pe)/K_BOLTZMAN/temp/10 / 1e6 * np.mean(Axmu)
+
+	return pg, pe, kappa, rho
 
 if __name__=="__main__":
 	import globin
-	from scipy.constants import k
 
 	atmos = globin.Atmosphere("./data/falc_multi.atmos")
 
@@ -275,6 +285,6 @@ if __name__=="__main__":
 
 	wave = 5000
 
-	pg, pe, kappa = makeHSE(wave, atmos.data[0,0,0], atmos.data[0,0,1])
+	pg, pe, kappa, rho = makeHSE(wave, atmos.data[0,0,0], atmos.data[0,0,1])
 	# print("electron pressure:")
 	# print(pe)

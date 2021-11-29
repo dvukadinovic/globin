@@ -107,11 +107,13 @@ class Atmosphere(object):
 			self.values = atmos.values
 			self.mask = atmos.mask
 			self.header = atmos.header
+			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 		else:
 			self.header = None
 			if (nx is not None) and (ny is not None) and (nz is not None):
 				self.nx, self.ny, self.nz = nx, ny, nz
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 			else:
 				self.data = None
 
@@ -543,7 +545,6 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	spectra.step = globin.step
 
 	atmospheres = copy.deepcopy(globin.atm)
-	height = np.zeros((Nx, Ny, Nz), dtype=np.float64)
 
 	if globin.lmin>500:
 		ind_min, ind_max = 1, None
@@ -579,18 +580,19 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			atmospheres.data[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  	# [m/s --> km/s]
 			atmospheres.data[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  	# [m/s --> km/s]
 			try:
-				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] * 1e4    	# [T --> G]
-				atmospheres.data[idx,idy,6] = rh_obj.atmos["gamma_B"] #* 180/np.pi	# [rad --> deg]
-				atmospheres.data[idx,idy,7] = rh_obj.atmos["chi_B"] #* 180/np.pi    	# [rad --> deg]
+				# magnetic field should be reprojected when we do for mu!=1 (???)
+				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] * 1e4 # [T --> G]
+				atmospheres.data[idx,idy,6] = rh_obj.atmos["gamma_B"] #	[rad]
+				atmospheres.data[idx,idy,7] = rh_obj.atmos["chi_B"] 	# [rad]
 			except:
 				pass
-			height[idx,idy] = rh_obj.geometry["height"]
+			atmospheres.height[idx,idy] = rh_obj.geometry["height"]
 			for i_ in range(rh_obj.atmos['nhydr']):
 				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
 
 	spectra.wave = rh_obj.wave
 
-	return spectra, atmospheres, height
+	return spectra, atmospheres
 
 def compute_spectra(atmos):
 	"""
@@ -658,7 +660,7 @@ def compute_spectra(atmos):
 		sys.exit()
 
 	#--- extract data cubes of spectra and atmospheres from finished synthesis
-	spectra, atmospheres, height = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
+	spectra, atmospheres = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
 	spectra.mean_spectrum()
 	spectra.norm()
 
@@ -921,14 +923,13 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 		spec.broaden_spectra(atmos.vmac)
 		rf = broaden_rfs(rf, atmos.vmac, skip_par)
 
-
 	# for idy in range(atmos.ny):
 	# 	for parID in range(Npar):
-	# 		# plt.figure(parID+1)
+	# 		plt.figure(parID+1)
 	# 		plt.plot(rf[0, idy, parID, :, 0])
 	# 		# plt.savefig(f"{parID+1}_.png")
 	# 		# plt.close()
-	# 		plt.show()
+	# plt.show()
 	# sys.exit()
 
 	#--- compare RFs for single parameter
@@ -1290,3 +1291,47 @@ def spinor2multi(atmos_data, do_HSE=False, nproc=1):
 
 def sir2multi(atmos_data):
 	pass
+
+def multi2spinor(multi_atmosphere, fname=None):
+	from scipy.constants import k
+	nx, ny, npar, nz = multi_atmosphere.shape
+
+	spinor_atmosphere = np.zeros((nx,ny,12,nz))
+
+	for idx in range(nx):
+		for idy in range(ny):
+			pg, pe, kappa, rho = globin.makeHSE(5000, multi_atmosphere[idx,idy,0], multi_atmosphere[idx,idy,1])
+
+			spinor_atmosphere[idx,idy,3,:] = pg
+			spinor_atmosphere[idx,idy,4,:] = pe
+			spinor_atmosphere[idx,idy,5,:] = kappa
+			spinor_atmosphere[idx,idy,6,:] = rho
+
+	spinor_atmosphere[:,:,0,:] = multi_atmosphere[:,:,0,:]
+	# spinor_atmosphere[:,:,1,:] = multi_atmosphere.height[:,:,:]
+	spinor_atmosphere[:,:,2,:] = multi_atmosphere[:,:,1,:]
+	spinor_atmosphere[:,:,7,:] = multi_atmosphere[:,:,4,:]*1e5
+	spinor_atmosphere[:,:,8,:] = multi_atmosphere[:,:,3,:]*1e5
+	spinor_atmosphere[:,:,9,:] = multi_atmosphere[:,:,5,:]
+	spinor_atmosphere[:,:,10,:] = multi_atmosphere[:,:,6,:]
+	spinor_atmosphere[:,:,11,:] = multi_atmosphere[:,:,7,:]
+
+	if fname:
+		primary = fits.PrimaryHDU()
+		primary.header["LTTOP"] = min(logtau)
+		primary.header["LTBOT"] = max(logtau)
+		primary.header["LTINC"] = logtau[1] - logtau[0]
+		primary.header["LOGTAU"] = (1, "optical depth scale")
+		primary.header["HEIGHT"] = (2, "height scale (cm)")
+		primary.header["TEMP"] = (3, "temperature (K)")
+		primary.header["PGAS"] = (4, "gass pressure (dyn/cm2)")
+		primary.header["PEL"] = (5, "electron pressure (dyn/cm2)")
+		primary.header["KAPPA"] = (6, "mass density (g/cm2)")
+		primary.header["DENS"] = (7, "density (g/cm3)")
+		primary.header["VMIC"] = (8, "micro-turbulent velocity (cm/s)")
+		primary.header["VZ"] = (9, "vertical velocity (cm/s)")
+		primary.header["MAG"] = (10, "magnetic field strength (G)")
+		primary.header["GAMMA"] = (11, "magnetic field inclination (rad)")
+		primary.header["CHI"] = (12, "magnetic field azimuth (rad)")
+
+		primary.writeto(fname, overwrite=True)
