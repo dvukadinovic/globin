@@ -275,7 +275,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 											   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes()
-		corrected_spec,_,_ = globin.compute_spectra(atmos)
+		corrected_spec,_ = globin.compute_spectra(atmos)
 		if not globin.mean:
 			corrected_spec.broaden_spectra(atmos.vmac)
 
@@ -406,7 +406,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		atmos.line_lists_path.append(fpath)
 
 	atmos.build_from_nodes(False)
-	inverted_spectra, atm, _ = globin.compute_spectra(atmos)
+	inverted_spectra, atm = globin.compute_spectra(atmos)
 	if not globin.mean:
 		inverted_spectra.broaden_spectra(atmos.vmac)
 
@@ -615,7 +615,7 @@ def invert_global(save_output, verbose):
 									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
 
 		atmos.build_from_nodes()
-		corrected_spec,_,_ = globin.compute_spectra(atmos)
+		corrected_spec,_ = globin.compute_spectra(atmos)
 		if not globin.mean:
 			corrected_spec.broaden_spectra(atmos.vmac)
 
@@ -684,7 +684,7 @@ def invert_global(save_output, verbose):
 
 	atmos.build_from_nodes(False)
 	
-	inverted_spectra,_,_ = globin.compute_spectra(atmos)
+	inverted_spectra,_ = globin.compute_spectra(atmos)
 	if not globin.mean:	
 		inverted_spectra.broaden_spectra(atmos.vmac)
 
@@ -741,7 +741,7 @@ def invert_mcmc(init, save_output, verbose):
 	atmos = init.atm
 
 	atmos.build_from_nodes()
-	spec, _, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
+	spec, _ = globin.compute_spectra(atmos, init.rh_spec_name, init.wavelength)
 
 	diff = obs.spec - spec.spec
 	chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
