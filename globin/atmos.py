@@ -1296,7 +1296,10 @@ def multi2spinor(multi_atmosphere, fname=None):
 	from scipy.constants import k
 	nx, ny, npar, nz = multi_atmosphere.shape
 
+	height = np.zeros(nz)
 	spinor_atmosphere = np.zeros((nx,ny,nz,12))
+
+	ind0 = np.argmin(np.abs(multi_atmosphere[0,0,0]))
 
 	for idx in range(nx):
 		for idy in range(ny):
@@ -1306,9 +1309,14 @@ def multi2spinor(multi_atmosphere, fname=None):
 			spinor_atmosphere[idx,idy,:,4] = pe
 			spinor_atmosphere[idx,idy,:,5] = kappa
 			spinor_atmosphere[idx,idy,:,6] = rho
+			
+			for idz in range(nz-2,-1,-1):
+				height[idz] = height[idz+1] + 2*(kappa[idz+1] - kappa[idz]) / (rho[idz+1] + rho[idz])
+
+			height -= height[ind0]
+			spinor_atmosphere[idx,idy,:,1] = height
 
 	spinor_atmosphere[:,:,:,0] = multi_atmosphere[:,:,0,:]
-	# spinor_atmosphere[:,:,1,:] = multi_atmosphere.height[:,:,:]
 	spinor_atmosphere[:,:,:,2] = multi_atmosphere[:,:,1,:]
 	spinor_atmosphere[:,:,:,7] = multi_atmosphere[:,:,4,:]*1e5
 	spinor_atmosphere[:,:,:,8] = multi_atmosphere[:,:,3,:]*1e5
