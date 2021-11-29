@@ -545,6 +545,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	spectra.step = globin.step
 
 	atmospheres = copy.deepcopy(globin.atm)
+	atmospheres.height = np.zeros((globin.atm.nx, globin.atm.ny, globin.atm.nz))
 
 	if globin.lmin>500:
 		ind_min, ind_max = 1, None
