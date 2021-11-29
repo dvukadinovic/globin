@@ -665,7 +665,7 @@ def compute_spectra(atmos):
 	spectra.mean_spectrum()
 	spectra.norm()
 
-	return spectra, atmospheres, height
+	return spectra, atmospheres
 
 def broaden_rfs(rf, vmac, skip_par):
 	if vmac==0:
@@ -696,7 +696,7 @@ def broaden_rfs(rf, vmac, skip_par):
 def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 	atmos.build_from_nodes()
-	spec, _, _ = compute_spectra(atmos)
+	spec, _ = compute_spectra(atmos)
 
 	if globin.rf_type=="snapi":	
 		# full_rf.shape = (nx, ny, np, nz, nw, 4)
@@ -777,7 +777,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# positive perturbation
 				model_plus.values[parameter][:,:,nodeID] += perturbation
 				model_plus.build_from_nodes()
-				spectra_plus,_,_ = compute_spectra(model_plus)
+				spectra_plus,_ = compute_spectra(model_plus)
 
 				# negative perturbation (except for gamma and chi)
 				if parameter=="gamma" or parameter=="chi":
@@ -785,7 +785,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.build_from_nodes()
-					spectra_minus,_,_ = compute_spectra(model_minus)
+					spectra_minus,_ = compute_spectra(model_minus)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
@@ -869,7 +869,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 					elif globin.mode==3:
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_plus,_,_ = compute_spectra(atmos)
+					spec_plus,_ = compute_spectra(atmos)
 					
 					# negative perturbation
 					values -= 2*perturbation
@@ -882,7 +882,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 					elif globin.mode==3:
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_minus,_,_ = compute_spectra(atmos)
+					spec_minus,_ = compute_spectra(atmos)
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 					diff *= globin.weights
@@ -1039,13 +1039,13 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 			for zID in tqdm(range(atmos.nz)):
 				model_plus.data[:,:,parID,zID] += perturbation
 				model_plus.write_atmosphere()
-				spec_plus,_,_ = compute_spectra(model_plus)
+				spec_plus,_ = compute_spectra(model_plus)
 				if not globin.mean:
 					spec_plus.broaden_spectra(atmos.vmac)
 
 				model_minus.data[:,:,parID,zID] -= perturbation
 				model_minus.write_atmosphere()
-				spec_minus,_,_ = compute_spectra(model_minus)
+				spec_minus,_ = compute_spectra(model_minus)
 				if not globin.mean:
 					spec_minus.broaden_spectra(atmos.vmac)
 
@@ -1073,7 +1073,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 				# since we are correlating, we need to reverse the order of data
 				kernel = kernel[::-1]
 
-				spec, _,_ = compute_spectra(atmos)
+				spec, _ = compute_spectra(atmos)
 				if not globin.mean:
 					spec.broaden_spectra(atmos.vmac)
 
@@ -1101,7 +1101,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 					elif globin.mode==3:
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_plus,_,_ = compute_spectra(atmos)
+					spec_plus,_ = compute_spectra(atmos)
 					if not globin.mean:
 						spec_plus.broaden_spectra(atmos.vmac)
 
@@ -1115,7 +1115,7 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 					elif globin.mode==3:
 						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
 					
-					spec_minus,_,_ = compute_spectra(atmos)
+					spec_minus,_ = compute_spectra(atmos)
 					if not globin.mean:
 						spec_minus.broaden_spectra(atmos.vmac)
 
