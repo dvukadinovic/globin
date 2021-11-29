@@ -1296,31 +1296,33 @@ def multi2spinor(multi_atmosphere, fname=None):
 	from scipy.constants import k
 	nx, ny, npar, nz = multi_atmosphere.shape
 
-	spinor_atmosphere = np.zeros((nx,ny,12,nz))
+	spinor_atmosphere = np.zeros((12,nx,ny,nz))
 
 	for idx in range(nx):
 		for idy in range(ny):
 			pg, pe, kappa, rho = globin.makeHSE(5000, multi_atmosphere[idx,idy,0], multi_atmosphere[idx,idy,1])
 
-			spinor_atmosphere[idx,idy,3,:] = pg
-			spinor_atmosphere[idx,idy,4,:] = pe
-			spinor_atmosphere[idx,idy,5,:] = kappa
-			spinor_atmosphere[idx,idy,6,:] = rho
+			spinor_atmosphere[3,idx,idy,:] = pg
+			spinor_atmosphere[4,idx,idy,:] = pe
+			spinor_atmosphere[5,idx,idy,:] = kappa
+			spinor_atmosphere[6,idx,idy,:] = rho
 
-	spinor_atmosphere[:,:,0,:] = multi_atmosphere[:,:,0,:]
+	spinor_atmosphere[0,:,:,:] = multi_atmosphere[:,:,0,:]
 	# spinor_atmosphere[:,:,1,:] = multi_atmosphere.height[:,:,:]
-	spinor_atmosphere[:,:,2,:] = multi_atmosphere[:,:,1,:]
-	spinor_atmosphere[:,:,7,:] = multi_atmosphere[:,:,4,:]*1e5
-	spinor_atmosphere[:,:,8,:] = multi_atmosphere[:,:,3,:]*1e5
-	spinor_atmosphere[:,:,9,:] = multi_atmosphere[:,:,5,:]
-	spinor_atmosphere[:,:,10,:] = multi_atmosphere[:,:,6,:]
-	spinor_atmosphere[:,:,11,:] = multi_atmosphere[:,:,7,:]
+	spinor_atmosphere[2,:,:,:] = multi_atmosphere[:,:,1,:]
+	spinor_atmosphere[7,:,:,:] = multi_atmosphere[:,:,4,:]*1e5
+	spinor_atmosphere[8,:,:,:] = multi_atmosphere[:,:,3,:]*1e5
+	spinor_atmosphere[9,:,:,:] = multi_atmosphere[:,:,5,:]
+	spinor_atmosphere[10,:,:,:] = multi_atmosphere[:,:,6,:]
+	spinor_atmosphere[11,:,:,:] = multi_atmosphere[:,:,7,:]
+
+	spinor_atmosphere = np.swapaxes(spinor_atmosphere, 1, 3)
 
 	if fname:
 		primary = fits.PrimaryHDU(spinor_atmosphere)
 		primary.header["LTTOP"] = min(spinor_atmosphere[0,0,0])
 		primary.header["LTBOT"] = max(spinor_atmosphere[0,0,0])
-		primary.header["LTINC"] = spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0]
+		primary.header["LTINC"] = np.round(spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0], decimals=2)
 		primary.header["LOGTAU"] = (1, "optical depth scale")
 		primary.header["HEIGHT"] = (2, "height scale (cm)")
 		primary.header["TEMP"] = (3, "temperature (K)")
@@ -1335,3 +1337,5 @@ def multi2spinor(multi_atmosphere, fname=None):
 		primary.header["CHI"] = (12, "magnetic field azimuth (rad)")
 
 		primary.writeto(fname, overwrite=True)
+
+	return spinor_atmosphere
