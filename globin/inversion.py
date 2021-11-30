@@ -14,7 +14,7 @@ def pretty_print_parameters(atmos, conv_flag):
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
-					print(f"[{idx},{idy}] --> ", atmos.values[parameter][idx,idy])
+					print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
