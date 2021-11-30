@@ -119,7 +119,8 @@ def read_init_line_parameters(fpath):
 
     for line in lines:
         line = list(filter(None,line.rstrip("\n").split(" ")))
-        if line[0]!="#":
+        # if line[0]!="#":
+        if "#" not in line[0]:
             lineNo = int(line[1])-1
             par = float(line[2])
             par_min = float(line[3])

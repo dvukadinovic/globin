@@ -49,9 +49,13 @@ def pool_build_from_nodes(args):
 				# if does, change the slopte so that at top point we have vzmin (globin.limit_values["vz"][0])
 				if globin.limit_values["vz"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					K0 = (globin.limit_values["vz"][0] - y[0]) / (atmos.logtau[0] - x[0])
-				# similar for the bottom for maximum values
+				elif globin.limit_values["vz"][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					K0 = (globin.limit_values["vz"][1] - y[0]) / (atmos.logtau[0] - x[0])
+				# similar for the bottom for maximum/min values
 				if globin.limit_values["vz"][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					Kn = (globin.limit_values["vz"][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				elif globin.limit_values["vz"][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+					Kn = (globin.limit_values["vz"][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 		y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new

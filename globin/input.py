@@ -440,6 +440,11 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	else:
 		globin.hydrostatic = 0
 
+	#--- initialize the vz, mag and azimuth based on CoG and WFA methods (optional)
+	fpath = _find_value_by_key("lines2atm", globin.parameters_input, "optional")
+	if fpath:
+		initialize_atmos_pars(globin.atm, globin.obs, fpath)
+
 def read_mode_2():
 	# this is pixel-by-pixel inversion and for atomic parameters
 	# make directory in which line list will be saved for each atmosphere
@@ -852,3 +857,69 @@ def read_node_atmosphere(fpath):
 				i_ += nlines+1
 
 	return atmos
+
+def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
+	"""
+	We use Centre-of-Gravity method to initialize line-of-sight velocity and
+	line-of-sight magnetic field strength.
+
+	Weak-field approximation is used for computing the azimuth as: tan(2 chi) = U/Q.
+	
+	Parameters:
+	-----------
+	atmos : globin.Atmosphere()
+		initial atmosphere which will contain the retrieved profiles. Before 
+		entering here, we must have read which atmospheric parameters are to be
+		inverted (atmos must contain .nodes and .values instances).
+	obs : globin.Observation()
+		the observed Stokes profiles which are to be inverted.
+	fpath : string
+		path to the file containing the information about spectral lines which
+		we use to initialize the atmospheric parameters.
+	"""
+	# obs = globin.Observation(obs)
+	obs = copy.deepcopy(obs_in)
+	wavs = obs.wavelength
+	if norm:
+		globin.norm = True
+		obs.norm()
+		globin.norm = False
+
+	lines = open(fpath).readlines()
+	nl = len(lines)
+
+	vlos = 0
+	for line in lines:
+		line = list(filter(None,line.rstrip("\n").split(" ")))
+		if "#" not in line[0]:
+			lam0, lmin, lmax, geff = map(float,line)
+
+			ind_min = np.argmin(np.abs(wavs - lmin))
+			ind_max = np.argmin(np.abs(wavs - lmax))
+
+			x = wavs[ind_min:ind_max]
+			si = obs.spec[:,:,ind_min:ind_max,0]
+			su = obs.spec[:,:,ind_min:ind_max,1]
+			sq = obs.spec[:,:,ind_min:ind_max,2]
+			sv = obs.spec[:,:,ind_min:ind_max,3]
+
+			#--- v_LOS initialization
+			if "vz" in atmos.nodes:
+				lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
+				vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
+				# vlos = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
+				# atmos.values["vz"] = vlos
+
+			#--- B_LOS initialization
+			lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
+			lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+
+			blos = (lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff
+			# print(blos)
+
+			#--- azimuth initialization
+			azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1)) * 180/np.pi / 2
+			# azimuth = np.mean(azimuth, axis=-1)
+			# print(azimuth)
+
+	atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)

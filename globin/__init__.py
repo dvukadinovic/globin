@@ -25,7 +25,8 @@ from .atmos import \
 from .input import \
 	read_input, read_node_atmosphere, \
 	write_line_parameters, write_line_par, \
-	read_inverted_atmosphere
+	read_inverted_atmosphere, \
+	initialize_atmos_pars
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
