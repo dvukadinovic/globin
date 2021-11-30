@@ -196,7 +196,7 @@ class Atmosphere(object):
 			self.data[idx,idy] = atm[idl].data[idx,idy]
 
 	def makeHSE(self, idx, idy):
-		press, pel, kappa = globin.makeHSE(5000, self.data[idx,idy,0], self.data[idx,idy,1])
+		press, pel, kappa, rho = globin.makeHSE(5000, self.data[idx,idy,0], self.data[idx,idy,1])
 		
 		# electron density [1/cm3]
 		self.data[idx,idy,2] = pel/10/globin.K_BOLTZMAN/self.data[idx,idy,1]/1e6
