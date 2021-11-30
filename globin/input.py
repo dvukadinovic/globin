@@ -889,6 +889,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	nl = len(lines)
 
 	vlos = 0
+	blos = 0
 	for line in lines:
 		line = list(filter(None,line.rstrip("\n").split(" ")))
 		if "#" not in line[0]:
@@ -911,15 +912,20 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				# atmos.values["vz"] = vlos
 
 			#--- B_LOS initialization
-			lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
-			lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+			if "mag" in atmos.nodes:
+				lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
+				lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
 
-			blos = (lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff
-			# print(blos)
+				blos += np.abs((lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff) / np.cos(np.pi/4)
+				# print(blos)
 
 			#--- azimuth initialization
-			azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1)) * 180/np.pi / 2
-			# azimuth = np.mean(azimuth, axis=-1)
-			# print(azimuth)
+			if "chi" in atmos.nodes:	
+				azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1)) * 180/np.pi / 2
+				# azimuth = np.mean(azimuth, axis=-1)
+				# print(azimuth)
 
-	atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
+	if "vz" in atmos.nodes:
+		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
+	if "mag" in atmos.nodes:
+		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl, len(atmos.nodes["mag"]), axis=-1)

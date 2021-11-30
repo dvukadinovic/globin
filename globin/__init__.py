@@ -143,9 +143,9 @@ diff = {"temp"   : 10,		# K
 parameter_name = {"temp"   : "Temperature",
 				  "ne"     : "Electron density",
 				  "vz"     : "Vertical velocity",
-				  "vmic"   : "Microturbulent_velocity",
-				  "vmac"   : "Macroturbulent_velocity",
-				  "mag"    : "Magnetic_field_strength",
+				  "vmic"   : "Microturbulent velocity",
+				  "vmac"   : "Macroturbulent velocity",
+				  "mag"    : "Magnetic field strength",
 				  "gamma"  : "Inclination",
 				  "chi"    : "Azimuth"}
 
