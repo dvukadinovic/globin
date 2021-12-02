@@ -1,15 +1,9 @@
 
 -WARNING in routine readValues
- Overriding default value NONE for keyword SOLVE_NE with ONCE
+ Overriding default value NONE for keyword SOLVE_NE with NONE
 
 -WARNING in routine readValues
  Overriding default value FALSE for keyword RLK_SCATTER with FALSE
-
--WARNING in routine readValues
- Overriding default value FALSE for keyword HYDROGEN_LTE with TRUE
-
--WARNING in routine readValues
- Overriding default value FALSE for keyword HYDROSTATIC with FALSE
 
 -WARNING in routine readValues
  Overriding default value spectrum.out for keyword SPECTRUM_OUTPUT with spectrum.out
@@ -21,11 +15,10 @@
  Overriding default value DELO_BEZIER3 for keyword S_INTERPOLATION_STOKES with DELO_BEZIER3
 
 -WARNING in routine readValues
- Overriding default value FALSE for keyword LIMIT_MEMORY with FALSE
+ Overriding default value TRUE for keyword MAGNETO_OPTICAL with FALSE
 
--WARNING in routine readInput
- Parameter atmos.B_char not set or set to zero
- Wavelength grids of line profiles do not take account  of Zeeman splitting
+-WARNING in routine readValues
+ Overriding default value FALSE for keyword LIMIT_MEMORY with FALSE
 
  -- reading input file: /media/dusan/storage/RH/globin/tests/invert_atmos/runs/m1/atmospheres/atm_0_0
 
@@ -40,9 +33,6 @@
  -- reading input file: ../../Atoms/Al.atom (passive)
  -- reading input file: ../../Atoms/Na.atom (passive)
  -- reading input file: ../../Atoms/Mg.atom (passive)
-
-Using LTE hydrogen populations for background opacities
-
  -- reading input file: ../../Molecules/H2.molecule (passive)
  -- reading input file: ../../Molecules/H2+.molecule (passive)
  -- reading input file: ../../Molecules/C2.molecule (passive)
@@ -64,4 +54,3 @@ Read 18 Kurucz lines from file /media/dusan/storage/RH/globin/tests/invert_atmos
  Spectrum max delta J = 1.0000E+00 (lambda#: 0)
 
  -- Iteration   1
-H pops in LTE

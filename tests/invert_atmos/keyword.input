@@ -105,14 +105,14 @@
 
   KURUCZ_PF_DATA = ../../Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
-  SOLVE_NE = ONCE
+  SOLVE_NE = NONE
   RLK_SCATTER = FALSE
 
 # Set HYDROGEN_LTE = TRUE if hydrogen in the background has to be
 # treated with LTE populations (KEYWORD_DEFAULT). Default is FALSE
 
-  HYDROGEN_LTE = TRUE
-  HYDROSTATIC = FALSE
+#  HYDROGEN_LTE = TRUE
+#  HYDROSTATIC = FALSE
 
 # Data file for background opacity fudge to compensate for missing
 # UV line haze. Type is KEYWORD_OPTIONAL. When set to ``none'' (the
@@ -175,17 +175,17 @@
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-  STOKES_INPUT = ./FALC_82_500G_45.B
+#  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
 
-  STOKES_MODE = FULL_STOKES
-#   STOKES_MODE = NO_STOKES
+#  STOKES_MODE = FULL_STOKES
+   STOKES_MODE = NO_STOKES
 
 # Include magneto-optical effects (KEYWORD_DEFAULT). Default is TRUE.
 
-#  MAGNETO_OPTICAL = FALSE
+  MAGNETO_OPTICAL = FALSE
 
 # Typical value of magnetic field in Tesla (1 T = 1.0E+4 Gauss)
 # (KEYWORD_DEFAULT).

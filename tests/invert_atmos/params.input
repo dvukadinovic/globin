@@ -24,8 +24,8 @@ spectrum = obs.fits
 nodes_temp = -2.2, -1.6, -0.9, 0
 nodes_temp_values = 4800, 5500, 6500, 7500
 
-nodes_vz = -2, -0.5
-nodes_vz_values = -1, 1
+#nodes_vz = -2, -0.5
+#nodes_vz_values = -1, 1
 
 #nodes_vmic = 0
 #nodes_vmic_values = 2
@@ -55,7 +55,7 @@ chi2_tolerance = 1e-3
 
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits
-range = 1,1,2,2
+range = 1,1,1,1
 
 #--- RH root folder path
 #rh_path = /data/slam/home/vukadinovic/rh-globin
