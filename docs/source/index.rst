@@ -5,7 +5,7 @@
 
 .. _Home:
 
-Welcome to globin's documentation!
+Welcome to the globin's documentation!
 ==================================
 
 **globin** is a Python package for spectropolarimetric inversion wrapped around `RH code <https://www2.hao.ucar.edu/spectropolarimetry/rh>`_ . Main purpose of this package is to infer atomic line parameters (oscilator strength and rest wavelength) alongside
