@@ -221,13 +221,13 @@ class Rhout:
             self.stokes_V = np.zeros(self.imu.shape)
         close_xdr(data, infile, verbose=self.verbose)
         # read as_rn, if it exists
-        # if os.path.isfile('asrs.out'):
-        #     data = read_xdr_file('asrs.out')
-        #     if self.atmos['moving'] or self.stokes or self.input['PRD_angle_dep']:
-        #         self.spec['as_rn'] = read_xdr_var(data, ('i', (nrays, nspect)))
-        #     else:
-        #         self.spec['as_rn'] = read_xdr_var(data, ('i', (nspect,)))
-        #     close_xdr(data, 'asrs.out', verbose=self.verbose)
+        if os.path.isfile('{0}/{1}'.format(self.fdir,'asrs.out')):
+            data = read_xdr_file('{0}/{1}'.format(self.fdir,'asrs.out'))
+            if self.atmos['moving'] or self.stokes or self.input['PRD_angle_dep']:
+                self.spec['as_rn'] = read_xdr_var(data, ('i', (nrays, nspect)))
+            else:
+                self.spec['as_rn'] = read_xdr_var(data, ('i', (nspect,)))
+            close_xdr(data, 'asrs.out', verbose=self.verbose)
 
     def read_ray(self, infile='spectrum_1.00'):
         ''' Reads spectra for single ray files (e.g. mu=1). '''
@@ -292,7 +292,7 @@ class Rhout:
             em = ('read_brs: spectrum data not loaded, call read_spectrum()'
                   ' first!')
             raise ValueError(em)
-        data = read_xdr_file(infile)
+        data = read_xdr_file('{0}/{1}'.format(self.fdir,infile))
         atmosID = read_xdr_var(data, ('s',)).strip()
         nspace = read_xdr_var(data, ('i',))
         nspect = read_xdr_var(data, ('i',))
@@ -354,8 +354,8 @@ class Rhout:
             raise ValueError(em)
         if not hasattr(self.atmos, 'brs'):
             self.read_brs()
-        data_line = read_xdr_file(infile_line)
-        file_bg = open(infile_bg, 'r')
+        data_line = read_xdr_file('{0}/{1}'.format(self.fdir,infile_line))
+        file_bg = open('{0}/{1}'.format(self.fdir,infile_bg), 'r')
         nspect = self.spec['nspect']
         if self.geometry_type == 'ONE_D_PLANE':
             as_rec_len = 2 * self.ndep * 8
@@ -478,7 +478,6 @@ class Rhout:
         self.contrib = get_contrib(self.geometry['height'], mu, self.tau,
                                    self.ray['S'])
         return
-
 
 class RhAtmos:
     """
