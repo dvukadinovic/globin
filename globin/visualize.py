@@ -274,7 +274,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-5, logtau_bot=1, Stokes="I", norm=True):
+def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-5, logtau_bot=1, dtau=0.5, Stokes="I", norm=True):
 	cmap = {"temp"  : "YlOrRd", 
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
@@ -318,7 +318,7 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-
 		stokes_range.append(stokesV[item])
 		stokes_labels.append(f"Stokes {item}")
 
-	NZ = int(np.int((logtau[-1] - logtau[0])) / 0.5) + 1
+	NZ = int(np.int((logtau[-1] - logtau[0])) / dtau) + 1
 
 	nrows = len(params)
 	ncols = len(stokes_range)
