@@ -213,6 +213,7 @@ def pool_synth(args):
 	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
 	rh_obj.read_spectrum(globin.rh_spec_name)
 	rh_obj.read_ray()
+	# rh_obj.read_opacity()
 
 	dt = time.time() - start
 	if globin.mode==0:	

@@ -545,12 +545,19 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	spectra.step = globin.step
 
 	atmospheres = copy.deepcopy(globin.atm)
-	atmospheres.height = np.zeros((globin.atm.nx, globin.atm.ny, globin.atm.nz))
+	atmospheres.height = np.zeros((Nx, Ny, Nz))
+	atmospheres.cmass = np.zeros((Nx, Ny, Nz))
 
+	# this will work only for LTE synthesis...?
+	# in NLTE we have an active wavelengths that can be
+	# on eaither side of 500nm. Smarter way needed for this...
 	if globin.lmin>500:
 		ind_min, ind_max = 1, None
 	if globin.lmax<500:
 		ind_min, ind_max = 0, -1
+
+	chi_c_shape = lista[0]["rh_obj"].chi_c.shape
+	atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
 
 	for item in lista:
 		if item is not None:
@@ -588,8 +595,35 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 			except:
 				pass
 			atmospheres.height[idx,idy] = rh_obj.geometry["height"]
+			atmospheres.cmass[idx,idy] = rh_obj.geometry["cmass"]
+			# atmospheres.chi_c[idx,idy] = rh_obj.chi_c
 			for i_ in range(rh_obj.atmos['nhydr']):
 				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
+
+	# tau = globin.rh.get_tau(atmospheres.height[0,0], 1, atmospheres.chi_c[0,0,-1])
+	# tau = np.log10(tau)
+	
+	# plt.plot(atmospheres.height[0,0]/1e3, tau, label="average chi")
+	
+	# from scipy.integrate import simps
+
+	# tau = np.zeros(len(rh_obj.atmos["T"]))
+	# tau_local = np.zeros(len(rh_obj.atmos["T"]))
+	# for idz in range(1, len(tau)):
+	# 	tau[idz] = simps(-atmospheres.chi_c[0,0,-1,:idz], atmospheres.height[0,0,:idz])
+	# 	dh = atmospheres.height[0,0,idz-1] - atmospheres.height[0,0,idz]
+	# 	tau_local[idz] = tau_local[idz-1] + atmospheres.chi_c[0,0,-1,idz] * dh
+
+	# plt.plot(atmospheres.height[0,0]/1e3, np.log10(tau_local), label="local chi")
+	# plt.plot(atmospheres.height[0,0]/1e3, np.log10(tau), label="proper integral")
+
+	# plt.xlabel("Height [km]")
+	# plt.ylabel(r"$\log\tau$")
+
+	# plt.legend()
+	# plt.show()
+
+	# sys.exit()
 
 	spectra.wave = rh_obj.wave
 
