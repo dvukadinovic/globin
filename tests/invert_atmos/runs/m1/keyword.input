@@ -24,7 +24,7 @@
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = /media/dusan/storage/RH/globin/tests/invert_atmos/runs/m1/win_4015_two_lines.wave
+  WAVETABLE = /home/dusan/Documents/globin/tests/invert_atmos/runs/m1/win_4015_two_lines.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
@@ -175,13 +175,13 @@
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-#  STOKES_INPUT = ./FALC_82_500G_45.B
+  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
 
-#  STOKES_MODE = FULL_STOKES
-   STOKES_MODE = NO_STOKES
+  STOKES_MODE = FULL_STOKES
+#   STOKES_MODE = NO_STOKES
 
 # Include magneto-optical effects (KEYWORD_DEFAULT). Default is TRUE.
 

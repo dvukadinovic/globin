@@ -59,4 +59,5 @@ range = 1,1,1,1
 
 #--- RH root folder path
 #rh_path = /data/slam/home/vukadinovic/rh-globin
-rh_path = /media/dusan/storage/RH/rh
+#rh_path = /media/dusan/storage/RH/rh
+rh_path = /home/dusan/Documents/rh

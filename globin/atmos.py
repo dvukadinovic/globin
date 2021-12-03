@@ -556,8 +556,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	if globin.lmax<500:
 		ind_min, ind_max = 0, -1
 
-	chi_c_shape = lista[0]["rh_obj"].chi_c.shape
-	atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
+	# chi_c_shape = lista[0]["rh_obj"].chi_c.shape
+	# atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
 
 	for item in lista:
 		if item is not None:
