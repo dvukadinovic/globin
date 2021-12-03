@@ -959,11 +959,12 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 		rf = broaden_rfs(rf, atmos.vmac, skip_par)
 
 	# for idy in range(atmos.ny):
-	# 	for parID in range(Npar):
-	# 		plt.figure(parID+1)
+	# 	plt.figure(1)
+	# 	for parID in range(4):
 	# 		plt.plot(rf[0, idy, parID, :, 0])
-	# 		# plt.savefig(f"{parID+1}_.png")
-	# 		# plt.close()
+	# 	plt.figure(2)
+	# 	for parID in range(4,Npar):
+	# 		plt.plot(rf[0, idy, parID, :, 0])
 	# plt.show()
 	# sys.exit()
 

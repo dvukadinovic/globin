@@ -60,7 +60,7 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None, save_height=False)
         sys.exit()
     
     atmos.write_atmosphere()
-    spec, atm, height = globin.compute_spectra(atmos)
+    spec, atm = globin.compute_spectra(atmos)
     spec.xmin = atmos.xmin
     spec.xmax = atmos.xmax
     spec.ymin = atmos.ymin
@@ -70,10 +70,10 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None, save_height=False)
     spec.add_noise(noise)
     spec.save(globin.output_spectra_path, globin.wavelength)
 
-    if save_height:
-        height *= 1e2 # [m --> cm]
-        primary = fits.PrimaryHDU(height)
-        primary.writeto("height.fits", overwrite=True)
+    # if save_height:
+    #     height *= 1e2 # [m --> cm]
+    #     primary = fits.PrimaryHDU(height)
+    #     primary.writeto("height.fits", overwrite=True)
 
     if atm_fpath is not None:
         atm.save_atmosphere(atm_fpath)

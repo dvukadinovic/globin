@@ -138,8 +138,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if globin.weight_type=="StokesI":
 		aux = 1/obs.spec[...,0]
 		weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-		norm = np.sum(weights, axis=2)
-		weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+		# norm = np.sum(weights, axis=2)
+		# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 	else:
 		weights = 1
 
@@ -355,7 +355,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
 						if chi2[idx,idy,it_no-1]<1e-32:
-							print(f"--> [{idx},{idy}] : chi2 is way low!\n")
+							print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
@@ -364,7 +364,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif relative_change<globin.chi2_tolerance:
-							print(f"--> [{idx},{idy}] : chi2 relative change is smaller than given value.\n")
+							print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
@@ -373,7 +373,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif chi2[idx,idy,it_no-1] < 1:
-							print(f"--> [{idx},{idy}] : chi2 smaller than 1\n")
+							print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
@@ -416,7 +416,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	try:
 		atmos.compute_errors(JTJ, chi2_old)
 	except:
-		print("Failed to compute parameter errors\n")
+		print("Failed to compute parameters error\n")
 	
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
@@ -513,13 +513,15 @@ def invert_global(save_output, verbose):
 	# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
 
 	# weights on Stokes vector based on observed Stokes I
-	# if globin.weight_type=="StokesI":
-	# 	aux = 1/obs.spec[...,0]
-	# 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-	# 	norm = np.sum(weights, axis=2)
-	# 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-	# else:
-	weights = 1
+	if globin.weight_type=="StokesI":
+		aux = 1/obs.spec[...,0]
+		weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+		# norm = np.sum(weights, axis=2)
+		# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+	else:
+		weights = 1
+
+	noise_stokes /= weights
 
 	chi2 = np.zeros((obs.nx, obs.ny, globin.max_iter), dtype=np.float64)
 	LM_parameter = globin.marq_lambda
@@ -694,7 +696,7 @@ def invert_global(save_output, verbose):
 	try:
 		atmos.compute_errors(JTJ, chi2_old)
 	except:
-		print("Failed to compute parameter errors\n")
+		print("Failed to compute parameters error\n")
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"

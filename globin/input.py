@@ -881,9 +881,12 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	obs = copy.deepcopy(obs_in)
 	wavs = obs.wavelength
 	if norm:
-		globin.norm = True
-		obs.norm()
-		globin.norm = False
+		if globin.norm:
+			obs.norm()
+		else:
+			globin.norm = True
+			obs.norm()
+			globin.norm = False
 
 	lines = open(fpath).readlines()
 	nl = len(lines)
