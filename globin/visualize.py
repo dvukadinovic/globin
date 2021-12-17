@@ -71,8 +71,8 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		plt.xlabel(r"log$\tau$")
 		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
 		ax = plt.gca()
-		ax.set_xticklabels(ax.get_xticks())
-		ax.set_yticklabels(ax.get_yticks())
+		# ax.set_xticklabels(ax.get_xticks())
+		# ax.set_yticklabels(ax.get_yticks())
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
 	"""
@@ -137,31 +137,31 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		else:
 			axI.set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		axI.set_xlim([-dlam, dlam])
-		axI.set_xticklabels(axI.get_xticks())
-		axI.set_yticklabels(axI.get_yticks())
+		# axI.set_xticklabels(axI.get_xticks())
+		# axI.set_yticklabels(axI.get_yticks())
 
 		#--- Stokes Q
 		axQ.plot((wavelength - lam0)*10, obs[:,1]*fact, lw=lw, color=color)
 		axQ.set_ylabel(r"Stokes Q/I$_\mathrm{c}$ [\%]")
 		axQ.set_xlim([-dlam, dlam])
-		axQ.set_xticklabels(axQ.get_xticks())
-		axQ.set_yticklabels(axQ.get_yticks())
+		# axQ.set_xticklabels(axQ.get_xticks())
+		# axQ.set_yticklabels(axQ.get_yticks())
 		
 		#--- Stokes U
 		axU.plot((wavelength - lam0)*10, obs[:,2]*fact, lw=lw, color=color)
 		axU.set_xlim([-dlam, dlam])
 		axU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [\%]")
-		axU.set_xticklabels(axU.get_xticks())
-		axU.set_yticklabels(axU.get_yticks())
+		# axU.set_xticklabels(axU.get_xticks())
+		# axU.set_yticklabels(axU.get_yticks())
 
 		#--- Stokes V
 		axV.plot((wavelength - lam0)*10, obs[:,3]*fact, lw=lw, color=color)
 		axV.set_xlim([-dlam, dlam])
 		axV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [\%]")
-		axV.set_xticklabels(axV.get_xticks())
-		axV.set_yticklabels(axV.get_yticks())
+		# axV.set_xticklabels(axV.get_xticks())
+		# axV.set_yticklabels(axV.get_yticks())
 
 		return axI, axQ, axU, axV
 	else:
