@@ -1,11 +1,11 @@
 ## Description
 
 Development version of code for inversion of atomic and atmospheric parameters
-simultaneously.
+simultaneously. We employ the global inversion algorithm where atomic parameters are coupled between different pixels providing the unifrom value across the field-of-view. Atmospheric parameters are retrieved independently for each pixel.
 
 ## Installation
 
-Install package in editable mode:
+Install package in editable mode system-wide:
 
 'pip3 install -e /path/to/package'
 
@@ -13,7 +13,7 @@ Install package in editable mode:
 
 For simple synthesis we requiere two parameters: atmosphere and number of
 threads for computations to use. Also, we are requiered and to write
-wavelength grid data on which we want to synthesise spectrum (old).
+wavelength grid data on which we want to synthesise spectrum.
 
 ## Inversion
 
@@ -27,26 +27,11 @@ First of all, we use same input as RH code since the forward modeling is based
 on RH code. For inversion we make use of 'params.input' file and here give
 description of it.
 
-File is structured in following sections:
-
-	1. MCMC parameters
-	2. fitting parameters
-	3. input data files (spectra, atmosphere)
-
-(old)
-
 ## ToDo
 
-* add stop criterion in inversion based on Chi2 values
 * add inversion for OF parameters
-* make test folder:
-	* for synthesis
-	* inversion of atmospheric parameters
-	* inversion of atmospheric + OF parameters
-* read atomic parameter line list
-* extend Atmosphere() to hold and AtomicLine() class
-* calculate RF for atomic parameters (log(gf) and wavelength)
-* invert for one line for log(gf)
+* make unit test
+* extend Atmosphere() to hold and AtomicLine() class (?)
 
 ## Rewritings
 
@@ -55,8 +40,8 @@ at highest mu?
 
 ## RH changes
 
-1. Fixed problem with SOLVE_NE in ITERATION mode (check mail to Sowmya where it is explained what is changed)
-2. Hydrostatic() is done even if H atom is not in ACTIVE state (iterate.c)
+1. Fixed problem with SOLVE_NE in ITERATION mode (check mail to Sowmya where it is explained what is changed).
+2. Hydrostatic() is done even if H atom is not in ACTIVE state (iterate.c) --> nope, changes have been reverted.
 
 ## Requierments
 

@@ -891,6 +891,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	lines = open(fpath).readlines()
 	nl = len(lines)
 
+	import matplotlib.pyplot as plt
+
 	vlos = 0
 	blos = 0
 	for line in lines:
@@ -906,6 +908,14 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			su = obs.spec[:,:,ind_min:ind_max,1]
 			sq = obs.spec[:,:,ind_min:ind_max,2]
 			sv = obs.spec[:,:,ind_min:ind_max,3]
+
+			# plt.plot(x, si[0,0])
+			# plt.plot(x, si[1,1])
+			# plt.plot(x, si[2,2])
+			# plt.plot(x, si[3,1])
+			# plt.plot(x, si[4,0])
+			# plt.show()
+			# sys.exit()
 
 			#--- v_LOS initialization
 			if "vz" in atmos.nodes:
@@ -924,7 +934,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 			#--- azimuth initialization
 			if "chi" in atmos.nodes:	
-				azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1)) * 180/np.pi / 2
+				azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
+				azimuth %= 2*np.pi
 				# azimuth = np.mean(azimuth, axis=-1)
 				# print(azimuth)
 
@@ -932,3 +943,5 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
 	if "mag" in atmos.nodes:
 		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl, len(atmos.nodes["mag"]), axis=-1)
+	if "chi" in atmos.nodes:
+		atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)

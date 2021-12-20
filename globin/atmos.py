@@ -326,10 +326,12 @@ class Atmosphere(object):
 			# which is in 1st and 2nd quadrant
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
-			if parameter=="gamma":# or parameter=="chi":
-				cos_angle = np.cos(self.values[parameter])
-				self.values[parameter] = np.arccos(cos_angle)
-			elif parameter=="chi":
+			# if parameter=="gamma":# or parameter=="chi": 
+					# this will influence how we interpolate;
+					# therefore, we need to be careful here
+			# 	sin_angle = np.sin(self.values[parameter])
+			# 	self.values[parameter] = np.arcsin(sin_angle)
+			if (parameter=="gamma") or (parameter=="chi"):
 				self.values[parameter] %= 2*np.pi
 			else:
 				for i_ in range(len(self.nodes[parameter])):

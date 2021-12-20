@@ -107,7 +107,7 @@ limit_values = {"temp"  : [3000, 10000], 	# [K]
 				"vmic"  : [0, 10],			# [km/s]
 				"vmac"  : [0, 5],			# [km/s]
 				"mag"   : [0, 10000],		# [G]
-				"gamma" : [0, np.pi],		# [rad]
+				"gamma" : [0, 2*np.pi],		# [rad]
 				"chi"   : [0, 2*np.pi]}		# [rad]
 
 #--- standard deviations for smoothing resulting parameters in many cycle inversion run
@@ -182,7 +182,5 @@ hydrostatic = 1
 #--- flag for normalizing spectra
 norm = True
 
-# Atmosphere(fpath=f"{__path__}/data/falc.dat", atm_type="spinor")
-
-#--- axes for atmosphere plot (duumy idea?)
+#--- axes for atmosphere plot (dummy idea?)
 atmos_axs = None
