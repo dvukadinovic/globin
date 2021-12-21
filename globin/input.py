@@ -877,8 +877,17 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		path to the file containing the information about spectral lines which
 		we use to initialize the atmospheric parameters.
 	"""
-	# obs = globin.Observation(obs)
+	from scipy.signal import argrelextrema
+
+	def find_line_positions(x):
+		inds = np.empty((atmos.nx, atmos.ny), dtype=np.int64)
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				inds[idx,idy] = argrelextrema(x[idx,idy], np.less, order=3)[0][0]
+		return inds
+
 	obs = copy.deepcopy(obs_in)
+	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
 	if norm:
 		if globin.norm:
@@ -889,59 +898,85 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			globin.norm = False
 
 	lines = open(fpath).readlines()
+	lines = [line.rstrip("\n") for line in lines if (len(line.rstrip("\n"))>0) and ("#" not in line)]
 	nl = len(lines)
-
-	import matplotlib.pyplot as plt
+	nl_mag = 0
 
 	vlos = 0
 	blos = 0
 	for line in lines:
-		line = list(filter(None,line.rstrip("\n").split(" ")))
-		if "#" not in line[0]:
-			lam0, lmin, lmax, geff = map(float,line)
+		line = list(filter(None,line.split(" ")))
 
-			ind_min = np.argmin(np.abs(wavs - lmin))
-			ind_max = np.argmin(np.abs(wavs - lmax))
+		lam0, line_dlam, geff = map(float,line)
+		line_dlam /= 1e4
+		lmin = lam0 - line_dlam
+		lmax = lam0 + line_dlam
 
-			x = wavs[ind_min:ind_max]
-			si = obs.spec[:,:,ind_min:ind_max,0]
-			su = obs.spec[:,:,ind_min:ind_max,1]
-			sq = obs.spec[:,:,ind_min:ind_max,2]
-			sv = obs.spec[:,:,ind_min:ind_max,3]
+		ind_min = np.argmin(np.abs(wavs - lmin))
+		ind_max = np.argmin(np.abs(wavs - lmax))
 
-			# plt.plot(x, si[0,0])
-			# plt.plot(x, si[1,1])
-			# plt.plot(x, si[2,2])
-			# plt.plot(x, si[3,1])
-			# plt.plot(x, si[4,0])
-			# plt.show()
-			# sys.exit()
+		inds = find_line_positions(obs.spec[:,:,ind_min:ind_max,0])
+		dd = int(line_dlam // dlam)
+		ind_min += inds - dd
+		ind_max = ind_min + 2*dd
 
-			#--- v_LOS initialization
-			if "vz" in atmos.nodes:
-				lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
-				vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
-				# vlos = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
-				# atmos.values["vz"] = vlos
+		x = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
+		si = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
+		sq = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
+		su = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
+		sv = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
 
-			#--- B_LOS initialization
-			if "mag" in atmos.nodes:
-				lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
-				lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				mmin = ind_min[idx,idy]
+				mmax = ind_max[idx,idy]
+				x[idx,idy] = obs.wavelength[mmin:mmax]
+				si[idx,idy] = obs.spec[idx,idy,mmin:mmax,0]
+				sq[idx,idy] = obs.spec[idx,idy,mmin:mmax,1]
+				su[idx,idy] = obs.spec[idx,idy,mmin:mmax,2]
+				sv[idx,idy] = obs.spec[idx,idy,mmin:mmax,3]
 
-				blos += np.abs((lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff) / np.cos(np.pi/4)
-				# print(blos)
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+		# 		plt.plot(x[idx,idy]-lam0, si[idx,idy])
+		# 		# plt.plot(obs.wavelength, obs.spec[idx,idy,:,3])
+		# 		# plt.axvline(obs.wavelength[ind_min[idx,idy]], color="black")
+		# 		# plt.axvline(obs.wavelength[ind_max[idx,idy]], color="black")
+		# 		plt.show()
+		# sys.exit()
 
-			#--- azimuth initialization
-			if "chi" in atmos.nodes:	
-				azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
-				azimuth %= 2*np.pi
-				# azimuth = np.mean(azimuth, axis=-1)
-				# print(azimuth)
+		#--- v_LOS initialization (CoG)
+		if "vz" in atmos.nodes:
+			lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
+			vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
+			# vlos = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
+			# atmos.values["vz"] = vlos
+
+		#--- B_LOS initialization (CoG / WF)
+		if "mag" in atmos.nodes:
+			lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
+			lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+
+			if geff!=0:
+				blos += np.abs((lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff) / np.cos(np.pi/3)
+				nl_mag += 1
+
+			# from scipy.interpolate import splev, splrep
+			# tck = splrep(x[0,0], si[0,0])
+			# si_der = splev(x[0,0], tck, der=1)
+			# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/4.67e-13/lam0**2/100/geff
+			# print(blos_wf, blos[0,0])
+
+		#--- azimuth initialization
+		if "chi" in atmos.nodes:	
+			azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
+			azimuth %= 2*np.pi
+			# azimuth = np.mean(azimuth, axis=-1)
+			# print(azimuth)
 
 	if "vz" in atmos.nodes:
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
 	if "mag" in atmos.nodes:
-		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl, len(atmos.nodes["mag"]), axis=-1)
+		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl_mag, len(atmos.nodes["mag"]), axis=-1)
 	if "chi" in atmos.nodes:
 		atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
