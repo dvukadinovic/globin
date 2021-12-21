@@ -102,13 +102,13 @@ atom_mass = np.array([1.00797, 4.00260, 6.941, 9.01218, 10.81, 12.011, 14.0067,
 parameter_scale = {}
 
 #--- limit values for atmospheric parameters
-limit_values = {"temp"  : [3000, 10000], 	# [K]
-				"vz"    : [-10, 10],		# [km/s]
-				"vmic"  : [0, 10],			# [km/s]
-				"vmac"  : [0, 5],			# [km/s]
-				"mag"   : [0, 10000],		# [G]
-				"gamma" : [0, 2*np.pi],		# [rad]
-				"chi"   : [0, 2*np.pi]}		# [rad]
+limit_values = {"temp"  : [3000, 10000], 		# [K]
+				"vz"    : [-10, 10],			# [km/s]
+				"vmic"  : [0, 10],				# [km/s]
+				"vmac"  : [0, 5],				# [km/s]
+				"mag"   : [0, 10000],			# [G]
+				"gamma" : [-np.pi, 2*np.pi],	# [rad]
+				"chi"   : [-np.pi, 2*np.pi]}	# [rad]
 
 #--- standard deviations for smoothing resulting parameters in many cycle inversion run
 smooth_std = {"temp"   : 50, 	# [K]
