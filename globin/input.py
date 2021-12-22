@@ -878,6 +878,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		we use to initialize the atmospheric parameters.
 	"""
 	from scipy.signal import argrelextrema
+	from scipy.interpolate import splev, splrep
 
 	def find_line_positions(x):
 		inds = np.empty((atmos.nx, atmos.ny), dtype=np.int64)
@@ -904,10 +905,31 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 	vlos = 0
 	blos = 0
+	azimuth = 0
+	inclination = 0
 	for line in lines:
 		line = list(filter(None,line.split(" ")))
 
-		lam0, line_dlam, geff = map(float,line)
+		init_mag = False
+		if len(line)==2:
+		   lam0, line_dlam = map(float,line)
+		elif len(line)==7:
+			init_mag = True
+			lam0, line_dlam, geff, gl, gu, Jl, Ju = map(float, line)
+			gs = gu + gl
+			gd = gu - gl
+			_s = Ju*(Ju+1) + Jl*(Jl+1)
+			_d = Ju*(Ju+1) - Jl*(Jl+1)
+			delta = 1/80*gd**2 * (16*_s - 7*_d**2 -4)
+			if geff<0:
+				geff = 1/2*gs + 1/4*gd*_d
+			Geff = geff**2 - delta
+		else:
+			print("Error: input.initialize_atmos_pars():")
+			print("  Wrong number of parameters for initializing")
+			print("  the vertical velocity and magnetic field strength.")
+			sys.exit()
+
 		line_dlam /= 1e4
 		lmin = lam0 - line_dlam
 		lmax = lam0 + line_dlam
@@ -952,36 +974,69 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			# vlos = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
 			# atmos.values["vz"] = vlos
 
-		#--- B_LOS initialization (CoG / WF)
-		if "mag" in atmos.nodes:
-			lamp = np.sum(x*10*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
-			lamm = np.sum(x*10*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
-
-			if geff!=0:
-				blos += np.abs((lamp - lamm) / 4.67e-13 / (lam0*10)**2 / geff) / np.cos(np.pi/3)
-				nl_mag += 1
-
-			# from scipy.interpolate import splev, splrep
-			# tck = splrep(x[0,0]*10, si[0,0])
-			# si_der = splev(x[0,0]*10, tck, der=1)
-
-			# C = -4.67e-13*(lam0*10)**2*geff
+		if init_mag:
+			#--- azimuth initialization
+			if "chi" in atmos.nodes:	
+				_azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
+				_azimuth %= 2*np.pi
+				azimuth += _azimuth
+				# azimuth = np.mean(azimuth, axis=-1)
+				# print(azimuth)
 			
-			# blos_wf = np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
-			# print(blos_wf, blos[0,0])
+			#--- B + gamma initialization (CoG + WF)
+			if "mag" in atmos.nodes:
+				lamp = np.sum(x*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
+				lamm = np.sum(x*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
 
-		#--- azimuth initialization
-		if "chi" in atmos.nodes:	
-			azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
-			azimuth %= 2*np.pi
-			# azimuth = np.mean(azimuth, axis=-1)
-			# print(azimuth)
+				if geff!=0:
+					# C = 4*np.pi*globin.LIGHT_SPEED*globin.ELECTRON_MASS/globin.ELECTRON_CHARGE
+					# _blos = (lamp - lamm)/2/lam0 / C / geff / (lam0*1e-9)
+					C = 4.67e-13*(lam0*10)**2*geff
+					_blos = (lamp - lamm)*10/2 / C
+					blos += _blos
+					nl_mag += 1
+
+				# tck = splrep(x[0,0]*10, si[0,0])
+				# si_der = splev(x[0,0]*10, tck, der=1)
+				
+				# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
+				# print(blos_wf, blos[0,0])
+
+			#--- inclination initialization
+			if "gamma" in atmos.nodes:
+				ind_lam_wing = -1
+				L = np.sqrt(sq**2 + su**2)
+
+				gamma = np.zeros((atmos.nx, atmos.ny))
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						tck = splrep(x[idx,idy], si[idx,idy])
+						si_der = splev(x[idx,idy,ind_lam_wing], tck, der=1)
+						
+						_L = L[idx,idy,ind_lam_wing]
+						delta_lam = x[idx,idy,dd] - x[idx,idy,ind_lam_wing]
+
+						denom = -4*geff*delta_lam*si_der * _L
+						denom = np.sqrt(np.abs(denom))
+						nom = 3*Geff*sv[idx,idy,ind_lam_wing]**2
+						nom = np.sqrt(np.abs(nom))
+						gamma[idx,idy] = np.arctan2(denom, nom)
+
+				inclination += gamma
 
 	if "vz" in atmos.nodes:
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
-	if "mag" in atmos.nodes:
-		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl_mag, len(atmos.nodes["mag"]), axis=-1)
+
+	if init_mag:
 		if "gamma" in atmos.nodes:
-			atmos.values["gamma"] = np.ones((atmos.nx, atmos.ny, len(atmos.nodes["gamma"]))) * np.pi/3
-	if "chi" in atmos.nodes:
-		atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
+			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
+		if "mag" in atmos.nodes:
+			blos /= nl_mag
+			inclination /= nl_mag
+			if "gamma" in atmos.nodes:
+				mag = blos / np.cos(inclination)
+			else:
+				mag = blos / np.cos(np.pi/3)
+			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
+		if "chi" in atmos.nodes:
+			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
