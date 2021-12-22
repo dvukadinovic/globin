@@ -40,11 +40,11 @@ def pool_build_from_nodes(args):
 			Kn = splev(x[-1], globin.temp_tck, der=1)
 			# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
 			# print(Kn, Knp)
-		elif (parameter=="gamma"):
+		elif (parameter=="gamma") or (parameter=="chi"):
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-		elif (parameter=="vz") or (parameter=="vmic") or (parameter=="mag") or (parameter=="chi"):
+		elif (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
