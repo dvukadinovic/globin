@@ -962,9 +962,12 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				nl_mag += 1
 
 			# from scipy.interpolate import splev, splrep
-			# tck = splrep(x[0,0], si[0,0])
-			# si_der = splev(x[0,0], tck, der=1)
-			# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/4.67e-13/lam0**2/100/geff
+			# tck = splrep(x[0,0]*10, si[0,0])
+			# si_der = splev(x[0,0]*10, tck, der=1)
+
+			# C = -4.67e-13*(lam0*10)**2*geff
+			
+			# blos_wf = np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
 			# print(blos_wf, blos[0,0])
 
 		#--- azimuth initialization
@@ -978,5 +981,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
 	if "mag" in atmos.nodes:
 		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl_mag, len(atmos.nodes["mag"]), axis=-1)
+		if "gamma" in atmos.nodes:
+			atmos.values["gamma"] = np.ones((atmos.nx, atmos.ny, atmos.nodes["gamma"].size)) * np.pi/3
 	if "chi" in atmos.nodes:
 		atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
