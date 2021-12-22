@@ -982,6 +982,6 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	if "mag" in atmos.nodes:
 		atmos.values["mag"] = np.repeat(blos[..., np.newaxis]/nl_mag, len(atmos.nodes["mag"]), axis=-1)
 		if "gamma" in atmos.nodes:
-			atmos.values["gamma"] = np.ones((atmos.nx, atmos.ny, atmos.nodes["gamma"].size)) * np.pi/3
+			atmos.values["gamma"] = np.ones((atmos.nx, atmos.ny, len(atmos.nodes["gamma"]))) * np.pi/3
 	if "chi" in atmos.nodes:
 		atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
