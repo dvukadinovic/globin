@@ -634,12 +634,9 @@ def read_node_parameters(parameter, text):
 
 		matrix = np.zeros((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])), dtype=np.float64)
 		matrix[:,:] = copy.deepcopy(values)
-		if parameter=="gamma":
+		if parameter=="gamma" or parameter=="chi":
 			matrix *= np.pi/180
-			globin.atm.values[parameter] = np.tan(matrix/2)
-		elif parameter=="chi":
-			matrix *= np.pi/180
-			globin.atm.values[parameter] = np.tan(matrix/4)
+			globin.atm.values[parameter] = copy.deepcopy(matrix)
 		else:
 			globin.atm.values[parameter] = copy.deepcopy(matrix)
 		
@@ -694,12 +691,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 			_, nx, ny, nnodes = data.shape
 
 			atmos.nodes[parameter] = data[0,0,0]
-			if parameter=="gamma":
-				atmos.values[parameter] = np.tan(data[1]/2)
-			elif parameter=="chi":
-				atmos.values[parameter] = np.tan(data[1]/4)
-			else:
-				atmos.values[parameter] = data[1]
+			atmos.values[parameter] = data[1]
 			atmos.mask[parameter] = np.ones(len(atmos.nodes[parameter]))
 
 			globin.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
@@ -1037,8 +1029,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 	if init_mag:
 		if "gamma" in atmos.nodes:
-			aux = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
-			atmos.values["gamma"] = np.tan(aux/2)
+			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
 		if "mag" in atmos.nodes:
 			blos /= nl_mag
 			inclination /= nl_mag
@@ -1048,5 +1039,4 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				mag = blos / np.cos(np.pi/3)
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 		if "chi" in atmos.nodes:
-			aux = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
-			atmos.values["chi"] = np.tan(aux/4)
+			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)

@@ -327,12 +327,10 @@ class Atmosphere(object):
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
 			if parameter=="gamma":
-				# cos_gamma = np.cos(self.values[parameter])
-				# self.values[parameter] = np.arccos(cos_gamma)
-				pass
+					cos_gamma = np.cos(self.values[parameter])
+					self.values[parameter] = np.arccos(cos_gamma)
 			elif parameter=="chi":
-				# self.values[parameter] %= 2*np.pi
-				pass
+				self.values[parameter] %= 2*np.pi
 			else:
 				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
@@ -530,9 +528,7 @@ def write_multi_atmosphere(atm, fpath):
 	out.close()
 
 	# store now and magnetic field vector
-	inclination = 2*np.arctan(atm[6])
-	azimuth = 4*np.arctan(atm[7])
-	globin.write_B(f"{fpath}.B", atm[5]/1e4, inclination, azimuth)
+	globin.write_B(f"{fpath}.B", atm[5]/1e4, atm[6], atm[7])
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)
