@@ -322,17 +322,15 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self):
 		for parameter in self.values:
-			# for every gamma, we are returnig the angle (in rad) 
-			# which is in 1st and 2nd quadrant
-			# there is no need for checking the bounds because
-			# np.arccos() returns the angle in range [0, np.pi]
-			# if parameter=="gamma":
-			# 		cos_gamma = np.cos(self.values[parameter])
-			# 		self.values[parameter] = np.arccos(cos_gamma)
-			# elif parameter=="chi":
-			# 	self.values[parameter] %= 2*np.pi
-			if parameter=="gamma" or parameter=="chi":
-				pass
+			# inclination is wrapped around [0, np.pi] interval
+			if parameter=="gamma":
+				self.values[parameter] %= np.pi
+			# azimuth is wrapped around [0, np.pi] interval even if
+			# in inversion we return angles between [-2*np.pi, 2*np.pi];
+			# because of 180 degrees ambiguity of linear polarization 
+			# signals we can retern the angle in inverval [0, np.pi]
+			elif parameter=="chi":
+				self.values[parameter] %= np.pi
 			else:
 				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
