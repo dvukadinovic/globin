@@ -104,9 +104,9 @@ parameter_scale = {}
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [0, 10],				# [km/s]
+				"vmic"  : [1e-3, 10],			# [km/s]
 				"vmac"  : [0, 5],				# [km/s]
-				"mag"   : [0, 10000],			# [G]
+				"mag"   : [10, 10000],			# [G]
 				"gamma" : [-np.pi, 2*np.pi],	# [rad]
 				"chi"   : [-np.pi, 2*np.pi]}	# [rad]
 
