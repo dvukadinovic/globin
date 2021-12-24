@@ -414,7 +414,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if "gamma" in atmos.nodes:
 		atmos.values["gamma"] %= np.pi
 	if "chi" in atmos.nodes:
-		atmos.values["chi"] %= 2*np.pi
+		atmos.values["chi"] %= np.pi
 
 	atmos.build_from_nodes(False)
 	inverted_spectra, atm = globin.compute_spectra(atmos)
@@ -698,7 +698,7 @@ def invert_global(save_output, verbose):
 	if "gamma" in atmos.nodes:
 		atmos.values["gamma"] %= np.pi
 	if "chi" in atmos.nodes:
-		atmos.values["chi"] %= 2*np.pi
+		atmos.values["chi"] %= np.pi
 
 	atmos.build_from_nodes(False)
 	

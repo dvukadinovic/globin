@@ -394,8 +394,8 @@ class Atmosphere(object):
 					aux = np.tan(self.values[parameter]/2) + step * self.mask[parameter]
 					self.values[parameter] = 2*np.arctan(aux)
 				elif parameter=="chi":
-					aux = np.tan(self.values[parameter]/4) + step * self.mask[parameter]
-					self.values[parameter] = 4*np.arctan(aux)
+					aux = np.tan(self.values[parameter]/2) + step * self.mask[parameter]
+					self.values[parameter] = 2*np.arctan(aux)
 				else:
 					self.values[parameter] += step * self.mask[parameter]
 
@@ -425,8 +425,8 @@ class Atmosphere(object):
 							aux = np.tan(self.values[parameter][idx,idy]/2) + step * self.mask[parameter]
 							self.values[parameter][idx,idy] = 2*np.arctan(aux)
 						elif parameter=="chi":
-							aux = np.tan(self.values[parameter][idx,idy]/4) + step * self.mask[parameter]
-							self.values[parameter][idx,idy] = 4*np.arctan(aux)
+							aux = np.tan(self.values[parameter][idx,idy]/2) + step * self.mask[parameter]
+							self.values[parameter][idx,idy] = 2*np.arctan(aux)
 						else:
 							self.values[parameter][idx,idy] += step * self.mask[parameter]
 						# self.values[parameter][idx,idy] += step * self.mask[parameter]
@@ -833,7 +833,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				elif parameter=="chi":
 					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
 					chi = model_plus.values[parameter][:,:,nodeID]
-					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 4*np.cos(chi/4)*np.cos(chi/4))
+					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 2*np.cos(chi/2)*np.cos(chi/2))
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.build_from_nodes()

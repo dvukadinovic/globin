@@ -48,7 +48,7 @@ def pool_build_from_nodes(args):
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 		# we do tan(chi/4) interpolation (as in inversion)
 		elif (parameter=="chi"):
-			y = np.tan(y/4)
+			y = np.tan(y/2)
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
@@ -72,7 +72,7 @@ def pool_build_from_nodes(args):
 		if parameter=="gamma":
 			y_new = 2*np.arctan(y_new)
 		elif parameter=="chi":
-			y_new = 4*np.arctan(y_new)
+			y_new = 2*np.arctan(y_new)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 	if globin.hydrostatic: 
