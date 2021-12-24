@@ -411,6 +411,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 		fpath = f"runs/{globin.wd}/{globin.linelist_name}"
 		atmos.line_lists_path.append(fpath)
 
+	if "gamma" in atmos.nodes:
+		atmos.values["gamma"] %= np.pi
+	if "chi" in atmos.nodes:
+		atmos.values["chi"] %= 2*np.pi
+
 	atmos.build_from_nodes(False)
 	inverted_spectra, atm = globin.compute_spectra(atmos)
 	if not globin.mean:
@@ -689,6 +694,11 @@ def invert_global(save_output, verbose):
 		if (num_failed==10 and itter>=3):
 			print("Failed 10 times to fix the LM parameter. We break.\n")
 			break
+
+	if "gamma" in atmos.nodes:
+		atmos.values["gamma"] %= np.pi
+	if "chi" in atmos.nodes:
+		atmos.values["chi"] %= 2*np.pi
 
 	atmos.build_from_nodes(False)
 	
