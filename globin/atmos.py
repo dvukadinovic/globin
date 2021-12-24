@@ -326,11 +326,13 @@ class Atmosphere(object):
 			# which is in 1st and 2nd quadrant
 			# there is no need for checking the bounds because
 			# np.arccos() returns the angle in range [0, np.pi]
-			if parameter=="gamma":
-					cos_gamma = np.cos(self.values[parameter])
-					self.values[parameter] = np.arccos(cos_gamma)
-			elif parameter=="chi":
-				self.values[parameter] %= 2*np.pi
+			# if parameter=="gamma":
+			# 		cos_gamma = np.cos(self.values[parameter])
+			# 		self.values[parameter] = np.arccos(cos_gamma)
+			# elif parameter=="chi":
+			# 	self.values[parameter] %= 2*np.pi
+			if parameter=="gamma" or parameter=="chi":
+				pass
 			else:
 				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
@@ -388,7 +390,14 @@ class Atmosphere(object):
 					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
-				self.values[parameter] += step * self.mask[parameter]
+				if parameter=="gamma":
+					aux = np.tan(self.values[parameter]/2) + step * self.mask[parameter]
+					self.values[parameter] = 2*np.arctan(aux)
+				elif parameter=="chi":
+					aux = np.tan(self.values[parameter]/4) + step * self.mask[parameter]
+					self.values[parameter] = 4*np.arctan(aux)
+				else:
+					self.values[parameter] += step * self.mask[parameter]
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
@@ -412,7 +421,15 @@ class Atmosphere(object):
 							if parameter=="vz" or parameter=="vmic":
 								step /= 1e3
 						np.nan_to_num(step, nan=0.0, copy=False)
-						self.values[parameter][idx,idy] += step * self.mask[parameter]
+						if parameter=="gamma":
+							aux = np.tan(self.values[parameter][idx,idy]/2) + step * self.mask[parameter]
+							self.values[parameter][idx,idy] = 2*np.arctan(aux)
+						elif parameter=="chi":
+							aux = np.tan(self.values[parameter][idx,idy]/4) + step * self.mask[parameter]
+							self.values[parameter][idx,idy] = 4*np.arctan(aux)
+						else:
+							self.values[parameter][idx,idy] += step * self.mask[parameter]
+						# self.values[parameter][idx,idy] += step * self.mask[parameter]
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
@@ -778,11 +795,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 
 		nodes = atmos.nodes[parameter]
 		perturbation = globin.delta[parameter]
-		
-		# if parameter=="gamma" or parameter=="chi":
-		# 	parameter_scale = -1/np.sin(values) * parameter_scale
-		# elif parameter=="chi":
-		# 	parameter_scale = 1/np.cos(values) * parameter_scale
 
 		for nodeID in range(len(nodes)):
 			if globin.rf_type=="snapi":
@@ -814,8 +826,14 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				spectra_plus,_ = compute_spectra(model_plus)
 
 				# negative perturbation (except for gamma and chi)
-				if parameter=="gamma" or parameter=="chi":
-					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
+				if parameter=="gamma":
+					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
+					gamma = model_plus.data[:,:,6]
+					node_RF = RF_parameter * 2*np.cos(gamma/2)*np.cos(gamma/2)
+				elif parameter=="chi":
+					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
+					chi = model_plus.data[:,:,7]
+					node_RF = RF_parameter * 4*np.cos(chi/4)*np.cos(chi/4)
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.build_from_nodes()
@@ -834,10 +852,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
 					elif not np.isnan(np.sum(scale[idx,idy])):
 						globin.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
-
-			# if parameter=="gamma" or parameter=="chi":
-			# 	rf[:,:,free_par_ID,:,:] = np.einsum("...ij,...", node_RF, parameter_scale[:,:,nodeID])
-			# else:
 			
 			for idx in range(spec.nx):
 				for idy in range(spec.ny):
