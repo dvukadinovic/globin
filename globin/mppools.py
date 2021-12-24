@@ -69,10 +69,10 @@ def pool_build_from_nodes(args):
 					Kn = (globin.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 		y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
-		if parameter=="gamma":
-			y_new = 2*np.arctan(y_new)
-		elif parameter=="chi":
-			y_new = 2*np.arctan(y_new)
+		# if parameter=="gamma":
+		# 	y_new = 2*np.arctan(y_new)
+		# elif parameter=="chi":
+		# 	y_new = 2*np.arctan(y_new)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 	if globin.hydrostatic: 
