@@ -324,14 +324,14 @@ class Atmosphere(object):
 		for parameter in self.values:
 			# inclination is wrapped around [0, np.pi] interval
 			if parameter=="gamma":
-				# self.values[parameter] %= np.pi
+				self.values[parameter] %= np.pi
 				pass
 			# azimuth is wrapped around [0, np.pi] interval even if
 			# in inversion we return angles between [-2*np.pi, 2*np.pi];
 			# because of 180 degrees ambiguity of linear polarization 
 			# signals we can retern the angle in inverval [0, np.pi]
 			elif parameter=="chi":
-				# self.values[parameter] %= np.pi
+				self.values[parameter] %= np.pi
 				pass
 			else:
 				for i_ in range(len(self.nodes[parameter])):
