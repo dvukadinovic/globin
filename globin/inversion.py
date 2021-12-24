@@ -10,11 +10,14 @@ import globin
 def pretty_print_parameters(atmos, conv_flag):
 	for parameter in atmos.values:
 		print(parameter)
+		fact = 1
+		if parameter=="gamma" or parameter=="chi":
+			fact = 180/np.pi
 		parID = atmos.par_id[parameter]
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
-					print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
+					print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy]*fact)
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
