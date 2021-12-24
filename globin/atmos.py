@@ -828,11 +828,11 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# negative perturbation (except for gamma and chi)
 				if parameter=="gamma":
 					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-					gamma = model_plus.data[:,:,6]
+					gamma = model_plus.values[parameter][:,:,nodeID]
 					node_RF = RF_parameter * 2*np.cos(gamma/2)*np.cos(gamma/2)
 				elif parameter=="chi":
 					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-					chi = model_plus.data[:,:,7]
+					chi = model_plus.values[parameter][:,:,nodeID]
 					node_RF = RF_parameter * 4*np.cos(chi/4)*np.cos(chi/4)
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
