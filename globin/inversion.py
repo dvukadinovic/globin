@@ -67,6 +67,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 	atmos = globin.atm
 
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
+	if globin.debug:
+		LM_debug = np.zeros((globin.max_iter, atmos.nx, atmos.ny))
+	
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion
 	#   0 --> we converged
@@ -294,11 +297,13 @@ def invert_pxl_by_pxl(save_output, verbose):
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
 		new_diff /= noise_stokes
-		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 		chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
+				niter = itter[idx,idy]
+				LM_debug[niter] = LM_parameter[idx,idy]
+
 				if stop_flag[idx,idy]==1:
 					if chi2_new[idx,idy] > chi2_old[idx,idy]:
 						LM_parameter[idx,idy] *= 10
@@ -468,6 +473,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
 
+		primary = fits.PrimaryHDU(LM_debug)
+		primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
+
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
@@ -577,6 +585,9 @@ def invert_global(save_output, verbose):
 	LM_parameter = globin.marq_lambda
 	dof = np.count_nonzero(globin.weights)*Nw - Npar
 
+	if globin.debug:
+		LM_debug = np.zeros((globin.max_iter))
+
 	Natmos = len(atmos.atm_name_list)
 	Ndof = np.count_nonzero(globin.weights)*Nw # - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
@@ -589,6 +600,7 @@ def invert_global(save_output, verbose):
 	itter = 0
 	full_rf, old_local_parameters = None, None
 	while itter<globin.max_iter:
+		LM_debug[itter] = LM_parameter
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
 			if verbose:
@@ -793,6 +805,9 @@ def invert_global(save_output, verbose):
 			hdulist.append(par_hdu)
 
 		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
+
+		primary = fits.PrimaryHDU(LM_debug)
+		primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
