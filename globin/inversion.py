@@ -195,6 +195,12 @@ def invert_pxl_by_pxl(save_output, verbose):
 					rf[idx,idy] = old_rf[idx,idy]
 					spec.spec[idx,idy] = old_spec.spec[idx,idy]
 
+			if globin.debug:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						niter = itter[idx,idy]
+						globin.rf_debug[idx,idy,niter] = rf[idx,idy]
+
 			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
 			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
 			# plt.show()
@@ -330,6 +336,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
+				if globin.debug:
+					for parameter in atmos.nodes:
+						niter = itter[idx,idy]-1
+						globin.atmos_debug[parameter][niter,idx,idy] = atmos.values[parameter][idx,idy]
 				if stop_flag[idx,idy]==1:
 					if LM_parameter[idx,idy]<=1e-5:
 						LM_parameter[idx,idy] = 1e-5
@@ -386,7 +396,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 					# if given pixel iteration number has reached the maximum number of iterations
 					# we stop the convergence for given pixel
-					if itter[idx,idy]==globin.max_iter-1:
+					if itter[idx,idy]-1==globin.max_iter-1:
 						stop_flag[idx,idy] = 0
 						print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
 
@@ -426,6 +436,38 @@ def invert_pxl_by_pxl(save_output, verbose):
 	except:
 		print("Failed to compute parameters error\n")
 	
+	if globin.debug:
+		from astropy.io import fits
+
+		output_path = f"runs/{globin.wd}"
+
+		primary = fits.PrimaryHDU(globin.rf_debug)
+		primary.header.comments["NAXIS1"] = "Stokes components"
+		primary.header.comments["NAXIS2"] = "wavelengths"
+		primary.header.comments["NAXIS3"] = "parameters"
+		primary.header.comments["NAXIS4"] = "iterations"
+		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
+		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
+		primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
+
+		hdulist = fits.HDUList([])
+		
+		for parameter in atmos.nodes:
+			matrix = globin.atmos_debug[parameter]
+
+			par_hdu = fits.ImageHDU(matrix)
+			par_hdu.name = parameter
+
+			par_hdu.header["unit"] = globin.parameter_unit[parameter]
+			par_hdu.header.comments["NAXIS1"] = "number of nodes"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "number of iterations"
+
+			hdulist.append(par_hdu)
+
+		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
+
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"
 
@@ -573,6 +615,11 @@ def invert_global(save_output, verbose):
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
 
+			if globin.debug:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						globin.rf_debug[idx,idy,itter] = rf[idx,idy]
+
 			# calculate chi2
 			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 			diff /= noise_stokes
@@ -651,6 +698,10 @@ def invert_global(save_output, verbose):
 			itter += 1
 			num_failed = 0
 
+		if globin.debug:
+			for parameter in atmos.nodes:
+				globin.atmos_debug[parameter][itter-1] = atmos.values[parameter]
+
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			globin.write_line_parameters(atmos.line_lists_path[0],
 									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
@@ -710,6 +761,38 @@ def invert_global(save_output, verbose):
 		atmos.compute_errors(JTJ, chi2_old)
 	except:
 		print("Failed to compute parameters error\n")
+
+	if globin.debug:
+		from astropy.io import fits
+
+		output_path = f"runs/{globin.wd}"
+
+		primary = fits.PrimaryHDU(globin.rf_debug)
+		primary.header.comments["NAXIS1"] = "Stokes components"
+		primary.header.comments["NAXIS2"] = "wavelengths"
+		primary.header.comments["NAXIS3"] = "parameters"
+		primary.header.comments["NAXIS4"] = "iterations"
+		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
+		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
+		primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
+
+		hdulist = fits.HDUList([])
+		
+		for parameter in atmos.nodes:
+			matrix = globin.atmos_debug[parameter]
+
+			par_hdu = fits.ImageHDU(matrix)
+			par_hdu.name = parameter
+
+			par_hdu.header["unit"] = globin.parameter_unit[parameter]
+			par_hdu.header.comments["NAXIS1"] = "number of nodes"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "number of iterations"
+
+			hdulist.append(par_hdu)
+
+		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
 
 	if save_output is not None:
 		output_path = f"runs/{globin.wd}"

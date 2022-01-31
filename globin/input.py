@@ -147,6 +147,16 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	text = open(globin_input_name, "r").read()
 	globin.parameters_input = text
 
+	# key used to make debug files/checks during synthesis/inversion
+	debug = _find_value_by_key("debug", globin.parameters_input, "optional")
+	if debug is not None:
+		if debug.lower()=="true":
+			globin.debug = True
+		elif debug.lower()=="false":
+			globin.debug = False
+	else:
+		globin.debug = False
+
 	globin.n_thread = _find_value_by_key("n_thread",globin.parameters_input, "default", 1, conversion=int)
 	globin.mode = _find_value_by_key("mode", globin.parameters_input, "required", conversion=int)
 	norm = _find_value_by_key("norm", globin.parameters_input, "optional")
@@ -269,6 +279,17 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		for idy in range(globin.atm.ny):
 			fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 			globin.atm.atm_name_list.append(fpath)
+
+	#--- debugging variables initialization
+	if globin.debug:
+		Npar = globin.atm.n_local_pars + globin.atm.n_global_pars
+		globin.rf_debug = np.zeros((globin.atm.nx, globin.atm.ny, globin.max_iter, Npar, len(globin.wavelength), 4))
+
+		elements = []
+		for parameter in globin.atm.nodes:
+			aux = np.zeros((globin.max_iter, globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
+			elements.append((parameter, aux))
+		globin.atmos_debug = dict(elements)
 
 	#--- missing parameters
 	# instrument broadening: R or instrument profile provided

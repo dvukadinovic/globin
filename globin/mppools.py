@@ -75,7 +75,7 @@ def pool_build_from_nodes(args):
 		# 	y_new = 2*np.arctan(y_new)
 		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
-	if globin.hydrostatic: 
+	if globin.hydrostatic:
 		atmos.makeHSE(idx, idy)
 
 	if save_atmos:

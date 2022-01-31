@@ -11,7 +11,7 @@ import globin
 # sys.exit()
 
 #--- initialize input object and read input files
-run_name = "m1"
+run_name = "dummy"
 globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
