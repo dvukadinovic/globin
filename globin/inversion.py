@@ -301,8 +301,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				niter = itter[idx,idy]
-				LM_debug[niter] = LM_parameter[idx,idy]
+				if globin.debug:
+					niter = itter[idx,idy]
+					LM_debug[niter] = LM_parameter[idx,idy]
 
 				if stop_flag[idx,idy]==1:
 					if chi2_new[idx,idy] > chi2_old[idx,idy]:
@@ -600,7 +601,8 @@ def invert_global(save_output, verbose):
 	itter = 0
 	full_rf, old_local_parameters = None, None
 	while itter<globin.max_iter:
-		LM_debug[itter] = LM_parameter
+		if globin.debug:
+			LM_debug[itter] = LM_parameter
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if updated_parameters:
 			if verbose:
