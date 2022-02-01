@@ -42,7 +42,7 @@ def invert(save_output=True, verbose=True):
 			else:
 				print(f"Not supported mode {globin.mode}, currently.")
 				return None, None
-			
+
 			# in last cycle we do not smooth atmospheric parameters
 			if (cycle+1)<globin.ncycle:
 				globin.atm.smooth_parameters(cycle)
@@ -69,7 +69,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * globin.marq_lambda
 	if globin.debug:
 		LM_debug = np.zeros((globin.max_iter, atmos.nx, atmos.ny))
-	
+
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion
 	#   0 --> we converged
@@ -77,7 +77,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# in which we converged we will not change parameters, but, the calculations
 	# will be done, as well as RFs... Find smarter way around it.
 	stop_flag = np.ones((obs.nx, obs.ny), dtype=np.float64)
-	
+
 	if verbose:
 		print("Initial parameters:")
 		pretty_print_parameters(atmos, stop_flag)
@@ -85,11 +85,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	Nw = len(globin.wavelength)
 	# this is number of local parameters only (we are doing pxl-by-pxl)
-	if globin.mode==1:	
+	if globin.mode==1:
 		Npar = atmos.n_local_pars
 	elif globin.mode==2:
 		Npar = atmos.n_local_pars + atmos.n_global_pars
-	
+
 	if Npar==0:
 		print("There is no parameters to fit.\n   We exit.\n")
 		globin.remove_dirs()
@@ -126,7 +126,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
 
 	# weights on Stokes vector based on dI over dlam (from observations)
-	# from scipy.interpolate import splev, splrep	
+	# from scipy.interpolate import splev, splrep
 	# weights = np.empty((obs.nx, obs.ny, Nw))
 	# for idx in range(obs.nx):
 	# 	for idy in range(obs.ny):
@@ -151,14 +151,14 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 	noise_stokes /= weights
 
-	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter))
+	chi2 = np.zeros((atmos.nx, atmos.ny, globin.max_iter), dtype=np.float64)
 	Ndof = np.count_nonzero(globin.weights) * Nw # - Npar
 
 	start = time.time()
 
 	itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 	# we iterate until one of the pixels reach maximum numbre of iterations
-	# other pixels will be blocked at max itteration earlier than or 
+	# other pixels will be blocked at max itteration earlier than or
 	# will stop due to convergence criterium
 	full_rf, old_atmos_parameters = None, None
 
@@ -181,12 +181,12 @@ def invert_pxl_by_pxl(save_output, verbose):
 			atmos.atm_name_list = copy.deepcopy(atm_name_list)
 			if globin.mode==2:
 				atmos.line_lists_path = copy.deepcopy(line_lists_path)
-			
+
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#             spec.shape = (nx, ny, Nw, 5)
 			old_rf = copy.deepcopy(rf)
 			old_spec = copy.deepcopy(spec)
-			if globin.rf_type=="snapi":	
+			if globin.rf_type=="snapi":
 				rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_atmos_parameters)
 			elif globin.rf_type=="node":
 				rf, spec, _ = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)
@@ -217,7 +217,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
 			# 		for sID in range(4):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
-			
+
 			#--- scale RFs with weights and noise scale
 			# _rf = rf/noise_scale_rf
 			_rf = rf
@@ -247,7 +247,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# flatted_diff = (nx, ny, 4*Nw)
 			flatted_diff = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
 
-			# This was tested with arrays filled with hand and 
+			# This was tested with arrays filled with hand and
 			# checked if the array manipulations return what we expect
 			# and it does!
 			updated_pars = np.ones((atmos.nx, atmos.ny))
@@ -266,11 +266,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# delta = (nx, ny, npar)
 		delta = np.einsum("...pw,...w", JT, flatted_diff)
 		# proposed_steps = (nx, ny, npar)
-		diagonal = H[X,Y,P,P]
-		inds = np.argwhere(diagonal==0)
-		for ind in inds:
-			idx, idy, idp = ind
-			H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
+		# diagonal = H[X,Y,P,P]
+		# inds = np.argwhere(diagonal==0)
+		# for ind in inds:
+		# 	idx, idy, idp = ind
+		# 	H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
 		# print("*** ", H)
 		proposed_steps = np.linalg.solve(H, delta)
 		# print("*** ", proposed_steps)
@@ -353,7 +353,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						stop_flag[idx,idy] = 0
 						itter[idx,idy] = globin.max_iter
 						original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-						if globin.mode==2:	
+						if globin.mode==2:
 							original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
@@ -369,7 +369,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 				if stop_flag[idx,idy]==1 and updated_pars[idx,idy]==1:
 					it_no = itter[idx,idy]
 					if it_no>=2:
-						# need to get -2 and -1 because I already rised itter by 1 
+						# need to get -2 and -1 because I already rised itter by 1
 						# when chi2 list was updated.
 						relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
 						if chi2[idx,idy,it_no-1]<1e-32:
@@ -378,7 +378,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-							if globin.mode==2:	
+							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif relative_change<globin.chi2_tolerance:
@@ -387,7 +387,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-							if globin.mode==2:	
+							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 						elif chi2[idx,idy,it_no-1] < 1:
@@ -411,7 +411,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# if all pixels have converged, we stop inversion
 		if np.sum(stop_flag)==0:
 			break
-	
+
 	# return all original paths for final output
 	atmos.atm_name_list = []
 	atmos.line_lists_path = []
@@ -440,7 +440,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		atmos.compute_errors(JTJ, chi2_old)
 	except:
 		print("Failed to compute parameters error\n")
-	
+
 	if globin.debug:
 		from astropy.io import fits
 
@@ -456,7 +456,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
 
 		hdulist = fits.HDUList([])
-		
+
 		for parameter in atmos.nodes:
 			matrix = globin.atmos_debug[parameter]
 
@@ -496,18 +496,18 @@ def invert_pxl_by_pxl(save_output, verbose):
 		inverted_spectra.xmax = obs.xmax
 		inverted_spectra.ymin = obs.ymin
 		inverted_spectra.ymax = obs.ymax
-		
+
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
 		if globin.mode==2:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
-		
+
 		end = time.time() - start
 		print("\nFinished in: {0}\n".format(end))
 
 		out_file = open("{:s}/output.log".format(output_path), "w")
-		
+
 		out_file.write("Run time: {:10.1f}\n\n".format(end))
 		out_file.write("\n\n     #===--- globin input file ---===#\n\n")
 		out_file.write(globin.parameters_input)
@@ -586,7 +586,7 @@ def invert_global(save_output, verbose):
 	dof = np.count_nonzero(globin.weights)*Nw - Npar
 
 	if globin.debug:
-		LM_debug = np.zeros((globin.max_iter))
+		LM_debug = np.zeros((globin.max_iter), dtype=np.float64)
 
 	Natmos = len(atmos.atm_name_list)
 	Ndof = np.count_nonzero(globin.weights)*Nw # - atmos.n_local_pars*Natmos - atmos.n_global_pars
@@ -605,7 +605,7 @@ def invert_global(save_output, verbose):
 		if updated_parameters:
 			if verbose:
 				print("Iteration: {:2}\n".format(itter+1))
-			
+
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#               spec.shape = (nx, ny, Nw, 5)
 			rf, spec, full_rf = globin.compute_rfs(atmos, rf_noise_scale=noise_stokes)#, full_rf, old_local_parameters)
@@ -619,7 +619,7 @@ def invert_global(save_output, verbose):
 			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
 			# 		for sID in range(4):
 			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
-			
+
 			# scale RFs with weights and noise scale
 			# rf /= noise_scale_rf
 
@@ -639,16 +639,16 @@ def invert_global(save_output, verbose):
 
 			# make Jacobian matrix and fill with RF values
 			aux = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
-			
-			J = np.zeros((4*Nw*(obs.nx*obs.ny), atmos.n_local_pars*(obs.nx*obs.ny) + atmos.n_global_pars))
-			flatted_diff = np.zeros(obs.nx*obs.ny*Nw*4)
+
+			J = np.zeros((4*Nw*(obs.nx*obs.ny), atmos.n_local_pars*(obs.nx*obs.ny) + atmos.n_global_pars), dtype=np.float64)
+			flatted_diff = np.zeros(obs.nx*obs.ny*Nw*4, dtype=np.float64)
 
 			l = 4*Nw
 			n_atmosphere = 0
 			for idx in range(obs.nx):
 				for idy in range(obs.ny):
 					low = n_atmosphere*l
-					up = low + l 
+					up = low + l
 					ll = n_atmosphere*atmos.n_local_pars
 					uu = ll + atmos.n_local_pars
 					J[low:up,ll:uu] = aux[idx,idy,:atmos.n_local_pars].T
@@ -694,7 +694,6 @@ def invert_global(save_output, verbose):
 		new_diff = obs.spec - corrected_spec.spec
 		new_diff *= globin.weights
 		new_diff /= noise_stokes
-		# chi2_new = np.sum(new_diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
 		chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 		if np.sum(chi2_new) > np.sum(chi2_old):
@@ -730,7 +729,7 @@ def invert_global(save_output, verbose):
 		# if yes, we set break_flag to True
 		# we do not check for chi2 convergence until 3rd iteration
 		if (itter)>=3 and updated_parameters:
-			# need to get -2 and -1 because I already rised itter by 1 
+			# need to get -2 and -1 because I already rised itter by 1
 			# when chi2 list was updated.
 			new_chi2 = np.sum(chi2[...,itter-1]) / Natmos
 			old_chi2 = np.sum(chi2[...,itter-2]) / Natmos
@@ -744,7 +743,7 @@ def invert_global(save_output, verbose):
 			elif new_chi2 < 1:
 				print("chi2 smaller than 1\n")
 				break_flag = True
-		
+
 		if updated_parameters and verbose:
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print(LM_parameter)
@@ -764,9 +763,9 @@ def invert_global(save_output, verbose):
 	# 	atmos.values["chi"] %= np.pi
 
 	atmos.build_from_nodes(False)
-	
+
 	inverted_spectra,_ = globin.compute_spectra(atmos)
-	if not globin.mean:	
+	if not globin.mean:
 		inverted_spectra.broaden_spectra(atmos.vmac)
 
 	try:
@@ -789,7 +788,7 @@ def invert_global(save_output, verbose):
 		primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
 
 		hdulist = fits.HDUList([])
-		
+
 		for parameter in atmos.nodes:
 			matrix = globin.atmos_debug[parameter]
 
@@ -825,7 +824,7 @@ def invert_global(save_output, verbose):
 		atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
 		inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
 		globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
-	
+
 		end = time.time() - start
 		print("Finished in: {0}\n".format(end))
 
@@ -896,4 +895,3 @@ def lnprob(theta, x, y, yp, yerr):
 	if not np.isfinite(lp):
 		return -np.inf
 	return lp + lnlike(theta, x, y, yp, yerr)
-
