@@ -900,6 +900,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	"""
 	from scipy.signal import argrelextrema
 	from scipy.interpolate import splev, splrep
+	import matplotlib.pyplot as plt
 
 	def find_line_positions(x):
 		inds = np.empty((atmos.nx, atmos.ny), dtype=np.int64)
@@ -948,7 +949,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		else:
 			print("Error: input.initialize_atmos_pars():")
 			print("  Wrong number of parameters for initializing")
-			print("  the vertical velocity and magnetic field strength.")
+			print("  the vertical velocity and magnetic field vector.")
 			sys.exit()
 
 		line_dlam /= 1e4
@@ -981,7 +982,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 		# for idx in range(atmos.nx):
 		# 	for idy in range(atmos.ny):
-		# 		plt.plot(x[idx,idy]-lam0, si[idx,idy])
+		# 		lin_pol = np.sqrt(sq[idx,idy]**2 + su[idx,idy]**2)
+		# 		plt.plot(x[idx,idy]-lam0, lin_pol)
 		# 		# plt.plot(obs.wavelength, obs.spec[idx,idy,:,3])
 		# 		# plt.axvline(obs.wavelength[ind_min[idx,idy]], color="black")
 		# 		# plt.axvline(obs.wavelength[ind_max[idx,idy]], color="black")
@@ -1025,7 +1027,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 			#--- inclination initialization
 			if "gamma" in atmos.nodes:
-				ind_lam_wing = -1
+				ind_lam_wing = dd//2-1
 				L = np.sqrt(sq**2 + su**2)
 
 				gamma = np.zeros((atmos.nx, atmos.ny))
@@ -1061,3 +1063,6 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 		if "chi" in atmos.nodes:
 			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
+
+		# print(mag)
+		# print(inclination*180/np.pi)
