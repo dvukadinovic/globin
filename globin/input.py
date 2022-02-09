@@ -1056,7 +1056,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
-					inclination[idx,idy] = np.pi/2 + 5 * np.sign(inclination[idx,idy] - np.pi/2)
+					inclination[idx,idy] = np.pi/2 + 5*np.pi/180 * np.sign(inclination[idx,idy] - np.pi/2)
 		if "gamma" in atmos.nodes:
 			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
 		if "mag" in atmos.nodes:
@@ -1075,5 +1075,5 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		if "chi" in atmos.nodes:
 			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
 
-		# print(mag)
-		# print(inclination*180/np.pi)
+		print(mag)
+		print(inclination*180/np.pi)
