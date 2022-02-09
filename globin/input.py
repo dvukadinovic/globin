@@ -1075,5 +1075,5 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		if "chi" in atmos.nodes:
 			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
 
-		print(mag)
-		print(inclination*180/np.pi)
+		# print(mag)
+		# print(inclination*180/np.pi)
