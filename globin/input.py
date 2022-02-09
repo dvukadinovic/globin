@@ -1051,6 +1051,12 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
 
 	if init_mag:
+		#--- check for the bounds in inclination
+		#--- inclination can not be closer than 5 degrees to 90 degrees
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
+					inclination[idx,idy] = np.pi/2 + 5 * np.sign(inclination[idx,idy] - np.pi/2)
 		if "gamma" in atmos.nodes:
 			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
 		if "mag" in atmos.nodes:
@@ -1060,6 +1066,11 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				mag = blos / np.cos(inclination)
 			else:
 				mag = blos / np.cos(np.pi/3)
+			#--- check for the bounds in magnetic field strength
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					if mag[idx,idy] > globin.limit_values["mag"][1]:
+						mag[idx,idy] = globin.limit_values["mag"][1]
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 		if "chi" in atmos.nodes:
 			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
