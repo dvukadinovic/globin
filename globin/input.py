@@ -280,16 +280,17 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 			fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 			globin.atm.atm_name_list.append(fpath)
 
-	#--- debugging variables initialization
-	if globin.debug:
-		Npar = globin.atm.n_local_pars + globin.atm.n_global_pars
-		globin.rf_debug = np.zeros((globin.atm.nx, globin.atm.ny, globin.max_iter, Npar, len(globin.wavelength), 4))
+	if globin.mode>=1:
+		#--- debugging variables initialization
+		if globin.debug:
+			Npar = globin.atm.n_local_pars + globin.atm.n_global_pars
+			globin.rf_debug = np.zeros((globin.atm.nx, globin.atm.ny, globin.max_iter, Npar, len(globin.wavelength), 4))
 
-		elements = []
-		for parameter in globin.atm.nodes:
-			aux = np.zeros((globin.max_iter, globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
-			elements.append((parameter, aux))
-		globin.atmos_debug = dict(elements)
+			elements = []
+			for parameter in globin.atm.nodes:
+				aux = np.zeros((globin.max_iter, globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])))
+				elements.append((parameter, aux))
+			globin.atmos_debug = dict(elements)
 
 	#--- missing parameters
 	# instrument broadening: R or instrument profile provided
