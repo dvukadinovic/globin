@@ -433,7 +433,6 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 		globin.atm.vmac = abs(vmac)
 		globin.atm.global_pars["vmac"] = np.array([globin.atm.vmac])
 		globin.parameter_scale["vmac"] = 1
-
 	globin.ref_atm.vmac = abs(vmac)
 
 	#--- read initial node parameter values	
@@ -656,11 +655,14 @@ def read_node_parameters(parameter, text):
 
 		matrix = np.zeros((globin.atm.nx, globin.atm.ny, len(globin.atm.nodes[parameter])), dtype=np.float64)
 		matrix[:,:] = copy.deepcopy(values)
-		if parameter=="gamma" or parameter=="chi":
+		if parameter=="gamma":
 			matrix *= np.pi/180
-			globin.atm.values[parameter] = copy.deepcopy(matrix)
+			globin.atm.values[parameter] = np.tan(matrix/2)
+		elif parameter=="chi":
+			matrix *= np.pi/180
+			globin.atm.values[parameter] = np.tan(matrix/4)
 		else:
-			globin.atm.values[parameter] = copy.deepcopy(matrix)
+			globin.atm.values[parameter] = matrix
 		
 		if mask is None:
 			globin.atm.mask[parameter] = np.ones(len(globin.atm.nodes[parameter]))
@@ -713,7 +715,13 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 			_, nx, ny, nnodes = data.shape
 
 			atmos.nodes[parameter] = data[0,0,0]
-			atmos.values[parameter] = data[1]
+			# angles are saved in radians, no need to convert them here
+			if parameter=="gamma":
+				atmos.values[parameter] = np.tan(data[1]/2)
+			elif parameter=="chi":
+				atmos.values[parameter] = np.tan(data[1]/4)
+			else:
+				atmos.values[parameter] = data[1]
 			atmos.mask[parameter] = np.ones(len(atmos.nodes[parameter]))
 
 			globin.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
@@ -873,8 +881,11 @@ def read_node_atmosphere(fpath):
 					temps = _slice_line(lines[i_+2+j_])
 					atmos.values[parameter][idx, idy] = np.array(temps)
 
-				if parameter=="gamma" or parameter=="chi":
-					atmos.values[parameter] *= np.pi/180 # [deg --> rad]
+				if parameter=="gamma":
+					atmos.values[parameter] = np.tan(atmos.values[parameter]/2 * np.pi/180)
+				elif parameter=="chi":
+					atmos.values[parameter] = np.tan(atmos.values[parameter]/4 * np.pi/180)
+					# atmos.values[parameter] *= np.pi/180 # [deg --> rad]
 
 				i_ += nlines+1
 
@@ -1059,7 +1070,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				for idy in range(atmos.ny):
 					if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
 						inclination[idx,idy] = np.pi/2 + 5*np.pi/180 * np.sign(inclination[idx,idy] - np.pi/2)
-			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
+			atmos.values["gamma"] = np.repeat(np.tan(inclination[..., np.newaxis]/nl_mag/2), len(atmos.nodes["gamma"]), axis=-1)
 		if "mag" in atmos.nodes:
 			blos /= nl_mag
 			inclination /= nl_mag
@@ -1074,7 +1085,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 						mag[idx,idy] = globin.limit_values["mag"][1]
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 		if "chi" in atmos.nodes:
-			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
+			atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)
 
 		# print(mag)
 		# print(inclination*180/np.pi)
