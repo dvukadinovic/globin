@@ -27,14 +27,25 @@ if globin.mode==0:
 #--- do inversion
 inv_atm, inv = globin.invert()
 
-# sys.exit()
+if "gamma" in inv_atm.nodes:
+	print("gamma")
+	print(inv_atm.values["gamma"] * 180/np.pi)
+	print(inv_atm.data[0,0,6] * 180/np.pi)
+	print(globin.ref_atm.data[0,0,6] * 180/np.pi)
+
+	print("--------")
+if "chi" in inv_atm.nodes:
+	print("chi")
+	print(inv_atm.values["chi"] * 180/np.pi)
+	print(inv_atm.data[0,0,7] * 180/np.pi)
+	print(globin.ref_atm.data[0,0,7] * 180/np.pi)
 
 #--- analysis of the inverted data
 atm = globin.ref_atm
 obs = globin.obs
 
-#chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
-#globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
+chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
+globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
 
 lista = list(globin.atm.nodes)
 
@@ -45,3 +56,10 @@ for par in lista:
 	rmsd = np.sqrt( np.sum(diff**2, axis=(2)) / atm.nz)
 	print(rmsd)
 	print("-----------------------")
+
+globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=inv.spec[0,0])
+plt.savefig(f"runs/{run_name}/inv_vs_obs.png")
+
+globin.plot_atmosphere(atm, ["gamma", "chi"], idx=0, idy=0, color="black")
+globin.plot_atmosphere(inv_atm, ["gamma", "chi"], idx=0, idy=0, color="tab:blue")
+plt.savefig(f"runs/{run_name}/atmos_compare.png")

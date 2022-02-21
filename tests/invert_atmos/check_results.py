@@ -2,7 +2,7 @@ import globin
 import numpy as np
 
 atm = globin.Atmosphere("atmos.fits")
-inv = globin.Atmosphere("runs/m1/inverted_atmos.fits")
+inv = globin.Atmosphere("runs/dummy/inverted_atmos.fits")
 
 lista = list(inv.nodes)
 
