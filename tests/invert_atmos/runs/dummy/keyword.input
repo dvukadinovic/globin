@@ -24,7 +24,7 @@
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = /media/dusan/storage/RH/globin/tests/invert_atmos/runs/dummy/win_4015_two_lines.wave
+  WAVETABLE = /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/win_4015_two_lines.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs

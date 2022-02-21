@@ -15,9 +15,9 @@ def pretty_print_parameters(atmos, conv_flag):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
 					if parameter=="gamma":
-						print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					elif parameter=="chi":
-						print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
@@ -274,7 +274,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# for ind in inds:
 		# 	idx, idy, idp = ind
 		# 	H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
-		# print("*** ", H)
 		proposed_steps = np.linalg.solve(H, delta)
 		# print("*** ", proposed_steps)
 
@@ -429,11 +428,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if globin.mode==1:
 		fpath = f"runs/{globin.wd}/{globin.linelist_name}"
 		atmos.line_lists_path.append(fpath)
-
-	# if "gamma" in atmos.nodes:
-	# 	atmos.values["gamma"] %= np.pi
-	# if "chi" in atmos.nodes:
-	# 	atmos.values["chi"] %= np.pi
 
 	atmos.build_from_nodes(False)
 	inverted_spectra, atm = globin.compute_spectra(atmos)

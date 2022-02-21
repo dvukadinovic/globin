@@ -320,6 +320,61 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
+	def update_parameters(self, proposed_steps, stop_flag=None):
+		if stop_flag is not None:
+			low_ind, up_ind = 0, 0
+			# update atmospheric parameters
+			for parameter in self.values:
+				low_ind = up_ind
+				up_ind += len(self.nodes[parameter])
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				# we do not perturb parameters of those pixels which converged
+				step = np.einsum("...i,...->...i", step, stop_flag)
+				if globin.rf_type=="snapi":
+					# RH returns RFs in m/s and we are working with km/s in globin
+					# so we have to return the values from m/s to km/s
+					if parameter=="vz" or parameter=="vmic":
+						step /= 1e3
+				np.nan_to_num(step, nan=0.0, copy=False)
+				# if parameter=="gamma":
+				# 	nom = self.values[parameter] + np.tan(step/2)
+				# 	denom = 1 - self.values[parameter]*np.tan(step/2)
+				# 	self.values[parameter] = nom/denom
+				# else:
+				self.values[parameter] += step * self.mask[parameter]
+
+			# update atomic parameters + vmac
+			for parameter in self.global_pars:
+				low_ind = up_ind
+				up_ind += self.line_no[parameter].size
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				np.nan_to_num(step, nan=0.0, copy=False)
+				self.global_pars[parameter] += step
+		else:
+			low_ind, up_ind = 0, 0
+			# update atmospheric parameters
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					for parameter in self.values:
+						low_ind = up_ind
+						up_ind += len(self.nodes[parameter])
+						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter][idx,idy]
+						# RH returns RFs in m/s and we are working with km/s in globin
+						# so we have to return the values from m/s to km/s
+						if globin.rf_type=="snapi":
+							if parameter=="vz" or parameter=="vmic":
+								step /= 1e3
+						np.nan_to_num(step, nan=0.0, copy=False)
+						self.values[parameter][idx,idy] += step * self.mask[parameter]
+
+			# update atomic parameters + vmac
+			for parameter in self.global_pars:
+				low_ind = up_ind
+				up_ind += self.global_pars[parameter].size
+				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
+				np.nan_to_num(step, nan=0.0, copy=False)
+				self.global_pars[parameter] += step
+
 	def check_parameter_bounds(self):
 		for parameter in self.values:
 			# inclination is wrapped around [0, np.pi] interval
@@ -366,78 +421,6 @@ class Atmosphere(object):
 							# maximum check
 							if self.global_pars[parameter][idx,idy,i_]>globin.limit_values[parameter][i_,1]:
 								self.global_pars[parameter][idx,idy,i_] = globin.limit_values[parameter][i_,1]
-
-	def update_parameters(self, proposed_steps, stop_flag=None):
-		if stop_flag is not None:
-			low_ind, up_ind = 0, 0
-			# update atmospheric parameters
-			for parameter in self.values:
-				low_ind = up_ind
-				up_ind += len(self.nodes[parameter])
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
-				# we do not perturb parameters of those pixels which converged
-				step = np.einsum("...i,...->...i", step, stop_flag)
-				# if parameter=="gamma":
-				# 	aux = np.cos(self.values[parameter]) + step
-				# 	self.values[parameter] = np.arccos(aux)
-				# elif parameter=="chi":
-				# 	aux = np.sin(self.values[parameter]) + step
-				# 	self.values[parameter] = np.arcsin(aux)
-				# else:
-				if globin.rf_type=="snapi":
-					# RH returns RFs in m/s and we are working with km/s in globin
-					# so we have to return the values from m/s to km/s
-					if parameter=="vz" or parameter=="vmic":
-						step /= 1e3
-				np.nan_to_num(step, nan=0.0, copy=False)
-				# if parameter=="gamma":
-				# 	aux = np.tan(self.values[parameter]/2) + step * self.mask[parameter]
-				# 	self.values[parameter] = 2*np.arctan(aux)
-				# elif parameter=="chi":
-				# 	aux = np.tan(self.values[parameter]/2) + step * self.mask[parameter]
-				# 	self.values[parameter] = 2*np.arctan(aux)
-				# else:
-				self.values[parameter] += step * self.mask[parameter]
-
-			# update atomic parameters + vmac
-			for parameter in self.global_pars:
-				low_ind = up_ind
-				up_ind += self.line_no[parameter].size
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
-				np.nan_to_num(step, nan=0.0, copy=False)
-				self.global_pars[parameter] += step
-		else:
-			low_ind, up_ind = 0, 0
-			# update atmospheric parameters
-			for idx in range(self.nx):
-				for idy in range(self.ny):
-					for parameter in self.values:
-						low_ind = up_ind
-						up_ind += len(self.nodes[parameter])
-						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter][idx,idy]
-						# RH returns RFs in m/s and we are working with km/s in globin
-						# so we have to return the values from m/s to km/s
-						if globin.rf_type=="snapi":
-							if parameter=="vz" or parameter=="vmic":
-								step /= 1e3
-						np.nan_to_num(step, nan=0.0, copy=False)
-						# if parameter=="gamma":
-						# 	aux = np.tan(self.values[parameter][idx,idy]/2) + step * self.mask[parameter]
-						# 	self.values[parameter][idx,idy] = 2*np.arctan(aux)
-						# elif parameter=="chi":
-						# 	aux = np.tan(self.values[parameter][idx,idy]/2) + step * self.mask[parameter]
-						# 	self.values[parameter][idx,idy] = 2*np.arctan(aux)
-						# else:
-						self.values[parameter][idx,idy] += step * self.mask[parameter]
-						# self.values[parameter][idx,idy] += step * self.mask[parameter]
-
-			# update atomic parameters + vmac
-			for parameter in self.global_pars:
-				low_ind = up_ind
-				up_ind += self.global_pars[parameter].size
-				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
-				np.nan_to_num(step, nan=0.0, copy=False)
-				self.global_pars[parameter] += step
 
 	def smooth_parameters(self, cycleID):
 		from scipy.ndimage import gaussian_filter
@@ -823,12 +806,12 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				
 				# positive perturbation
 				if parameter=="gamma":
-					nom = atmos.values[parameter][:,:,nodeID] + np.tan(globin.delta[parameter]/2)
-					denom = 1 - atmos.values[parameter][:,:,nodeID]*np.tan(globin.delta[parameter]/2)
+					nom = atmos.values[parameter][:,:,nodeID] + np.tan(perturbation/2)
+					denom = 1 - atmos.values[parameter][:,:,nodeID]*np.tan(perturbation/2)
 					model_plus.values[parameter][:,:,nodeID] = nom/denom
 				elif parameter=="chi":
-					nom = atmos.values[parameter][:,:,nodeID] + np.tan(globin.delta[parameter]/4)
-					denom = 1 - atmos.values[parameter][:,:,nodeID]*np.tan(globin.delta[parameter]/4)
+					nom = atmos.values[parameter][:,:,nodeID] + np.tan(perturbation/4)
+					denom = 1 - atmos.values[parameter][:,:,nodeID]*np.tan(perturbation/4)
 					model_plus.values[parameter][:,:,nodeID] = nom/denom
 				else:
 					model_plus.values[parameter][:,:,nodeID] += perturbation
@@ -838,11 +821,14 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				# negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma":
 					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-					gamma = model_plus.values[parameter][:,:,nodeID]
+					gamma = 2*np.arctan(atmos.values[parameter][:,:,nodeID])
 					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 2*np.cos(gamma/2)*np.cos(gamma/2))
 				elif parameter=="chi":
 					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-					chi = model_plus.values[parameter][:,:,nodeID]
+					chi = 4*np.arctan(atmos.values[parameter][:,:,nodeID])
+					# print(spec.spec[0,0,:,1])
+					# print(spec.spec[0,0,:,2])
+					# print(spec.spec[0,0,:,3])
 					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 4*np.cos(chi/4)*np.cos(chi/4))
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation

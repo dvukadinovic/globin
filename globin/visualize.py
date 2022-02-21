@@ -58,7 +58,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 
 		try:
 			x = atmos.nodes[parameter]
-			y = atmos.values[parameter][idx,idy] * fact[parameter]
+			if parameter=="gamma":
+				y = 2*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
+			elif parameter=="chi":
+				y = 4*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
+			else:
+				y = atmos.values[parameter][idx,idy] * fact[parameter]
 			plt.scatter(x, y, s=20, color=color)
 		except:
 			# print(f"globin::visualize --> no nodes for parameter {parameter}")
