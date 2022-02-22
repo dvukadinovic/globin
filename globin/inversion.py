@@ -15,9 +15,9 @@ def pretty_print_parameters(atmos, conv_flag):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
 					if parameter=="gamma":
-						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
 					elif parameter=="chi":
-						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
@@ -177,6 +177,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		# if len(old_inds)!=atmos.nx*atmos.ny:
 		if len(atm_name_list)>0:
+			# print(2*np.arctan(atmos.values["gamma"]) * 180/np.pi)
+			# print(2*np.arctan(atmos.data[0,0,6]) * 180/np.pi)
 			if verbose:
 				print("Iteration (min): {:2}\n".format(np.min(itter)+1))
 
@@ -210,6 +212,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
 			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
 			# plt.show()
+			# sys.exit()
 
 			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))

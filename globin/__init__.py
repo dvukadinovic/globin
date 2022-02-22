@@ -185,3 +185,6 @@ norm = True
 
 #--- axes for atmosphere plot (dummy idea?)
 atmos_axs = None
+
+#
+atm_scale = "tau"

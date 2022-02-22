@@ -705,6 +705,10 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 
 	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
 	atmos.data = data
+	# inclination is casted into tan(inclination/2)
+	atmos.data[:,:,6] = np.tan(atmos.data[:,:,6]/2)
+	# azimuth is casted into tan(azimuth/2)
+	atmos.data[:,:,7] = np.tan(atmos.data[:,:,7]/4)
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 
