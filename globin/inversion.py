@@ -64,8 +64,16 @@ def svd_invert(H, delta):
 	for idx in range(nx):
 		for idy in range(ny):
 			det = np.linalg.det(H[idx,idy])
-			if (not np.isnan(det)) or (det!=0):
-				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+			if (det!=np.nan) or (det!=0):
+				try:
+					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+				except np.linalg.LinAlgError:
+					print(idx+1,idy+1)
+					print(det)
+					np.nan_to_num(det, nan=0.0, copy=False)
+					print(det)
+					print(H[idx,idy])
+					sys.exit()
 				vmax = globin.svd_tolerance*np.max(eigen_vals)
 				inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
 				Gamma_inv = np.diag(inv_eigen_vals)

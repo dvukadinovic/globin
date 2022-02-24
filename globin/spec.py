@@ -30,9 +30,9 @@ class Spectrum(object):
 			self.ny = shape[1]
 			self.nw = shape[2]
 		elif (nx is not None) and (ny is not None) and (nw is not None):
-			self.spec = np.empty((nx, ny, nw, 4))
+			self.spec = np.zeros((nx, ny, nw, 4))
 			self.spec[:,:,:,:] = np.nan
-			self.wavelength = np.empty(nw)
+			self.wavelength = np.zeros(nw)
 			self.wavelength[:] = np.nan
 
 	def add_noise(self, noise):
