@@ -4,6 +4,7 @@ import os
 import copy
 import time
 import matplotlib.pyplot as plt
+from astropy.io import fits
 
 import globin
 
@@ -53,6 +54,27 @@ def invert(save_output=True, verbose=True):
 		globin.remove_dirs()
 
 		return atm, spec
+
+def svd_invert(H, delta):
+	nx, ny, npar, _ = H.shape
+
+	one = np.ones(npar)
+
+	steps = np.zeros((nx, ny, npar))
+	for idx in range(nx):
+		for idy in range(ny):
+			det = np.linalg.det(H[idx,idy])
+			if (not np.isnan(det)) or (det!=0):
+				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+				vmax = globin.svd_tolerance*np.max(eigen_vals)
+				inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
+				Gamma_inv = np.diag(inv_eigen_vals)
+				invHess = np.dot(u, np.dot(Gamma_inv, vh))
+				steps[idx,idy] = np.dot(invHess, delta[idx,idy])
+			else:
+				print(f"*** [{idx},{idy}] Hessian is filled with NaNs! / is singular!	")
+
+	return steps
 
 def invert_pxl_by_pxl(save_output, verbose):
 	"""
@@ -271,14 +293,11 @@ def invert_pxl_by_pxl(save_output, verbose):
 		H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
 		# delta = (nx, ny, npar)
 		delta = np.einsum("...pw,...w", JT, flatted_diff)
+
 		# proposed_steps = (nx, ny, npar)
-		# diagonal = H[X,Y,P,P]
-		# inds = np.argwhere(diagonal==0)
-		# for ind in inds:
-		# 	idx, idy, idp = ind
-		# 	H[idx,idy,idp,idp] = 1 + LM_parameter[idx,idy]
-		proposed_steps = np.linalg.solve(H, delta)
-		# print("*** ", proposed_steps)
+		proposed_steps = svd_invert(H, delta)
+		# proposed_steps = np.linalg.solve(H, delta)
+		# sys.exit()
 
 		old_atmos_parameters = copy.deepcopy(atmos.values)
 		if globin.mode==2:
@@ -432,6 +451,12 @@ def invert_pxl_by_pxl(save_output, verbose):
 		fpath = f"runs/{globin.wd}/{globin.linelist_name}"
 		atmos.line_lists_path.append(fpath)
 
+	# wrap the nodes of angles in 0-180 degrees and 0-360 degrees
+	# if "gamma" in atmos.nodes:
+	# 	atmos.values["gamma"] %= np.pi
+	# if "chi" in atmos.nodes:
+	# 	atmos.values["chi"] %= 2*np.pi
+
 	atmos.build_from_nodes(False)
 	inverted_spectra, atm = globin.compute_spectra(atmos)
 	if not globin.mean:
@@ -443,7 +468,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 		print("Failed to compute parameters error\n")
 
 	if globin.debug:
-		from astropy.io import fits
 
 		output_path = f"runs/{globin.wd}"
 
@@ -776,7 +800,6 @@ def invert_global(save_output, verbose):
 		print("Failed to compute parameters error\n")
 
 	if globin.debug:
-		from astropy.io import fits
 
 		output_path = f"runs/{globin.wd}"
 

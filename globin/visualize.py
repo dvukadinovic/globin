@@ -25,8 +25,6 @@ unit = {"temp"  : "K",
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
-	cube[6] = 2*np.arctan(cube[6])
-	cube[7] = 4*np.arctan(cube[7])
 
 	n_plots = len(parameters)
 	if n_plots==1:
@@ -50,11 +48,6 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 	for k_ in range(n_plots):	
 		parameter = parameters[k_]
 		parID = atmos.par_id[parameter]
-
-		# if parameter=="gamma":
-		# 	cube[parID] = np.arccos(cube[parID])
-		# elif parameter=="chi":
-		# 	cube[parID] = np.arcsin(cube[parID])
 
 		plt.subplot(nrows, ncols, k_+1)
 

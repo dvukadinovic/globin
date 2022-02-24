@@ -361,6 +361,7 @@ def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 	# interpolation degree for Bezier polynomial
 	globin.interp_degree = _find_value_by_key("interp_degree", globin.parameters_input, "default", 3, int)
+	globin.svd_tolerance = _find_value_by_key("svd_tolerance", globin.parameters_input, "default", 1e-4, float)
 
 	#--- default parameters
 	globin.marq_lambda = _find_value_by_key("marq_lambda", globin.parameters_input, "default", 1e-3, float)
@@ -706,9 +707,9 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
 	atmos.data = data
 	# inclination is casted into tan(inclination/2)
-	atmos.data[:,:,6] = np.tan(atmos.data[:,:,6]/2)
+	# atmos.data[:,:,6] = np.tan(atmos.data[:,:,6]/2)
 	# azimuth is casted into tan(azimuth/2)
-	atmos.data[:,:,7] = np.tan(atmos.data[:,:,7]/4)
+	# atmos.data[:,:,7] = np.tan(atmos.data[:,:,7]/4)
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 

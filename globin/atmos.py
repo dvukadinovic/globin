@@ -234,8 +234,16 @@ class Atmosphere(object):
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
 		data = copy.deepcopy(self.data)
-		data[:,:,6] = 2*np.arctan(data[:,:,6])
-		data[:,:,7] = 4*np.arctan(data[:,:,7])
+		# data[:,:,6] = 2*np.arctan(data[:,:,6])
+		# data[:,:,7] = 4*np.arctan(data[:,:,7])
+		if "gamma" in self.nodes:
+			data[:,:,6] = 2*np.arctan(data[:,:,6])
+		if "chi" in self.nodes:
+			data[:,:,7] = 4*np.arctan(data[:,:,7])
+
+		# wraping the angles into the interval 0-180 degrees and 0-360 degrees
+		# data[:,:,6] %= np.pi
+		# data[:,:,7] %= 2*np.pi
 
 		primary = fits.PrimaryHDU(data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
@@ -275,6 +283,11 @@ class Atmosphere(object):
 			matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
 			matrix[0] = self.nodes[parameter]
 			matrix[1] = self.values[parameter]
+
+			if parameter=="gamma":
+				matrix[1] = 2*np.arctan(matrix[1])
+			if parameter=="chi":
+				matrix[1] = 4*np.arctan(matrix[1])
 
 			par_hdu = fits.ImageHDU(matrix)
 			par_hdu.name = parameter
@@ -544,10 +557,17 @@ def write_multi_atmosphere(atm, fpath):
 
 	out.close()
 
-	# store now and magnetic field vector
-	# print("*** ", 2*np.arctan(atm[6]) * 180/np.pi)
-	# print(4*np.arctan(atm[7]) * 180/np.pi)
-	globin.write_B(f"{fpath}.B", atm[5]/1e4, 2*np.arctan(atm[6]), 4*np.arctan(atm[7]))
+	# store magnetic field vector
+	
+	gamma = atm[6]
+	if "gamma" in globin.atm.nodes:
+		gamma = 2*np.arctan(atm[6])
+
+	chi = atm[7]
+	if "chi" in globin.atm.nodes:
+		chi = 4*np.arctan(atm[7])
+
+	globin.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)
@@ -1001,7 +1021,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- compare RFs for single parameter
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
-	# 		plt.plot(rf[idx,idy, 0, :, 3])
+	# 		plt.plot(rf[idx,idy, 7, :, :])
 	# plt.show()
 	# sys.exit()
 

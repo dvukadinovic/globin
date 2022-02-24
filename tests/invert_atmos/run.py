@@ -47,6 +47,8 @@ obs = globin.obs
 chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
 globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
 
+sys.exit()
+
 lista = list(globin.atm.nodes)
 
 # for par in lista:
