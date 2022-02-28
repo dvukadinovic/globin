@@ -42,13 +42,13 @@ def pool_build_from_nodes(args):
 			# print(Kn, Knp)
 		# we do tan(gamma/2) interpolation (as in inversion)
 		elif (parameter=="gamma"):
-			# y = np.tan(y/2)
+			y = 2*np.arctan(y)
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 		# we do tan(chi/4) interpolation (as in inversion)
 		elif (parameter=="chi"):
-			# y = np.tan(y/4)
+			y = 4*np.arctan(y)
 			if len(x)>=2:
 				K0 = (y[1]-y[0]) / (x[1]-x[0])
 				Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
@@ -69,7 +69,13 @@ def pool_build_from_nodes(args):
 					Kn = (globin.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 		y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
-		atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
+		if parameter=="gamma":
+			atmos.data[idx,idy,atmos.par_id[parameter],:] = np.tan(y_new/2)
+		elif parameter=="chi":
+			atmos.data[idx,idy,atmos.par_id[parameter],:] = np.tan(y_new/4)
+			atmos.values[parameter][idx,idy] = y
+		else:
+			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 	if globin.hydrostatic:
 		atmos.makeHSE(idx, idy)

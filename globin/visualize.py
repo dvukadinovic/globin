@@ -22,9 +22,15 @@ unit = {"temp"  : "K",
 		"gamma" : "deg",
 		"chi"   : "deg"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None, transangles=False):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
+	if transangles:
+		if "gamma" in atmos.nodes:
+			cube[6] = 2*np.arctan(cube[6])
+			print(cube[6]*180/np.pi)
+		if "chi" in atmos.nodes:
+			cube[7] = 4*np.arctan(cube[7])
 
 	n_plots = len(parameters)
 	if n_plots==1:

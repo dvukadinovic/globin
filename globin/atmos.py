@@ -407,17 +407,16 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self):
 		for parameter in self.values:
-			# inclination is wrapped around [0, np.pi] interval
+			# inclination is wrapped around [0, 180] interval
 			if parameter=="gamma":
-				# self.values[parameter] %= np.pi
-				pass
-			# azimuth is wrapped around [0, np.pi] interval even if
-			# in inversion we return angles between [-2*np.pi, 2*np.pi];
-			# because of 180 degrees ambiguity of linear polarization 
-			# signals we can retern the angle in inverval [0, np.pi]
+				gamma = 2*np.arctan(self.values[parameter])
+				gamma %= np.pi
+				self.values[parameter] = np.tan(gamma/2)
+			# azimuth is wrapped around [0, 360] interval
 			elif parameter=="chi":
-				# self.values[parameter] %= np.pi
-				pass
+				chi = 4*np.arctan(self.values[parameter])
+				chi %=2*np.pi
+				self.values[parameter] = np.tan(chi/4)
 			else:
 				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
@@ -1021,7 +1020,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- compare RFs for single parameter
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
-	# 		plt.plot(rf[idx,idy, 7, :, :])
+	# 		aux = rf[idx,idy, 10:, :, :]
+	# 		plt.plot(aux.reshape(3, 804, order="F").T)
 	# plt.show()
 	# sys.exit()
 

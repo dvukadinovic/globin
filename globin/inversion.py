@@ -60,27 +60,26 @@ def svd_invert(H, delta):
 
 	one = np.ones(npar)
 
+	np.nan_to_num(H, nan=0.0, copy=False)
+
 	steps = np.zeros((nx, ny, npar))
 	for idx in range(nx):
 		for idy in range(ny):
 			det = np.linalg.det(H[idx,idy])
-			if (det!=np.nan) or (det!=0):
-				try:
-					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-				except np.linalg.LinAlgError:
-					print(idx+1,idy+1)
-					print(det)
-					np.nan_to_num(det, nan=0.0, copy=False)
-					print(det)
-					print(H[idx,idy])
-					sys.exit()
+			print(det)
+			if det==0:
+				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
 				vmax = globin.svd_tolerance*np.max(eigen_vals)
 				inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
 				Gamma_inv = np.diag(inv_eigen_vals)
 				invHess = np.dot(u, np.dot(Gamma_inv, vh))
 				steps[idx,idy] = np.dot(invHess, delta[idx,idy])
 			else:
-				print(f"*** [{idx},{idy}] Hessian is filled with NaNs! / is singular!	")
+				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+				inv_eigen_vals = np.divide(one, eigen_vals)
+				Gamma_inv = np.diag(inv_eigen_vals)
+				invHess = np.dot(u, np.dot(Gamma_inv, vh))
+				steps[idx,idy] = np.dot(invHess, delta[idx,idy])
 
 	return steps
 
