@@ -67,9 +67,9 @@ def svd_invert(H, delta, stop_flag):
 		for idy in range(ny):
 			if stop_flag[idx,idy]==1:
 				det = np.linalg.det(H[idx,idy])
-				print(det)
 				if det==0:
 					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+					# print(f"[{idx},{idy}] -- {eigen_vals}")
 					vmax = globin.svd_tolerance*np.max(eigen_vals)
 					inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
 					Gamma_inv = np.diag(inv_eigen_vals)

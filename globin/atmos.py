@@ -413,7 +413,7 @@ class Atmosphere(object):
 			# azimuth is wrapped around [0, 360] interval
 			elif parameter=="chi":
 				chi = 4*np.arctan(self.values[parameter])
-				chi %=2*np.pi
+				chi %= 2*np.pi
 				self.values[parameter] = np.tan(chi/4)
 			else:
 				for i_ in range(len(self.nodes[parameter])):
