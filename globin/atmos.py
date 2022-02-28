@@ -234,8 +234,6 @@ class Atmosphere(object):
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
 		data = copy.deepcopy(self.data)
-		# data[:,:,6] = 2*np.arctan(data[:,:,6])
-		# data[:,:,7] = 4*np.arctan(data[:,:,7])
 		if "gamma" in self.nodes:
 			data[:,:,6] = 2*np.arctan(data[:,:,6])
 		if "chi" in self.nodes:

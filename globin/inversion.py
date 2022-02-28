@@ -55,7 +55,7 @@ def invert(save_output=True, verbose=True):
 
 		return atm, spec
 
-def svd_invert(H, delta):
+def svd_invert(H, delta, stop_flag):
 	nx, ny, npar, _ = H.shape
 
 	one = np.ones(npar)
@@ -65,21 +65,22 @@ def svd_invert(H, delta):
 	steps = np.zeros((nx, ny, npar))
 	for idx in range(nx):
 		for idy in range(ny):
-			det = np.linalg.det(H[idx,idy])
-			print(det)
-			if det==0:
-				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-				vmax = globin.svd_tolerance*np.max(eigen_vals)
-				inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
-				Gamma_inv = np.diag(inv_eigen_vals)
-				invHess = np.dot(u, np.dot(Gamma_inv, vh))
-				steps[idx,idy] = np.dot(invHess, delta[idx,idy])
-			else:
-				u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-				inv_eigen_vals = np.divide(one, eigen_vals)
-				Gamma_inv = np.diag(inv_eigen_vals)
-				invHess = np.dot(u, np.dot(Gamma_inv, vh))
-				steps[idx,idy] = np.dot(invHess, delta[idx,idy])
+			if stop_flag[idx,idy]==1:
+				det = np.linalg.det(H[idx,idy])
+				print(det)
+				if det==0:
+					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+					vmax = globin.svd_tolerance*np.max(eigen_vals)
+					inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
+					Gamma_inv = np.diag(inv_eigen_vals)
+					invHess = np.dot(u, np.dot(Gamma_inv, vh))
+					steps[idx,idy] = np.dot(invHess, delta[idx,idy])
+				else:
+					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+					inv_eigen_vals = np.divide(one, eigen_vals)
+					Gamma_inv = np.diag(inv_eigen_vals)
+					invHess = np.dot(u, np.dot(Gamma_inv, vh))
+					steps[idx,idy] = np.dot(invHess, delta[idx,idy])
 
 	return steps
 
@@ -302,7 +303,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		delta = np.einsum("...pw,...w", JT, flatted_diff)
 
 		# proposed_steps = (nx, ny, npar)
-		proposed_steps = svd_invert(H, delta)
+		proposed_steps = svd_invert(H, delta, stop_flag)
 		# proposed_steps = np.linalg.solve(H, delta)
 		# sys.exit()
 
