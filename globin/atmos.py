@@ -234,10 +234,12 @@ class Atmosphere(object):
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
 		data = copy.deepcopy(self.data)
-		if "gamma" in self.nodes:
-			data[:,:,6] = 2*np.arctan(data[:,:,6])
-		if "chi" in self.nodes:
-			data[:,:,7] = 4*np.arctan(data[:,:,7])
+		# if "gamma" in self.nodes:
+			# data[:,:,6] = 2*np.arctan(data[:,:,6])
+			# data[:,:,6] = np.arccos(data[:,:,6])
+		# if "chi" in self.nodes:
+			# data[:,:,7] = 4*np.arctan(data[:,:,7])
+			# data[:,:,7] = np.arccos(data[:,:,7])
 
 		# wraping the angles into the interval 0-180 degrees and 0-360 degrees
 		# data[:,:,6] %= np.pi
@@ -282,10 +284,12 @@ class Atmosphere(object):
 			matrix[0] = self.nodes[parameter]
 			matrix[1] = self.values[parameter]
 
-			if parameter=="gamma":
-				matrix[1] = 2*np.arctan(matrix[1])
-			if parameter=="chi":
-				matrix[1] = 4*np.arctan(matrix[1])
+			# if parameter=="gamma":
+				# matrix[1] = 2*np.arctan(matrix[1])
+				# matrix[1] = np.arccos(matrix[1])
+			# if parameter=="chi":
+				# matrix[1] = 4*np.arctan(matrix[1])
+				# matrix[1] = np.arccos(matrix[1])
 
 			par_hdu = fits.ImageHDU(matrix)
 			par_hdu.name = parameter
@@ -352,23 +356,6 @@ class Atmosphere(object):
 					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
-				# if parameter=="gamma":
-					# gamma = 2*np.arctan(self.values[parameter])
-					# gamma_new = gamma + step
-					# self.values[parameter] = np.tan(gamma_new/2)
-					# print(gamma_new * 180/np.pi)
-					# print(self.values)
-					# print(np.arctan(self.values[parameter])*2 * 180/np.pi)
-					# nom = self.values[parameter] + np.tan(step/2)
-					# denom = 1 - self.values[parameter]*np.tan(step/2)
-					# self.values[parameter] = nom/denom
-					# print(self.values[parameter])
-					# print("---")
-				# else:
-				# print(self.values[parameter])
-				# print(step)
-				# print("-----")
-				# else:
 				self.values[parameter] += step * self.mask[parameter]
 
 			# update atomic parameters + vmac
@@ -407,14 +394,20 @@ class Atmosphere(object):
 		for parameter in self.values:
 			# inclination is wrapped around [0, 180] interval
 			if parameter=="gamma":
-				gamma = 2*np.arctan(self.values[parameter])
-				gamma %= np.pi
-				self.values[parameter] = np.tan(gamma/2)
+				y = np.cos(self.values[parameter])
+				self.values[parameter] = np.arccos(y)
+				# gamma = 2*np.arctan(self.values[parameter])
+				# gamma %= np.pi
+				# self.values[parameter] = np.tan(gamma/2)
+				pass
 			# azimuth is wrapped around [0, 360] interval
 			elif parameter=="chi":
-				chi = 4*np.arctan(self.values[parameter])
-				chi %= 2*np.pi
-				self.values[parameter] = np.tan(chi/4)
+				# chi = 4*np.arctan(self.values[parameter])
+				# chi %= 2*np.pi
+				# self.values[parameter] = np.tan(chi/4)
+				y = np.cos(self.values[parameter])
+				self.values[parameter] = np.arccos(y)
+				pass
 			else:
 				for i_ in range(len(self.nodes[parameter])):
 					for idx in range(self.nx):
@@ -425,6 +418,7 @@ class Atmosphere(object):
 							# maximum check
 							if self.values[parameter][idx,idy,i_]>globin.limit_values[parameter][1]:
 								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][1]
+			
 		for parameter in self.global_pars:
 			if parameter=="vmac":
 				# minimum check
@@ -557,12 +551,14 @@ def write_multi_atmosphere(atm, fpath):
 	# store magnetic field vector
 	
 	gamma = atm[6]
-	if "gamma" in globin.atm.nodes:
-		gamma = 2*np.arctan(atm[6])
+	# if "gamma" in globin.atm.nodes:
+		# gamma = 2*np.arctan(atm[6])
+		# gamma = np.arccos(atm[6])
 
 	chi = atm[7]
-	if "chi" in globin.atm.nodes:
-		chi = 4*np.arctan(atm[7])
+	# if "chi" in globin.atm.nodes:
+	# 	# chi = 4*np.arctan(atm[7])
+	# 	chi = np.arccos(atm[7])
 
 	globin.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
 
@@ -813,6 +809,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 		rfID = rf_id[parameter]
 
 		nodes = atmos.nodes[parameter]
+		values = atmos.values[parameter]
 		perturbation = globin.delta[parameter]
 
 		for nodeID in range(len(nodes)):
@@ -841,29 +838,34 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				#===--- Computing RFs in nodes
 				
 				# positive perturbation
-				if parameter=="gamma":
-					nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/2)
-					denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/2)
-					model_plus.values[parameter][:,:,nodeID] = nom/denom
-				elif parameter=="chi":
-					nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/4)
-					denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/4)
-					model_plus.values[parameter][:,:,nodeID] = nom/denom
-				else:
-					model_plus.values[parameter][:,:,nodeID] += perturbation
+				# if parameter=="gamma":
+					# nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/2)
+					# denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/2)
+					# model_plus.values[parameter][:,:,nodeID] = nom/denom
+					# model_plus.values[parameter][:,:,nodeID] = values[:,:,nodeID]*np.cos(perturbation) - np.sqrt(1-values[:,:,nodeID]**2)*np.sin(perturbation)
+				# elif parameter=="chi":
+				# 	# nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/4)
+				# 	# denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/4)
+				# 	# model_plus.values[parameter][:,:,nodeID] = nom/denom
+				# 	model_plus.values[parameter][:,:,nodeID] = values[:,:,nodeID]*np.cos(perturbation) + np.sqrt(1-values[:,:,nodeID]**2)*np.sin(perturbation)
+				# else:
+				model_plus.values[parameter][:,:,nodeID] += perturbation
 				model_plus.build_from_nodes()
 				spectra_plus,_ = compute_spectra(model_plus)
 				
 				# negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma":
 					RF_parameter = (spectra_plus.spec - spec.spec) / perturbation
-					gamma = 2*np.arctan(atmos.values[parameter][:,:,nodeID])
-					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 2*np.cos(gamma/2)*np.cos(gamma/2))
-					# node_RF = (spectra_plus.spec - spec.spec) / perturbation
+					# gamma = 2*np.arctan(atmos.values[parameter][:,:,nodeID])
+					# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 2*np.cos(gamma/2)*np.cos(gamma/2))
+					# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, -1/np.sqrt(1-values[:,:,nodeID]**2))
+					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="chi":
-					RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-					chi = 4*np.arctan(atmos.values[parameter][:,:,nodeID])
-					node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 4*np.cos(chi/4)*np.cos(chi/4))
+					# RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
+				# 	# chi = 4*np.arctan(atmos.values[parameter][:,:,nodeID])
+				# 	# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 4*np.cos(chi/4)*np.cos(chi/4))
+				# 	node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 1/np.sqrt(1-values[:,:,nodeID]**2))
+					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.build_from_nodes()
@@ -1018,7 +1020,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- compare RFs for single parameter
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
-	# 		aux = rf[idx,idy, 10:, :, :]
+	# 		aux = rf[idx,idy, :, :, :]
 	# 		plt.plot(aux.reshape(3, 804, order="F").T)
 	# plt.show()
 	# sys.exit()

@@ -16,9 +16,13 @@ def pretty_print_parameters(atmos, conv_flag):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
 					if parameter=="gamma":
-						print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					elif parameter=="chi":
-						print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:

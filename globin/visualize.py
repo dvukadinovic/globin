@@ -25,12 +25,14 @@ unit = {"temp"  : "K",
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None, transangles=False):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
-	if transangles:
-		if "gamma" in atmos.nodes:
-			cube[6] = 2*np.arctan(cube[6])
-			print(cube[6]*180/np.pi)
-		if "chi" in atmos.nodes:
-			cube[7] = 4*np.arctan(cube[7])
+	# if transangles:
+	# 	if "gamma" in atmos.nodes:
+			# cube[6] = np.arccos(cube[6])
+			# cube[6] = 2*np.arctan(cube[6])
+			# print(cube[6]*180/np.pi)
+		# if "chi" in atmos.nodes:
+			# cube[7] = 4*np.arctan(cube[7])
+			# cube[7] = np.arccos(cube[7])
 
 	n_plots = len(parameters)
 	if n_plots==1:
@@ -59,12 +61,14 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 
 		try:
 			x = atmos.nodes[parameter]
-			if parameter=="gamma":
-				y = 2*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
-			elif parameter=="chi":
-				y = 4*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
-			else:
-				y = atmos.values[parameter][idx,idy] * fact[parameter]
+			# if parameter=="gamma":
+			# 	# y = 2*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
+			# 	y = np.arccos(atmos.values[parameter][idx,idy]) * fact[parameter]
+			# elif parameter=="chi":
+			# 	# y = 4*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
+			# 	y = np.arccos(atmos.values[parameter][idx,idy]) * fact[parameter]
+			# else:
+			y = atmos.values[parameter][idx,idy] * fact[parameter]
 			plt.scatter(x, y, s=20, color=color)
 		except:
 			# print(f"globin::visualize --> no nodes for parameter {parameter}")
