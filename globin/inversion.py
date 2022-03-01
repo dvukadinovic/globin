@@ -16,9 +16,13 @@ def pretty_print_parameters(atmos, conv_flag):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
 					if parameter=="gamma":
-						print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					elif parameter=="chi":
-						print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
+						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 	if globin.mode>=2:
@@ -69,6 +73,10 @@ def svd_invert(H, delta, stop_flag):
 				det = np.linalg.det(H[idx,idy])
 				if det==0:
 					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
+<<<<<<< HEAD
+=======
+					# print(f"[{idx},{idy}] -- {eigen_vals}")
+>>>>>>> rf_fix
 					vmax = globin.svd_tolerance*np.max(eigen_vals)
 					inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
 					Gamma_inv = np.diag(inv_eigen_vals)

@@ -106,9 +106,11 @@ limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
 				"vmic"  : [1e-3, 10],			# [km/s]
 				"vmac"  : [0, 5],				# [km/s]
-				"mag"   : [10, 10000],			# [G]
-				"gamma" : [-np.pi, 2*np.pi],	# [rad]
-				"chi"   : [-np.pi, 2*np.pi]}	# [rad]
+				"mag"   : [1, 10000],			# [G]
+				"gamma" : [-np.pi, np.pi],	# [rad]
+				# "gamma" : [-0.999999, 0.999999],
+				"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
+				# "chi"   : [-0.999999, 0.999999]}
 
 #--- standard deviations for smoothing resulting parameters in many cycle inversion run
 smooth_std = {"temp"   : 50, 	# [K]
@@ -149,7 +151,7 @@ parameter_name = {"temp"   : "Temperature",
 				  "gamma"  : "Inclination",
 				  "chi"    : "Azimuth"}
 
-#--- parameter units (for FITS header)
+#--- parameters units (for FITS header)
 parameter_unit = {"temp"   : "K",
 				  "ne"     : "1/3",
 				  "vz"     : "km/s",
