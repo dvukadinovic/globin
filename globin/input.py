@@ -225,6 +225,12 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	atm_type = atm_type.lower()
 	globin.atm_scale = _find_value_by_key("atm_scale", globin.parameters_input, "default", "tau", str)
 
+	# read Opacity Fudge (OF) data
+	globin.of_fit_mode = _find_value_by_key("of_fit_mode", globin.parameters_input, "default", -1, float)
+	globin.of_file_path = _find_value_by_key("of_file", globin.parameters_input, "default", None, str)
+	if (globin.of_fit_mode>=0) and globin.of_file_path:
+		read_OF_data(globin.of_file_path)
+	
 	# get the name of the input line list
 	linelist_path = _find_value_by_key("linelist", globin.parameters_input, "required")
 	globin.linelist_name = linelist_path.split("/")[-1]
@@ -1105,3 +1111,35 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 		# print(mag)
 		# print(inclination*180/np.pi)
+
+def read_OF_data(fpath):
+	try:
+		hdu = fits.open(fpath)[0].data
+		globin.of_wave, globin.of_value = hdu[0], hdu[1]
+		globin.of_num = len(globin.of_wave)
+	except:
+		lines = open(fpath, "r").readlines()
+
+		globin.of_wave, globin.of_value = [], []
+		globin.of_num = 0
+
+		for line in lines:
+			if "#" not in line:
+				lam, fudge = _slice_line(line)
+				globin.of_wave.append(lam)
+				globin.of_value.append(fudge)
+				globin.of_num += 1
+
+def make_RH_OF_file(fpath):
+	out = open(fpath, "w")
+
+	out.write("{:2d}\n".format(globin.of_num))
+	for i_ in range(globin.of_num):
+		wave = globin.of_wave[i_]
+		fudge = globin.of_value[i_]
+		if wave>=210:
+			out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
+		else:
+			out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
+
+	out.close()
