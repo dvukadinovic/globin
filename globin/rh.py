@@ -305,10 +305,10 @@ class Rhout:
             ishape = (2, self.nrays, nspect)
         else:
             ishape = (nspect,)
-        self.brs['hasline'] = read_xdr_var(
-            data, ('i', (nspect,))).astype('Bool')
-        self.brs['ispolarized'] = read_xdr_var(
-            data, ('i', (nspect,))).astype('Bool')
+        self.brs['hasline'] = (read_xdr_var(
+            data, ('i', (nspect,)))>0).tolist()
+        self.brs['ispolarized'] = (read_xdr_var(
+            data, ('i', (nspect,)))>0).tolist()
         self.brs['backgrrecno'] = read_xdr_var(data, ('i', ishape))
         close_xdr(data, infile, verbose=self.verbose)
 

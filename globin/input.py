@@ -142,6 +142,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	# globin.hydrostatic = _find_value_by_key("HYDROSTATIC", globin.keyword_input, "optional")
 	globin.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
 	globin.rf_file_path = _find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
+	globin.stokes_mode = _find_value_by_key("STOKES_MODE", globin.keyword_input, "default", "NO_STOKES")
 
 	#--- get parameters from globin input file
 	text = open(globin_input_name, "r").read()
@@ -742,6 +743,12 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 			globin.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
 		except:
 			pass
+
+	try:
+		ind = hdu_list.index_of("Continuum_Opacity")
+		atmos.chi_c = hdu_list[ind].data
+	except:
+		atmos.chi_c = None
 
 	return atmos
 

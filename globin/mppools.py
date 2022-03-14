@@ -166,8 +166,11 @@ def pool_synth(args):
 	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
 
 	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
-	globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
-	globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
+	if globin.stokes_mode=="NO_STOKES":
+		globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}", keyword_path)
+	else:
+		globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
+		globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
 
 	# make kurucz.input file in rhf1d/globin.wd_pid and give the line list path
 	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.kurucz_input_fname}", "w")
@@ -209,7 +212,7 @@ def pool_synth(args):
 	rh_obj = globin.rh.Rhout(fdir=f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}", verbose=False)
 	rh_obj.read_spectrum(globin.rh_spec_name)
 	rh_obj.read_ray()
-	# rh_obj.read_opacity()
+	rh_obj.read_opacity()
 
 	dt = time.time() - start
 	if globin.mode==0:	

@@ -68,6 +68,8 @@ class Atmosphere(object):
 		# node mask: we can specify only which nodes to invert (mask==1)
 		# structure and ordering same as self.nodes
 		self.mask = {}
+
+		self.chi_c = None
 		
 		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {}
@@ -108,6 +110,7 @@ class Atmosphere(object):
 			self.mask = atmos.mask
 			self.header = atmos.header
 			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+			self.chi_c = atmos.chi_c
 		else:
 			self.header = None
 			if (nx is not None) and (ny is not None) and (nz is not None):
@@ -299,6 +302,16 @@ class Atmosphere(object):
 			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
 			par_hdu.header.comments["NAXIS4"] = "1 - node values | 2 - parameter values"
+
+			hdulist.append(par_hdu)
+
+		if self.chi_c is not None:
+			par_hdu = fits.ImageHDU(self.chi_c)
+			par_hdu.name = "Continuum_Opacity"
+
+			par_hdu.header.comments["NAXIS1"] = "number of wavelength points"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
 
 			hdulist.append(par_hdu)
 
@@ -588,8 +601,9 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	if globin.lmax<500:
 		ind_min, ind_max = 0, -1
 
-	# chi_c_shape = lista[0]["rh_obj"].chi_c.shape
-	# atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
+	chi_c_shape = list(lista[0]["rh_obj"].chi_c.shape)
+	chi_c_shape[0] -= 1 # we have one less wavelenght that we are not taking inot account (@500nm)
+	atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
 
 	for item in lista:
 		if item is not None:
@@ -628,7 +642,7 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 				pass
 			atmospheres.height[idx,idy] = rh_obj.geometry["height"]
 			atmospheres.cmass[idx,idy] = rh_obj.geometry["cmass"]
-			# atmospheres.chi_c[idx,idy] = rh_obj.chi_c
+			atmospheres.chi_c[idx,idy] = rh_obj.chi_c[ind_min:ind_max] + rh_obj.scatt[ind_min:ind_max]
 			for i_ in range(rh_obj.atmos['nhydr']):
 				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
 
