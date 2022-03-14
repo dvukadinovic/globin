@@ -601,9 +601,10 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	if globin.lmax<500:
 		ind_min, ind_max = 0, -1
 
-	chi_c_shape = list(lista[0]["rh_obj"].chi_c.shape)
-	chi_c_shape[0] -= 1 # we have one less wavelenght that we are not taking inot account (@500nm)
-	atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
+	if globin.stokes_mode=="NO_STOKES":
+		chi_c_shape = list(lista[0]["rh_obj"].chi_c.shape)
+		chi_c_shape[0] -= 1 # we have one less wavelenght that we are not taking inot account (@500nm)
+		atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
 
 	for item in lista:
 		if item is not None:
@@ -642,7 +643,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 				pass
 			atmospheres.height[idx,idy] = rh_obj.geometry["height"]
 			atmospheres.cmass[idx,idy] = rh_obj.geometry["cmass"]
-			atmospheres.chi_c[idx,idy] = rh_obj.chi_c[ind_min:ind_max] + rh_obj.scatt[ind_min:ind_max]
+			if globin.stokes_mode=="NO_STOKES":
+				atmospheres.chi_c[idx,idy] = rh_obj.chi_c[ind_min:ind_max] + rh_obj.scatt[ind_min:ind_max]
 			for i_ in range(rh_obj.atmos['nhydr']):
 				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
 
