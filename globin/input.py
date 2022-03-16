@@ -1047,13 +1047,20 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			if "mag" in atmos.nodes:
 				lamp = np.sum(x*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
 				lamm = np.sum(x*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+				
+				# idx, idy = 1,0
+				# plt.plot(1-si[idx,idy]-sv[idx,idy])
+				# plt.plot(1-si[idx,idy]+sv[idx,idy])
+				# print(lamp[idx,idy], lamm[idx,idy])
+				# plt.show()
+				# sys.exit()
 
 				if geff!=0:
 					# C = 4*np.pi*globin.LIGHT_SPEED*globin.ELECTRON_MASS/globin.ELECTRON_CHARGE
 					# _blos = (lamp - lamm)/2/lam0 / C / geff / (lam0*1e-9)
 					C = 4.67e-13*(lam0*10)**2*geff
 					_blos = (lamp - lamm)*10/2 / C
-					blos += _blos
+					blos += np.abs(_blos)
 					nl_mag += 1
 
 				# tck = splrep(x[0,0]*10, si[0,0])
@@ -1098,6 +1105,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			# atmos.values["gamma"] = np.repeat(np.tan(inclination[..., np.newaxis]/nl_mag/2), len(atmos.nodes["gamma"]), axis=-1)
 			# atmos.values["gamma"] = np.repeat(np.cos(inclination[..., np.newaxis]/nl_mag), len(atmos.nodes["gamma"]), axis=-1)
 			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
+			y = np.cos(atmos.values["gamma"])
+			atmos.values["gamma"] = np.arccos(y)
 		if "mag" in atmos.nodes:
 			blos /= nl_mag
 			inclination /= nl_mag
@@ -1115,9 +1124,14 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			# atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)
 			# atmos.values["chi"] = np.repeat(np.cos(azimuth[..., np.newaxis]/nl), len(atmos.nodes["chi"]), axis=-1)
 			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
+			y = np.cos(atmos.values["chi"])
+			atmos.values["chi"] = np.arccos(y)
 
-		# print(mag)
-		# print(inclination*180/np.pi)
+		# print("-----")
+		# # print(atmos.values["mag"])
+		# # print(atmos.values["gamma"])
+		# print(atmos.values["chi"] * 180/np.pi)
+		# sys.exit()
 
 def read_OF_data(fpath):
 	try:
