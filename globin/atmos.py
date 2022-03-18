@@ -711,15 +711,21 @@ def compute_spectra(atmos):
 		globin.remove_dirs()
 		sys.exit()
 
-	if globin.mode<=0 or globin.mode==1 or globin.mode==3:
-		args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
-	elif globin.mode==2:
-		args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
+	if globin.of_mode:
+		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
+			args = [ [atm_name, atmos.line_lists_path[0], of_path] for atm_name, of_path in zip(atmos.atm_name_list, globin.of_file_paths)]
+		elif globin.mode==2:
+			args = [ [atm_name, line_list_path, of_path] for atm_name, line_list_path, of_path in zip(atmos.atm_name_list, atmos.line_lists_path, globin.of_file_paths)]
 	else:
-		print("--> Error in compute_spectra()")
-		print("    We can not make a list of arguments for computing spectra.")
-		globin.remove_dirs()
-		sys.exit()
+		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
+			args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
+		elif globin.mode==2:
+			args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
+	# else:
+	# 	print("--> Error in compute_spectra()")
+	# 	print("    We can not make a list of arguments for computing spectra.")
+	# 	globin.remove_dirs()
+	# 	sys.exit()
 
 	#--- make directory in which we will save logs of running RH
 	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
@@ -1071,12 +1077,14 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 		if par_flag[i_]:
 			rfID = rf_id[par]
 			key = "RF_" + par.upper()
+			# broken now
 			globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
 			
 			pars = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 			pars.remove(par)
 			for item in pars:
 				key = "RF_" + item.upper()
+				# broken
 				globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
 
 			rf_list = globin.pool.map(func=globin.pool_rf, iterable=args)

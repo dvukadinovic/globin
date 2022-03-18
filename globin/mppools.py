@@ -78,6 +78,7 @@ def pool_build_from_nodes(args):
 
 	return atmos
 
+# obsolete
 def pool_rf(args):
 	start = time.time()
 
@@ -151,7 +152,10 @@ def pool_synth(args):
     """
 	start = time.time()
 
-	atm_path, line_list_path = args
+	if globin.of_mode:
+		atm_path, line_list_path, of_path = args
+	else:
+		atm_path, line_list_path = args
 
 	# get process ID number
 	pid = mp.current_process()._identity[0]
@@ -166,12 +170,13 @@ def pool_synth(args):
 	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
 
 	keyword_path = f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}"
-	if globin.stokes_mode=="NO_STOKES":
-		globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}", keyword_path)
-	else:
-		globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
-		globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B", keyword_path)
-
+	globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
+	if globin.stokes_mode!="NO_STOKES":
+		globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B")
+	if globin.of_mode:
+		globin.keyword_input = _set_keyword(globin.keyword_input, "OPACITY_FUDGE", f"{of_path}")
+	globin.utils._write_to_the_file(globin.keyword_input, f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/keyword.input")
+	
 	# make kurucz.input file in rhf1d/globin.wd_pid and give the line list path
 	out = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.kurucz_input_fname}", "w")
 	out.write(f"{globin.cwd}/{line_list_path}\n")

@@ -292,13 +292,18 @@ def _set_keyword(text, key, value, fpath=None):
     lines = [line + "\n" for line in lines]
     
     # concatanate all the lines into signle string
-    if fpath is not None:
-        out = open(fpath, "w")
-        out.writelines(lines)
-        out.close()
-        return "".join(lines)
-    else:
-        return "".join(lines)
+    # if fpath is not None:
+    #     out = open(fpath, "w")
+    #     out.writelines(lines)
+    #     out.close()
+    #     return "".join(lines)
+    # else:
+    return "".join(lines)
+
+def _write_to_the_file(lines, fpath):
+    out = open(fpath, "w")
+    out.writelines(lines)
+    out.close()
 
 def _slice_line(line, dtype=float, separator=" "):
     # remove 'new line' character

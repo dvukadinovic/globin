@@ -16,8 +16,10 @@ globin.read_input(run_name=run_name)
 
 #--- make synthetic observations from input atmosphere
 if globin.mode==0:
-	globin.make_synthetic_observations(globin.atm, globin.noise, 
+	spec = globin.make_synthetic_observations(globin.atm, globin.noise, 
 		atm_fpath=None)
+	globin.plot_spectra(spec.spec[0,0], spec.wavelength)
+	plt.show()
 	sys.exit()
 
 #--- RFs

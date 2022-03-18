@@ -143,6 +143,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", globin.keyword_input, "required")
 	globin.rf_file_path = _find_value_by_key("RF_OUTPUT", globin.keyword_input, "default", "rfs.out")
 	globin.stokes_mode = _find_value_by_key("STOKES_MODE", globin.keyword_input, "default", "NO_STOKES")
+	globin.of_mode = _find_value_by_key("OPACITY_FUDGE", globin.keyword_input, "default", False)
+	if globin.of_mode:
+		globin.of_mode = True
 
 	#--- get parameters from globin input file
 	text = open(globin_input_name, "r").read()
@@ -214,7 +217,8 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
 
 	# set value of WAVETABLE in 'keyword.input' file
-	globin.keyword_input = _set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}", f"runs/{globin.wd}/{globin.rh_input_name}")
+	globin.keyword_input = _set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}")
+	globin.utils._write_to_the_file(globin.keyword_input, f"runs/{globin.wd}/{globin.rh_input_name}")
 
 	# common parameters for all modes
 	atm_range = get_atmosphere_range()
@@ -227,11 +231,21 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	globin.atm_scale = _find_value_by_key("atm_scale", globin.parameters_input, "default", "tau", str)
 
 	# read Opacity Fudge (OF) data
-	globin.of_fit_mode = _find_value_by_key("of_fit_mode", globin.parameters_input, "default", -1, float)
-	globin.of_file_path = _find_value_by_key("of_file", globin.parameters_input, "default", None, str)
-	if (globin.of_fit_mode>=0) and globin.of_file_path:
-		read_OF_data(globin.of_file_path)
-	
+	if globin.of_mode:
+		globin.of_fit_mode = _find_value_by_key("of_fit_mode", globin.parameters_input, "default", -1, float)
+		of_file_path = _find_value_by_key("of_file", globin.parameters_input, "default", None, str)
+		globin.of_scatt_flag = _find_value_by_key("of_scatt_flag", globin.parameters_input, "default", 0, int)
+		if (globin.of_fit_mode>=0) or of_file_path:
+			read_OF_data(of_file_path)
+
+		# make directory in which OFs will be extracted for given pixel
+		if not os.path.exists(f"runs/{globin.wd}/ofs"):
+			os.mkdir(f"runs/{globin.wd}/ofs")
+		else:
+			# clean directory if it exists
+			sp.run(f"rm runs/{globin.wd}/ofs/*",
+				shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
+
 	# get the name of the input line list
 	linelist_path = _find_value_by_key("linelist", globin.parameters_input, "required")
 	globin.linelist_name = linelist_path.split("/")[-1]
@@ -258,6 +272,9 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		for parameter in globin.atm.nodes:
 			globin.atm.n_local_pars += len(globin.atm.nodes[parameter])
 
+		if globin.of_mode:
+			globin.atm.n_local_pars += globin.of_num
+
 		globin.atm.n_global_pars = 0
 		for parameter in globin.atm.global_pars:
 			globin.atm.n_global_pars += globin.atm.global_pars[parameter].shape[-1]
@@ -272,6 +289,21 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 
 	#--- initialize Pool() object
 	globin.pool = mp.Pool(globin.n_thread)
+
+	#--- write OFs (to parallelize?)
+	if globin.of_mode:
+		globin.of_file_paths = []
+		for idx in range(globin.atm.nx):
+			for idy in range(globin.atm.ny):
+				fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+				globin.of_file_paths.append(fpath)
+
+		# if we have 1D OF values, set equal values in all pixels
+		if globin.of_value.ndim==1:
+			globin.of_value = np.repeat(globin.of_value[np.newaxis, :], globin.atm.nx, axis=0)
+			globin.of_value = np.repeat(globin.of_value[:, np.newaxis, :], globin.atm.ny, axis=1)
+
+		make_RH_OF_files()
 
 	#--- for each thread make working directory inside rh/rhf1d directory
 	for pid in range(globin.n_thread):
@@ -302,7 +334,6 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	#--- missing parameters
 	# instrument broadening: R or instrument profile provided
 	# strailight contribution
-	# opacity fudge coefficients
 
 def get_atmosphere_range():
 	#--- determine which observations from cube to take into consideration
@@ -943,7 +974,11 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		inds = np.empty((atmos.nx, atmos.ny), dtype=np.int64)
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				inds[idx,idy] = argrelextrema(x[idx,idy], np.less, order=3)[0][0]
+				try:
+					inds[idx,idy] = argrelextrema(x[idx,idy], np.less, order=3)[0][0]
+				except:
+					print(idx,idy)
+					sys.exit()
 		return inds
 
 	obs = copy.deepcopy(obs_in)
@@ -996,6 +1031,22 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		ind_min = np.argmin(np.abs(wavs - lmin))
 		ind_max = np.argmin(np.abs(wavs - lmax))
 
+		# x = obs.wavelength[ind_min:ind_max]
+		# si = obs.spec[0,5,ind_min:ind_max,0]
+		# # lam0 = 401.6
+		# lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
+		# vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
+		# print(vlos)
+		# sys.exit()
+
+		plt.plot(globin.ref_atm.logtau, globin.ref_atm.data[0,5,3])
+		plt.show()
+
+		# plt.plot(obs.spec[0,13,ind_min:ind_max,0])
+		plt.plot(obs.wavelength, obs.spec[0,5,:,0])
+		plt.show()
+		sys.exit()
+
 		inds = find_line_positions(obs.spec[:,:,ind_min:ind_max,0])
 		dd = int(line_dlam // dlam)
 		ind_min += inds - dd
@@ -1011,11 +1062,17 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			for idy in range(atmos.ny):
 				mmin = ind_min[idx,idy]
 				mmax = ind_max[idx,idy]
-				x[idx,idy] = obs.wavelength[mmin:mmax]
-				si[idx,idy] = obs.spec[idx,idy,mmin:mmax,0]
-				sq[idx,idy] = obs.spec[idx,idy,mmin:mmax,1]
-				su[idx,idy] = obs.spec[idx,idy,mmin:mmax,2]
-				sv[idx,idy] = obs.spec[idx,idy,mmin:mmax,3]
+				try:
+					x[idx,idy] = obs.wavelength[mmin:mmax]
+					si[idx,idy] = obs.spec[idx,idy,mmin:mmax,0]
+					sq[idx,idy] = obs.spec[idx,idy,mmin:mmax,1]
+					su[idx,idy] = obs.spec[idx,idy,mmin:mmax,2]
+					sv[idx,idy] = obs.spec[idx,idy,mmin:mmax,3]
+				except:
+					print(idx,idy)
+					print(mmin, mmax)
+					
+					sys.exit()
 
 		# for idx in range(atmos.nx):
 		# 	for idy in range(atmos.ny):
@@ -1135,8 +1192,9 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 def read_OF_data(fpath):
 	try:
-		hdu = fits.open(fpath)[0].data
-		globin.of_wave, globin.of_value = hdu[0], hdu[1]
+		hdu = fits.open(fpath)
+		globin.of_wave = hdu[0].data
+		globin.of__value = hdu[1].data
 		globin.of_num = len(globin.of_wave)
 	except:
 		lines = open(fpath, "r").readlines()
@@ -1151,16 +1209,25 @@ def read_OF_data(fpath):
 				globin.of_value.append(fudge)
 				globin.of_num += 1
 
-def make_RH_OF_file(fpath):
-	out = open(fpath, "w")
+		globin.of_wave = np.array(globin.of_wave)
+		globin.of_value = np.array(globin.of_value)
 
-	out.write("{:2d}\n".format(globin.of_num))
-	for i_ in range(globin.of_num):
-		wave = globin.of_wave[i_]
-		fudge = globin.of_value[i_]
-		if wave>=210:
-			out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
-		else:
-			out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
+def make_RH_OF_files():
+	for idx in range(globin.atm.nx):
+		for idy in range(globin.atm.ny):
+			ida = idx * globin.atm.ny + idy
+			out = open(globin.of_file_paths[ida], "w")
 
-	out.close()
+			out.write("{:2d}\n".format(globin.of_num))
+			for i_ in range(globin.of_num):
+				wave = globin.of_wave[i_]
+				fudge = globin.of_value[idx,idy,i_]
+				if wave>=210:
+					if globin.of_scatt_flag!=0:
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
+					else:
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, 0, 0))
+				else:
+					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
+
+			out.close()
