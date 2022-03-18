@@ -26,7 +26,7 @@ from .input import \
 	read_input, read_node_atmosphere, \
 	write_line_parameters, write_line_par, \
 	read_inverted_atmosphere, \
-	initialize_atmos_pars
+	initialize_atmos_pars, make_RH_OF_files
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
@@ -131,7 +131,8 @@ delta = {"temp"  : 1,		# K
 		 "gamma" : 0.01,	# rad
 		 "chi"   : 0.01,	# rad
 		 "loggf" : 0.001,	# 
-		 "dlam"  : 1}		# mA
+		 "dlam"  : 1,		# mA
+		 "of"    : 0.01}
 
 #--- parameter differences for flaging if RF needs to be computed
 diff = {"temp"   : 10,		# K

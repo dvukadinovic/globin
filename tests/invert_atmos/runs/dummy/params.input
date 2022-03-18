@@ -7,7 +7,7 @@
 #--- General parameters
 n_thread = 1
 interp_degree = 3
-mode = 0
+mode = 1
 debug = False
 
 #--- Spectra to be fitted
@@ -15,6 +15,7 @@ observation = obs.fits
 noise = 0
 weights = 1,10,5,7
 vmac = 0
+norm = False
 
 #--- Output spectra
 #spectrum = obs.fits
@@ -47,9 +48,9 @@ vmac = 0
 # fit_mode:
 #   0  -->  just apply the OF (no inversion)
 #  1>  -->  invert the OF coefficients
-of_fit_mode = 0
+of_fit_mode = 1
 of_file = of.data
-of_scatt_flag = 0
+of_scatt_flag = 1
 
 #--- wavelength window (in Angstroms)
 linelist = lines_4016

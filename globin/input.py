@@ -236,7 +236,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		of_file_path = _find_value_by_key("of_file", globin.parameters_input, "default", None, str)
 		globin.of_scatt_flag = _find_value_by_key("of_scatt_flag", globin.parameters_input, "default", 0, int)
 		if (globin.of_fit_mode>=0) or of_file_path:
-			read_OF_data(of_file_path)
+			of_num, of_wave, of_value = read_OF_data(of_file_path)
 
 		# make directory in which OFs will be extracted for given pixel
 		if not os.path.exists(f"runs/{globin.wd}/ofs"):
@@ -273,7 +273,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 			globin.atm.n_local_pars += len(globin.atm.nodes[parameter])
 
 		if globin.of_mode:
-			globin.atm.n_local_pars += globin.of_num
+			globin.atm.n_local_pars += of_num
 
 		globin.atm.n_global_pars = 0
 		for parameter in globin.atm.global_pars:
@@ -292,18 +292,24 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 
 	#--- write OFs (to parallelize?)
 	if globin.of_mode:
-		globin.of_file_paths = []
+		globin.atm.of_paths = []
 		for idx in range(globin.atm.nx):
 			for idy in range(globin.atm.ny):
 				fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-				globin.of_file_paths.append(fpath)
+				globin.atm.of_paths.append(fpath)
 
 		# if we have 1D OF values, set equal values in all pixels
-		if globin.of_value.ndim==1:
-			globin.of_value = np.repeat(globin.of_value[np.newaxis, :], globin.atm.nx, axis=0)
-			globin.of_value = np.repeat(globin.of_value[:, np.newaxis, :], globin.atm.ny, axis=1)
+		if of_value.ndim==1:
+			of_value = np.repeat(of_value[np.newaxis, :], globin.atm.nx, axis=0)
+			of_value = np.repeat(of_value[:, np.newaxis, :], globin.atm.ny, axis=1)
+		
+		globin.atm.of_num = of_num
+		globin.atm.of_wave = of_wave
+		globin.atm.of_value = of_value
 
-		make_RH_OF_files()
+		globin.parameter_scale["of"] = np.ones((globin.atm.nx, globin.atm.ny, of_num))
+
+		make_RH_OF_files(globin.atm)
 
 	#--- for each thread make working directory inside rh/rhf1d directory
 	for pid in range(globin.n_thread):
@@ -1193,35 +1199,39 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 def read_OF_data(fpath):
 	try:
 		hdu = fits.open(fpath)
-		globin.of_wave = hdu[0].data
-		globin.of__value = hdu[1].data
-		globin.of_num = len(globin.of_wave)
+		of_wave = hdu[0].data
+		of__value = hdu[1].data
+		of_num = len(globin.of_wave)
+
+		return of_num, of_wave, of_value
 	except:
 		lines = open(fpath, "r").readlines()
 
-		globin.of_wave, globin.of_value = [], []
-		globin.of_num = 0
+		of_wave, of_value = [], []
+		of_num = 0
 
 		for line in lines:
 			if "#" not in line:
 				lam, fudge = _slice_line(line)
-				globin.of_wave.append(lam)
-				globin.of_value.append(fudge)
-				globin.of_num += 1
+				of_wave.append(lam)
+				of_value.append(fudge)
+				of_num += 1
 
-		globin.of_wave = np.array(globin.of_wave)
-		globin.of_value = np.array(globin.of_value)
+		of_wave = np.array(of_wave)
+		of_value = np.array(of_value)
 
-def make_RH_OF_files():
-	for idx in range(globin.atm.nx):
-		for idy in range(globin.atm.ny):
-			ida = idx * globin.atm.ny + idy
-			out = open(globin.of_file_paths[ida], "w")
+		return of_num, of_wave, of_value
 
-			out.write("{:2d}\n".format(globin.of_num))
-			for i_ in range(globin.of_num):
-				wave = globin.of_wave[i_]
-				fudge = globin.of_value[idx,idy,i_]
+def make_RH_OF_files(atmos):
+	for idx in range(atmos.nx):
+		for idy in range(atmos.ny):
+			ida = idx * atmos.ny + idy
+			out = open(atmos.of_paths[ida], "w")
+
+			out.write("{:4d}\n".format(atmos.of_num))
+			for i_ in range(atmos.of_num):
+				wave = atmos.of_wave[i_]
+				fudge = atmos.of_value[idx,idy,i_]
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
 						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))

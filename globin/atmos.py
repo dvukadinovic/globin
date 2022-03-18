@@ -131,6 +131,11 @@ class Atmosphere(object):
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
 		new.nodes = copy.deepcopy(self.nodes)
 		new.values = copy.deepcopy(self.values)
+		if globin.of_mode:
+			new.of_num = copy.deepcopy(self.of_num)
+			new.of_wave = copy.deepcopy(self.of_wave)
+			new.of_value = copy.deepcopy(self.of_value)
+			new.of_paths = copy.deepcopy(self.of_paths)
 		new.global_pars = copy.deepcopy(self.global_pars)
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
@@ -370,6 +375,14 @@ class Atmosphere(object):
 						step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.values[parameter] += step * self.mask[parameter]
+
+			if globin.of_mode:
+				low_ind = up_ind
+				up_ind += self.of_num
+				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale["of"]
+				step = np.einsum("...i,...->...i", step, stop_flag)
+				# np.nan_to_num(step, nan=0.0, copy=False)
+				self.of_value += step
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
@@ -713,9 +726,9 @@ def compute_spectra(atmos):
 
 	if globin.of_mode:
 		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
-			args = [ [atm_name, atmos.line_lists_path[0], of_path] for atm_name, of_path in zip(atmos.atm_name_list, globin.of_file_paths)]
+			args = [ [atm_name, atmos.line_lists_path[0], of_path] for atm_name, of_path in zip(atmos.atm_name_list, atmos.of_paths)]
 		elif globin.mode==2:
-			args = [ [atm_name, line_list_path, of_path] for atm_name, line_list_path, of_path in zip(atmos.atm_name_list, atmos.line_lists_path, globin.of_file_paths)]
+			args = [ [atm_name, line_list_path, of_path] for atm_name, line_list_path, of_path in zip(atmos.atm_name_list, atmos.line_lists_path, atmos.of_paths)]
 	else:
 		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
 			args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
@@ -924,6 +937,38 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 					model_plus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.values[parameter][:,:,nodeID] += perturbation
 
+	#--- compute RFs for OF coefficients
+	if (globin.of_mode) and (globin.of_fit_mode>=1):
+		perturbation = globin.delta["of"]
+
+		for idw in range(atmos.of_num):
+			model_plus.of_value[:,:,idw] += perturbation
+			globin.make_RH_OF_files(model_plus)
+			spectra_plus,_ = compute_spectra(model_plus)
+
+			model_minus.of_value[:,:,idw] -= perturbation
+			globin.make_RH_OF_files(model_minus)
+			spectra_minus,_ = compute_spectra(model_minus)
+
+			node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
+
+			node_RF *= globin.weights
+			node_RF /= rf_noise_scale
+			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
+
+			for idx in range(spec.nx):
+				for idy in range(spec.ny):
+					if scale[idx,idy]==0:
+						# print("scale==0 for --> ", parameter)
+						globin.parameter_scale["of"][idx,idy,idw] = 1
+					elif not np.isnan(np.sum(scale[idx,idy])):
+						globin.parameter_scale["of"][idx,idy,idw] = scale[idx,idy]
+
+					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale["of"][idx,idy,idw]
+			free_par_ID += 1
+
+			model_plus.of_value[:,:,idw] -= perturbation
+			model_minus.of_value[:,:,idw] += perturbation
 
 	#--- loop through global parameters and calculate RFs
 	skip_par = -1
@@ -1043,7 +1088,9 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
 	# 		aux = rf[idx,idy, :, :, :]
-	# 		plt.plot(aux.reshape(3, 804, order="F").T)
+	# 		plt.plot(aux[0,:,0])
+	# 		plt.plot(aux[1,:,0])
+	# 		# plt.plot(aux.reshape(2, 804, order="F").T)
 	# plt.show()
 	# sys.exit()
 

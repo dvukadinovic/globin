@@ -25,6 +25,14 @@ def pretty_print_parameters(atmos, conv_flag):
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
+
+	if globin.of_mode:
+		print("OF coeff.")
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				if conv_flag[idx,idy]==1:
+					print(f"[{idx+1},{idy+1}] --> ", atmos.of_value[idx,idy])
+
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
 			print(parameter)
@@ -204,6 +212,10 @@ def invert_pxl_by_pxl(save_output, verbose):
 	original_line_lists_path = copy.deepcopy(atmos.line_lists_path)
 	atm_name_list = copy.deepcopy(atmos.atm_name_list)
 	line_lists_path = copy.deepcopy(atmos.line_lists_path)
+	if globin.of_mode:
+		original_of_paths = copy.deepcopy(atmos.of_paths)
+		of_paths = copy.deepcopy(atmos.of_paths)
+
 	old_inds = []
 
 	while np.min(itter) <= globin.max_iter:
@@ -216,6 +228,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 				print("Iteration (min): {:2}\n".format(np.min(itter)+1))
 
 			atmos.atm_name_list = copy.deepcopy(atm_name_list)
+			if globin.of_mode:	
+				atmos.of_paths = copy.deepcopy(of_paths)
 			if globin.mode==2:
 				atmos.line_lists_path = copy.deepcopy(line_lists_path)
 
@@ -293,6 +307,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 		atmos.atm_name_list = copy.deepcopy(original_atm_name_list)
 		atm_name_list = copy.deepcopy(original_atm_name_list)
+		if globin.of_mode:
+			atmos.of_paths = copy.deepcopy(original_of_paths)
+			of_paths = copy.deepcopy(original_of_paths)
 		if globin.mode==2:
 			atmos.line_lists_path = copy.deepcopy(original_line_lists_path)
 			line_lists_path = copy.deepcopy(original_line_lists_path)
@@ -311,6 +328,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# sys.exit()
 
 		old_atmos_parameters = copy.deepcopy(atmos.values)
+		if globin.of_mode:
+			old_of_value = copy.deepcopy(atmos.of_value)
 		if globin.mode==2:
 			old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps, stop_flag)
@@ -323,6 +342,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 					globin.write_line_parameters(fpath,
 											   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
 											   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
+		if globin.of_mode:
+			globin.make_RH_OF_files(atmos)
 
 		atmos.build_from_nodes()
 		corrected_spec,_ = globin.compute_spectra(atmos)
@@ -345,6 +366,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 						LM_parameter[idx,idy] *= 10
 						for parameter in old_atmos_parameters:
 							atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
+						if globin.mode:
+							globin.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 						if globin.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -352,6 +375,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 							line_lists_path.remove(fpath)
 						fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 						atm_name_list.remove(fpath)
+						if globin.of_mode:
+							fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+							of_paths.remove(fpath)
 						old_inds.append((idx,idy))
 						updated_pars[idx,idy] = 0
 					else:
@@ -362,6 +388,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 				else:
 					for parameter in old_atmos_parameters:
 						atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
+					if globin.mode:
+							globin.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 					if globin.mode==2:
 						for parameter in old_atomic_parameters:
 							atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -374,6 +402,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 				globin.write_line_parameters(fpath,
 										   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
 										   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
+
+		if globin.of_mode:
+			globin.make_RH_OF_files(atmos)
 
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
@@ -414,6 +445,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							if globin.of_mode:
+								original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
 							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
@@ -423,6 +457,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							if globin.of_mode:
+								original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
 							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
@@ -432,6 +469,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 							itter[idx,idy] = globin.max_iter
 							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
 							atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							if globin.of_mode:
+								original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
 							if globin.mode==2:
 								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 								line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
@@ -451,13 +491,20 @@ def invert_pxl_by_pxl(save_output, verbose):
 	# return all original paths for final output
 	atmos.atm_name_list = []
 	atmos.line_lists_path = []
+	if globin.of_mode:
+		atmos.of_paths = []
+	
 	for idx in range(atmos.nx):
 		for idy in range(atmos.ny):
 			fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 			atmos.atm_name_list.append(fpath)
+			if globin.of_mode:
+				fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+				atmos.of_paths.append(fpath)
 			if globin.mode==2:
 				fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
 				atmos.line_lists_path.append(fpath)
+	
 	if globin.mode==1:
 		fpath = f"runs/{globin.wd}/{globin.linelist_name}"
 		atmos.line_lists_path.append(fpath)
@@ -527,6 +574,9 @@ def invert_pxl_by_pxl(save_output, verbose):
 
 			globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
 																  mean_dlam, atmos.line_no["dlam"])
+
+		if globin.of_mode:
+			globin.make_RH_OF_files(atmos)
 
 		inverted_spectra.xmin = obs.xmin
 		inverted_spectra.xmax = obs.xmax
