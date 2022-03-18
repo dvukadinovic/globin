@@ -24,7 +24,7 @@
  Parameter atmos.B_char not set or set to zero
  Wavelength grids of line profiles do not take account  of Zeeman splitting
 
- -- reading input file: /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/atmospheres/atm_0_0
+ -- reading input file: /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/atmospheres/atm_0_1
 
  -- reading input file: ../../Atoms/H_6.atom (passive)
  -- reading input file: ../../Atoms/He.atom (passive)
@@ -53,7 +53,7 @@
  SortLambda: Found 202 unique wavelengths
 
 -Fudging background opacities with file
-  /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/ofs/of_0_0
+  /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/ofs/of_0_1
 
 Read 18 Kurucz lines from file /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/lines_4016
 

@@ -1,4 +1,8 @@
-Run time:        9.2
+Run time:       42.3
+
+
+
+     #===--- Global parameters ---===#
 
 
 
@@ -13,7 +17,7 @@ Run time:        9.2
 #--- General parameters
 n_thread = 1
 interp_degree = 3
-mode = 1
+mode = 3
 debug = False
 
 #--- Spectra to be fitted
@@ -29,8 +33,8 @@ norm = False
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/test/inverted_atmos.fits
 
-#nodes_temp = -2.2, -1.6, -0.9, 0
-#nodes_temp_values = 4800, 5500, 6500, 7500
+nodes_temp = -2.2, -1.6, -0.9, 0
+nodes_temp_values = 4800, 5500, 6500, 7500
 
 #nodes_vz = -2, -0.5
 #nodes_vz_values = -1, 1

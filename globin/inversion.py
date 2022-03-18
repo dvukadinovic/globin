@@ -367,7 +367,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 						for parameter in old_atmos_parameters:
 							atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
 						if globin.mode:
-							globin.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
+							atmos.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 						if globin.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -389,7 +389,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 					for parameter in old_atmos_parameters:
 						atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
 					if globin.mode:
-							globin.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
+							atmos.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 					if globin.mode==2:
 						for parameter in old_atomic_parameters:
 							atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -772,6 +772,8 @@ def invert_global(save_output, verbose):
 			globin.write_line_parameters(atmos.line_lists_path[0],
 									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
+		if globin.of_mode:
+			globin.make_RH_OF_files(atmos)
 
 		atmos.build_from_nodes()
 		corrected_spec,_ = globin.compute_spectra(atmos)
@@ -804,6 +806,8 @@ def invert_global(save_output, verbose):
 			globin.write_line_parameters(atmos.line_lists_path[0],
 									   atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
 									   atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
+		if globin.of_mode:
+			globin.make_RH_OF_files(atmos)
 
 		if LM_parameter<=1e-5:
 			LM_parameter = 1e-5

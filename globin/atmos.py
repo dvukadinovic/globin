@@ -131,7 +131,7 @@ class Atmosphere(object):
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
 		new.nodes = copy.deepcopy(self.nodes)
 		new.values = copy.deepcopy(self.values)
-		if globin.of_mode:
+		if (globin.of_mode) and (globin.mode>=1):
 			new.of_num = copy.deepcopy(self.of_num)
 			new.of_wave = copy.deepcopy(self.of_wave)
 			new.of_value = copy.deepcopy(self.of_value)
@@ -320,6 +320,16 @@ class Atmosphere(object):
 
 			hdulist.append(par_hdu)
 
+		if globin.of_mode:
+			par_hdu = fits.ImageHDU(self.of_value)
+			par_hdu.name = "opacity_fudge"
+
+			par_hdu.header.comments["NAXIS1"] = "number of wavelength points"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+
+			hdulist.append(par_hdu)
+
 		hdulist.writeto(fpath, overwrite=True)
 
 	def save_atomic_parameters(self, fpath="inverted_atoms.fits", kwargs=None):
@@ -407,6 +417,15 @@ class Atmosphere(object):
 								step /= 1e3
 						np.nan_to_num(step, nan=0.0, copy=False)
 						self.values[parameter][idx,idy] += step * self.mask[parameter]
+
+			if globin.of_mode:
+				for idx in range(self.nx):
+					for idy in range(self.ny):
+						low_ind = up_ind
+						up_ind += self.of_num
+						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale["of"][idx,idy]
+						# np.nan_to_num(step, nan=0.0, copy=False)
+						self.of_value[idx,idy] += step
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
