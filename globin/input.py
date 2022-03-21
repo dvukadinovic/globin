@@ -1223,15 +1223,32 @@ def read_OF_data(fpath):
 		return of_num, of_wave, of_value
 
 def make_RH_OF_files(atmos):
-	for idx in range(atmos.nx):
-		for idy in range(atmos.ny):
-			ida = idx * atmos.ny + idy
-			out = open(atmos.of_paths[ida], "w")
+	for fpath in atmos.of_paths:
+		lista = fpath.split("_")
+		idx = int(lista[-2])
+		idy = int(lista[-1])
 
+		out = open(fpath, "w")
+
+		if atmos.of_num==1:
+			out.write("{:4d}\n".format(2))
+		else:
 			out.write("{:4d}\n".format(atmos.of_num))
-			for i_ in range(atmos.of_num):
-				wave = atmos.of_wave[i_]
-				fudge = atmos.of_value[idx,idy,i_]
+		for i_ in range(atmos.of_num):
+			wave = atmos.of_wave[i_]
+			fudge = atmos.of_value[idx,idy,i_]
+			if atmos.of_num==1:
+				if wave>=210:
+					if globin.of_scatt_flag!=0:
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], fudge, fudge, 0))
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], fudge, fudge, 0))
+					else:
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], fudge, 0, 0))
+						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], fudge, 0, 0))
+				else:
+					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], 0, 0, fudge))
+					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], 0, 0, fudge))
+			else:
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
 						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
@@ -1240,4 +1257,4 @@ def make_RH_OF_files(atmos):
 				else:
 					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
 
-			out.close()
+		out.close()

@@ -463,7 +463,16 @@ class Atmosphere(object):
 							# maximum check
 							if self.values[parameter][idx,idy,i_]>globin.limit_values[parameter][1]:
 								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][1]
-			
+		
+		if globin.of_mode:
+			for idw in range(self.of_num):
+				for idx in range(self.nx):
+					for idy in range(self.ny):
+						if self.of_value[idx,idy,idw]<globin.limit_values["of"][0]:
+							self.of_value[idx,idy,idw] = globin.limit_values["of"][0]
+						if self.of_value[idx,idy,idw]>globin.limit_values["of"][1]:
+							self.of_value[idx,idy,idw] = globin.limit_values["of"][1]
+					
 		for parameter in self.global_pars:
 			if parameter=="vmac":
 				# minimum check
@@ -1107,8 +1116,8 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
 	# 		aux = rf[idx,idy, :, :, :]
-	# 		plt.plot(aux[0,:,0])
-	# 		plt.plot(aux[1,:,0])
+	# 		plt.plot(aux[4,:,0])
+	# 		plt.plot(aux[5,:,0])
 	# 		# plt.plot(aux.reshape(2, 804, order="F").T)
 	# plt.show()
 	# sys.exit()

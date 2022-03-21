@@ -6,8 +6,8 @@
 
 #--- General parameters
 n_thread = 6
-interp_degree = 3
-mode = 1
+interp_deree = 3
+mode = 3
 debug = False
 
 #--- Spectra to be fitted
@@ -15,10 +15,10 @@ observation = obs.fits
 noise = 0
 weights = 1,10,5,7
 vmac = 0
-norm = True
+norm = False
 
 #--- Output spectra
-spectrum = obs_norm.fits
+#spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/test/inverted_atmos.fits
@@ -59,7 +59,7 @@ wave_max = 4017
 wave_step = 0.01
 
 #--- Levenberg-Marquardt parameters
-marq_lambda = 1e-2
+marq_lambda = 1e-1
 max_iter = 20
 chi2_tolerance = 1e-3
 
@@ -69,7 +69,7 @@ chi2_tolerance = 1e-3
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits
 #range = 1,2,1,3
-#range = 1,1,1,1
+range = 1,1,1,2
 
 #--- RH root folder path
 #rh_path = /data/slam/home/vukadinovic/rh-globin

@@ -59,16 +59,16 @@ lista = list(globin.atm.nodes)
 # 	print(rmsd)
 # 	print("-----------------------")
 
-pars = ["temp", "vz", "mag", "gamma", "chi"]
+# pars = ["temp", "vz", "mag", "gamma", "chi"]
 
 for idx in range(atm.nx):
 	for idy in range(atm.ny):
 		ida = idx * atm.ny + idy + 1
 		globin.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv.spec[idx,idy])
-		# plt.savefig(f"runs/{run_name}/inv_vs_obs_{ida}.png")
+		plt.savefig(f"runs/{run_name}/inv_vs_obs_{ida}.png")
 		plt.show()
 
-		globin.plot_atmosphere(atm, pars, idx=idx, idy=idy, color="black")
-		globin.plot_atmosphere(inv_atm, pars, idx=idx, idy=idy, color="tab:blue")
-		plt.show()
+		# globin.plot_atmosphere(atm, pars, idx=idx, idy=idy, color="black")
+		# globin.plot_atmosphere(inv_atm, pars, idx=idx, idy=idy, color="tab:blue")
+		# plt.show()
 		# plt.savefig(f"runs/{run_name}/atmos_compare_{ida}.png")

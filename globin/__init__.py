@@ -107,6 +107,7 @@ limit_values = {"temp"  : [3000, 10000], 		# [K]
 				"vmic"  : [1e-3, 10],			# [km/s]
 				"vmac"  : [0, 5],				# [km/s]
 				"mag"   : [1, 10000],			# [G]
+				"of"    : [0, 20],
 				"gamma" : [-np.pi, np.pi],	# [rad]
 				# "gamma" : [-0.999999, 0.999999],
 				"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
