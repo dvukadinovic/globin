@@ -1045,13 +1045,13 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		# print(vlos)
 		# sys.exit()
 
-		plt.plot(globin.ref_atm.logtau, globin.ref_atm.data[0,5,3])
-		plt.show()
+		# plt.plot(globin.ref_atm.logtau, globin.ref_atm.data[0,5,3])
+		# plt.show()
 
-		# plt.plot(obs.spec[0,13,ind_min:ind_max,0])
-		plt.plot(obs.wavelength, obs.spec[0,5,:,0])
-		plt.show()
-		sys.exit()
+		# # plt.plot(obs.spec[0,13,ind_min:ind_max,0])
+		# plt.plot(obs.wavelength, obs.spec[0,5,:,0])
+		# plt.show()
+		# sys.exit()
 
 		inds = find_line_positions(obs.spec[:,:,ind_min:ind_max,0])
 		dd = int(line_dlam // dlam)
