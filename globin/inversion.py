@@ -11,7 +11,6 @@ import globin
 def pretty_print_parameters(atmos, conv_flag):
 	for parameter in atmos.values:
 		print(parameter)
-		parID = atmos.par_id[parameter]
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
@@ -25,13 +24,6 @@ def pretty_print_parameters(atmos, conv_flag):
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
-
-	if globin.of_mode:
-		print("OF coeff.")
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				if conv_flag[idx,idy]==1:
-					print(f"[{idx+1},{idy+1}] --> ", atmos.of_value[idx,idy])
 
 	if globin.mode>=2:
 		for parameter in atmos.global_pars:
@@ -328,8 +320,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 		# sys.exit()
 
 		old_atmos_parameters = copy.deepcopy(atmos.values)
-		if globin.of_mode:
-			old_of_value = copy.deepcopy(atmos.of_value)
 		if globin.mode==2:
 			old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps, stop_flag)
@@ -366,8 +356,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 						LM_parameter[idx,idy] *= 10
 						for parameter in old_atmos_parameters:
 							atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-						if globin.of_mode:
-							atmos.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 						if globin.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -388,8 +376,6 @@ def invert_pxl_by_pxl(save_output, verbose):
 				else:
 					for parameter in old_atmos_parameters:
 						atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-					if globin.of_mode:
-							atmos.of_value[idx,idy] = copy.deepcopy(old_of_value[idx,idy])
 					if globin.mode==2:
 						for parameter in old_atomic_parameters:
 							atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
@@ -764,8 +750,6 @@ def invert_global(save_output, verbose):
 		proposed_steps = np.linalg.solve(H, delta)
 
 		old_local_parameters = copy.deepcopy(atmos.values)
-		if globin.of_mode:
-			old_of_value = copy.deepcopy(atmos.of_value)
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps)
 		atmos.check_parameter_bounds()
@@ -790,7 +774,6 @@ def invert_global(save_output, verbose):
 		if np.sum(chi2_new) > np.sum(chi2_old):
 			LM_parameter *= 10
 			atmos.values = old_local_parameters
-			atmos.of_value = old_of_value
 			atmos.global_pars = old_global_pars
 			updated_parameters = False
 			num_failed += 1

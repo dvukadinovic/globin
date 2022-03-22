@@ -151,7 +151,8 @@ parameter_name = {"temp"   : "Temperature",
 				  "vmac"   : "Macroturbulent velocity",
 				  "mag"    : "Magnetic field strength",
 				  "gamma"  : "Inclination",
-				  "chi"    : "Azimuth"}
+				  "chi"    : "Azimuth",
+				  "of"     : "Opacity fudge"}
 
 #--- parameters units (for FITS header)
 parameter_unit = {"temp"   : "K",
@@ -161,7 +162,8 @@ parameter_unit = {"temp"   : "K",
 				  "vmac"   : "km/s",
 				  "mag"    : "T",
 				  "gamma"  : "rad",
-				  "chi"    : "rad"}
+				  "chi"    : "rad",
+				  "of"     : "a.u."}
 
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()

@@ -133,8 +133,6 @@ class Atmosphere(object):
 		new.values = copy.deepcopy(self.values)
 		if (globin.of_mode) and (globin.mode>=1):
 			new.of_num = copy.deepcopy(self.of_num)
-			new.of_wave = copy.deepcopy(self.of_wave)
-			new.of_value = copy.deepcopy(self.of_value)
 			new.of_paths = copy.deepcopy(self.of_paths)
 		new.global_pars = copy.deepcopy(self.global_pars)
 		new.par_id = copy.deepcopy(self.par_id)
@@ -320,15 +318,15 @@ class Atmosphere(object):
 
 			hdulist.append(par_hdu)
 
-		if globin.of_mode:
-			par_hdu = fits.ImageHDU(self.of_value)
-			par_hdu.name = "opacity_fudge"
+		# if globin.of_mode:
+		# 	par_hdu = fits.ImageHDU(self.of_value)
+		# 	par_hdu.name = "opacity_fudge"
 
-			par_hdu.header.comments["NAXIS1"] = "number of wavelength points"
-			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
-			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+		# 	par_hdu.header.comments["NAXIS1"] = "number of wavelength points"
+		# 	par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+		# 	par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
 
-			hdulist.append(par_hdu)
+		# 	hdulist.append(par_hdu)
 
 		hdulist.writeto(fpath, overwrite=True)
 
@@ -384,15 +382,7 @@ class Atmosphere(object):
 					if parameter=="vz" or parameter=="vmic":
 						step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
-				self.values[parameter] += step * self.mask[parameter]
-
-			if globin.of_mode:
-				low_ind = up_ind
-				up_ind += self.of_num
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale["of"]
-				step = np.einsum("...i,...->...i", step, stop_flag)
-				# np.nan_to_num(step, nan=0.0, copy=False)
-				self.of_value += step
+				self.values[parameter] += step
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
@@ -416,16 +406,16 @@ class Atmosphere(object):
 							if parameter=="vz" or parameter=="vmic":
 								step /= 1e3
 						np.nan_to_num(step, nan=0.0, copy=False)
-						self.values[parameter][idx,idy] += step * self.mask[parameter]
+						self.values[parameter][idx,idy] += step
 
-			if globin.of_mode:
-				for idx in range(self.nx):
-					for idy in range(self.ny):
-						low_ind = up_ind
-						up_ind += self.of_num
-						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale["of"][idx,idy]
-						# np.nan_to_num(step, nan=0.0, copy=False)
-						self.of_value[idx,idy] += step
+			# if globin.of_mode:
+			# 	for idx in range(self.nx):
+			# 		for idy in range(self.ny):
+			# 			low_ind = up_ind
+			# 			up_ind += self.of_num
+			# 			step = proposed_steps[low_ind:up_ind] / globin.parameter_scale["of"][idx,idy]
+			# 			# np.nan_to_num(step, nan=0.0, copy=False)
+			# 			self.of_value[idx,idy] += step
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
@@ -463,16 +453,7 @@ class Atmosphere(object):
 							# maximum check
 							if self.values[parameter][idx,idy,i_]>globin.limit_values[parameter][1]:
 								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][1]
-		
-		if globin.of_mode:
-			for idw in range(self.of_num):
-				for idx in range(self.nx):
-					for idy in range(self.ny):
-						if self.of_value[idx,idy,idw]<globin.limit_values["of"][0]:
-							self.of_value[idx,idy,idw] = globin.limit_values["of"][0]
-						if self.of_value[idx,idy,idw]>globin.limit_values["of"][1]:
-							self.of_value[idx,idy,idw] = globin.limit_values["of"][1]
-					
+
 		for parameter in self.global_pars:
 			if parameter=="vmac":
 				# minimum check
@@ -868,9 +849,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	#--- loop through local (atmospheric) parameters and calculate RFs
 	free_par_ID = 0
 	for parameter in atmos.nodes:
-		parID = atmos.par_id[parameter]
-		rfID = rf_id[parameter]
-
 		nodes = atmos.nodes[parameter]
 		values = atmos.values[parameter]
 		perturbation = globin.delta[parameter]
@@ -900,38 +878,22 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 			elif globin.rf_type=="node":
 				#===--- Computing RFs in nodes
 				
-				# positive perturbation
-				# if parameter=="gamma":
-					# nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/2)
-					# denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/2)
-					# model_plus.values[parameter][:,:,nodeID] = nom/denom
-					# model_plus.values[parameter][:,:,nodeID] = values[:,:,nodeID]*np.cos(perturbation) - np.sqrt(1-values[:,:,nodeID]**2)*np.sin(perturbation)
-				# elif parameter=="chi":
-				# 	# nom = model_plus.values[parameter][:,:,nodeID] + np.tan(perturbation/4)
-				# 	# denom = 1 - model_plus.values[parameter][:,:,nodeID]*np.tan(perturbation/4)
-				# 	# model_plus.values[parameter][:,:,nodeID] = nom/denom
-				# 	model_plus.values[parameter][:,:,nodeID] = values[:,:,nodeID]*np.cos(perturbation) + np.sqrt(1-values[:,:,nodeID]**2)*np.sin(perturbation)
-				# else:
 				model_plus.values[parameter][:,:,nodeID] += perturbation
-				model_plus.build_from_nodes()
+				if parameter=="of":
+					globin.make_RH_OF_files(model_plus)
+				else:
+					model_plus.build_from_nodes()
 				spectra_plus,_ = compute_spectra(model_plus)
-				
+
 				# negative perturbation (except for inclination and azimuth)
-				if parameter=="gamma":
-					RF_parameter = (spectra_plus.spec - spec.spec) / perturbation
-					# gamma = 2*np.arctan(atmos.values[parameter][:,:,nodeID])
-					# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 2*np.cos(gamma/2)*np.cos(gamma/2))
-					# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, -1/np.sqrt(1-values[:,:,nodeID]**2))
-					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
-				elif parameter=="chi":
-					# RF_parameter = (spectra_plus.spec - spec.spec ) / perturbation
-				# 	# chi = 4*np.arctan(atmos.values[parameter][:,:,nodeID])
-				# 	# node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 4*np.cos(chi/4)*np.cos(chi/4))
-				# 	node_RF = np.einsum("ijls,ij->ijls", RF_parameter, 1/np.sqrt(1-values[:,:,nodeID]**2))
+				if parameter=="gamma" or parameter=="chi":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				else:
 					model_minus.values[parameter][:,:,nodeID] -= perturbation
-					model_minus.build_from_nodes()
+					if parameter=="of":	
+						globin.make_RH_OF_files(model_minus)
+					else:
+						model_minus.build_from_nodes()
 					spectra_minus,_ = compute_spectra(model_minus)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
@@ -964,39 +926,6 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 				else:
 					model_plus.values[parameter][:,:,nodeID] -= perturbation
 					model_minus.values[parameter][:,:,nodeID] += perturbation
-
-	#--- compute RFs for OF coefficients
-	if (globin.of_mode) and (globin.of_fit_mode>=1):
-		perturbation = globin.delta["of"]
-
-		for idw in range(atmos.of_num):
-			model_plus.of_value[:,:,idw] += perturbation
-			globin.make_RH_OF_files(model_plus)
-			spectra_plus,_ = compute_spectra(model_plus)
-
-			model_minus.of_value[:,:,idw] -= perturbation
-			globin.make_RH_OF_files(model_minus)
-			spectra_minus,_ = compute_spectra(model_minus)
-
-			node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
-
-			node_RF *= globin.weights
-			node_RF /= rf_noise_scale
-			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-
-			for idx in range(spec.nx):
-				for idy in range(spec.ny):
-					if scale[idx,idy]==0:
-						# print("scale==0 for --> ", parameter)
-						globin.parameter_scale["of"][idx,idy,idw] = 1
-					elif not np.isnan(np.sum(scale[idx,idy])):
-						globin.parameter_scale["of"][idx,idy,idw] = scale[idx,idy]
-
-					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale["of"][idx,idy,idw]
-			free_par_ID += 1
-
-			model_plus.of_value[:,:,idw] -= perturbation
-			model_minus.of_value[:,:,idw] += perturbation
 
 	#--- loop through global parameters and calculate RFs
 	skip_par = -1
@@ -1117,7 +1046,7 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# 	for idy in range(atmos.ny):
 	# 		aux = rf[idx,idy, :, :, :]
 	# 		plt.plot(aux[4,:,0])
-	# 		plt.plot(aux[5,:,0])
+	# 		# plt.plot(aux[5,:,0])
 	# 		# plt.plot(aux.reshape(2, 804, order="F").T)
 	# plt.show()
 	# sys.exit()

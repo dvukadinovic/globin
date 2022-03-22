@@ -304,8 +304,8 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 			of_value = np.repeat(of_value[:, np.newaxis, :], globin.atm.ny, axis=1)
 		
 		globin.atm.of_num = of_num
-		globin.atm.of_wave = of_wave
-		globin.atm.of_value = of_value
+		globin.atm.nodes["of"] = of_wave
+		globin.atm.values["of"] = of_value
 
 		globin.parameter_scale["of"] = np.ones((globin.atm.nx, globin.atm.ny, of_num))
 
@@ -1202,8 +1202,6 @@ def read_OF_data(fpath):
 		of_wave = hdu[0].data
 		of__value = hdu[1].data
 		of_num = len(globin.of_wave)
-
-		return of_num, of_wave, of_value
 	except:
 		lines = open(fpath, "r").readlines()
 
@@ -1220,7 +1218,8 @@ def read_OF_data(fpath):
 		of_wave = np.array(of_wave)
 		of_value = np.array(of_value)
 
-		return of_num, of_wave, of_value
+	
+	return of_num, of_wave, of_value
 
 def make_RH_OF_files(atmos):
 	for fpath in atmos.of_paths:
@@ -1235,8 +1234,8 @@ def make_RH_OF_files(atmos):
 		else:
 			out.write("{:4d}\n".format(atmos.of_num))
 		for i_ in range(atmos.of_num):
-			wave = atmos.of_wave[i_]
-			fudge = atmos.of_value[idx,idy,i_]
+			wave = atmos.nodes["of"][i_]
+			fudge = atmos.values["of"][idx,idy,i_]
 			if atmos.of_num==1:
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
