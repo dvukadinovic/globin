@@ -757,7 +757,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 
-	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of"]:
 		try:
 			ind = hdu_list.index_of(parameter)
 			data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
