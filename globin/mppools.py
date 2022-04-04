@@ -71,6 +71,7 @@ def pool_build_from_nodes(args):
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 	if globin.hydrostatic:
+		# atmos.makeHSE_old(idx, idy)
 		atmos.makeHSE(idx, idy)
 
 	if save_atmos:
@@ -176,6 +177,8 @@ def pool_synth(args):
 		globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B")
 	if globin.of_mode:
 		globin.keyword_input = _set_keyword(globin.keyword_input, "OPACITY_FUDGE", f"{of_path}")
+	else:
+		globin.keyword_input = _set_keyword(globin.keyword_input, "OPACITY_FUDGE", None)
 	globin.utils._write_to_the_file(globin.keyword_input, f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/keyword.input")
 	
 	# make kurucz.input file in rhf1d/globin.wd_pid and give the line list path

@@ -214,7 +214,7 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		globin.lmax /= 10
 		globin.step /= 10
 		globin.wavelength = np.arange(globin.lmin, globin.lmax+globin.step, globin.step)
-	write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
+	globin.wavelength_vacuum = write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
 
 	# set value of WAVETABLE in 'keyword.input' file
 	globin.keyword_input = _set_keyword(globin.keyword_input, "WAVETABLE", f"{globin.cwd}/runs/{globin.wd}/{wave_file_path}")
@@ -233,6 +233,10 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 	# read Opacity Fudge (OF) data
 	if globin.of_mode:
 		globin.of_fit_mode = _find_value_by_key("of_fit_mode", globin.parameters_input, "default", -1, float)
+		
+		if globin.of_fit_mode==-1:
+			globin.of_mode = False
+
 		of_file_path = _find_value_by_key("of_file", globin.parameters_input, "default", None, str)
 		globin.of_scatt_flag = _find_value_by_key("of_scatt_flag", globin.parameters_input, "default", 0, int)
 		if (globin.of_fit_mode>=0) or of_file_path:
@@ -1230,9 +1234,9 @@ def make_RH_OF_files(atmos):
 		out = open(fpath, "w")
 
 		if atmos.of_num==1:
-			out.write("{:4d}\n".format(2))
+			out.write("{:4d}\n".format(3))
 		else:
-			out.write("{:4d}\n".format(atmos.of_num))
+			out.write("{:4d}\n".format(atmos.of_num+1))
 		for i_ in range(atmos.of_num):
 			wave = atmos.nodes["of"][i_]
 			fudge = atmos.values["of"][idx,idy,i_]
@@ -1255,5 +1259,7 @@ def make_RH_OF_files(atmos):
 						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, 0, 0))
 				else:
 					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
+			
+		out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+10, 0, 0, 0))
 
 		out.close()

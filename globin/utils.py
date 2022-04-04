@@ -280,14 +280,18 @@ def _set_keyword(text, key, value, fpath=None):
                     line_num = num
                     break
 
-    # if we found a key in the text, change it's value
-    if line_num is not None:
-        lines[num] = "  " + key + " = " + value
-    # if we have not found a key in the text, we add it at the begin
+    if value is not None:
+        # if we found a key in the text, change it's value
+        if line_num is not None:
+            lines[num] = "  " + key + " = " + value
+        # if we have not found a key in the text, we add it at the begin
+        else:
+            line = "  " + key + " = " + value
+            lines.insert(0, line)
+            pass
     else:
-        line = "  " + key + " = " + value
-        lines.insert(0, line)
-        pass
+        if line_num is not None:
+            lines[num] = "#  " + key + " = " + "None"
 
     lines = [line + "\n" for line in lines]
     

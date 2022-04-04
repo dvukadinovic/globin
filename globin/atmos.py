@@ -19,6 +19,13 @@ from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
+try:
+	import pyrh
+	argv = "rhf1d"# -i keyword.input"
+	argc = len(argv.split(" "))
+except:
+	print("No pyrh module. It is safe to continue.")
+
 import globin
 
 # order of parameters RFs in output file from 'rf_ray'
@@ -209,6 +216,13 @@ class Atmosphere(object):
 
 		# # Hydrogen populations [1/cm3]
 		self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], press, pel)
+	
+	def makeHSE_new(self, idx, idy):
+		aux = pyrh.RH(argc, argv)
+		pops = aux.setHSE(self.nz)
+
+		self.data[idx,idy,2] = pops.ne / 1e6 # [1/m3 --> 1/cm3] right?
+		self.data[idx,idy,8:] = pops.nH / 1e6 # [1/m3 --> 1/cm3] right?
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
