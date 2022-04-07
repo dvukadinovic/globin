@@ -1234,10 +1234,10 @@ def make_RH_OF_files(atmos):
 		out = open(fpath, "w")
 
 		if atmos.of_num==1:
-			out.write("{:4d}\n".format(3))
+			out.write("{:4d}\n".format(4))
 		else:
-			out.write("{:4d}\n".format(atmos.of_num+1))
-		out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.values["of"][idx,idy,0]-10, 0, 0, 0))
+			out.write("{:4d}\n".format(atmos.of_num+2))
+		out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-10, 0, 0, 0))
 		for i_ in range(atmos.of_num):
 			wave = atmos.nodes["of"][i_]
 			fudge = atmos.values["of"][idx,idy,i_]
