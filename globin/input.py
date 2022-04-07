@@ -8,6 +8,8 @@ import subprocess as sp
 from scipy.interpolate import interp1d
 from astropy.io import fits
 
+import matplotlib.pyplot as plt
+
 from .atmos import Atmosphere
 from .spec import Observation
 from .rh import write_wavs
@@ -1204,7 +1206,7 @@ def read_OF_data(fpath):
 	try:
 		hdu = fits.open(fpath)
 		of_wave = hdu[0].data
-		of__value = hdu[1].data
+		of_value = hdu[1].data
 		of_num = len(globin.of_wave)
 	except:
 		lines = open(fpath, "r").readlines()
@@ -1222,7 +1224,8 @@ def read_OF_data(fpath):
 		of_wave = np.array(of_wave)
 		of_value = np.array(of_value)
 
-	
+	of_wave = write_wavs(of_wave, fname=None)
+
 	return of_num, of_wave, of_value
 
 def make_RH_OF_files(atmos):
@@ -1237,30 +1240,30 @@ def make_RH_OF_files(atmos):
 			out.write("{:4d}\n".format(4))
 		else:
 			out.write("{:4d}\n".format(atmos.of_num+2))
-		out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-10, 0, 0, 0))
+		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-10, 0, 0, 0))
 		for i_ in range(atmos.of_num):
 			wave = atmos.nodes["of"][i_]
 			fudge = atmos.values["of"][idx,idy,i_]
 			if atmos.of_num==1:
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], fudge, fudge, 0))
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], fudge, fudge, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], fudge, fudge, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], fudge, fudge, 0))
 					else:
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], fudge, 0, 0))
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], fudge, 0, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], fudge, 0, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], fudge, 0, 0))
 				else:
-					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[0], 0, 0, fudge))
-					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength[-1], 0, 0, fudge))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], 0, 0, fudge))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], 0, 0, fudge))
 			else:
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
 					else:
-						out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, 0, 0))
+						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, 0, 0))
 				else:
-					out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
 			
-		out.write("{:7.3f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+10, 0, 0, 0))
+		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+10, 0, 0, 0))
 
 		out.close()

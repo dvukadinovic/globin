@@ -770,7 +770,9 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
     obj.pack_int(nlam)
     obj.pack_farray(nlam, wavs.ravel().astype('d', order='C'), obj.pack_double)
     
-    out = open(fname,"wb")
-    out.write(obj.get_buffer())
-    out.close()
+    if fname is not None:
+        out = open(fname,"wb")
+        out.write(obj.get_buffer())
+        out.close()
+
     return wavs

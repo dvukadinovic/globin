@@ -1055,13 +1055,20 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# plt.show()
 	# sys.exit()
 
+	# plt.plot(globin.obs.spec[0,0,:,0])
+	# plt.plot(spec.spec[0,0,:,0])
+	# plt.show()
+
 	#--- compare RFs for single parameter
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
 	# 		aux = rf[idx,idy, :, :, :]
-	# 		plt.plot(aux[4,:,0])
-	# 		# plt.plot(aux[5,:,0])
+	# 		plt.plot(aux[3,:,0], label="T")
+	# 		plt.plot(aux[4,:-2,0], label="OF 1")
+	# 		plt.plot(aux[5,:-2,0], label="OF 2")
+	# 		# plt.plot(aux[6-4,:-2,0], label="OF 3")
 	# 		# plt.plot(aux.reshape(2, 804, order="F").T)
+	# plt.legend()
 	# plt.show()
 	# sys.exit()
 
