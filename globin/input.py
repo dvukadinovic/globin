@@ -1240,7 +1240,7 @@ def make_RH_OF_files(atmos):
 			out.write("{:4d}\n".format(4))
 		else:
 			out.write("{:4d}\n".format(atmos.of_num+2))
-		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-10, 0, 0, 0))
+		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, 0, 0, 0))
 		for i_ in range(atmos.of_num):
 			wave = atmos.nodes["of"][i_]
 			fudge = atmos.values["of"][idx,idy,i_]
@@ -1264,6 +1264,6 @@ def make_RH_OF_files(atmos):
 				else:
 					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
 			
-		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+10, 0, 0, 0))
+		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+0.0001, 0, 0, 0))
 
 		out.close()
