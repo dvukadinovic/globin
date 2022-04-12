@@ -280,7 +280,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.yticks(fontsize=12)
 	if log_scale:
 		plt.yscale("log")
-	plt.legend(fontsize=12)
+	# plt.legend(fontsize=12)
 	plt.savefig(fpath)
 	plt.close()
 

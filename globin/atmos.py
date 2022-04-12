@@ -1063,11 +1063,15 @@ def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
 	# for idx in range(atmos.nx):
 	# 	for idy in range(atmos.ny):
 	# 		aux = rf[idx,idy, :, :, :]
-	# 		plt.plot(aux[3,:,0], label="T")
-	# 		plt.plot(aux[4,:-2,0], label="OF 1")
-	# 		plt.plot(aux[5,:-2,0], label="OF 2")
-	# 		# plt.plot(aux[6-4,:-2,0], label="OF 3")
-	# 		# plt.plot(aux.reshape(2, 804, order="F").T)
+			# plt.plot(aux[0,:,0], label="T-3")
+			# plt.plot(aux[1,:,0], label="T-2")
+			# plt.plot(aux[2,:,0], label="T-1")
+	# 		plt.plot(aux[3,:,0], label="T0")
+	# 		plt.plot(aux[4,:,0], label="OF 1")
+	# 		plt.plot(aux[5,:,0], label="OF 2")
+	# 		plt.plot(aux[6,:,0], label="OF 3")
+	# 		plt.plot(aux[7,:,0], label="OF 4")
+	# 		plt.plot(aux[8,:,0], label="OF 5")
 	# plt.legend()
 	# plt.show()
 	# sys.exit()

@@ -249,7 +249,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 							globin.rf_debug[idx,idy,niter] = rf[idx,idy]
 
 			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
-			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, axes=axs, color="tab:red")
+			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 			# plt.show()
 			# sys.exit()
 

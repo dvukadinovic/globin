@@ -216,6 +216,8 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		globin.lmax /= 10
 		globin.step /= 10
 		globin.wavelength = np.arange(globin.lmin, globin.lmax+globin.step, globin.step)
+	# globin.wavelength = np.append(np.arange(globin.lmin-10*globin.step, globin.lmin, globin.step), globin.wavelength)
+	# globin.lmin = np.min(globin.wavelength)
 	globin.wavelength_vacuum = write_wavs(globin.wavelength, f"runs/{globin.wd}/" + wave_file_path)
 
 	# set value of WAVETABLE in 'keyword.input' file
@@ -316,6 +318,14 @@ def read_input_files(run_name, globin_input_name, rh_input_name):
 		globin.parameter_scale["of"] = np.ones((globin.atm.nx, globin.atm.ny, of_num))
 
 		make_RH_OF_files(globin.atm)
+
+	if globin.mean:
+		if len(globin.mac_vel)==1:
+			vmac = globin.mac_vel[0]
+			globin.mac_vel = np.ones(globin.atm.nx * globin.atm.ny) * vmac
+
+			ff = globin.filling_factor[0]
+			globin.filling_factor = np.ones(globin.atm.nx * globin.atm.ny) * ff
 
 	#--- for each thread make working directory inside rh/rhf1d directory
 	for pid in range(globin.n_thread):
@@ -1229,33 +1239,56 @@ def read_OF_data(fpath):
 	return of_num, of_wave, of_value
 
 def make_RH_OF_files(atmos):
+	"""
+	[12.04.2022.]
+	This is not going to work in general OF correction :) Or at least
+	for wavelengths belowe 210nm, for metal correction.
+	"""
 	for fpath in atmos.of_paths:
 		lista = fpath.split("_")
 		idx = int(lista[-2])
 		idy = int(lista[-1])
 
 		out = open(fpath, "w")
-
+		
+		#--- for constant OF correction
 		if atmos.of_num==1:
 			out.write("{:4d}\n".format(4))
-		else:
-			out.write("{:4d}\n".format(atmos.of_num+2))
-		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, 0, 0, 0))
-		for i_ in range(atmos.of_num):
-			wave = atmos.nodes["of"][i_]
-			fudge = atmos.values["of"][idx,idy,i_]
-			if atmos.of_num==1:
-				if wave>=210:
-					if globin.of_scatt_flag!=0:
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], fudge, fudge, 0))
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], fudge, fudge, 0))
-					else:
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], fudge, 0, 0))
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], fudge, 0, 0))
+
+			fudge = atmos.values["of"][idx,idy,0]
+			
+			# start point with 0 fudge factor
+			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0002, 0, 0, 0))
+
+			# we correct begining and end wavelength for -/+ 0.0001 because of interpolation inside RH;
+			# if not corrected, these wavelengths would be extrapolated and not interpolated
+			if wave>=210:
+				if globin.of_scatt_flag!=0:
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, fudge, fudge, 0))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, fudge, fudge, 0))
 				else:
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0], 0, 0, fudge))
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1], 0, 0, fudge))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, fudge, 0, 0))
+					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, fudge, 0, 0))
 			else:
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, 0, 0, fudge))
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, 0, 0, fudge))
+
+			# end point with 0 fudge factor
+			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0002, 0, 0, 0))
+		#--- for multi-wavelength OF correction
+		else:
+			# two more points are added (one at the begining and one at the end of interval)
+			out.write("{:4d}\n".format(atmos.of_num+2))
+			
+			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0002, 0, 0, 0))
+			if globin.of_scatt_flag!=0:
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, atmos.values["of"][idx,idy,0], atmos.values["of"][idx,idy,0], 0))
+			else:
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, atmos.values["of"][idx,idy,0], 0, 0))
+
+			for i_ in range(1,atmos.of_num-1):
+				wave = atmos.nodes["of"][i_]
+				fudge = atmos.values["of"][idx,idy,i_]
 				if wave>=210:
 					if globin.of_scatt_flag!=0:
 						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
@@ -1264,6 +1297,11 @@ def make_RH_OF_files(atmos):
 				else:
 					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
 			
-		out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave+0.0001, 0, 0, 0))
+			if globin.of_scatt_flag!=0:
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0001, atmos.values["of"][idx,idy,-1], atmos.values["of"][idx,idy,-1], 0))	
+			else:
+				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0001, atmos.values["of"][idx,idy,-1], 0, 0))
+			
+			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0002, 0, 0, 0))
 
 		out.close()
