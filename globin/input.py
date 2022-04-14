@@ -429,7 +429,7 @@ def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step
 	globin.chi2_tolerance = _find_value_by_key("chi2_tolerance", globin.parameters_input, "default", 1e-2, float)
 	globin.ncycle = _find_value_by_key("ncycle", globin.parameters_input, "default", 1, int)
 	globin.rf_type = _find_value_by_key("rf_type", globin.parameters_input, "default", "node", str)
-	globin.weight_type = _find_value_by_key("weight_type", globin.parameters_input, "default", "StokesI", str)
+	globin.weight_type = _find_value_by_key("weight_type", globin.parameters_input, "default", None, str)
 	values = _find_value_by_key("weights", globin.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
 	if type(values)==str:
 		values = values.split(",")
@@ -1262,7 +1262,7 @@ def make_RH_OF_files(atmos):
 
 			# we correct begining and end wavelength for -/+ 0.0001 because of interpolation inside RH;
 			# if not corrected, these wavelengths would be extrapolated and not interpolated
-			if wave>=210:
+			if atmos.nodes["of"][0]>=210:
 				if globin.of_scatt_flag!=0:
 					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, fudge, fudge, 0))
 					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, fudge, fudge, 0))

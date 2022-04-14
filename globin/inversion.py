@@ -141,7 +141,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 	ind_max = np.argmin(abs(obs.wavelength - globin.wavelength[-1]))+1
 
 	if globin.noise==0:
-		noise = 1e-8
+		noise = 1e-4
 	else:
 		noise = globin.noise
 	StokesI_cont = obs.spec[...,ind_min,0]
@@ -179,8 +179,8 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if globin.weight_type=="StokesI":
 		aux = 1/obs.spec[...,0]
 		weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-		# norm = np.sum(weights, axis=2)
-		# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
+		norm = np.sum(weights, axis=2)
+		weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
 	else:
 		weights = 1
 
@@ -251,33 +251,20 @@ def invert_pxl_by_pxl(save_output, verbose):
 			# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
 			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 			# plt.show()
-			# sys.exit()
-
-			# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-			# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		for pID in range(Npar):
-			# 			for sID in range(4):
-			# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
-			# 		for sID in range(4):
-			# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
 
 			#--- scale RFs with weights and noise scale
-			# _rf = rf/noise_scale_rf
 			_rf = rf
 
 			diff = obs.spec - spec.spec
 			diff *= globin.weights
 			diff /= noise_stokes
-			# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3)) / dof
 			chi2_old = np.sum(diff**2, axis=(2,3))
-			# diff /= noise_stokes_scale
 
 			"""
 			Gymnastics with indices for solving LM equations for
 			next step parameters.
 			"""
+			# J = (nx, ny, npar, 4*nw)
 			J = _rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 			# J = (nx, ny, 4*nw, npar)
 			J = np.moveaxis(J, 2, 3)

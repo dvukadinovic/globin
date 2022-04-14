@@ -133,7 +133,7 @@ delta = {"temp"  : 1,		# K
 		 "chi"   : 0.01,	# rad
 		 "loggf" : 0.001,	# 
 		 "dlam"  : 1,		# mA
-		 "of"    : 0.01}
+		 "of"    : 0.001}
 
 #--- parameter differences for flaging if RF needs to be computed
 diff = {"temp"   : 10,		# K
