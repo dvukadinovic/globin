@@ -81,13 +81,14 @@ class Spectrum(object):
 		if globin.norm:
 			for idx in range(self.nx):
 				for idy in range(self.ny):
-					# sI_cont = rh_obj.int[ind_min]
-					# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
-					# k = (self.spec[idx,idy,-1,0] - self.spec[idx,idy,0,0]) / (self.wavelength[-1] - self.wavelength[0])
-					# n = self.spec[idx,idy,-1,0] - k*self.wavelength[-1]
-					# sI_cont = k*self.wavelength + n
-					# sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
-					sI_cont = 1e-8#np.max(self.spec[idx,idy,:,0])
+			# 		# sI_cont = rh_obj.int[ind_min]
+			# 		# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
+			# 		# k = (self.spec[idx,idy,-1,0] - self.spec[idx,idy,0,0]) / (self.wavelength[-1] - self.wavelength[0])
+			# 		# n = self.spec[idx,idy,-1,0] - k*self.wavelength[-1]
+			# 		# sI_cont = k*self.wavelength + n
+			# 		# sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
+			# 		sI_cont = 1e-8#np.max(self.spec[idx,idy,:,0])
+					sI_cont = np.mean(self.spec[idx,idy,:,0])
 					self.spec[idx,idy] /= sI_cont
 
 	def mean_spectrum(self):
