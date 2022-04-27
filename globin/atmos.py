@@ -625,7 +625,8 @@ def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
 	spectra.lmax = globin.lmax
 	spectra.step = globin.step
 
-	atmospheres = copy.deepcopy(globin.atm)
+	# atmospheres = copy.deepcopy(globin.atm)
+	atmospheres = globin.Atmosphere(nx=Nx, ny=Ny, nz=Nz)
 	atmospheres.height = np.zeros((Nx, Ny, Nz))
 	atmospheres.cmass = np.zeros((Nx, Ny, Nz))
 

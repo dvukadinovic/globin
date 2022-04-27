@@ -105,6 +105,14 @@ def invert_pxl_by_pxl(save_output, verbose):
 	if globin.debug:
 		LM_debug = np.zeros((globin.max_iter, atmos.nx, atmos.ny))
 
+	if globin.norm:
+		globin.falc.write_atmosphere()
+		globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+		globin.falc.line_lists_path = atmos.line_lists_path
+		
+		falc_spec, _ = globin.compute_spectra(globin.falc)
+		globin.Icont = np.max(falc_spec.spec[0,0,:,0])
+
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion
 	#   0 --> we converged
@@ -603,6 +611,14 @@ def invert_global(save_output, verbose):
 		print("There is no parameters to fit.\n   We exit.\n")
 		globin.remove_dirs()
 		sys.exit()
+
+	if globin.norm:
+		globin.falc.write_atmosphere()
+		globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+		globin.falc.line_lists_path = atmos.line_lists_path
+		
+		falc_spec, _ = globin.compute_spectra(globin.falc)
+		globin.Icont = np.max(falc_spec.spec[0,0,:,0])
 
 	# indices for wavelengths min/max for which we are fiting; based on input
 	ind_min = np.argmin(abs(obs.wavelength - globin.wavelength[0]))

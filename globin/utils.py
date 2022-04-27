@@ -59,8 +59,17 @@ def make_synthetic_observations(atmos, noise, atm_fpath=None, save_height=False)
         globin.remove_dirs()
         sys.exit()
     
+    if globin.norm:
+        globin.falc.write_atmosphere()
+        globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+        globin.falc.line_lists_path = atmos.line_lists_path
+        
+        falc_spec, _ = globin.compute_spectra(globin.falc)
+        globin.Icont = np.max(falc_spec.spec[0,0,:,0])
+
     atmos.write_atmosphere()
     spec, atm = globin.compute_spectra(atmos)
+
     spec.xmin = atmos.xmin
     spec.xmax = atmos.xmax
     spec.ymin = atmos.ymin

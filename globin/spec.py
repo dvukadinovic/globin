@@ -78,7 +78,7 @@ class Spectrum(object):
 					# plt.show()
 
 	def norm(self):
-		if globin.norm:
+		if (globin.norm) and (globin.Icont is not None):
 			for idx in range(self.nx):
 				for idy in range(self.ny):
 			# 		# sI_cont = rh_obj.int[ind_min]
@@ -88,8 +88,15 @@ class Spectrum(object):
 			# 		# sI_cont = k*self.wavelength + n
 			# 		# sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
 			# 		sI_cont = 1e-8#np.max(self.spec[idx,idy,:,0])
-					sI_cont = np.mean(self.spec[idx,idy,:,0])
-					self.spec[idx,idy] /= sI_cont
+					# sI_cont = np.mean(self.spec[idx,idy,:,0])
+					self.spec[idx,idy] /= globin.Icont
+
+	def mean(self):
+		"""
+		Return an average spectrum over observed field-of-view.
+		"""
+		if globin.mean:
+			return np.mean(self.spec, axis=(0,1))
 
 	def mean_spectrum(self):
 		if globin.mean:

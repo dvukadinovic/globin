@@ -194,3 +194,5 @@ atmos_axs = None
 
 #
 atm_scale = "tau"
+
+Icont = None
