@@ -153,11 +153,19 @@ def pool_synth(args):
         file).
     """
 	start = time.time()
+	
+	Nargs = len(args)
 
-	if globin.of_mode:
+	of_mode = True
+	if Nargs==3:
 		atm_path, line_list_path, of_path = args
-	else:
+	elif Nargs==2:
 		atm_path, line_list_path = args
+		of_mode = False
+	else:
+		print("Error: Unknown number of arguments for synthesis.")
+		globin.remove_dirs()
+		sys.exit()
 
 	# get process ID number
 	pid = mp.current_process()._identity[0]
@@ -175,7 +183,7 @@ def pool_synth(args):
 	globin.keyword_input = _set_keyword(globin.keyword_input, "ATMOS_FILE", f"{globin.cwd}/{atm_path}")
 	if globin.stokes_mode!="NO_STOKES":
 		globin.keyword_input = _set_keyword(globin.keyword_input, "STOKES_INPUT", f"{globin.cwd}/{atm_path}.B")
-	if globin.of_mode:
+	if of_mode:
 		globin.keyword_input = _set_keyword(globin.keyword_input, "OPACITY_FUDGE", f"{of_path}")
 	else:
 		globin.keyword_input = _set_keyword(globin.keyword_input, "OPACITY_FUDGE", None)
