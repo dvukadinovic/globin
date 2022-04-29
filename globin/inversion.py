@@ -106,23 +106,7 @@ def invert_pxl_by_pxl(save_output, verbose):
 		LM_debug = np.zeros((globin.max_iter, atmos.nx, atmos.ny))
 
 	if globin.norm:
-		globin.falc.write_atmosphere()
-		globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-		globin.falc.line_lists_path = atmos.line_lists_path
-		
-		of_on = False
-		if globin.of_mode:
-			globin.of_mode = False
-			of_on = True
-		falc_spec, _ = globin.compute_spectra(globin.falc)
-		globin.Icont = np.max(falc_spec.spec[0,0,:,0])
-		if of_on:
-			globin.of_mode = True
-		
-		# falc_spec.xmin, falc_spec.xmax = 0, 1
-		# falc_spec.ymin, falc_spec.ymax = 0, 1
-		# falc_spec.save("FALC.fits", falc_spec.wavelength)
-		# sys.exit()
+		globin.get_Icont()
 
 	# flags those pixels whose chi2 converged:
 	#   1 --> we do inversion

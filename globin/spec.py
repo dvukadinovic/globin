@@ -234,3 +234,26 @@ class Observation(Spectrum):
 
 	def norm(self):
 		Spectrum.norm(self)
+
+def get_Icont():
+	"""
+	Compute the continuum intensity in the given wavelength from FAL C model that
+	will be used as a normalization factor for synthetic spectra.
+	"""
+	globin.falc.write_atmosphere()
+	globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+	globin.falc.line_lists_path = atmos.line_lists_path
+
+	of_on = False
+	if globin.of_mode:
+		globin.of_mode = False
+		of_on = True
+	falc_spec, _ = globin.compute_spectra(globin.falc)
+	globin.Icont = np.max(falc_spec.spec[0,0,:,0])
+	if of_on:
+		globin.of_mode = True
+	
+	# falc_spec.xmin, falc_spec.xmax = 0, 1
+	# falc_spec.ymin, falc_spec.ymax = 0, 1
+	# falc_spec.save("FALC.fits", falc_spec.wavelength)
+	# sys.exit()
