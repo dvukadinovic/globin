@@ -153,7 +153,7 @@ def pool_synth(args):
         file).
     """
 	start = time.time()
-	
+
 	Nargs = len(args)
 
 	of_mode = True
@@ -175,7 +175,7 @@ def pool_synth(args):
 	sp.run(f"cp runs/{globin.wd}/*.input {globin.rh_path}/rhf1d/{globin.wd}_{pid}",
 		shell=True, stdout=sp.DEVNULL, stderr=sp.PIPE)
 	set_old_J = False
-
+	
 	# re-read 'keyword.input' file for given pID
 	globin.keyword_input = open(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid}/{globin.rh_input_name}", "r").read()
 

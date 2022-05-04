@@ -17,6 +17,12 @@ Contributors:
 
 import os
 import numpy as np
+import sys
+
+try:
+	import pyrh
+except ImportError:
+	sys.exit("No module 'pyrh'. Install the module first before using 'globin'")
 
 from .atmos import \
 	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \

@@ -769,7 +769,8 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	nx, ny, npar, nz = data.shape
 
 	atmos = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
-	atmos.data = data
+	aux = data.astype(np.float64, order="C", copy=True) # because of the pyrh module
+	atmos.data = aux
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 

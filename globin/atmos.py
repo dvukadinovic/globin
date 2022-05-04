@@ -19,13 +19,6 @@ from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
-try:
-	import pyrh
-	argv = "rhf1d"# -i keyword.input"
-	argc = len(argv.split(" "))
-except:
-	print("No pyrh module. It is safe to continue.")
-
 import globin
 
 # order of parameters RFs in output file from 'rf_ray'
@@ -582,18 +575,18 @@ def write_multi_atmosphere(atm, fpath):
 	if globin.atm_scale=="tau":
 		out.write("* log tau    Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
 		for i_ in range(nz):
-			out.write("  {:+5.4f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+			out.write("  {:+5.4f}    {:12.6f}   {:8.6e}   {:8.6e}   {:8.6e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
 	elif globin.atm_scale=="cmass":
 		out.write("* log cmass      Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
 		for i_ in range(nz):
-			out.write("  {:+8.6f}    {:6.2f}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
+			out.write("  {:+8.6f}    {:12.6f}   {:8.6e}   {:8.6e}   {:8.6e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
 
 	out.write("*\n")
 	out.write("* Hydrogen populations [cm-3]\n")
 	out.write("*     nh(1)        nh(2)        nh(3)        nh(4)        nh(5)        nh(6)\n")
 
 	for i_ in range(nz):
-		out.write("   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}   {:5.4e}\n".format(atm[8,i_], atm[9,i_], atm[10,i_], atm[11,i_], atm[12,i_], atm[13,i_]))
+		out.write("   {:8.6e}   {:8.6e}   {:8.6e}   {:8.6e}   {:8.6e}   {:8.6e}\n".format(atm[8,i_], atm[9,i_], atm[10,i_], atm[11,i_], atm[12,i_], atm[13,i_]))
 
 	out.close()
 
