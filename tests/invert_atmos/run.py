@@ -18,6 +18,8 @@ globin.read_input(run_name=run_name)
 if globin.mode==0:
 	spec = globin.make_synthetic_observations(globin.atm, globin.noise, 
 		atm_fpath=None)
+	plt.plot(spec.spec[0,0,:,0])
+	plt.show()
 	sys.exit()
 
 #--- RFs

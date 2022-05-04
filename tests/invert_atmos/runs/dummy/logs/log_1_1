@@ -24,7 +24,7 @@
  Parameter atmos.B_char not set or set to zero
  Wavelength grids of line profiles do not take account  of Zeeman splitting
 
- -- reading input file: /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/atmospheres/atm_0_1
+ -- reading input file: /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/atmospheres/atm_1_1
 
  -- reading input file: ../../Atoms/H_6.atom (passive)
  -- reading input file: ../../Atoms/He.atom (passive)

@@ -51,10 +51,6 @@
  -- reading input file: ../../Molecules/H2O.molecule (passive)
 
  SortLambda: Found 202 unique wavelengths
-
--Fudging background opacities with file
-  /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/ofs/of_0_0
-
 Read 18 Kurucz lines from file /home/dusan/Documents/globin/tests/invert_atmos/runs/dummy/lines_4016
 
  initScatter: Lambda iterating background scattering...
