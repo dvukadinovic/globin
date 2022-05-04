@@ -7,7 +7,7 @@
 #--- General parameters
 n_thread = 6
 interp_deree = 3
-mode = 3
+mode = 1
 debug = False
 
 #--- Spectra to be fitted
@@ -64,7 +64,7 @@ max_iter = 20
 chi2_tolerance = 1e-3
 
 #--- Line parameters
-#line_parameters = line_pars
+line_parameters = line_pars
 
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits

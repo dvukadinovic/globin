@@ -64,6 +64,40 @@ __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visua
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
+class Globin:
+	"""
+	Main container for all globin and pyrh methods and classes.
+	"""
+	def __init__(self, rh_logfile=None, rh_quiet=True):
+		self.rh_logfile = rh_logfile
+		self.rh_quiet = rh_quiet
+
+		#--- parameter scale (calcualted from RFs based on
+		#    Cristopher Frutigers' thesis, p.42)
+		self.parameter_scale = {}
+
+	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
+		self.run_name = run_name
+		if (rh_input_name is not None) and (globin_input_name is not None):
+			# initialize RH class (cythonized)
+			self.RH = pyrh.RH(input=rh_input_name, logfile=self.rh_logfile, quiet=self.rh_quiet)
+			
+			# set containers fields and read input files
+			self.globin_input_name = globin_input_name
+			self.rh_input_name = rh_input_name
+			input.read_input_files(self)
+			
+		else:
+			if rh_input_name is None:
+				print(f"  There is no path for globin input file.")
+			if globin_input_name is None:
+				print(f"  There is no path for RH input file.")
+			sys.exit()
+		# read_input(run_name, globin_input_name, rh_input_name, self)
+
+	def invert(save_output=True, verbose=True):
+		invert(save_output, verbose)
+
 #--- moduse operandi
 # 0 --> synthesis
 # 1 --> regular (pixle-by-pixel) inversion
@@ -101,11 +135,6 @@ atom_mass = np.array([1.00797, 4.00260, 6.941, 9.01218, 10.81, 12.011, 14.0067,
 					  200.59, 204.37, 207.2, 208.9804, 209, 210, 222, 223, 226.0254,
 					  227.0278, 232.0381, 231.0359, 238.029, 237.0482, 242, 243, 
 					  247, 247, 251, 252])
-
-
-#--- parameter scale (calcualted from RFs based on
-#    Cristopher Frutigers' thesis, p.42)
-parameter_scale = {}
 
 #--- limit values for atmospheric parameters
 limit_values = {"temp"  : [3000, 10000], 		# [K]

@@ -131,9 +131,12 @@ class Atmosphere(object):
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
 		new.nodes = copy.deepcopy(self.nodes)
 		new.values = copy.deepcopy(self.values)
-		if (globin.of_mode) and (globin.mode>=1):
+		# if (globin.of_mode) and (globin.mode>=1):
+		try:
 			new.of_num = copy.deepcopy(self.of_num)
 			new.of_paths = copy.deepcopy(self.of_paths)
+		except:
+			pass
 		new.global_pars = copy.deepcopy(self.global_pars)
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
