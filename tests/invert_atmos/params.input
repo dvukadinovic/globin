@@ -7,7 +7,7 @@
 #--- General parameters
 n_thread = 6
 interp_deree = 3
-mode = 1
+mode = 0
 debug = False
 
 #--- Spectra to be fitted
@@ -48,7 +48,7 @@ nodes_temp_values = 4800, 5500, 6500, 7500
 # fit_mode:
 #   0  -->  just apply the OF (no inversion)
 #  1>  -->  invert the OF coefficients
-of_fit_mode = 1
+of_fit_mode = -1
 of_file = of.data
 of_scatt_flag = 1
 

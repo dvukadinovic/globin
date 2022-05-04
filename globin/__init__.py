@@ -76,6 +76,9 @@ class Globin:
 		#    Cristopher Frutigers' thesis, p.42)
 		self.parameter_scale = {}
 
+		self.atmosphere = None
+		self.wavelength_vacuum = None
+
 	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
 		self.run_name = run_name
 		if (rh_input_name is not None) and (globin_input_name is not None):
@@ -94,6 +97,18 @@ class Globin:
 				print(f"  There is no path for RH input file.")
 			sys.exit()
 		# read_input(run_name, globin_input_name, rh_input_name, self)
+
+	def compute_spectra(self, idx=0, idy=0):
+		if (self.atmosphere is not None) and (self.wavelength_vacuum is not None):
+			spec = self.RH.compute1d(self.atmosphere.data[idx, idy, 0], self.atmosphere.data[idx, idy, 1], 
+							  self.atmosphere.data[idx, idy, 2], self.atmosphere.data[idx, idy, 3], 
+                   			  self.atmosphere.data[idx, idy, 4], self.atmosphere.data[idx, idy, 5]/1e4, 
+                   			  self.atmosphere.data[idx, idy, 6], self.atmosphere.data[idx, idy, 7],
+                   			  self.atmosphere.data[idx, idy, 8:], 
+                   			  0)
+			return spec
+		else:
+			print("Unable to synthesize spectrum. No atmosphere or no wavelength points.")
 
 	def invert(save_output=True, verbose=True):
 		invert(save_output, verbose)

@@ -8,7 +8,7 @@
 # (both KEYWORD_REQUIRED).
 
   ATMOS_FILE = ../../Atmos/FALC_tau_scale.atmos
-  ABUND_FILE = ../../Atoms/abundance.input
+  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
@@ -17,6 +17,11 @@
 # Input file for all atoms (KEYWORD_REQUIRED).
 
   ATOMS_FILE = atoms.input
+
+# Barklem tables for the collisional coefficients
+  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
+  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
+  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
 
 # Input file for all molecules (KEYWORD_REQUIRED).
 
@@ -103,7 +108,7 @@
 # type KEYWORD_DEFAULT
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
-  KURUCZ_PF_DATA = ../../Atoms/pf_Kurucz.input
+  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
   SOLVE_NE = NONE
   RLK_SCATTER = FALSE
@@ -122,7 +127,7 @@
 # OF_SASHA if opacity fudge factors from Shapiro+10 should be used
 # (added on 03/04/2020 by D.Vukadinovic); it does not show any infulence.
 
- OPACITY_FUDGE = ../../Atmos/opacity_fudge.input
+ OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
 #  OPACITY_FUDGE = ../../Atmos/of_test
 #  OF_SASHA = ../../Atmos/of_sasha.dat
 #  LINE_FUDGE = TRUE
@@ -175,13 +180,13 @@
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-  STOKES_INPUT = ./FALC_82_500G_45.B
+#  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
 
-  STOKES_MODE = FULL_STOKES
-#   STOKES_MODE = NO_STOKES
+#  STOKES_MODE = FULL_STOKES
+   STOKES_MODE = NO_STOKES
 
 # Include magneto-optical effects (KEYWORD_DEFAULT). Default is TRUE.
 

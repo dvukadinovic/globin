@@ -51,23 +51,16 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
 
     return atmos
 
-def make_synthetic_observations(atmos, noise, atm_fpath=None, save_height=False):
-    if globin.mode!=0:
-        print(f"  Current mode is {globin.mode}.")
-        print("  We can make synthetic observations only in mode = 0.")
-        print("  Change it before running the script again.")
-        globin.remove_dirs()
-        sys.exit()
-    
-    if globin.norm:
-        globin.falc.write_atmosphere()
-        globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-        globin.falc.line_lists_path = atmos.line_lists_path
+def make_synthetic_observations(obj, atm_fpath=None, save_height=False):
+    # if globin.norm:
+    #     globin.falc.write_atmosphere()
+    #     globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+    #     globin.falc.line_lists_path = atmos.line_lists_path
         
-        falc_spec, _ = globin.compute_spectra(globin.falc)
-        globin.Icont = np.max(falc_spec.spec[0,0,:,0])
+    #     falc_spec, _ = globin.compute_spectra(globin.falc)
+    #     globin.Icont = np.max(falc_spec.spec[0,0,:,0])
 
-    atmos.write_atmosphere()
+    # atmos.write_atmosphere()
     spec, atm = globin.compute_spectra(atmos)
 
     spec.xmin = atmos.xmin
