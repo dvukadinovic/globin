@@ -24,15 +24,18 @@ try:
 except ImportError:
 	sys.exit("No module 'pyrh'. Install the module first before using 'globin'")
 
+from .container import Globin
+
 from .atmos import \
 	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \
 	multi2spinor
 
-from .input import \
-	read_input, read_node_atmosphere, \
-	write_line_parameters, write_line_par, \
-	read_inverted_atmosphere, \
-	initialize_atmos_pars, make_RH_OF_files
+# from .input import \
+# 	read_input, read_node_atmosphere, \
+# 	write_line_parameters, write_line_par, \
+# 	read_inverted_atmosphere, \
+# 	initialize_atmos_pars, make_RH_OF_files, \
+# 	InputData
 
 from .atoms import \
 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
@@ -63,55 +66,6 @@ from .mppools import pool_write_atmosphere, pool_build_from_nodes, pool_rf, pool
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
-
-class Globin:
-	"""
-	Main container for all globin and pyrh methods and classes.
-	"""
-	def __init__(self, rh_logfile=None, rh_quiet=True):
-		self.rh_logfile = rh_logfile
-		self.rh_quiet = rh_quiet
-
-		#--- parameter scale (calcualted from RFs based on
-		#    Cristopher Frutigers' thesis, p.42)
-		self.parameter_scale = {}
-
-		self.atmosphere = None
-		self.wavelength_vacuum = None
-
-	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
-		self.run_name = run_name
-		if (rh_input_name is not None) and (globin_input_name is not None):
-			# initialize RH class (cythonized)
-			self.RH = pyrh.RH(input=rh_input_name, logfile=self.rh_logfile, quiet=self.rh_quiet)
-			
-			# set containers fields and read input files
-			self.globin_input_name = globin_input_name
-			self.rh_input_name = rh_input_name
-			input.read_input_files(self)
-			
-		else:
-			if rh_input_name is None:
-				print(f"  There is no path for globin input file.")
-			if globin_input_name is None:
-				print(f"  There is no path for RH input file.")
-			sys.exit()
-		# read_input(run_name, globin_input_name, rh_input_name, self)
-
-	def compute_spectra(self, idx=0, idy=0):
-		if (self.atmosphere is not None) and (self.wavelength_vacuum is not None):
-			spec = self.RH.compute1d(self.atmosphere.data[idx, idy, 0], self.atmosphere.data[idx, idy, 1], 
-							  self.atmosphere.data[idx, idy, 2], self.atmosphere.data[idx, idy, 3], 
-                   			  self.atmosphere.data[idx, idy, 4], self.atmosphere.data[idx, idy, 5]/1e4, 
-                   			  self.atmosphere.data[idx, idy, 6], self.atmosphere.data[idx, idy, 7],
-                   			  self.atmosphere.data[idx, idy, 8:], 
-                   			  0)
-			return spec
-		else:
-			print("Unable to synthesize spectrum. No atmosphere or no wavelength points.")
-
-	def invert(save_output=True, verbose=True):
-		invert(save_output, verbose)
 
 #--- moduse operandi
 # 0 --> synthesis

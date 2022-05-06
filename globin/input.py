@@ -10,10 +10,11 @@ from astropy.io import fits
 
 import matplotlib.pyplot as plt
 
+from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
 from .spec import Observation
 from .rh import write_wavs
-from .utils import _set_keyword, _slice_line
+from .utils import _set_keyword, _slice_line, construct_atmosphere_from_nodes
 
 import globin
 
@@ -26,6 +27,536 @@ class RHInput(object):
 
 	def set_keyword(self, key):
 		pass
+
+class InputData(object):
+	def __init__(self, _Globin):
+		self.Globin = _Globin
+		self.n_thread = 1
+
+	def read_input_files(self, globin_input_name, rh_input_name):
+		"""
+		Read input files for globin and RH.
+
+		We assume that parameters (in both files) are given in format:
+			key = value
+
+		Commented lines begin with symbol '#'.
+
+		Parameters:
+		---------------
+		globin_input_name : str
+			path to file that contains input parameters for globin
+		rh_input_name : str
+			path to 'keyword.input' file for RH parameters
+		"""
+		self.globin_input_name = globin_input_name
+		self.rh_input_name = rh_input_name
+
+		# make runs directory if not existing
+		# here we store all runs with different run_name
+		if not os.path.exists("runs"):
+			os.mkdir("runs")
+
+		# make directory for specified run with provided 'run_name'
+		if not os.path.exists(f"runs/{self.Globin.run_name}"):
+			os.mkdir(f"runs/{self.Globin.run_name}")
+
+		# copy all RH input files into run_name directory
+		sp.run(f"cp *.input runs/{self.Globin.run_name}",
+			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+
+		#--- get parameters from RH input file
+		text = open(self.rh_input_name, "r").read()
+		self.keyword_input = text
+
+		wave_file_path = _find_value_by_key("WAVETABLE", self.keyword_input, "required")
+		wave_file_path = wave_file_path.split("/")[-1]
+		# obj.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", obj.keyword_input, "default", "spectrum.out")
+		self.solve_ne = _find_value_by_key("SOLVE_NE", self.keyword_input, "optional")
+		# obj.hydrostatic = _find_value_by_key("HYDROSTATIC", obj.keyword_input, "optional")
+		# obj.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", obj.keyword_input, "required")
+		# obj.rf_file_path = _find_value_by_key("RF_OUTPUT", obj.keyword_input, "default", "rfs.out")
+		# obj.stokes_mode = _find_value_by_key("STOKES_MODE", obj.keyword_input, "default", "NO_STOKES")
+		self.of_mode = _find_value_by_key("OPACITY_FUDGE", self.keyword_input, "default", False)
+		if self.of_mode:
+			self.of_mode = True
+
+		#--- get parameters from globin input file
+		text = open(self.globin_input_name, "r").read()
+		self.parameters_input = text
+
+		# key used to make debug files/checks during synthesis/inversion
+		debug = _find_value_by_key("debug", self.parameters_input, "optional")
+		if debug is not None:
+			if debug.lower()=="true":
+				self.debug = True
+			elif debug.lower()=="false":
+				self.debug = False
+		else:
+			self.debug = False
+
+		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
+		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
+		norm = _find_value_by_key("norm", self.parameters_input, "optional")
+		if norm is not None:
+			if norm.lower()=="true":
+				self.norm = True
+			elif norm.lower()=="false":
+				self.norm = False
+		else:
+			self.norm = False
+
+		mean = _find_value_by_key("mean", self.parameters_input, "optional")
+		if mean is not None:
+			if mean.lower()=="true":
+				self.mean = True
+			elif mean.lower()=="false":
+				self.mean = False
+		else:
+			self.mean = False
+
+		if self.mean:
+			mac_vel = _find_value_by_key("mac_vel", self.parameters_input, "required")
+			self.mac_vel = [float(item) for item in mac_vel.split(",")]
+
+			items = _find_value_by_key("filling_factor", self.parameters_input, "required")
+			self.filling_factor = [float(item) for item in items.split(",")]
+
+		# path to RH main folder
+		rh_path = _find_value_by_key("rh_path", self.parameters_input, "required")
+		if rh_path.rstrip("\n")[-1]=="/":
+			rh_path = rh_path.rstrip("/")
+		self.rh_path = rh_path
+
+		# flag for HSE computation; by default we do HSE
+		#obj.hydrostatic = _find_value_by_key("hydrostatic", obj.parameters_input, "default", 1, conversion=int)
+		
+		#--- get wavelength range and save it to file ('wave_file_path')
+		self.lmin = _find_value_by_key("wave_min", self.parameters_input, "optional", conversion=float)
+		self.lmax = _find_value_by_key("wave_max", self.parameters_input, "optional", conversion=float)
+		self.step = _find_value_by_key("wave_step", self.parameters_input, "optional", conversion=float)
+		self.interpolate_obs = False
+		if (self.step is None) or (self.lmin is None) or (self.lmax is None):
+			wave_grid_path = _find_value_by_key("wave_grid", self.parameters_input, "required")
+			wavetable = np.loadtxt(wave_grid_path)
+			self.lmin = min(wavetable)
+			self.lmax = max(wavetable)
+			self.step = wavetable[1] - wavetable[0]
+			self.interpolate_obs = True
+		else:
+			self.lmin /= 10
+			self.lmax /= 10
+			self.step /= 10
+			wavetable = np.arange(self.lmin, self.lmax+self.step, self.step)
+		
+		self.wavelength_air = copy.deepcopy(wavetable)
+		self.Globin.wavelength_vacuum = write_wavs(wavetable, wave_file_path)
+		# self.Globin.wavelength_vacuum = wavetable
+		# self.Globin.RH.set_wavetable(self.Globin.wavelength_vacuum)
+
+		# common parameters for all modes
+		atm_range = get_atmosphere_range(self.parameters_input)
+		logtau_top = _find_value_by_key("logtau_top", self.parameters_input, "default", -6,float)
+		logtau_bot = _find_value_by_key("logtau_bot", self.parameters_input, "default", 1, float)
+		logtau_step = _find_value_by_key("logtau_step", self.parameters_input, "default", 0.1, float)
+		self.noise = _find_value_by_key("noise", self.parameters_input, "default", 1e-3, float)
+		atm_type = _find_value_by_key("atm_type", self.parameters_input, "default", "multi", str)
+		atm_type = atm_type.lower()
+		self.atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", str)
+
+		# read Opacity Fudge (OF) data
+		if self.of_mode:
+			self.of_fit_mode = _find_value_by_key("of_fit_mode", self.parameters_input, "default", -1, float)
+			
+			if self.of_fit_mode==-1:
+				self.of_mode = False
+
+			of_file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, str)
+			self.of_scatt_flag = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, int)
+			if (self.of_fit_mode>=0) or of_file_path:
+				of_num, of_wave, of_value = read_OF_data(of_file_path)
+
+		# get the name of the input line list
+		self.linelist_name = _find_value_by_key("linelist", self.parameters_input, "required")
+		# obj.linelist_name = linelist_path.split("/")[-1]
+		# out = sp.run(f"cp {linelist_path} runs/{obj.wd}/{obj.linelist_name}",
+		# 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+		# if out.returncode!=0:
+		# 	print(str(out.stdout, "utf-8"))
+		# 	sys.exit()
+
+		#--- read data for different modus operandi
+		if self.mode<=0:
+			self.read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
+		elif self.mode>=1:
+			self.read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
+			if self.mode==2:
+				self.read_mode_2()
+			elif self.mode==3:
+				self.read_mode_3()
+
+			#--- determine number of local and global parameters
+			self.Globin.atmosphere.n_local_pars = 0
+			for parameter in self.Globin.atmosphere.nodes:
+				self.Globin.atmosphere.n_local_pars += len(self.Globin.atmosphere.nodes[parameter])
+
+			if self.of_mode:
+				self.Globin.atmosphere.n_local_pars += of_num
+
+			self.Globin.atmosphere.n_global_pars = 0
+			for parameter in self.Globin.atmosphere.global_pars:
+				self.Globin.atmosphere.n_global_pars += self.Globin.atmosphere.global_pars[parameter].shape[-1]
+		else:
+			print("--> Negative mode not supported. Soon to be RF calculation.")
+			sys.exit()
+
+		#--- if we have more threads than atmospheres, reduce the number of used threads
+		if self.n_thread > self.Globin.atmosphere.nx*self.Globin.atmosphere.ny:
+			self.n_thread = self.Globin.atmosphere.nx*self.Globin.atmosphere.ny
+			print(f"Warning: reduced the number of threads to {self.n_thread}.\n")
+
+		#--- initialize Pool() object
+		# self.Globin.pool = mp.Pool(self.n_thread)
+
+		#--- write OFs (to parallelize?)
+		# if obj.of_mode:
+		# 	obj.atmosphere.of_paths = []
+		# 	for idx in range(obj.atmosphere.nx):
+		# 		for idy in range(obj.atmosphere.ny):
+		# 			fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+		# 			obj.atmosphere.of_paths.append(fpath)
+
+		# 	# if we have 1D OF values, set equal values in all pixels
+		# 	if of_value.ndim==1:
+		# 		of_value = np.repeat(of_value[np.newaxis, :], obj.atmosphere.nx, axis=0)
+		# 		of_value = np.repeat(of_value[:, np.newaxis, :], obj.atmosphere.ny, axis=1)
+			
+		# 	obj.atmosphere.of_num = of_num
+		# 	obj.atmosphere.nodes["of"] = of_wave
+		# 	obj.atmosphere.values["of"] = of_value
+
+		# 	obj.parameter_scale["of"] = np.ones((obj.atmosphere.nx, obj.atmosphere.ny, of_num))
+
+		# 	make_RH_OF_files(obj.atmosphere)
+
+		if self.mean:
+			if len(self.mac_vel)==1:
+				vmac = self.mac_vel[0]
+				self.mac_vel = np.ones(self.Globin.atmosphere.nx * self.Globin.atmosphere.ny) * vmac
+
+				ff = self.filling_factor[0]
+				self.filling_factor = np.ones(self.Globin.atmosphere.nx * self.Globin.atmosphere.ny) * ff
+
+		# #--- for each thread make working directory inside rh/rhf1d directory
+		# for pid in range(self.Globin.n_thread):
+		# 	if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
+		# 		os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
+
+		idx,idy = np.meshgrid(np.arange(self.Globin.atmosphere.nx), np.arange(self.Globin.atmosphere.ny))
+		self.Globin.atmosphere.idx_meshgrid = idx.flatten()
+		self.Globin.atmosphere.idy_meshgrid = idy.flatten()
+
+		# for idx in range(obj.atmosphere.nx):
+		# 	for idy in range(globin.atm.ny):
+		# 		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
+		# 		globin.atm.atm_name_list.append(fpath)
+
+		if self.mode>=1:
+			#--- debugging variables initialization
+			if self.debug:
+				Npar = self.Globin.atmosphere.n_local_pars + self.Globin.atmosphere.n_global_pars
+				self.rf_debug = np.zeros((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, self.max_iter, Npar, len(self.Globin.wavelength_air), 4))
+
+				elements = []
+				for parameter in self.Globin.atmosphere.nodes:
+					aux = np.zeros((self.max_iter, self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(self.Globin.atmosphere.nodes[parameter])))
+					elements.append((parameter, aux))
+				self.atmos_debug = dict(elements)
+
+		#--- missing parameters
+		# instrument broadening: R or instrument profile provided
+		# strailight contribution
+
+	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
+		""" 
+		Get parameters for synthesis.
+		"""
+
+		#--- default parameters
+		self.output_spectra_path = _find_value_by_key("spectrum", self.parameters_input, "default", "spectrum.fits")
+		vmac = _find_value_by_key("vmac", self.parameters_input, "default", 0, float)
+
+		#--- required parameters
+		path_to_atmosphere = _find_value_by_key("cube_atmosphere", self.parameters_input, "optional")
+		if path_to_atmosphere is None:
+			node_atmosphere_path = _find_value_by_key("node_atmosphere", self.parameters_input, "optional")
+			if node_atmosphere_path is None:
+				self.Globin.atmosphere = globin.falc
+			else:
+				self.Globin.atmosphere = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
+		else:
+			self.Globin.atmosphere = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
+							logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
+		self.Globin.atmosphere.vmac = np.abs(vmac) # [km/s]
+
+		# reference atmosphere is the same as input one in synthesis mode
+		self.Globin.reference_atmosphere = copy.deepcopy(self.Globin.atmosphere)
+
+	def read_inversion_base(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
+		# interpolation degree for Bezier polynomial
+		self.interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
+		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-4, float)
+
+		#--- default parameters
+		self.marq_lambda = _find_value_by_key("marq_lambda", self.parameters_input, "default", 1e-3, float)
+		self.max_iter = _find_value_by_key("max_iter", self.parameters_input, "default", 30, int)
+		self.chi2_tolerance = _find_value_by_key("chi2_tolerance", self.parameters_input, "default", 1e-2, float)
+		self.ncycle = _find_value_by_key("ncycle", self.parameters_input, "default", 1, int)
+		self.rf_type = _find_value_by_key("rf_type", self.parameters_input, "default", "node", str)
+		self.weight_type = _find_value_by_key("weight_type", self.parameters_input, "default", None, str)
+		values = _find_value_by_key("weights", self.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
+		if type(values)==str:
+			values = values.split(",")
+			self.weights = np.array([float(item) for item in values], dtype=np.float64)
+		vmac = _find_value_by_key("vmac", self.parameters_input, "default", default_val=0, conversion=float)
+
+		# initialize container for atmosphere which we invert
+		self.Globin.atmosphere = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
+
+		#--- required parameters
+		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
+		self.observation = Observation(path_to_observations, obs_range=atm_range)
+		if self.interpolate_obs or (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
+			self.observation.interpolate(self.wavelength_air)
+
+		#--- optional parameters
+		path_to_atmosphere = _find_value_by_key("cube_atmosphere", self.parameters_input, "optional")
+		if path_to_atmosphere is not None:
+			self.Globin.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
+						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
+		# if user have not provided reference atmosphere try fidning node atmosphere
+		else:
+			path_to_node_atmosphere = _find_value_by_key("node_atmosphere", self.parameters_input, "optional")
+			if path_to_node_atmosphere is not None:
+				self.Globin.reference_atmosphere = construct_atmosphere_from_nodes(path_to_node_atmosphere, atm_range)
+			# if node atmosphere not given, set FAL C model as reference atmosphere
+			else:
+				self.Globin.reference_atmosphere = globin.falc
+
+		#--- initialize invert atmosphere data from reference atmosphere
+		self.Globin.atmosphere.interpolate_atmosphere(self.Globin.reference_atmosphere.data[0,0,0], self.Globin.reference_atmosphere.data)
+
+		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
+		self.wavs_weight = np.ones((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(self.wavelength_air),4))
+		if fpath is not None:
+			lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
+			# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
+			if len(lam)==len(self.wavelength_air):
+				self.wavs_weight[...,0] = wI
+				self.wavs_weight[...,1] = wQ
+				self.wavs_weight[...,2] = wU
+				self.wavs_weight[...,3] = wV
+			else:
+				self.wavs_weight[...,0] = interp1d(lam, wI)(self.wavelength)
+				self.wavs_weight[...,1] = interp1d(lam, wQ)(self.wavelength)
+				self.wavs_weight[...,2] = interp1d(lam, wU)(self.wavelength)
+				self.wavs_weight[...,3] = interp1d(lam, wV)(self.wavelength)
+		
+		# standard deviation of Gaussian kernel for macro broadening
+		self.Globin.atmosphere.vmac = vmac # [km/s]
+
+		# if macro-turbulent velocity is negative, we fit it
+		if self.Globin.atmosphere.vmac<0:
+			# check if initial macro veclocity is larger than the step size in wavelength
+			vmac = np.abs(vmac)
+			kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
+			if kernel_sigma<0.5:
+				vmac = 0.5 * globin.LIGHT_SPEED / ((self.lmin + self.lmax)*0.5) * self.step
+				vmac /= 1e3
+				self.limit_values["vmac"][0] = vmac
+			
+			self.Globin.atmosphere.vmac = abs(vmac)
+			self.Globin.atmosphere.global_pars["vmac"] = np.array([self.Globin.atmosphere.vmac])
+			self.Globin.parameter_scale["vmac"] = 1
+		self.Globin.reference_atmosphere.vmac = abs(vmac)
+
+		#--- read initial node parameter values	
+		fpath = _find_value_by_key("initial_atmosphere", self.parameters_input, "optional")
+		if fpath is not None:
+			# read node parameters from .fits file that is inverted atmosphere
+			# from older inversion run
+			init_atmosphere = read_inverted_atmosphere(fpath, atm_range)
+			self.Globin.atmosphere.nodes = init_atmosphere.nodes
+			self.Globin.atmosphere.values = init_atmosphere.values
+			self.Globin.atmosphere.mask = init_atmosphere.mask
+			if (self.Globin.atmosphere.nx!=self.observation.nx) or (self.Globin.atmosphere.ny!=self.observation.ny):
+				print("--> Error in input.read_inverted_atmosphere()")
+				print("    initial atmosphere does not have same dimensions")
+				print("    as observations:")
+				print(f"    -- atm = ({self.Globin.atmosphere.nx},{self.Globin.atmosphere.ny})")
+				print(f"    -- obs = ({self.observation.nx},{self.observation.ny})")
+				sys.exit()
+		else:
+			# read node parameters from .input file
+			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+				self.read_node_parameters(parameter, self.parameters_input)
+
+		self.Globin.atmosphere.hydrostatic = False
+		if "temp" in self.Globin.atmosphere.nodes:
+			self.Globin.atmosphere.hydrostatic = True
+
+		#--- initialize the vz, mag and azimuth based on CoG and WFA methods (optional)
+		# fpath = _find_value_by_key("lines2atm", obj.parameters_input, "optional")
+		# if fpath:
+		# 	initialize_atmos_pars(obj.atmosphere, obj.observation, fpath)
+
+	def read_mode_2(self):
+		#--- Kurucz line list for given spectral region
+		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
+
+		#--- line parameters to be fit
+		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
+
+		if line_pars_path:
+			# if we provided line parameters for fit, read those parameters
+			lines_to_fit = read_init_line_parameters(line_pars_path)
+
+			# get log(gf) parameters from line list
+			aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+			loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+			loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+			globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+			self.Globin.parameter_scale["loggf"] = np.ones((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(aux_values)))
+
+			self.Globin.atmosphere.global_pars["loggf"] = np.zeros((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(aux_values)))
+			self.Globin.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+			self.Globin.atmosphere.global_pars["loggf"][:,:] = aux_values
+			self.Globin.atmosphere.line_no["loggf"][:] = aux_lineNo
+
+			# get dlam parameters from lines list
+			aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+			dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+			dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+			globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+			self.Globin.parameter_scale["dlam"] = np.ones((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(aux_values)))
+
+			self.Globin.atmosphere.global_pars["dlam"] = np.zeros((self.Globin.atmosphere.nx, self.Globin.atmosphere.ny, len(aux_values)))
+			self.Globin.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+			self.Globin.atmosphere.global_pars["dlam"][:,:] = aux_values
+			self.Globin.atmosphere.line_no["dlam"][:] = aux_lineNo
+
+			# write these data into files
+
+			# make list of line lists paths (aka names)
+			# obj.atmosphere.line_lists_path = []
+			# for idx in range(globin.atm.nx):
+			# 	for idy in range(globin.atm.ny):
+			# 		fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+			# 		globin.atm.line_lists_path.append(fpath)
+
+			# 		write_line_parameters(fpath,
+			# 							   globin.atm.global_pars["loggf"][idx,idy], globin.atm.line_no["loggf"],
+			# 							   globin.atm.global_pars["dlam"][idx,idy], globin.atm.line_no["dlam"])
+		else:
+			print("No atomic parameters to fit. You sure?\n")
+
+	def read_mode_3(self):
+		#--- Kurucz line list for given spectral region
+		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
+
+		#--- line parameters to be fit
+		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
+
+		if line_pars_path:
+			# if we provided line parameters for fit, read those parameters
+			lines_to_fit = read_init_line_parameters(line_pars_path)
+
+			# get log(gf) parameters from line list
+			aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+			loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+			loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+			globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+			self.Globin.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
+
+			self.Globin.atmosphere.global_pars["loggf"] = np.zeros((1,1,len(aux_values)))
+			self.Globin.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+			self.Globin.atmosphere.global_pars["loggf"][0,0] = aux_values
+			self.Globin.atmosphere.line_no["loggf"][:] = aux_lineNo
+
+			# get dlam parameters from lines list
+			aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+			dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+			dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+			globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+			self.Globin.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
+
+			self.Globin.atmosphere.global_pars["dlam"] = np.zeros((1,1,len(aux_values)))
+			self.Globin.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
+
+			self.Globin.atmosphere.global_pars["dlam"][0,0] = aux_values
+			self.Globin.atmosphere.line_no["dlam"][:] = aux_lineNo
+
+			# write down initial atomic lines values
+			# globin.write_line_parameters(obj.atmosphere.line_lists_path[0],
+			# 						   globin.atm.global_pars["loggf"][0,0], globin.atm.line_no["loggf"],
+			# 						   globin.atm.global_pars["dlam"][0,0], globin.atm.line_no["dlam"])
+		else:
+			print("No atomic parameters to fit. You sure?\n")
+
+	def read_node_parameters(self, parameter, text):
+		"""
+		For a given parameter read from input file node positions, values and 
+		parameter mask (optional).
+
+		Parameters:
+		---------------
+		parameter : str
+			name of the parameter for which we are loading in node parameters.
+		text : str
+			loaded input file string from which we are searching for the node keywords.
+		"""
+		atmosphere = self.Globin.atmosphere
+
+		nodes = _find_value_by_key(f"nodes_{parameter}", text, "optional")
+		values = _find_value_by_key(f"nodes_{parameter}_values", text, "optional")
+		mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
+		
+		if (nodes is not None) and (values is not None):
+			atmosphere.nodes[parameter] = [float(item) for item in nodes.split(",")]
+			
+			values = [float(item) for item in values.split(",")]
+			if len(values)!=len(atmosphere.nodes[parameter]):
+				sys.exit(f"Number of nodes and values for {parameter} are not the same!")
+
+			matrix = np.zeros((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])), dtype=np.float64)
+			matrix[:,:] = copy.deepcopy(values)
+			if parameter=="gamma":
+				matrix *= np.pi/180
+				# atmosphere.values[parameter] = np.tan(matrix/2)
+				# atmosphere.values[parameter] = np.cos(matrix)
+				atmosphere.values[parameter] = matrix
+			elif parameter=="chi":
+				matrix *= np.pi/180
+				# atmosphere.values[parameter] = np.tan(matrix/4)
+				# atmosphere.values[parameter] = np.cos(matrix)
+				atmosphere.values[parameter] = matrix
+			else:
+				atmosphere.values[parameter] = matrix
+			
+			if mask is None:
+				atmosphere.mask[parameter] = np.ones(len(atmosphere.nodes[parameter]))
+			else:
+				mask = [float(item) for item in mask.split(",")]
+				atmosphere.mask[parameter] = np.array(mask)
+
+			self.Globin.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
 
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
@@ -77,254 +608,6 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 		elif key_type=="optional":
 			return None
 
-def read_input(run_name, globin_input_name="params.input", rh_input_name="keyword.input", obj=None):
-	if (rh_input_name is not None) and (globin_input_name is not None):
-		read_input_files(run_name, globin_input_name, rh_input_name, obj)
-	else:
-		if rh_input_name is None:
-			print(f"  There is no path for globin input file.")
-		if globin_input_name is None:
-			print(f"  There is no path for RH input file.")
-		sys.exit()
-
-def read_input_files(obj):
-	"""
-	Read input files for globin and RH.
-
-	We assume that parameters (in both files) are given in format:
-		key = value
-
-	Commented lines begin with symbol '#'.
-
-	Parameters:
-	---------------
-	obj : class Globin
-		container for all globin methods
-	"""
-	# make runs directory if not existing
-	# here we store all runs with different run_name
-	if not os.path.exists("runs"):
-		os.mkdir("runs")
-
-	# make directory for specified run with provided 'run_name'
-	if not os.path.exists(f"runs/{obj.run_name}"):
-		os.mkdir(f"runs/{obj.run_name}")
-
-	# copy all RH input files into run_name directory
-	sp.run(f"cp *.input runs/{obj.run_name}",
-		shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-
-	#--- get parameters from RH input file
-	text = open(obj.rh_input_name, "r").read()
-	obj.keyword_input = text
-
-	# wave_file_path = _find_value_by_key("WAVETABLE", obj.keyword_input, "required")
-	# wave_file_path = wave_file_path.split("/")[-1]
-	# obj.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", obj.keyword_input, "default", "spectrum.out")
-	obj.solve_ne = _find_value_by_key("SOLVE_NE", obj.keyword_input, "optional")
-	# obj.hydrostatic = _find_value_by_key("HYDROSTATIC", obj.keyword_input, "optional")
-	# obj.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", obj.keyword_input, "required")
-	# obj.rf_file_path = _find_value_by_key("RF_OUTPUT", obj.keyword_input, "default", "rfs.out")
-	# obj.stokes_mode = _find_value_by_key("STOKES_MODE", obj.keyword_input, "default", "NO_STOKES")
-	obj.of_mode = _find_value_by_key("OPACITY_FUDGE", obj.keyword_input, "default", False)
-	if obj.of_mode:
-		obj.of_mode = True
-
-	#--- get parameters from globin input file
-	text = open(obj.globin_input_name, "r").read()
-	obj.parameters_input = text
-
-	# key used to make debug files/checks during synthesis/inversion
-	debug = _find_value_by_key("debug", obj.parameters_input, "optional")
-	if debug is not None:
-		if debug.lower()=="true":
-			obj.debug = True
-		elif debug.lower()=="false":
-			obj.debug = False
-	else:
-		obj.debug = False
-
-	obj.n_thread = _find_value_by_key("n_thread",obj.parameters_input, "default", 1, conversion=int)
-	obj.mode = _find_value_by_key("mode", obj.parameters_input, "required", conversion=int)
-	norm = _find_value_by_key("norm", obj.parameters_input, "optional")
-	if norm is not None:
-		if norm.lower()=="true":
-			obj.norm = True
-		elif norm.lower()=="false":
-			obj.norm = False
-	else:
-		obj.norm = False
-
-	mean = _find_value_by_key("mean", obj.parameters_input, "optional")
-	if mean is not None:
-		if mean.lower()=="true":
-			obj.mean = True
-		elif mean.lower()=="false":
-			obj.mean = False
-	else:
-		obj.mean = False
-
-	if obj.mean:
-		mac_vel = _find_value_by_key("mac_vel", obj.parameters_input, "required")
-		obj.mac_vel = [float(item) for item in mac_vel.split(",")]
-
-		items = _find_value_by_key("filling_factor", obj.parameters_input, "required")
-		obj.filling_factor = [float(item) for item in items.split(",")]
-
-	# path to RH main folder
-	rh_path = _find_value_by_key("rh_path", obj.parameters_input, "required")
-	if rh_path.rstrip("\n")[-1]=="/":
-		rh_path = rh_path.rstrip("/")
-	obj.rh_path = rh_path
-
-	# flag for HSE computation; by default we do HSE
-	#obj.hydrostatic = _find_value_by_key("hydrostatic", obj.parameters_input, "default", 1, conversion=int)
-	
-	#--- get wavelength range and save it to file ('wave_file_path')
-	obj.lmin = _find_value_by_key("wave_min", obj.parameters_input, "optional", conversion=float)
-	obj.lmax = _find_value_by_key("wave_max", obj.parameters_input, "optional", conversion=float)
-	obj.step = _find_value_by_key("wave_step", obj.parameters_input, "optional", conversion=float)
-	obj.interpolate_obs = False
-	if (obj.step is None) or (obj.lmin is None) or (obj.lmax is None):
-		wave_grid_path = _find_value_by_key("wave_grid", obj.parameters_input, "required")
-		wavetable = np.loadtxt(wave_grid_path)
-		obj.lmin = min(wavetable)
-		obj.lmax = max(wavetable)
-		obj.step = wavetable[1] - wavetable[0]
-		obj.interpolate_obs = True
-	else:
-		obj.lmin /= 10
-		obj.lmax /= 10
-		obj.step /= 10
-		wavetable = np.arange(obj.lmin, obj.lmax+obj.step, obj.step)
-	
-	obj.wavelength_air = copy.deepcopy(wavetable)
-	obj.wavelength_vacuum = wavetable
-	obj.RH.set_wavetable(obj.wavelength_vacuum)
-
-	# common parameters for all modes
-	atm_range = get_atmosphere_range(obj.parameters_input)
-	logtau_top = _find_value_by_key("logtau_top", obj.parameters_input, "default", -6,float)
-	logtau_bot = _find_value_by_key("logtau_bot", obj.parameters_input, "default", 1, float)
-	logtau_step = _find_value_by_key("logtau_step", obj.parameters_input, "default", 0.1, float)
-	obj.noise = _find_value_by_key("noise", obj.parameters_input, "default", 1e-3, float)
-	atm_type = _find_value_by_key("atm_type", obj.parameters_input, "default", "multi", str)
-	atm_type = atm_type.lower()
-	obj.atm_scale = _find_value_by_key("atm_scale", obj.parameters_input, "default", "tau", str)
-
-	# read Opacity Fudge (OF) data
-	if obj.of_mode:
-		obj.of_fit_mode = _find_value_by_key("of_fit_mode", obj.parameters_input, "default", -1, float)
-		
-		if obj.of_fit_mode==-1:
-			obj.of_mode = False
-
-		of_file_path = _find_value_by_key("of_file", obj.parameters_input, "default", None, str)
-		obj.of_scatt_flag = _find_value_by_key("of_scatt_flag", obj.parameters_input, "default", 0, int)
-		if (obj.of_fit_mode>=0) or of_file_path:
-			of_num, of_wave, of_value = read_OF_data(of_file_path)
-
-	# get the name of the input line list
-	obj.linelist_name = _find_value_by_key("linelist", obj.parameters_input, "required")
-	# obj.linelist_name = linelist_path.split("/")[-1]
-	# out = sp.run(f"cp {linelist_path} runs/{obj.wd}/{obj.linelist_name}",
-	# 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-	# if out.returncode!=0:
-	# 	print(str(out.stdout, "utf-8"))
-	# 	sys.exit()
-
-	#--- read data for different modus operandi
-	if obj.mode<=0:
-		read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step, obj)
-	elif obj.mode>=1:
-		read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step, obj)
-		if obj.mode==2:
-			read_mode_2(obj)
-		elif obj.mode==3:
-			read_mode_3(obj)
-
-		#--- determine number of local and global parameters
-		obj.atmosphere.n_local_pars = 0
-		for parameter in obj.atmosphere.nodes:
-			obj.atmosphere.n_local_pars += len(obj.atmosphere.nodes[parameter])
-
-		if obj.of_mode:
-			obj.atmosphere.n_local_pars += of_num
-
-		obj.atmosphere.n_global_pars = 0
-		for parameter in obj.atmosphere.global_pars:
-			obj.atmosphere.n_global_pars += obj.atmosphere.global_pars[parameter].shape[-1]
-	else:
-		print("--> Negative mode not supported. Soon to be RF calculation.")
-		sys.exit()
-
-	#--- if we have more threads than atmospheres, reduce the number of used threads
-	if obj.n_thread > obj.atmosphere.nx*obj.atmosphere.ny:
-		obj.n_thread = obj.atmosphere.nx*obj.atmosphere.ny
-		print(f"Warning: reduced the number of threads to {obj.n_thread}.\n")
-
-	#--- initialize Pool() object
-	obj.pool = mp.Pool(obj.n_thread)
-
-	#--- write OFs (to parallelize?)
-	# if obj.of_mode:
-	# 	obj.atmosphere.of_paths = []
-	# 	for idx in range(obj.atmosphere.nx):
-	# 		for idy in range(obj.atmosphere.ny):
-	# 			fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-	# 			obj.atmosphere.of_paths.append(fpath)
-
-	# 	# if we have 1D OF values, set equal values in all pixels
-	# 	if of_value.ndim==1:
-	# 		of_value = np.repeat(of_value[np.newaxis, :], obj.atmosphere.nx, axis=0)
-	# 		of_value = np.repeat(of_value[:, np.newaxis, :], obj.atmosphere.ny, axis=1)
-		
-	# 	obj.atmosphere.of_num = of_num
-	# 	obj.atmosphere.nodes["of"] = of_wave
-	# 	obj.atmosphere.values["of"] = of_value
-
-	# 	obj.parameter_scale["of"] = np.ones((obj.atmosphere.nx, obj.atmosphere.ny, of_num))
-
-	# 	make_RH_OF_files(obj.atmosphere)
-
-	if obj.mean:
-		if len(obj.mac_vel)==1:
-			vmac = obj.mac_vel[0]
-			obj.mac_vel = np.ones(obj.atmosphere.nx * obj.atmosphere.ny) * vmac
-
-			ff = obj.filling_factor[0]
-			obj.filling_factor = np.ones(obj.atmosphere.nx * obj.atmosphere.ny) * ff
-
-	# #--- for each thread make working directory inside rh/rhf1d directory
-	# for pid in range(obj.n_thread):
-	# 	if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
-	# 		os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
-
-	idx,idy = np.meshgrid(np.arange(obj.atmosphere.nx), np.arange(obj.atmosphere.ny))
-	obj.atmosphere.idx_meshgrid = idx.flatten()
-	obj.atmosphere.idy_meshgrid = idy.flatten()
-
-	# for idx in range(obj.atmosphere.nx):
-	# 	for idy in range(globin.atm.ny):
-	# 		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-	# 		globin.atm.atm_name_list.append(fpath)
-
-	if obj.mode>=1:
-		#--- debugging variables initialization
-		if obj.debug:
-			Npar = obj.atmosphere.n_local_pars + obj.atmosphere.n_global_pars
-			obj.rf_debug = np.zeros((obj.atmosphere.nx, obj.atmosphere.ny, obj.max_iter, Npar, len(obj.wavelength_air), 4))
-
-			elements = []
-			for parameter in obj.atmosphere.nodes:
-				aux = np.zeros((obj.max_iter, obj.atmosphere.nx, obj.atmosphere.ny, len(obj.atmosphere.nodes[parameter])))
-				elements.append((parameter, aux))
-			obj.atmos_debug = dict(elements)
-
-	#--- missing parameters
-	# instrument broadening: R or instrument profile provided
-	# strailight contribution
-
 def get_atmosphere_range(parameters_input):
 	#--- determine which observations from cube to take into consideration
 	aux = _find_value_by_key("range", parameters_input, "default", [1,None,1,None])
@@ -360,239 +643,6 @@ def get_atmosphere_range(parameters_input):
 	atm_range[2] -= 1
 
 	return atm_range
-
-def read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step, obj):
-	""" 
-	Get parameters for synthesis.
-	"""
-
-	#--- default parameters
-	obj.output_spectra_path = _find_value_by_key("spectrum", obj.parameters_input, "default", "spectrum.fits")
-	vmac = _find_value_by_key("vmac", obj.parameters_input, "default", 0, float)
-
-	#--- required parameters
-	path_to_atmosphere = _find_value_by_key("cube_atmosphere", obj.parameters_input, "optional")
-	if path_to_atmosphere is None:
-		node_atmosphere_path = _find_value_by_key("node_atmosphere", obj.parameters_input, "optional")
-		if node_atmosphere_path is None:
-			obj.atmosphere = globin.falc
-		else:
-			obj.atmosphere = globin.construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
-	else:
-		obj.atmosphere = Atmosphere(fpath=path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
-						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
-	obj.atmosphere.vmac = np.abs(vmac) # [km/s]
-
-	# reference atmosphere is the same as input one in synthesis mode
-	obj.reference_atmosphere = copy.deepcopy(obj.atmosphere)
-
-def read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step, obj):
-	# interpolation degree for Bezier polynomial
-	obj.interp_degree = _find_value_by_key("interp_degree", obj.parameters_input, "default", 3, int)
-	obj.svd_tolerance = _find_value_by_key("svd_tolerance", obj.parameters_input, "default", 1e-4, float)
-
-	#--- default parameters
-	obj.marq_lambda = _find_value_by_key("marq_lambda", obj.parameters_input, "default", 1e-3, float)
-	obj.max_iter = _find_value_by_key("max_iter", obj.parameters_input, "default", 30, int)
-	obj.chi2_tolerance = _find_value_by_key("chi2_tolerance", obj.parameters_input, "default", 1e-2, float)
-	obj.ncycle = _find_value_by_key("ncycle", obj.parameters_input, "default", 1, int)
-	obj.rf_type = _find_value_by_key("rf_type", obj.parameters_input, "default", "node", str)
-	obj.weight_type = _find_value_by_key("weight_type", obj.parameters_input, "default", None, str)
-	values = _find_value_by_key("weights", obj.parameters_input, "default", np.array([1,1,1,1], dtype=np.float64))
-	if type(values)==str:
-		values = values.split(",")
-		obj.weights = np.array([float(item) for item in values], dtype=np.float64)
-	vmac = _find_value_by_key("vmac", obj.parameters_input, "default", default_val=0, conversion=float)
-
-	# initialize container for atmosphere which we invert
-	obj.atmosphere = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
-
-	#--- required parameters
-	path_to_observations = _find_value_by_key("observation", obj.parameters_input, "required")
-	obj.observation = Observation(path_to_observations, obs_range=atm_range)
-	if obj.interpolate_obs or (not np.array_equal(obj.observation.wavelength, obj.wavelength_air)):
-		obj.observation.interpolate(obj.wavelength_air)
-
-	#--- optional parameters
-	path_to_atmosphere = _find_value_by_key("cube_atmosphere", obj.parameters_input, "optional")
-	if path_to_atmosphere is not None:
-		obj.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
-					logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
-	# if user have not provided reference atmosphere try fidning node atmosphere
-	else:
-		path_to_node_atmosphere = _find_value_by_key("node_atmosphere", obj.parameters_input, "optional")
-		if path_to_node_atmosphere is not None:
-			obj.reference_atmosphere = globin.construct_atmosphere_from_nodes(path_to_node_atmosphere, atm_range)
-		# if node atmosphere not given, set FAL C model as reference atmosphere
-		else:
-			obj.reference_atmosphere = obj.falc
-
-	#--- initialize invert atmosphere data from reference atmosphere
-	obj.atmosphere.interpolate_atmosphere(obj.reference_atmosphere.data[0,0,0], obj.reference_atmosphere.data)
-
-	fpath = _find_value_by_key("rf_weights", obj.parameters_input, "optional")
-	obj.wavs_weight = np.ones((obj.atmosphere.nx, obj.atmosphere.ny, len(obj.wavelength_air),4))
-	if fpath is not None:
-		lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
-		# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
-		if len(lam)==len(obj.wavelength_air):
-			obj.wavs_weight[...,0] = wI
-			obj.wavs_weight[...,1] = wQ
-			obj.wavs_weight[...,2] = wU
-			obj.wavs_weight[...,3] = wV
-		else:
-			obj.wavs_weight[...,0] = interp1d(lam, wI)(obj.wavelength)
-			obj.wavs_weight[...,1] = interp1d(lam, wQ)(obj.wavelength)
-			obj.wavs_weight[...,2] = interp1d(lam, wU)(obj.wavelength)
-			obj.wavs_weight[...,3] = interp1d(lam, wV)(obj.wavelength)
-	
-	# standard deviation of Gaussian kernel for macro broadening
-	obj.atmosphere.vmac = vmac # [km/s]
-
-	# if macro-turbulent velocity is negative, we fit it
-	if obj.atmosphere.vmac<0:
-		# check if initial macro veclocity is larger than the step size in wavelength
-		vmac = np.abs(vmac)
-		kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (obj.lmin + obj.lmax)*0.5 / obj.step
-		if kernel_sigma<0.5:
-			vmac = 0.5 * globin.LIGHT_SPEED / ((obj.lmin + obj.lmax)*0.5) * obj.step
-			vmac /= 1e3
-			obj.limit_values["vmac"][0] = vmac
-		
-		obj.atmosphere.vmac = abs(vmac)
-		obj.atmosphere.global_pars["vmac"] = np.array([obj.atmosphere.vmac])
-		obj.parameter_scale["vmac"] = 1
-	obj.reference_atmosphere.vmac = abs(vmac)
-
-	#--- read initial node parameter values	
-	fpath = _find_value_by_key("initial_atmosphere", obj.parameters_input, "optional")
-	if fpath is not None:
-		# read node parameters from .fits file that is inverted atmosphere
-		# from older inversion run
-		init_atmosphere = read_inverted_atmosphere(fpath, atm_range)
-		obj.atmosphere.nodes = init_atmosphere.nodes
-		obj.atmosphere.values = init_atmosphere.values
-		obj.atmosphere.mask = init_atmosphere.mask
-		if (obj.atmosphere.nx!=globin.observation.nx) or (obj.atmosphere.ny!=globin.observation.ny):
-			print("--> Error in input.read_inverted_atmosphere()")
-			print("    initial atmosphere does not have same dimensions")
-			print("    as observations:")
-			print(f"    -- atm = ({obj.atmosphere.nx},{obj.atmosphere.ny})")
-			print(f"    -- obs = ({obj.observation.nx},{obj.observation.ny})")
-			sys.exit()
-	else:
-		# read node parameters from .input file
-		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-			read_node_parameters(parameter, obj.parameters_input, obj)
-
-	obj.atmosphere.hydrostatic = False
-	if "temp" in obj.atmosphere.nodes:
-		obj.atmosphere.hydrostatic = True
-
-	#--- initialize the vz, mag and azimuth based on CoG and WFA methods (optional)
-	# fpath = _find_value_by_key("lines2atm", obj.parameters_input, "optional")
-	# if fpath:
-	# 	initialize_atmos_pars(obj.atmosphere, obj.observation, fpath)
-
-def read_mode_2(obj):
-	#--- Kurucz line list for given spectral region
-	obj.RLK_lines_text, obj.RLK_lines = globin.read_RLK_lines(obj.linelist_name)
-
-	#--- line parameters to be fit
-	line_pars_path = _find_value_by_key("line_parameters", obj.parameters_input, "optional")
-
-	if line_pars_path:
-		# if we provided line parameters for fit, read those parameters
-		lines_to_fit = globin.read_init_line_parameters(line_pars_path)
-
-		# get log(gf) parameters from line list
-		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
-		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
-		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
-		globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-		obj.parameter_scale["loggf"] = np.ones((obj.atmosphere.nx, obj.atmosphere.ny, len(aux_values)))
-
-		obj.atmosphere.global_pars["loggf"] = np.zeros((obj.atmosphere.nx, obj.atmosphere.ny, len(aux_values)))
-		obj.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-		obj.atmosphere.global_pars["loggf"][:,:] = aux_values
-		obj.atmosphere.line_no["loggf"][:] = aux_lineNo
-
-		# get dlam parameters from lines list
-		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
-		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
-		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
-		globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-		obj.parameter_scale["dlam"] = np.ones((obj.atmosphere.nx, obj.atmosphere.ny, len(aux_values)))
-
-		obj.atmosphere.global_pars["dlam"] = np.zeros((obj.atmosphere.nx, obj.atmosphere.ny, len(aux_values)))
-		obj.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-		obj.atmosphere.global_pars["dlam"][:,:] = aux_values
-		obj.atmosphere.line_no["dlam"][:] = aux_lineNo
-
-		# write these data into files
-
-		# make list of line lists paths (aka names)
-		# obj.atmosphere.line_lists_path = []
-		# for idx in range(globin.atm.nx):
-		# 	for idy in range(globin.atm.ny):
-		# 		fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-		# 		globin.atm.line_lists_path.append(fpath)
-
-		# 		write_line_parameters(fpath,
-		# 							   globin.atm.global_pars["loggf"][idx,idy], globin.atm.line_no["loggf"],
-		# 							   globin.atm.global_pars["dlam"][idx,idy], globin.atm.line_no["dlam"])
-	else:
-		print("No atomic parameters to fit. You sure?\n")
-
-def read_mode_3(obj):
-	#--- Kurucz line list for given spectral region
-	obj.RLK_lines_text, obj.RLK_lines = globin.read_RLK_lines(obj.linelist_name)
-
-	#--- line parameters to be fit
-	line_pars_path = _find_value_by_key("line_parameters", obj.parameters_input, "optional")
-
-	if line_pars_path:
-		# if we provided line parameters for fit, read those parameters
-		lines_to_fit = globin.read_init_line_parameters(line_pars_path)
-
-		# get log(gf) parameters from line list
-		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
-		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
-		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
-		globin.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-		obj.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
-
-		obj.atmosphere.global_pars["loggf"] = np.zeros((1,1,len(aux_values)))
-		obj.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-		obj.atmosphere.global_pars["loggf"][0,0] = aux_values
-		obj.atmosphere.line_no["loggf"][:] = aux_lineNo
-
-		# get dlam parameters from lines list
-		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
-		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
-		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
-		globin.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-		obj.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
-
-		obj.atmosphere.global_pars["dlam"] = np.zeros((1,1,len(aux_values)))
-		obj.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int)
-
-		obj.atmosphere.global_pars["dlam"][0,0] = aux_values
-		obj.atmosphere.line_no["dlam"][:] = aux_lineNo
-
-		# write down initial atomic lines values
-		# globin.write_line_parameters(obj.atmosphere.line_lists_path[0],
-		# 						   globin.atm.global_pars["loggf"][0,0], globin.atm.line_no["loggf"],
-		# 						   globin.atm.global_pars["dlam"][0,0], globin.atm.line_no["dlam"])
-	else:
-		print("No atomic parameters to fit. You sure?\n")
 
 def write_line_parameters(fpath, loggf_val, loggf_no, dlam_val, dlam_no):
 	"""
@@ -647,54 +697,6 @@ def write_line_par(fpath, par_val, par_no, parameter):
 
 	out.writelines(linelist)
 	out.close()
-
-def read_node_parameters(parameter, text, obj):
-	"""
-	For a given parameter read from input file node positions, values and 
-	parameter mask (optional).
-
-	Parameters:
-	---------------
-	parameter : str
-		name of the parameter for which we are loading in node parameters.
-	text : str
-		loaded input file string from which we are searching for the node keywords.
-	"""
-	atmosphere = obj.atmosphere
-
-	nodes = _find_value_by_key(f"nodes_{parameter}", text, "optional")
-	values = _find_value_by_key(f"nodes_{parameter}_values", text, "optional")
-	mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
-	
-	if (nodes is not None) and (values is not None):
-		atmosphere.nodes[parameter] = [float(item) for item in nodes.split(",")]
-		
-		values = [float(item) for item in values.split(",")]
-		if len(values)!=len(atmosphere.nodes[parameter]):
-			sys.exit(f"Number of nodes and values for {parameter} are not the same!")
-
-		matrix = np.zeros((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])), dtype=np.float64)
-		matrix[:,:] = copy.deepcopy(values)
-		if parameter=="gamma":
-			matrix *= np.pi/180
-			# atmosphere.values[parameter] = np.tan(matrix/2)
-			# atmosphere.values[parameter] = np.cos(matrix)
-			atmosphere.values[parameter] = matrix
-		elif parameter=="chi":
-			matrix *= np.pi/180
-			# atmosphere.values[parameter] = np.tan(matrix/4)
-			# atmosphere.values[parameter] = np.cos(matrix)
-			atmosphere.values[parameter] = matrix
-		else:
-			atmosphere.values[parameter] = matrix
-		
-		if mask is None:
-			atmosphere.mask[parameter] = np.ones(len(atmosphere.nodes[parameter]))
-		else:
-			mask = [float(item) for item in mask.split(",")]
-			atmosphere.mask[parameter] = np.array(mask)
-
-		obj.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
 
 def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	"""
@@ -826,7 +828,7 @@ def read_spinor(fpath):
 
 	return atmos
 
-def read_sir(self):
+def read_sir():
 	pass
 
 def read_node_atmosphere(fpath):

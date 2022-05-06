@@ -29,7 +29,7 @@
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = ../../Atoms/wave_files/win_4015_two_lines.wave
+  WAVETABLE = spinor.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
@@ -127,7 +127,7 @@
 # OF_SASHA if opacity fudge factors from Shapiro+10 should be used
 # (added on 03/04/2020 by D.Vukadinovic); it does not show any infulence.
 
- OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
+# OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
 #  OPACITY_FUDGE = ../../Atmos/of_test
 #  OF_SASHA = ../../Atmos/of_sasha.dat
 #  LINE_FUDGE = TRUE

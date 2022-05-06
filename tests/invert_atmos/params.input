@@ -69,7 +69,7 @@ line_parameters = line_pars
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos.fits
 #range = 1,2,1,3
-range = 1,1,1,2
+#range = 1,1,1,2
 
 #--- RH root folder path
 #rh_path = /data/slam/home/vukadinovic/rh-globin
