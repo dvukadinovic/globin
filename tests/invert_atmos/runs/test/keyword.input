@@ -180,13 +180,13 @@
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-#  STOKES_INPUT = ./FALC_82_500G_45.B
+  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
 
-#  STOKES_MODE = FULL_STOKES
-   STOKES_MODE = NO_STOKES
+  STOKES_MODE = FULL_STOKES
+#   STOKES_MODE = NO_STOKES
 
 # Include magneto-optical effects (KEYWORD_DEFAULT). Default is TRUE.
 

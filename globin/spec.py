@@ -35,6 +35,14 @@ class Spectrum(object):
 			self.wavelength = np.zeros(nw)
 			self.wavelength[:] = np.nan
 
+	def list_spectra(self):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				yield self.spec[idx,idy]
+
+	def generate_list(self):
+		self.spectrum_list = [spec for spec in self.list_spectra()]
+
 	def add_noise(self, noise):
 		self.noise = noise
 

@@ -5,13 +5,12 @@ import numpy as np
 cont = globin.Globin()
 cont.read_input(run_name="test")
 
-spec = cont.compute_spectra(parallel=True)
-print(spec.spec)
+spec = cont.compute_spectra(parallel=False)
 
-# obs = globin.Observation("obs_globin.fits")
+obs = globin.Observation("obs_globin.fits")
 
-plt.plot(spec.spec[0,2,:,0])
-# plt.plot(obs.spec[0,0,:,0])
+plt.plot(spec.spec[0,2,:,3])
+plt.plot(obs.spec[0,2,:,3])
 plt.show()
 
 #-----
