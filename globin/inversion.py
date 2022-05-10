@@ -65,7 +65,7 @@ class Inverter(InputData):
 				self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n  Entering inversion mode.")
+			print("\n  --- Entering inversion mode ---")
 			for cycle in range(self.ncycle):
 				# double the number of iterations in the last cycle
 				if cycle==self.ncycle-1 and self.ncycle!=1:

@@ -150,6 +150,10 @@ class Atmosphere(object):
 			self.header = atmos.header
 			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 			self.chi_c = atmos.chi_c
+			# fudge data
+			self.do_fudge = 0
+			self.fudge_lam = np.array([], dtype=np.float64)
+			self.fudge = np.ones((self.nx, self.ny, 3,0), dtype=np.float64)
 		else:
 			self.header = None
 			if (nx is not None) and (ny is not None) and (nz is not None):
@@ -174,6 +178,12 @@ class Atmosphere(object):
 		try:
 			new.of_num = copy.deepcopy(self.of_num)
 			new.of_paths = copy.deepcopy(self.of_paths)
+		except:
+			pass
+		try:
+			new.do_fudge = copy.deepcopy(self.do_fudge)
+			new.fudge_lam = copy.deepcopy(self.fudge_lam)
+			new.fudge = copy.deepcopy(self.fudge)
 		except:
 			pass
 		new.global_pars = copy.deepcopy(self.global_pars)
@@ -638,11 +648,11 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, arg):
 		# start = time.time()
 		idx, idy = arg
-		spec = self.RH.compute1d(self.data[idx, idy, 0], self.data[idx, idy, 1], 
+		spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
 							  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 							  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
 							  self.data[idx, idy, 6], self.data[idx, idy, 7],
-							  self.data[idx, idy, 8:], 0)
+							  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy])
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
 		return {"spec": spec, "idx" : idx, "idy" : idy}

@@ -83,9 +83,9 @@ class InputData(object):
 		# obj.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", obj.keyword_input, "required")
 		# obj.rf_file_path = _find_value_by_key("RF_OUTPUT", obj.keyword_input, "default", "rfs.out")
 		# obj.stokes_mode = _find_value_by_key("STOKES_MODE", obj.keyword_input, "default", "NO_STOKES")
-		self.of_mode = _find_value_by_key("OPACITY_FUDGE", self.keyword_input, "default", False)
-		if self.of_mode:
-			self.of_mode = True
+		# self.of_mode = _find_value_by_key("OPACITY_FUDGE", self.keyword_input, "default", False)
+		# if self.of_mode:
+		# 	self.of_mode = True
 
 		#--- get parameters from globin input file
 		text = open(self.globin_input_name, "r").read()
@@ -170,16 +170,18 @@ class InputData(object):
 		atm_type = atm_type.lower()
 		self.atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", str)
 
-		# read Opacity Fudge (OF) data
-		if self.of_mode:
-			self.of_fit_mode = _find_value_by_key("of_fit_mode", self.parameters_input, "default", -1, float)
-			
-			if self.of_fit_mode==-1:
-				self.of_mode = False
-
+		#--- read Opacity Fudge (OF) data
+		self.of_mode = _find_value_by_key("of_mode", self.parameters_input, "default", -1, int)
+		# of_mode:
+		#   0    -- use if only for synthesis
+		#   1    -- invert for it in pixel-by-pixel manner
+		#   else -- OF is not applyed
+		self.do_fudge = False
+		if (self.of_mode==0) or (self.of_mode==1):
+			self.do_fudge = True
 			of_file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, str)
 			self.of_scatt_flag = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, int)
-			if (self.of_fit_mode>=0) or of_file_path:
+			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
 
 		# get the name of the input line list
@@ -205,44 +207,37 @@ class InputData(object):
 			for parameter in self.atmosphere.nodes:
 				self.atmosphere.n_local_pars += len(self.atmosphere.nodes[parameter])
 
-			if self.of_mode:
+			if (self.do_fudge):
 				self.atmosphere.n_local_pars += of_num
 
 			self.atmosphere.n_global_pars = 0
 			for parameter in self.atmosphere.global_pars:
 				self.atmosphere.n_global_pars += self.atmosphere.global_pars[parameter].shape[-1]
 		else:
-			print("--> Negative mode not supported. Soon to be RF calculation.")
+			print("  Negative mode not supported. Soon to be RF calculation.")
 			sys.exit()
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
-			print(f"Warning: reduced the number of threads to {self.n_thread}.\n")
+			print(f"  Warning: reduced the number of threads to {self.n_thread}.")
 
 		
-		#--- write OFs (to parallelize?)
-		print(self.of_mode)
-		if self.of_mode:
-		# 	obj.atmosphere.of_paths = []
-		# 	for idx in range(obj.atmosphere.nx):
-		# 		for idy in range(obj.atmosphere.ny):
-		# 			fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-		# 			obj.atmosphere.of_paths.append(fpath)
-
+		#--- set OF data in atmosphere
+		if self.do_fudge:
 			# if we have 1D OF values, set equal values in all pixels
 			if of_value.ndim==1:
 				of_value = np.repeat(of_value[np.newaxis, :], self.atmosphere.nx, axis=0)
 				of_value = np.repeat(of_value[:, np.newaxis, :], self.atmosphere.ny, axis=1)
 			
+			self.atmosphere.do_fudge = 1
 			self.atmosphere.of_num = of_num
 			self.atmosphere.nodes["of"] = of_wave
 			self.atmosphere.values["of"] = of_value
-
-		if self.of_mode:
 			self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
 
-		# 	make_RH_OF_files(obj.atmosphere)
+			# create arrays to be passed to RH for synthesis
+			make_RH_OF_files(self.atmosphere, self.wavelength_vacuum, self.of_scatt_flag)
 
 		if self.mean:
 			if len(self.mac_vel)==1:
@@ -1074,70 +1069,76 @@ def read_OF_data(fpath):
 
 	return of_num, of_wave, of_value
 
-def make_RH_OF_files(atmos):
+def make_RH_OF_files(atmos, wavelength_vacuum, scatter):
 	"""
 	[12.04.2022.]
 	This is not going to work in general OF correction :) Or at least
-	for wavelengths belowe 210nm, for metal correction.
+	for wavelengths below 210nm, for metal correction.
+	
+	atmos.of_num
+	atmos.nodes["of"]
+	atmos.values["of"]
+
+	into
+
+	atmos.fudge_lam
+	atmos.fudge
+
 	"""
-	for fpath in atmos.of_paths:
-		lista = fpath.split("_")
-		idx = int(lista[-2])
-		idy = int(lista[-1])
+	if wavelength_vacuum[0]<=210:
+		print("  Sorry, but OF is not properly implemented for wavelengths")
+		print("    belowe 210 nm. You have to wait for newer version of globin.")
+		sys.exit()
+	
+	if atmos.of_num==1:
+		atmos.fudge_lam = np.zeros(4, dtype=np.float64)
+		atmos.fudge = np.ones((atmos.nx, atmos.ny, 3,4), dtype=np.float64)
 
-		out = open(fpath, "w")
+		# first point outside of interval (must be =1)
+		atmos.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+		atmos.fudge[...,0] = 1
+
+		# left edge of wavelength interval
+		atmos.fudge_lam[1] = wavelength_vacuum[0] - 0.0001
+		atmos.fudge[...,0,1] = atmos.values["of"][...,0]
+		if scatter:	
+			atmos.fudge[...,1,1] = atmos.values["of"][...,0]
+		atmos.fudge[...,2,1] = 1
+
+		# right edge of wavelength interval
+		atmos.fudge_lam[2] = wavelength_vacuum[-1] + 0.0001
+		atmos.fudge[...,0,2] = atmos.values["of"][...,0]
+		if scatter:
+			atmos.fudge[...,1,2] = atmos.values["of"][...,0]
+		atmos.fudge[...,2,1] = 1		
+
+		# last point outside of interval (must be =1)
+		atmos.fudge_lam[3] = wavelength_vacuum[-1] + 0.0002
+		atmos.fudge[...,3] = 1
+	#--- for multi-wavelength OF correction
+	else:
+		Nof = atmos.of_num + 2
+
+		atmos.fudge_lam = np.zeros(Nof, dtype=np.float64)
+		atmos.fudge = np.ones((atmos.nx, atmos.ny, 3, Nof), dtype=np.float64)
 		
-		#--- for constant OF correction
-		if atmos.of_num==1:
-			out.write("{:4d}\n".format(4))
+		# first point outside of interval (must be =1)
+		atmos.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+		atmos.fudge[...,0] = 1
 
-			fudge = atmos.values["of"][idx,idy,0]
-			
-			# start point with 0 fudge factor
-			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0002, 0, 0, 0))
+		for idf in range(atmos.of_num):
+			# mid points
+			shift = 0
+			if idf==0:
+				shift = -0.0001
+			if idf==atmos.of_num-1:
+				shift = 0.0001
+			atmos.fudge_lam[idf+1] = atmos.nodes["of"][idf] + shift
+			atmos.fudge[...,0,idf+1] = atmos.values["of"][...,idf]
+			if scatter:
+				atmos.fudge[...,1,idf+1] = atmos.values["of"][...,idf]
+			atmos.fudge[...,2,idf+1] = 1	
 
-			# we correct begining and end wavelength for -/+ 0.0001 because of interpolation inside RH;
-			# if not corrected, these wavelengths would be extrapolated and not interpolated
-			if atmos.nodes["of"][0]>=210:
-				if globin.of_scatt_flag!=0:
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, fudge, fudge, 0))
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, fudge, fudge, 0))
-				else:
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, fudge, 0, 0))
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, fudge, 0, 0))
-			else:
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[0]-0.0001, 0, 0, fudge))
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0001, 0, 0, fudge))
-
-			# end point with 0 fudge factor
-			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(globin.wavelength_vacuum[-1]+0.0002, 0, 0, 0))
-		#--- for multi-wavelength OF correction
-		else:
-			# two more points are added (one at the begining and one at the end of interval)
-			out.write("{:4d}\n".format(atmos.of_num+2))
-			
-			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0002, 0, 0, 0))
-			if globin.of_scatt_flag!=0:
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, atmos.values["of"][idx,idy,0], atmos.values["of"][idx,idy,0], 0))
-			else:
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][0]-0.0001, atmos.values["of"][idx,idy,0], 0, 0))
-
-			for i_ in range(1,atmos.of_num-1):
-				wave = atmos.nodes["of"][i_]
-				fudge = atmos.values["of"][idx,idy,i_]
-				if wave>=210:
-					if globin.of_scatt_flag!=0:
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, fudge, 0))
-					else:
-						out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, fudge, 0, 0))
-				else:
-					out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(wave, 0, 0, fudge))
-			
-			if globin.of_scatt_flag!=0:
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0001, atmos.values["of"][idx,idy,-1], atmos.values["of"][idx,idy,-1], 0))	
-			else:
-				out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0001, atmos.values["of"][idx,idy,-1], 0, 0))
-			
-			out.write("{:9.4f}  {:5.4f}  {:5.4f}  {:5.4f}\n".format(atmos.nodes["of"][-1]+0.0002, 0, 0, 0))
-
-		out.close()
+		# last point outside of interval (must be =1)
+		atmos.fudge_lam[-1] = wavelength_vacuum[-1] + 0.0002
+		atmos.fudge[...,-1] = 1
