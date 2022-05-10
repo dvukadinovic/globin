@@ -1,30 +1,25 @@
 import globin
 import matplotlib.pyplot as plt
 import numpy as np
+import sys
 
-cont = globin.Globin()
-cont.read_input(run_name="test")
+# cont = globin.Globin()
+# cont.read_input(run_name="test")
 
-spec = cont.compute_spectra(parallel=False)
+inverter = globin.Inverter()
+inverter.read_input(run_name="pryh_test")
+spec = inverter.run()
+
+# sys.exit()
+
+# import timeit
+# def fun():
+# 	cont.compute_spectra(parallel=True)
+# times = timeit.Timer(fun).repeat(repeat=3, number=10)
+# print(times)
 
 obs = globin.Observation("obs_globin.fits")
 
-plt.plot(spec.spec[0,2,:,3])
-plt.plot(obs.spec[0,2,:,3])
+plt.plot(spec.spec[0,2,:,3] - obs.spec[0,2,:,3])
+# plt.plot(obs.spec[0,2,:,3])
 plt.show()
-
-#-----
-# import multiprocessing as mp
-
-# dummy = globin.pyrh.Dummy()
-
-# pool = mp.Pool(4)
-
-# args = [np.arange(1000000, dtype=np.float64)]*10
-
-# pool.map(dummy.add, args)
-
-# for i_ in range(10000):
-# 	dummy.add(args[i_])
-
-#-----

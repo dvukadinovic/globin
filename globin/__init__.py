@@ -24,11 +24,14 @@ try:
 except ImportError:
 	sys.exit("No module 'pyrh'. Install the module first before using 'globin'")
 
-from .container import Globin
+# from .container import Globin
+from .inversion import Inverter
 
-from .atmos import \
-	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \
-	multi2spinor
+# from .atmos import \
+# 	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \
+# 	multi2spinor
+
+from .atmos import Atmosphere
 
 # from .input import \
 # 	read_input, read_node_atmosphere, \
@@ -37,31 +40,31 @@ from .atmos import \
 # 	initialize_atmos_pars, make_RH_OF_files, \
 # 	InputData
 
-from .atoms import \
-	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
+# from .atoms import \
+# 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
 
-from .rh import \
-	write_wavs, Rhout, write_B
+# from .rh import \
+# 	write_wavs, Rhout, write_B
 
 from .spec import \
 	Observation, Spectrum
 
-from .inversion import \
-	invert
+# from .inversion import \
+# 	invert
 
-from .tools import \
-	save_chi2, bezier_spline
+# from .tools import \
+# 	save_chi2, bezier_spline
 
-from .visualize import \
-	plot_atmosphere, plot_spectra, plot_rf, plot_chi2
+# from .visualize import \
+# 	plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 
-from .utils import \
-	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
-	calculate_chi2, remove_dirs
+# from .utils import \
+# 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
+# 	calculate_chi2, remove_dirs
 
-from .makeHSE import makeHSE
+# from .makeHSE import makeHSE
 
-from .mppools import pool_write_atmosphere, pool_build_from_nodes, pool_rf, pool_synth, pool_spinor2multi
+# from .mppools import pool_write_atmosphere, pool_build_from_nodes, pool_rf, pool_synth, pool_spinor2multi
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
@@ -105,18 +108,6 @@ atom_mass = np.array([1.00797, 4.00260, 6.941, 9.01218, 10.81, 12.011, 14.0067,
 					  227.0278, 232.0381, 231.0359, 238.029, 237.0482, 242, 243, 
 					  247, 247, 251, 252])
 
-#--- limit values for atmospheric parameters
-limit_values = {"temp"  : [3000, 10000], 		# [K]
-				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [1e-3, 10],			# [km/s]
-				"vmac"  : [0, 5],				# [km/s]
-				"mag"   : [1, 10000],			# [G]
-				"of"    : [0, 20],
-				"gamma" : [-np.pi, np.pi],	# [rad]
-				# "gamma" : [-0.999999, 0.999999],
-				"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
-				# "chi"   : [-0.999999, 0.999999]}
-
 #--- standard deviations for smoothing resulting parameters in many cycle inversion run
 smooth_std = {"temp"   : 50, 	# [K]
 			  "vz"     : 0.1,	# [km/s]
@@ -127,17 +118,6 @@ smooth_std = {"temp"   : 50, 	# [K]
 			  "vmac"   : 0.1,	# [km/s]
 			  "loggf"  : 0.010,	#
 			  "dlam"   : 5}		# [mA]
-
-#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
-delta = {"temp"  : 1,		# K
-		 "vz"    : 1/1e3,	# m/s --> km/s
-		 "vmic"  : 1/1e3,	# m/s --> km/s
-		 "mag"   : 1,		# G
-		 "gamma" : 0.01,	# rad
-		 "chi"   : 0.01,	# rad
-		 "loggf" : 0.001,	# 
-		 "dlam"  : 1,		# mA
-		 "of"    : 0.001}
 
 #--- parameter differences for flaging if RF needs to be computed
 diff = {"temp"   : 10,		# K
@@ -180,23 +160,20 @@ from scipy.constants import e as ELECTRON_CHARGE
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(fpath=f"{__path__}/data/falc_multi.atmos", atm_type="multi")
 
-# temperature interpolation
-temp_tck = splrep(falc.data[0,0,0],falc.data[0,0,1])
-falc_logt = falc.data[0,0,0]
-falc_ne = falc.data[0,0,2]
+# falc_logt = falc.data[0,0,0]
+# falc_ne = falc.data[0,0,2]
 
-#--- flag for HSE computation (here defined when we do not read params.input)
-hydrostatic = 1
+# #--- flag for HSE computation (here defined when we do not read params.input)
+# hydrostatic = 1
 
-#--- flag for normalizing spectra
-norm = True
+# #--- flag for normalizing spectra
+# norm = True
 
-#--- axes for atmosphere plot (dummy idea?)
-atmos_axs = None
+# #--- axes for atmosphere plot (dummy idea?)
+# atmos_axs = None
 
-#
-atm_scale = "tau"
+# #
+# atm_scale = "tau"
 
-Icont = None
+# Icont = None

@@ -14,12 +14,18 @@ import numpy as np
 import os
 import sys
 import copy
+import time
 from scipy.ndimage import correlate1d
 from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import multiprocessing as mp
 
-import globin
+# from .input import read_multi, read_spinor, read_inverted_atmosphere
+
+# import globin
+
+from .tools import bezier_spline
 
 # order of parameters RFs in output file from 'rf_ray'
 rf_id = {"temp"  : 0,
@@ -52,6 +58,29 @@ class Atmosphere(object):
 					  "gamma"  : 6,
 					  "chi"    : 7}
 
+	#--- limit values for atmospheric parameters
+	limit_values = {"temp"  : [3000, 10000], 		# [K]
+				"vz"    : [-10, 10],			# [km/s]
+				"vmic"  : [1e-3, 10],			# [km/s]
+				"vmac"  : [0, 5],				# [km/s]
+				"mag"   : [1, 10000],			# [G]
+				"of"    : [0, 20],
+				"gamma" : [-np.pi, np.pi],	# [rad]
+				# "gamma" : [-0.999999, 0.999999],
+				"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
+				# "chi"   : [-0.999999, 0.999999]}
+
+	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
+	delta = {"temp"  : 1,		# K
+			 "vz"    : 1/1e3,	# m/s --> km/s
+			 "vmic"  : 1/1e3,	# m/s --> km/s
+			 "mag"   : 1,		# G
+			 "gamma" : 0.01,	# rad
+			 "chi"   : 0.01,	# rad
+			 "loggf" : 0.001,	# 
+			 "dlam"  : 1,		# mA
+			 "of"    : 0.001}
+
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.fpath = fpath
 		self.type = atm_type
@@ -60,6 +89,16 @@ class Atmosphere(object):
 		self.line_lists_path = []
 		# list of fpath's to each atmosphere column
 		self.atm_name_list = []
+		# parameter scaling for inversino
+		self.parameter_scale = {}
+
+		# self.atmosphere.RH = pyrh.RH()
+		# self.atmosphere.n_thread = self.n_thread
+		# self.atmosphere.temp_tck = self.falc.temp_tck
+		# self.atmosphere.interp_degree = self.interp_degree
+
+		# container for spectrum
+		self.spectra = None
 
 		# nodes: each atmosphere has the same nodes for given parameter
 		self.nodes = {}
@@ -89,12 +128,12 @@ class Atmosphere(object):
 
 			if extension=="dat" or extension=="txt" or extension=="atmos":
 				if self.type=="spinor":
-					atmos = globin.input.read_spinor(self.fpath)
+					atmos = read_spinor(self.fpath)
 				elif self.type=="multi":
-					atmos = globin.input.read_multi(self.fpath)
+					atmos = read_multi(self.fpath)
 					print()
 			elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
-				atmos = globin.input.read_inverted_atmosphere(self.fpath, atm_range)
+				atmos = read_inverted_atmosphere(self.fpath, atm_range)
 			else:
 				print("--> Error in atmos.Atmosphere()")
 				print(f"    Unsupported extension '{extension}' of atmosphere file.")
@@ -141,10 +180,24 @@ class Atmosphere(object):
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
 		new.line_lists_path = copy.deepcopy(self.line_lists_path)
+		new.spectra = copy.deepcopy(self.spectra)
 		new.xmin = copy.deepcopy(self.xmin)
 		new.xmax = copy.deepcopy(self.xmax)
 		new.ymin = copy.deepcopy(self.ymin)
 		new.ymax = copy.deepcopy(self.ymax)
+		new.ids_tuple = copy.deepcopy(self.ids_tuple)
+		new.idx_meshgrid = copy.deepcopy(self.idx_meshgrid)
+		new.idy_meshgrid = copy.deepcopy(self.idy_meshgrid)
+		try:
+			new.RH = copy.deepcopy(self.RH)
+		except:
+			pass
+		try:
+			new.n_thread = copy.deepcopy(self.n_thread)
+			new.interp_degree = copy.deepcopy(self.interp_degree)
+			new.temp_tck = copy.deepcopy(self.temp_tck)
+		except:
+			pass
 		try:
 			new.n_local_pars = copy.deepcopy(self.n_local_pars)
 			new.n_global_pars = copy.deepcopy(self.n_global_pars)
@@ -170,7 +223,7 @@ class Atmosphere(object):
 		args = zip(atmos, globin.idx, globin.idy)
 		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
 
-	def build_from_nodes(self, save_atmos=True):
+	def build_from_nodes(self):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -193,16 +246,62 @@ class Atmosphere(object):
 		"""
 
 		atmos = [self]*(self.nx*self.ny)
-		save = [save_atmos]*(self.nx*self.ny)
-		args = zip(atmos, globin.idx, globin.idy, save)
+		args = zip(atmos, self.idx_meshgrid, self.idy_meshgrid)
 
-		atm = globin.pool.map(func=globin.pool_build_from_nodes, iterable=args)
+		with mp.Pool(self.n_thread) as pool:
+			atm = pool.map(func=self._build_from_nodes, iterable=args)
 
 		# we need to assign built atmosphere structure to self atmosphere
 		# otherwise self.data would be only 0's.
 		for idl in range(self.nx*self.ny):
-			idx, idy = globin.idx[idl], globin.idy[idl]
+			idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
 			self.data[idx,idy] = atm[idl].data[idx,idy]
+
+	def _build_from_nodes(self, args):
+		atmos, idx, idy = args
+
+		for parameter in atmos.nodes:
+			if parameter!="of":
+				# K0, Kn by default; True for vmic, mag, gamma and chi
+				K0, Kn = 0, 0
+
+				x = atmos.nodes[parameter]
+				y = atmos.values[parameter][idx,idy]
+
+				if parameter=="temp":
+					if len(x)>=2:
+						K0 = (y[1]-y[0]) / (x[1]-x[0])
+						# check if extrapolation at the top atmosphere point goes below the minimum
+						# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
+						if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+							K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
+					# bottom node slope for extrapolation based on temperature gradient from FAL C model
+					Kn = splev(x[-1], self.temp_tck, der=1)
+					# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
+				elif (parameter=="gamma") or (parameter=="chi") or (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
+					if len(x)>=2:
+						K0 = (y[1]-y[0]) / (x[1]-x[0])
+						Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+						# check if extrapolation at the top atmosphere point goes below the minimum
+						# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
+						if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+							K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
+						elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+							K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
+						# similar for the bottom for maximum/min values
+						if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+							Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+						elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+							Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+
+				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+				atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
+
+		# if globin.hydrostatic:
+		# 	# atmos.makeHSE_old(idx, idy)
+		# 	atmos.makeHSE(idx, idy)
+
+		return atmos
 
 	def makeHSE(self, idx, idy):
 		press, pel, kappa, rho = globin.makeHSE(5000, self.data[idx,idy,0], self.data[idx,idy,1])
@@ -519,6 +618,310 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
+	def compute_spectra(self, skip):
+		args = copy.deepcopy(self.ids_tuple)
+		for item in skip:
+			args.remove(item)
+
+		with mp.Pool(self.n_thread) as pool:
+			spectra = pool.map(func=self._compute_spectra_sequential, iterable=args)
+
+		for i_ in range(len(spectra)):
+			idx, idy = spectra[i_]["idx"], spectra[i_]["idy"]
+			self.spectra.spec[idx,idy,:,0] = spectra[i_]["spec"].I
+			self.spectra.spec[idx,idy,:,1] = spectra[i_]["spec"].Q
+			self.spectra.spec[idx,idy,:,2] = spectra[i_]["spec"].U
+			self.spectra.spec[idx,idy,:,3] = spectra[i_]["spec"].V
+
+		return self.spectra
+
+	def _compute_spectra_sequential(self, arg):
+		# start = time.time()
+		idx, idy = arg
+		spec = self.RH.compute1d(self.data[idx, idy, 0], self.data[idx, idy, 1], 
+							  self.data[idx, idy, 2], self.data[idx, idy, 3], 
+							  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
+							  self.data[idx, idy, 6], self.data[idx, idy, 7],
+							  self.data[idx, idy, 8:], 0)
+		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
+
+		return {"spec": spec, "idx" : idx, "idy" : idy}
+
+	def compute_rfs(self, rf_noise_scale, weights=1, skip=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
+		"""
+		Parameters:
+		-----------
+		atmos : Atmosphere() object
+			atmosphere
+
+		rf_noise_scale : ndarray
+			noise
+
+		skip : tuple list
+			list of tuples (idx, idy) for which to skip spectrum synthesis
+
+		old_rf : ndarray
+		"""
+		#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
+		self.build_from_nodes()
+		spec = self.compute_spectra(skip)
+		Nw = spec.nw
+
+		if rf_type=="snapi":	
+			# full_rf.shape = (nx, ny, np, nz, nw, 4)
+			# check weather we need to recalculate RF for atmospheric parameters;
+			# if change in parameters is less than 10 x perturbation we do not compute RF again
+			if atmos.n_local_pars!=0:
+				pars = list(atmos.nodes.keys())
+				par_flag = [True]*len(pars)
+				# if old_pars is not None:
+				# 	for i_, par in enumerate(atmos.nodes):
+				# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
+				# 		flag = [False if item<globin.diff[par] else True for item in delta]
+				# 		if any(flag):
+				# 			par_flag[i_] = True
+				# 		else:
+				# 			par_flag[i_] = False
+				full_rf = RH_compute_RF(atmos, par_flag, globin.rh_spec_name, globin.wavelength)
+				for i_,par in enumerate(pars):
+					rfID = rf_id[par]
+					if not par_flag[i_]:
+						full_rf[:,:, rfID] = old_rf[:,:, rfID]
+			else:
+				full_rf = None
+		elif rf_type=="node":
+			full_rf = None
+		else:
+			print("\n  Not proper RF type calculation.\n")
+			sys.exit()
+
+		#--- get total number of parameters (local + global)
+		Npar = self.n_local_pars + self.n_global_pars
+		
+		rf = np.zeros((spec.nx, spec.ny, Npar, Nw, 4), dtype=np.float64)
+		node_RF = np.zeros((spec.nx, spec.ny, Nw, 4))
+
+		model_plus = copy.deepcopy(self)
+		model_minus = copy.deepcopy(self)
+
+		#--- loop through local (atmospheric) parameters and calculate RFs
+		free_par_ID = 0
+		for parameter in self.nodes:
+			nodes = self.nodes[parameter]
+			values = self.values[parameter]
+			perturbation = self.delta[parameter]
+
+			for nodeID in range(len(nodes)):
+				if rf_type=="snapi":
+					#---
+					# This is "broken" from the point we introduced key mean for the spectrum.
+					#---
+					#===--- computing RFs for given parameter (proper way as in SNAPI)
+					# positive perturbation
+					self.values[parameter][:,:,nodeID] += perturbation
+					self.build_from_nodes(False)
+					positive = copy.deepcopy(self.data[:,:,parID])
+
+					# negative perturbation
+					self.values[parameter][:,:,nodeID] -= 2*perturbation
+					self.build_from_nodes(False)
+					negative = copy.deepcopy(self.data[:,:,parID])
+
+					# derivative of parameter distribution to node perturbation
+					dy_dnode = (positive - negative) / 2 / perturbation
+
+					for idx in range(spec.nx):
+						for idy in range(spec.ny):
+							node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
+				elif rf_type=="node":
+					#===--- Computing RFs in nodes
+					
+					model_plus.values[parameter][:,:,nodeID] += perturbation
+					if parameter=="of":
+						globin.make_RH_OF_files(model_plus)
+					else:
+						model_plus.build_from_nodes()
+					spectra_plus = model_plus.compute_spectra(skip)
+
+					# negative perturbation (except for inclination and azimuth)
+					if parameter=="gamma" or parameter=="chi":
+						node_RF = (spectra_plus.spec - spec.spec ) / perturbation
+					else:
+						model_minus.values[parameter][:,:,nodeID] -= perturbation
+						if parameter=="of":	
+							globin.make_RH_OF_files(model_minus)
+						else:
+							model_minus.build_from_nodes()
+						spectra_minus = model_minus.compute_spectra(skip)
+
+						node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
+
+				node_RF *= weights
+				node_RF /= rf_noise_scale
+				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
+
+				for idx in range(spec.nx):
+					for idy in range(spec.ny):
+						if scale[idx,idy]==0:
+							# print("scale==0 for --> ", parameter)
+							self.parameter_scale[parameter][idx,idy,nodeID] = 1
+						elif not np.isnan(np.sum(scale[idx,idy])):
+							self.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
+				
+				for idx in range(spec.nx):
+					for idy in range(spec.ny):
+						rf[idx,idy,free_par_ID] = node_RF[idx,idy] / self.parameter_scale[parameter][idx,idy,nodeID]
+				free_par_ID += 1
+
+				if rf_type=="snapi":
+					# return back perturbation (SNAPI way)
+					self.values[parameter][:,:,nodeID] += perturbation
+					self.build_from_nodes()
+				elif rf_type=="node":
+					# return back perturbations (node way)
+					if parameter=="gamma" or parameter=="chi":
+						model_plus.values[parameter][:,:,nodeID] = copy.deepcopy(self.values[parameter][:,:,nodeID])
+					else:
+						model_plus.values[parameter][:,:,nodeID] -= perturbation
+						model_minus.values[parameter][:,:,nodeID] += perturbation
+
+		#--- loop through global parameters and calculate RFs
+		skip_par = -1
+		if self.n_global_pars>0:
+			#--- loop through global parameters and calculate RFs
+			for parameter in self.global_pars:
+				if parameter=="vmac":
+					kernel_sigma = spec.get_kernel_sigma(self.vmac)
+					radius = int(4*kernel_sigma + 0.5)
+					x = np.arange(-radius, radius+1)
+					phi = np.exp(-x**2/kernel_sigma**2)
+					# normalaizing the profile
+					phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
+					kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / globin.step
+					# since we are correlating, we need to reverse the order of data
+					kernel = kernel[::-1]
+
+					for idx in range(spec.nx):
+						for idy in range(spec.ny):
+							for sID in range(4):
+								rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
+								rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / self.global_pars["vmac"]
+								rf[idx,idy,free_par_ID,:,sID] *= globin.weights[sID]
+								rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
+
+					globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
+					rf[:,:,free_par_ID,:,:] /= globin.parameter_scale[parameter]
+
+					skip_par = free_par_ID
+					free_par_ID += 1
+
+				elif parameter=="loggf" or parameter=="dlam":
+					perturbation = globin.delta[parameter]
+
+					for idp in range(self.line_no[parameter].size):
+						line_no = self.line_no[parameter][idp]
+						values = copy.deepcopy(self.global_pars[parameter][:,:,idp])
+
+						# positive perturbation
+						values += perturbation
+						# write atomic parameters in files
+						if globin.mode==2:
+							for idx in range(self.nx):
+								for idy in range(self.ny):	
+									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+									globin.write_line_par(fpath,
+														values[idx,idy], line_no, parameter)
+						elif globin.mode==3:
+							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
+						
+						spec_plus,_ = compute_spectra(self)
+						
+						# negative perturbation
+						values -= 2*perturbation
+						if globin.mode==2:
+							for idx in range(self.nx):
+								for idy in range(self.ny):	
+									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+									globin.write_line_par(fpath,
+														values[idx,idy], line_no, parameter)
+						elif globin.mode==3:
+							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
+						
+						spec_minus,_ = compute_spectra(self)
+
+						diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+						diff *= globin.weights
+						diff /= rf_noise_scale
+
+						if globin.mode==2:
+							scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
+							for idx in range(self.nx):
+								for idy in range(self.ny):
+									if not np.isnan(np.sum(scale[idx,idy])):
+										globin.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
+									else:
+										globin.parameter_scale[parameter][idx,idy,idp] = 1
+						elif globin.mode==3:
+							scale = np.sqrt(np.sum(diff**2))
+							globin.parameter_scale[parameter][...,idp] = scale
+
+						if globin.mode==2:
+							for idx in range(self.nx):
+								for idy in range(self.ny):
+									rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
+						elif globin.mode==3:
+							rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]	
+						free_par_ID += 1
+						
+						# return perturbation back
+						values += perturbation
+						if globin.mode==2:
+							for idx in range(self.nx):
+								for idy in range(self.ny):
+									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"	
+									globin.write_line_par(fpath,
+														values[idx,idy], line_no, parameter)
+						elif globin.mode==3:
+							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
+
+		#--- broaden the spectra
+		if not mean:
+			spec.broaden_spectra(self.vmac)
+			rf = broaden_rfs(rf, self.vmac, skip_par)
+
+		# for idy in range(atmos.ny):
+		# 	plt.figure(1)
+		# 	for parID in range(4):
+		# 		plt.plot(rf[0, idy, parID, :, 0])
+		# 	plt.figure(2)
+		# 	for parID in range(4,Npar):
+		# 		plt.plot(rf[0, idy, parID, :, 0])
+		# plt.show()
+		# sys.exit()
+
+		# plt.plot(globin.obs.spec[0,0,:,0])
+		# plt.plot(spec.spec[0,0,:,0])
+		# plt.show()
+
+		#--- compare RFs for single parameter
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+		# 		aux = rf[idx,idy, :, :, :]
+				# plt.plot(aux[0,:,0], label="T-3")
+				# plt.plot(aux[1,:,0], label="T-2")
+				# plt.plot(aux[2,:,0], label="T-1")
+		# 		plt.plot(aux[3,:,0], label="T0")
+		# 		plt.plot(aux[4,:,0], label="OF 1")
+		# 		plt.plot(aux[5,:,0], label="OF 2")
+		# 		plt.plot(aux[6,:,0], label="OF 3")
+		# 		plt.plot(aux[7,:,0], label="OF 4")
+		# 		plt.plot(aux[8,:,0], label="OF 5")
+		# plt.legend()
+		# plt.show()
+		# sys.exit()
+
+		return rf, spec, full_rf
+
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844
 
@@ -813,267 +1216,6 @@ def broaden_rfs(rf, vmac, skip_par):
 						rf[idx,idy,pID,:,sID] = correlate1d(rf[idx,idy,pID,:,sID], kernel)
 
 	return rf
-
-def compute_rfs(atmos, rf_noise_scale, old_rf=None, old_pars=None):
-	#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
-	atmos.build_from_nodes()
-	spec, _ = compute_spectra(atmos)
-
-	if globin.rf_type=="snapi":	
-		# full_rf.shape = (nx, ny, np, nz, nw, 4)
-		# check weather we need to recalculate RF for atmospheric parameters;
-		# if change in parameters is less than 10 x perturbation we do not compute RF again
-		if atmos.n_local_pars!=0:
-			pars = list(atmos.nodes.keys())
-			par_flag = [True]*len(pars)
-			# if old_pars is not None:
-			# 	for i_, par in enumerate(atmos.nodes):
-			# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
-			# 		flag = [False if item<globin.diff[par] else True for item in delta]
-			# 		if any(flag):
-			# 			par_flag[i_] = True
-			# 		else:
-			# 			par_flag[i_] = False
-			full_rf = RH_compute_RF(atmos, par_flag, globin.rh_spec_name, globin.wavelength)
-			for i_,par in enumerate(pars):
-				rfID = rf_id[par]
-				if not par_flag[i_]:
-					full_rf[:,:, rfID] = old_rf[:,:, rfID]
-		else:
-			full_rf = None
-	elif globin.rf_type=="node":
-		full_rf = None
-	else:
-		print("Not proper RF type calculation.\n")
-		globin.remove_dirs()
-		sys.exit()
-
-	#--- get total number of parameters (local + global)
-	Npar = atmos.n_local_pars + atmos.n_global_pars
-	
-	rf = np.zeros((spec.nx, spec.ny, Npar, len(globin.wavelength), 4), dtype=np.float64)
-	node_RF = np.zeros((spec.nx, spec.ny, len(globin.wavelength), 4))
-
-	model_plus = copy.deepcopy(atmos)
-	model_minus = copy.deepcopy(atmos)
-
-	#--- loop through local (atmospheric) parameters and calculate RFs
-	free_par_ID = 0
-	for parameter in atmos.nodes:
-		nodes = atmos.nodes[parameter]
-		values = atmos.values[parameter]
-		perturbation = globin.delta[parameter]
-
-		for nodeID in range(len(nodes)):
-			if globin.rf_type=="snapi":
-				#---
-				# This is "broken" from the point we introduced key mean for the spectrum.
-				#---
-				#===--- computing RFs for given parameter (proper way as in SNAPI)
-				# positive perturbation
-				atmos.values[parameter][:,:,nodeID] += perturbation
-				atmos.build_from_nodes(False)
-				positive = copy.deepcopy(atmos.data[:,:,parID])
-
-				# negative perturbation
-				atmos.values[parameter][:,:,nodeID] -= 2*perturbation
-				atmos.build_from_nodes(False)
-				negative = copy.deepcopy(atmos.data[:,:,parID])
-
-				# derivative of parameter distribution to node perturbation
-				dy_dnode = (positive - negative) / 2 / perturbation
-
-				for idx in range(spec.nx):
-					for idy in range(spec.ny):
-						node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
-			elif globin.rf_type=="node":
-				#===--- Computing RFs in nodes
-				
-				model_plus.values[parameter][:,:,nodeID] += perturbation
-				if parameter=="of":
-					globin.make_RH_OF_files(model_plus)
-				else:
-					model_plus.build_from_nodes()
-				spectra_plus,_ = compute_spectra(model_plus)
-
-				# negative perturbation (except for inclination and azimuth)
-				if parameter=="gamma" or parameter=="chi":
-					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
-				else:
-					model_minus.values[parameter][:,:,nodeID] -= perturbation
-					if parameter=="of":	
-						globin.make_RH_OF_files(model_minus)
-					else:
-						model_minus.build_from_nodes()
-					spectra_minus,_ = compute_spectra(model_minus)
-
-					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
-
-			node_RF *= globin.weights
-			node_RF /= rf_noise_scale
-			scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-
-			for idx in range(spec.nx):
-				for idy in range(spec.ny):
-					if scale[idx,idy]==0:
-						# print("scale==0 for --> ", parameter)
-						globin.parameter_scale[parameter][idx,idy,nodeID] = 1
-					elif not np.isnan(np.sum(scale[idx,idy])):
-						globin.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
-			
-			for idx in range(spec.nx):
-				for idy in range(spec.ny):
-					rf[idx,idy,free_par_ID] = node_RF[idx,idy] / globin.parameter_scale[parameter][idx,idy,nodeID]
-			free_par_ID += 1
-
-			if globin.rf_type=="snapi":
-				# return back perturbation (SNAPI way)
-				atmos.values[parameter][:,:,nodeID] += perturbation
-				atmos.build_from_nodes(False)
-			elif globin.rf_type=="node":
-				# return back perturbations (node way)
-				if parameter=="gamma" or parameter=="chi":
-					model_plus.values[parameter][:,:,nodeID] = copy.deepcopy(atmos.values[parameter][:,:,nodeID])
-				else:
-					model_plus.values[parameter][:,:,nodeID] -= perturbation
-					model_minus.values[parameter][:,:,nodeID] += perturbation
-
-	#--- loop through global parameters and calculate RFs
-	skip_par = -1
-	if atmos.n_global_pars>0:
-		#--- loop through global parameters and calculate RFs
-		for parameter in atmos.global_pars:
-			if parameter=="vmac":
-				kernel_sigma = spec.get_kernel_sigma(atmos.vmac)
-				radius = int(4*kernel_sigma + 0.5)
-				x = np.arange(-radius, radius+1)
-				phi = np.exp(-x**2/kernel_sigma**2)
-				# normalaizing the profile
-				phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-				kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / globin.step
-				# since we are correlating, we need to reverse the order of data
-				kernel = kernel[::-1]
-
-				for idx in range(spec.nx):
-					for idy in range(spec.ny):
-						for sID in range(4):
-							rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
-							rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / atmos.global_pars["vmac"]
-							rf[idx,idy,free_par_ID,:,sID] *= globin.weights[sID]
-							rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
-
-				globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
-				rf[:,:,free_par_ID,:,:] /= globin.parameter_scale[parameter]
-
-				skip_par = free_par_ID
-				free_par_ID += 1
-
-			elif parameter=="loggf" or parameter=="dlam":
-				perturbation = globin.delta[parameter]
-
-				for idp in range(atmos.line_no[parameter].size):
-					line_no = atmos.line_no[parameter][idp]
-					values = copy.deepcopy(atmos.global_pars[parameter][:,:,idp])
-
-					# positive perturbation
-					values += perturbation
-					# write atomic parameters in files
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-								globin.write_line_par(fpath,
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
-					
-					spec_plus,_ = compute_spectra(atmos)
-					
-					# negative perturbation
-					values -= 2*perturbation
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-								globin.write_line_par(fpath,
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
-					
-					spec_minus,_ = compute_spectra(atmos)
-
-					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
-					diff *= globin.weights
-					diff /= rf_noise_scale
-
-					if globin.mode==2:
-						scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):
-								if not np.isnan(np.sum(scale[idx,idy])):
-									globin.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
-								else:
-									globin.parameter_scale[parameter][idx,idy,idp] = 1
-					elif globin.mode==3:
-						scale = np.sqrt(np.sum(diff**2))
-						globin.parameter_scale[parameter][...,idp] = scale
-
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):
-								rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
-					elif globin.mode==3:
-						rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]	
-					free_par_ID += 1
-					
-					# return perturbation back
-					values += perturbation
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):
-								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"	
-								globin.write_line_par(fpath,
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
-
-	#--- broaden the spectra
-	if not globin.mean:
-		spec.broaden_spectra(atmos.vmac)
-		rf = broaden_rfs(rf, atmos.vmac, skip_par)
-
-	# for idy in range(atmos.ny):
-	# 	plt.figure(1)
-	# 	for parID in range(4):
-	# 		plt.plot(rf[0, idy, parID, :, 0])
-	# 	plt.figure(2)
-	# 	for parID in range(4,Npar):
-	# 		plt.plot(rf[0, idy, parID, :, 0])
-	# plt.show()
-	# sys.exit()
-
-	# plt.plot(globin.obs.spec[0,0,:,0])
-	# plt.plot(spec.spec[0,0,:,0])
-	# plt.show()
-
-	#--- compare RFs for single parameter
-	# for idx in range(atmos.nx):
-	# 	for idy in range(atmos.ny):
-	# 		aux = rf[idx,idy, :, :, :]
-			# plt.plot(aux[0,:,0], label="T-3")
-			# plt.plot(aux[1,:,0], label="T-2")
-			# plt.plot(aux[2,:,0], label="T-1")
-	# 		plt.plot(aux[3,:,0], label="T0")
-	# 		plt.plot(aux[4,:,0], label="OF 1")
-	# 		plt.plot(aux[5,:,0], label="OF 2")
-	# 		plt.plot(aux[6,:,0], label="OF 3")
-	# 		plt.plot(aux[7,:,0], label="OF 4")
-	# 		plt.plot(aux[8,:,0], label="OF 5")
-	# plt.legend()
-	# plt.show()
-	# sys.exit()
-
-	return rf, spec, full_rf
 
 def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	compute_spectra(atmos, rh_spec_name, wavelength)
@@ -1486,3 +1628,136 @@ def multi2spinor(multi_atmosphere, fname=None):
 		primary.writeto(fname, overwrite=True)
 
 	return spinor_atmosphere
+
+def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
+	"""
+	Read atmosphere retrieved after inversion and store it in
+	Atmosphere() object. We load fully stratified atmosphere and
+	node position and values in nodes for all inverted 
+	atmospheric parameters.
+
+	Parameters:
+	-----------
+	fpath : string
+		file path to inverted atmosphere. It should be .fits file.
+	atm_range : list
+		list containing [xmin,xmax,ymin,ymax] that define part of the
+		cube to be read.
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere() object
+	"""
+	try:
+		hdu_list = fits.open(fpath)
+	except:
+		print("--> Error in input.read_inverted_atmosphere()")
+		print(f"    Atmosphere file with path '{fpath}' does not exist.")
+		sys.exit()
+
+	xmin, xmax, ymin, ymax = atm_range
+
+	data = hdu_list[0].data[xmin:xmax, ymin:ymax]
+	nx, ny, npar, nz = data.shape
+
+	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+	aux = data.astype(np.float64, order="C", copy=True) # because of the pyrh module
+	atmos.data = aux
+	atmos.logtau = data[0,0,0]
+	atmos.header = hdu_list[0].header
+
+	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of"]:
+		try:
+			ind = hdu_list.index_of(parameter)
+			data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
+			_, nx, ny, nnodes = data.shape
+
+			atmos.nodes[parameter] = data[0,0,0]
+			# angles are saved in radians, no need to convert them here
+			if parameter=="gamma":
+				# atmos.values[parameter] = np.tan(data[1]/2)
+				atmos.values[parameter] = np.cos(data[1])
+				atmos.values[parameter] = data[1]
+			elif parameter=="chi":
+				# atmos.values[parameter] = np.tan(data[1]/4)
+				# atmos.values[parameter] = np.cos(data[1])
+				atmos.values[parameter] = data[1]
+			else:
+				atmos.values[parameter] = data[1]
+			atmos.mask[parameter] = np.ones(len(atmos.nodes[parameter]))
+
+			atmos.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
+		except:
+			pass
+
+	try:
+		ind = hdu_list.index_of("Continuum_Opacity")
+		atmos.chi_c = hdu_list[ind].data
+	except:
+		atmos.chi_c = None
+
+	return atmos
+
+def read_multi(fpath):
+	"""
+	Read MULTI type atmosphere data and store it in
+	Atmosphere() object.
+
+	Parameter:
+	----------
+	fpath : string
+		path to the MULTI type atmosphere.
+
+	Return:
+	-------
+	atmos : globin.atmos.Atmosphere() object
+	"""
+	lines = open(fpath, "r").readlines()
+
+	# remove commented lines
+	lines = [line.rstrip("\n") for line in lines if "*" not in line]
+
+	# get number of depth points
+	ndpth = int(lines[3].replace(" ", ""))
+
+	nz = ndpth
+	nx, ny = 1, 1
+
+	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+
+	for i_ in range(ndpth):
+		# read first part of the atmosphere
+		lista = list(filter(None,lines[4+i_].split(" ")))
+		atmos.data[0,0,0,i_], \
+		atmos.data[0,0,1,i_], \
+		atmos.data[0,0,2,i_], \
+		atmos.data[0,0,3,i_], \
+		atmos.data[0,0,4,i_] = [float(element) for element in lista]
+
+		# read H populations
+		lista = list(filter(None,lines[4+ndpth+i_].split(" ")))
+		atmos.data[0,0,8,i_], \
+		atmos.data[0,0,9,i_], \
+		atmos.data[0,0,10,i_], \
+		atmos.data[0,0,11,i_], \
+		atmos.data[0,0,12,i_], \
+		atmos.data[0,0,13,i_] = [float(element) for element in lista]
+
+	atmos.logtau = atmos.data[0,0,0]
+
+	return atmos
+
+def read_spinor(fpath):
+	atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+	# nz = atmos_data.shape[1]
+	
+	# atmos = globin.Atmosphere(nx=1, ny=1, nz=nz)
+	# atmos.logtau = atmos_data[0]
+	# atmos.data = atmos_data
+	
+	atmos = globin.atmos.convert_atmosphere(atmos_data[0], atmos_data, "spinor")
+
+	return atmos
+
+def read_sir():
+	pass
