@@ -184,6 +184,8 @@ class Atmosphere(object):
 			new.do_fudge = copy.deepcopy(self.do_fudge)
 			new.fudge_lam = copy.deepcopy(self.fudge_lam)
 			new.fudge = copy.deepcopy(self.fudge)
+			new.of_scatter = copy.deepcopy(self.of_scatter)
+			new.wavelength_vacuum = copy.deepcopy(self.wavelength_vacuum)
 		except:
 			pass
 		new.global_pars = copy.deepcopy(self.global_pars)
@@ -702,7 +704,7 @@ class Atmosphere(object):
 		elif rf_type=="node":
 			full_rf = None
 		else:
-			print("\n  Not proper RF type calculation.\n")
+			print("\n  Not proper RF type calculation.")
 			sys.exit()
 
 		#--- get total number of parameters (local + global)
@@ -748,7 +750,7 @@ class Atmosphere(object):
 					
 					model_plus.values[parameter][:,:,nodeID] += perturbation
 					if parameter=="of":
-						globin.make_RH_OF_files(model_plus)
+						model_plus.make_OF_table(self.wavelength_vacuum)
 					else:
 						model_plus.build_from_nodes()
 					spectra_plus = model_plus.compute_spectra(skip)
@@ -759,7 +761,7 @@ class Atmosphere(object):
 					else:
 						model_minus.values[parameter][:,:,nodeID] -= perturbation
 						if parameter=="of":	
-							globin.make_RH_OF_files(model_minus)
+							model_minus.make_OF_table(self.wavelength_vacuum)
 						else:
 							model_minus.build_from_nodes()
 						spectra_minus = model_minus.compute_spectra(skip)
@@ -931,6 +933,65 @@ class Atmosphere(object):
 		# sys.exit()
 
 		return rf, spec, full_rf
+
+	def make_OF_table(self, wavelength_vacuum):
+		if wavelength_vacuum[0]<=210:
+			print("  Sorry, but OF is not properly implemented for wavelengths")
+			print("    belowe 210 nm. You have to wait for newer version of globin.")
+			sys.exit()
+		
+		if self.of_num==1:
+			self.fudge_lam = np.zeros(4, dtype=np.float64)
+			self.fudge = np.ones((self.nx, self.ny, 3,4), dtype=np.float64)
+
+			# first point outside of interval (must be =1)
+			self.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+			self.fudge[...,0] = 1
+
+			# left edge of wavelength interval
+			self.fudge_lam[1] = wavelength_vacuum[0] - 0.0001
+			self.fudge[...,0,1] = self.values["of"][...,0]
+			if self.of_scatter:	
+				self.fudge[...,1,1] = self.values["of"][...,0]
+			self.fudge[...,2,1] = 1
+
+			# right edge of wavelength interval
+			self.fudge_lam[2] = wavelength_vacuum[-1] + 0.0001
+			self.fudge[...,0,2] = self.values["of"][...,0]
+			if self.of_scatter:
+				self.fudge[...,1,2] = self.values["of"][...,0]
+			self.fudge[...,2,1] = 1		
+
+			# last point outside of interval (must be =1)
+			self.fudge_lam[3] = wavelength_vacuum[-1] + 0.0002
+			self.fudge[...,3] = 1
+		#--- for multi-wavelength OF correction
+		else:
+			Nof = self.of_num + 2
+
+			self.fudge_lam = np.zeros(Nof, dtype=np.float64)
+			self.fudge = np.ones((self.nx, self.ny, 3, Nof), dtype=np.float64)
+			
+			# first point outside of interval (must be =1)
+			self.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+			self.fudge[...,0] = 1
+
+			for idf in range(self.of_num):
+				# mid points
+				shift = 0
+				if idf==0:
+					shift = -0.0001
+				if idf==self.of_num-1:
+					shift = 0.0001
+				self.fudge_lam[idf+1] = self.nodes["of"][idf] + shift
+				self.fudge[...,0,idf+1] = self.values["of"][...,idf]
+				if self.of_scatter:
+					self.fudge[...,1,idf+1] = self.values["of"][...,idf]
+				self.fudge[...,2,idf+1] = 1	
+
+			# last point outside of interval (must be =1)
+			self.fudge_lam[-1] = wavelength_vacuum[-1] + 0.0002
+			self.fudge[...,-1] = 1
 
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844

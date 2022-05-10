@@ -180,7 +180,7 @@ class InputData(object):
 		if (self.of_mode==0) or (self.of_mode==1):
 			self.do_fudge = True
 			of_file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, str)
-			self.of_scatt_flag = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, int)
+			self.of_scatter = _find_value_by_key("of_scatter", self.parameters_input, "default", 0, int)
 			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
 
@@ -237,7 +237,8 @@ class InputData(object):
 			self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
 
 			# create arrays to be passed to RH for synthesis
-			make_RH_OF_files(self.atmosphere, self.wavelength_vacuum, self.of_scatt_flag)
+			self.atmosphere.of_scatter = self.of_scatter
+			self.atmosphere.make_OF_table(self.wavelength_vacuum)
 
 		if self.mean:
 			if len(self.mac_vel)==1:
@@ -1068,77 +1069,3 @@ def read_OF_data(fpath):
 	of_wave = write_wavs(of_wave, fname=None)
 
 	return of_num, of_wave, of_value
-
-def make_RH_OF_files(atmos, wavelength_vacuum, scatter):
-	"""
-	[12.04.2022.]
-	This is not going to work in general OF correction :) Or at least
-	for wavelengths below 210nm, for metal correction.
-	
-	atmos.of_num
-	atmos.nodes["of"]
-	atmos.values["of"]
-
-	into
-
-	atmos.fudge_lam
-	atmos.fudge
-
-	"""
-	if wavelength_vacuum[0]<=210:
-		print("  Sorry, but OF is not properly implemented for wavelengths")
-		print("    belowe 210 nm. You have to wait for newer version of globin.")
-		sys.exit()
-	
-	if atmos.of_num==1:
-		atmos.fudge_lam = np.zeros(4, dtype=np.float64)
-		atmos.fudge = np.ones((atmos.nx, atmos.ny, 3,4), dtype=np.float64)
-
-		# first point outside of interval (must be =1)
-		atmos.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
-		atmos.fudge[...,0] = 1
-
-		# left edge of wavelength interval
-		atmos.fudge_lam[1] = wavelength_vacuum[0] - 0.0001
-		atmos.fudge[...,0,1] = atmos.values["of"][...,0]
-		if scatter:	
-			atmos.fudge[...,1,1] = atmos.values["of"][...,0]
-		atmos.fudge[...,2,1] = 1
-
-		# right edge of wavelength interval
-		atmos.fudge_lam[2] = wavelength_vacuum[-1] + 0.0001
-		atmos.fudge[...,0,2] = atmos.values["of"][...,0]
-		if scatter:
-			atmos.fudge[...,1,2] = atmos.values["of"][...,0]
-		atmos.fudge[...,2,1] = 1		
-
-		# last point outside of interval (must be =1)
-		atmos.fudge_lam[3] = wavelength_vacuum[-1] + 0.0002
-		atmos.fudge[...,3] = 1
-	#--- for multi-wavelength OF correction
-	else:
-		Nof = atmos.of_num + 2
-
-		atmos.fudge_lam = np.zeros(Nof, dtype=np.float64)
-		atmos.fudge = np.ones((atmos.nx, atmos.ny, 3, Nof), dtype=np.float64)
-		
-		# first point outside of interval (must be =1)
-		atmos.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
-		atmos.fudge[...,0] = 1
-
-		for idf in range(atmos.of_num):
-			# mid points
-			shift = 0
-			if idf==0:
-				shift = -0.0001
-			if idf==atmos.of_num-1:
-				shift = 0.0001
-			atmos.fudge_lam[idf+1] = atmos.nodes["of"][idf] + shift
-			atmos.fudge[...,0,idf+1] = atmos.values["of"][...,idf]
-			if scatter:
-				atmos.fudge[...,1,idf+1] = atmos.values["of"][...,idf]
-			atmos.fudge[...,2,idf+1] = 1	
-
-		# last point outside of interval (must be =1)
-		atmos.fudge_lam[-1] = wavelength_vacuum[-1] + 0.0002
-		atmos.fudge[...,-1] = 1

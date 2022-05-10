@@ -53,6 +53,8 @@ class Inverter(InputData):
 			self.atmosphere.temp_tck = self.falc.temp_tck
 			if self.mode>=1:
 				self.atmosphere.interp_degree = self.interp_degree
+			if self.of_mode:
+				self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file.")
