@@ -12,6 +12,8 @@ import pyrh
 from .spec import get_Icont, Spectrum
 from .container import Globin
 from .input import InputData
+from .visualize import plot_spectra
+from .tools import save_chi2
 
 def pretty_print_parameters(atmos, conv_flag):
 	for parameter in atmos.values:
@@ -47,14 +49,21 @@ class Inverter(InputData):
 			# initialize RH class (cythonized)
 			# store input parameters in InputData()
 			self.read_input_files(globin_input_name, rh_input_name)
-			
+
 			self.atmosphere.RH = pyrh.RH()
 			self.atmosphere.n_thread = self.n_thread
 			self.atmosphere.temp_tck = self.falc.temp_tck
+			# fudge data
 			if self.mode>=1:
 				self.atmosphere.interp_degree = self.interp_degree
-			if self.of_mode:
+			
+			if self.do_fudge:
 				self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
+			else:
+				self.atmosphere.do_fudge = 0
+				self.atmosphere.fudge_lam = np.array([], dtype=np.float64)
+				self.atmosphere.fudge = np.ones((self.atmosphere.nx, self.atmosphere.ny, 3, 0), 
+												dtype=np.float64)
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file.")
@@ -87,6 +96,8 @@ class Inverter(InputData):
 				if (cycle+1)<self.ncycle:
 					self.atmosphere.smooth_parameters(cycle)
 					self.marq_lambda /= 10
+
+				return atm, spec
 		elif self.mode==0:
 			print("\n  Entering synthesis mode.")
 			return self.atmosphere.compute_spectra(skip)
@@ -251,7 +262,7 @@ class Inverter(InputData):
 								self.rf_debug[idx,idy,niter] = rf[idx,idy]
 
 				# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
-				# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
 
 				#--- scale RFs with weights and noise scale
@@ -308,37 +319,35 @@ class Inverter(InputData):
 			# proposed_steps = np.linalg.solve(H, delta)
 			# sys.exit()
 
-			sys.exit("break point!")
-
 			old_atmos_parameters = copy.deepcopy(atmos.values)
-			if globin.mode==2:
+			if self.mode==2:
 				old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 			atmos.update_parameters(proposed_steps, stop_flag)
-			atmos.check_parameter_bounds()
-
-			if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-						globin.write_line_parameters(fpath,
-												   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
-												   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
-			if globin.of_mode:
-				globin.make_RH_OF_files(atmos)
+			atmos.check_parameter_bounds(self.mode)
+			
+			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
+			# 	for idx in range(atmos.nx):
+			# 		for idy in range(atmos.ny):
+			# 			fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+			# 			globin.write_line_parameters(fpath,
+			# 									   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
+			# 									   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
+			if atmos.do_fudge==1:
+				atmos.make_OF_table(self.wavelength_vacuum)
 
 			atmos.build_from_nodes()
-			corrected_spec,_ = globin.compute_spectra(atmos)
-			if not globin.mean:
+			corrected_spec = atmos.compute_spectra(skip)
+			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
 
 			new_diff = obs.spec - corrected_spec.spec
-			new_diff *= globin.weights
+			new_diff *= self.weights
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					if globin.debug and stop_flag[idx,idy]==1:
+					if self.debug and stop_flag[idx,idy]==1:
 						niter = itter[idx,idy]
 						LM_debug[niter] = LM_parameter[idx,idy]
 
@@ -347,17 +356,17 @@ class Inverter(InputData):
 							LM_parameter[idx,idy] *= 10
 							for parameter in old_atmos_parameters:
 								atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-							if globin.mode==2:
+							if self.mode==2:
 								for parameter in old_atomic_parameters:
 									atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-								fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-								line_lists_path.remove(fpath)
-							fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-							atm_name_list.remove(fpath)
-							if globin.of_mode:
-								fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-								of_paths.remove(fpath)
-							old_inds.append((idx,idy))
+							# 	fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+							# 	line_lists_path.remove(fpath)
+							# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
+							# atm_name_list.remove(fpath)
+							# if self.of_mode:
+							# 	fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+							# 	of_paths.remove(fpath)
+							# old_inds.append((idx,idy))
 							updated_pars[idx,idy] = 0
 						else:
 							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy] / Ndof
@@ -367,41 +376,41 @@ class Inverter(InputData):
 					else:
 						for parameter in old_atmos_parameters:
 							atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-						if globin.mode==2:
+						if self.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
 
 			# we write down those atomic parameters which are not updated (rewerting back to old ones)
-			if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-				for ind in old_inds:
-					idx, idy = ind
-					fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-					globin.write_line_parameters(fpath,
-											   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
-											   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
+			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
+			# 	for ind in old_inds:
+			# 		idx, idy = ind
+			# 		fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+			# 		globin.write_line_parameters(fpath,
+			# 								   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
+			# 								   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
-			if globin.of_mode:
-				globin.make_RH_OF_files(atmos)
+			if atmos.do_fudge==1:
+				atmos.make_OF_table(self.wavelength_vacuum)
 
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					if globin.debug:
+					if self.debug:
 						for parameter in atmos.nodes:
 							niter = itter[idx,idy]-1
-							globin.atmos_debug[parameter][niter,idx,idy] = atmos.values[parameter][idx,idy]
+							self.atmos_debug[parameter][niter,idx,idy] = atmos.values[parameter][idx,idy]
 					if stop_flag[idx,idy]==1:
 						if LM_parameter[idx,idy]<=1e-5:
 							LM_parameter[idx,idy] = 1e-5
 						# if Marquardt parameter is to large, we break
 						if LM_parameter[idx,idy]>=1e8:
 							stop_flag[idx,idy] = 0
-							itter[idx,idy] = globin.max_iter
-							original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-							if globin.mode==2:
-								original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+							itter[idx,idy] = self.max_iter
+							# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+							# if self.mode==2:
+							# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
-			if verbose:
+			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag)
 				print(LM_parameter)
 				print(old_inds)
@@ -419,46 +428,46 @@ class Inverter(InputData):
 							if chi2[idx,idy,it_no-1]<1e-32:
 								print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
 								stop_flag[idx,idy] = 0
-								itter[idx,idy] = globin.max_iter
-								original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								if globin.of_mode:
-									original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-									of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								if globin.mode==2:
-									original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-									line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-							elif relative_change<globin.chi2_tolerance:
+								itter[idx,idy] = self.max_iter
+								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# if globin.of_mode:
+								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# if globin.mode==2:
+								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+							elif relative_change<self.chi2_tolerance:
 								print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
 								stop_flag[idx,idy] = 0
-								itter[idx,idy] = globin.max_iter
-								original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								if globin.of_mode:
-									original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-									of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								if globin.mode==2:
-									original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-									line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								itter[idx,idy] = self.max_iter
+								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# if globin.of_mode:
+								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# if globin.mode==2:
+								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							elif chi2[idx,idy,it_no-1] < 1:
 								print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
 								stop_flag[idx,idy] = 0
-								itter[idx,idy] = globin.max_iter
-								original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								if globin.of_mode:
-									original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-									of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								if globin.mode==2:
-									original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-									line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								itter[idx,idy] = self.max_iter
+								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
+								# if globin.of_mode:
+								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
+								# if globin.mode==2:
+								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
+								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							# if given pixel iteration number has reached the maximum number of iterations
 							# we stop the convergence for given pixel
-							if it_no-1==globin.max_iter-1:
+							if it_no-1==self.max_iter-1:
 								stop_flag[idx,idy] = 0
 								print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
 
-			if verbose:
+			if self.verbose:
 				print("\n--------------------------------------------------\n")
 
 			# if all pixels have converged, we stop inversion
@@ -467,24 +476,24 @@ class Inverter(InputData):
 
 		# return all original paths for final output
 		atmos.atm_name_list = []
-		atmos.line_lists_path = []
-		if globin.of_mode:
-			atmos.of_paths = []
+		# atmos.line_lists_path = []
+		# if globin.of_mode:
+		# 	atmos.of_paths = []
 		
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-				atmos.atm_name_list.append(fpath)
-				if globin.of_mode:
-					fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-					atmos.of_paths.append(fpath)
-				if globin.mode==2:
-					fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-					atmos.line_lists_path.append(fpath)
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+				# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
+				# atmos.atm_name_list.append(fpath)
+				# if globin.of_mode:
+				# 	fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
+				# 	atmos.of_paths.append(fpath)
+				# if globin.mode==2:
+				# 	fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
+				# 	atmos.line_lists_path.append(fpath)
 		
-		if globin.mode==1:
-			fpath = f"runs/{globin.wd}/{globin.linelist_name}"
-			atmos.line_lists_path.append(fpath)
+		# if self.mode==1:
+		# 	fpath = f"runs/{globin.wd}/{globin.linelist_name}"
+		# 	atmos.line_lists_path.append(fpath)
 
 		# wrap the nodes of angles in 0-180 degrees and 0-360 degrees
 		# if "gamma" in atmos.nodes:
@@ -492,9 +501,9 @@ class Inverter(InputData):
 		# if "chi" in atmos.nodes:
 		# 	atmos.values["chi"] %= 2*np.pi
 
-		atmos.build_from_nodes(False)
-		inverted_spectra, atm = globin.compute_spectra(atmos)
-		if not globin.mean:
+		atmos.build_from_nodes()
+		inverted_spectra = atmos.compute_spectra([])
+		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac)
 
 		try:
@@ -502,11 +511,11 @@ class Inverter(InputData):
 		except:
 			print("Failed to compute parameters error\n")
 
-		if globin.debug:
+		if self.debug:
 
-			output_path = f"runs/{globin.wd}"
+			output_path = f"runs/{self.run_name}"
 
-			primary = fits.PrimaryHDU(globin.rf_debug)
+			primary = fits.PrimaryHDU(self.rf_debug)
 			primary.header.comments["NAXIS1"] = "Stokes components"
 			primary.header.comments["NAXIS2"] = "wavelengths"
 			primary.header.comments["NAXIS3"] = "parameters"
@@ -518,12 +527,12 @@ class Inverter(InputData):
 			hdulist = fits.HDUList([])
 
 			for parameter in atmos.nodes:
-				matrix = globin.atmos_debug[parameter]
+				matrix = self.atmos_debug[parameter]
 
 				par_hdu = fits.ImageHDU(matrix)
 				par_hdu.name = parameter
 
-				par_hdu.header["unit"] = globin.parameter_unit[parameter]
+				# par_hdu.header["unit"] = globin.parameter_unit[parameter]
 				par_hdu.header.comments["NAXIS1"] = "number of nodes"
 				par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 				par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
@@ -536,10 +545,10 @@ class Inverter(InputData):
 			primary = fits.PrimaryHDU(LM_debug)
 			primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
 
-		if save_output is not None:
-			output_path = f"runs/{globin.wd}"
+		if self.save_output:
+			output_path = f"runs/{self.run_name}"
 
-			if globin.mode==2:
+			if self.mode==2:
 				if atmos.line_no["loggf"].size>0:
 					mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
 				else:
@@ -549,11 +558,11 @@ class Inverter(InputData):
 				else:
 					mean_dlam = None
 
-				globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
-																	  mean_dlam, atmos.line_no["dlam"])
+				# globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
+				# 													  mean_dlam, atmos.line_no["dlam"])
 
-			if globin.of_mode:
-				globin.make_RH_OF_files(atmos)
+			if atmos.do_fudge==1:
+				atmos.make_OF_table(self.wavelength_vacuum)
 
 			inverted_spectra.xmin = obs.xmin
 			inverted_spectra.xmax = obs.xmax
@@ -561,23 +570,13 @@ class Inverter(InputData):
 			inverted_spectra.ymax = obs.ymax
 
 			atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-			if globin.mode==2:
+			if self.mode==2:
 				atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{globin.cwd}/{atmos.line_lists_path[0].split('/')[-1]}", "reference line list")})
-			inverted_spectra.save(f"{output_path}/inverted_spectra.fits", globin.wavelength)
-			globin.save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
+			inverted_spectra.save(f"{output_path}/inverted_spectra.fits", self.wavelength_air)
+			save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
 
 			end = time.time() - start
 			print("\nFinished in: {0}\n".format(end))
-
-			out_file = open("{:s}/output.log".format(output_path), "w")
-
-			out_file.write("Run time: {:10.1f}\n\n".format(end))
-			out_file.write("\n\n     #===--- globin input file ---===#\n\n")
-			out_file.write(globin.parameters_input)
-			out_file.write("\n\n     #===--- RH input file ---===#\n\n")
-			out_file.write(globin.keyword_input)
-
-			out_file.close()
 
 		return atmos, inverted_spectra
 
@@ -808,7 +807,7 @@ def invert_global(save_output, verbose):
 		old_local_parameters = copy.deepcopy(atmos.values)
 		old_global_pars = copy.deepcopy(atmos.global_pars)
 		atmos.update_parameters(proposed_steps)
-		atmos.check_parameter_bounds()
+		atmos.check_parameter_bounds(self.mode)
 
 		if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			globin.write_line_parameters(atmos.line_lists_path[0],

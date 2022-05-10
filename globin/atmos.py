@@ -150,10 +150,6 @@ class Atmosphere(object):
 			self.header = atmos.header
 			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 			self.chi_c = atmos.chi_c
-			# fudge data
-			self.do_fudge = 0
-			self.fudge_lam = np.array([], dtype=np.float64)
-			self.fudge = np.ones((self.nx, self.ny, 3,0), dtype=np.float64)
 		else:
 			self.header = None
 			if (nx is not None) and (ny is not None) and (nz is not None):
@@ -421,7 +417,7 @@ class Atmosphere(object):
 			par_hdu = fits.ImageHDU(matrix)
 			par_hdu.name = parameter
 
-			par_hdu.header["unit"] = globin.parameter_unit[parameter]
+			# par_hdu.header["unit"] = globin.parameter_unit[parameter]
 			par_hdu.header.comments["NAXIS1"] = "number of nodes"
 			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
@@ -494,14 +490,14 @@ class Atmosphere(object):
 			for parameter in self.values:
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 				# we do not perturb parameters of those pixels which converged
 				step = np.einsum("...i,...->...i", step, stop_flag)
-				if globin.rf_type=="snapi":
-					# RH returns RFs in m/s and we are working with km/s in globin
-					# so we have to return the values from m/s to km/s
-					if parameter=="vz" or parameter=="vmic":
-						step /= 1e3
+				# if globin.rf_type=="snapi":
+				# 	# RH returns RFs in m/s and we are working with km/s in globin
+				# 	# so we have to return the values from m/s to km/s
+				# 	if parameter=="vz" or parameter=="vmic":
+				# 		step /= 1e3
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.values[parameter] += step
 
@@ -509,7 +505,7 @@ class Atmosphere(object):
 			for parameter in self.global_pars:
 				low_ind = up_ind
 				up_ind += self.line_no[parameter].size
-				step = proposed_steps[:,:,low_ind:up_ind] / globin.parameter_scale[parameter]
+				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
 		else:
@@ -520,33 +516,24 @@ class Atmosphere(object):
 					for parameter in self.values:
 						low_ind = up_ind
 						up_ind += len(self.nodes[parameter])
-						step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter][idx,idy]
+						step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter][idx,idy]
 						# RH returns RFs in m/s and we are working with km/s in globin
 						# so we have to return the values from m/s to km/s
-						if globin.rf_type=="snapi":
-							if parameter=="vz" or parameter=="vmic":
-								step /= 1e3
+						# if globin.rf_type=="snapi":
+						# 	if parameter=="vz" or parameter=="vmic":
+						# 		step /= 1e3
 						np.nan_to_num(step, nan=0.0, copy=False)
 						self.values[parameter][idx,idy] += step
-
-			# if globin.of_mode:
-			# 	for idx in range(self.nx):
-			# 		for idy in range(self.ny):
-			# 			low_ind = up_ind
-			# 			up_ind += self.of_num
-			# 			step = proposed_steps[low_ind:up_ind] / globin.parameter_scale["of"][idx,idy]
-			# 			# np.nan_to_num(step, nan=0.0, copy=False)
-			# 			self.of_value[idx,idy] += step
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
 				low_ind = up_ind
 				up_ind += self.global_pars[parameter].size
-				step = proposed_steps[low_ind:up_ind] / globin.parameter_scale[parameter]
+				step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
 				np.nan_to_num(step, nan=0.0, copy=False)
 				self.global_pars[parameter] += step
 
-	def check_parameter_bounds(self):
+	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
 			# inclination is wrapped around [0, 180] interval
 			if parameter=="gamma":
@@ -569,35 +556,35 @@ class Atmosphere(object):
 					for idx in range(self.nx):
 						for idy in range(self.ny):
 							# minimum check
-							if self.values[parameter][idx,idy,i_]<globin.limit_values[parameter][0]:
-								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][0]
+							if self.values[parameter][idx,idy,i_]<self.limit_values[parameter][0]:
+								self.values[parameter][idx,idy,i_] = self.limit_values[parameter][0]
 							# maximum check
-							if self.values[parameter][idx,idy,i_]>globin.limit_values[parameter][1]:
-								self.values[parameter][idx,idy,i_] = globin.limit_values[parameter][1]
+							if self.values[parameter][idx,idy,i_]>self.limit_values[parameter][1]:
+								self.values[parameter][idx,idy,i_] = self.limit_values[parameter][1]
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
 				# minimum check
-				if self.global_pars[parameter]<globin.limit_values[parameter][0]:
-					self.global_pars[parameter] = np.array([globin.limit_values[parameter][0]])
+				if self.global_pars[parameter]<self.limit_values[parameter][0]:
+					self.global_pars[parameter] = np.array([self.limit_values[parameter][0]])
 				# maximum check
-				if self.global_pars[parameter]>globin.limit_values[parameter][1]:
-					self.global_pars[parameter] = np.array([globin.limit_values[parameter][1]])
+				if self.global_pars[parameter]>self.limit_values[parameter][1]:
+					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]])
 				self.vmac = self.global_pars["vmac"]
 			else:
-				if globin.mode==2:
+				if mode==2:
 					nx, ny = self.nx, self.ny
-				elif globin.mode==3:
+				elif mode==3:
 					nx, ny = 1,1
 				for idx in range(nx):
 					for idy in range(ny):
 						for i_ in range(self.line_no[parameter].size):
 							# minimum check
-							if self.global_pars[parameter][idx,idy,i_]<globin.limit_values[parameter][i_,0]:
-								self.global_pars[parameter][idx,idy,i_] = globin.limit_values[parameter][i_,0]
+							if self.global_pars[parameter][idx,idy,i_]<self.limit_values[parameter][i_,0]:
+								self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,0]
 							# maximum check
-							if self.global_pars[parameter][idx,idy,i_]>globin.limit_values[parameter][i_,1]:
-								self.global_pars[parameter][idx,idy,i_] = globin.limit_values[parameter][i_,1]
+							if self.global_pars[parameter][idx,idy,i_]>self.limit_values[parameter][i_,1]:
+								self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,1]
 
 	def smooth_parameters(self, cycleID):
 		from scipy.ndimage import gaussian_filter

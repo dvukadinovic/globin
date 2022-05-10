@@ -4,8 +4,6 @@ import copy
 import sys
 from scipy.ndimage import gaussian_filter
 
-import globin
-
 def get_func3(a,b,c,d):
     return lambda t: (1-t)*(1-t)*(1-t)*a + 3*(1-t)*(1-t)*t*b + 3*(1-t)*t*t*c + t*t*t*d
 
