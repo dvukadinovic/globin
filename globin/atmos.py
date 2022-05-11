@@ -170,6 +170,7 @@ class Atmosphere(object):
 		new.atm_name_list = copy.deepcopy(self.atm_name_list)
 		new.nodes = copy.deepcopy(self.nodes)
 		new.values = copy.deepcopy(self.values)
+		new.mode = copy.deepcopy(self.mode)
 		# if (globin.of_mode) and (globin.mode>=1):
 		try:
 			new.of_num = copy.deepcopy(self.of_num)
@@ -185,6 +186,7 @@ class Atmosphere(object):
 		except:
 			pass
 		new.global_pars = copy.deepcopy(self.global_pars)
+		new.line_no = copy.deepcopy(self.line_no)
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
 		new.line_lists_path = copy.deepcopy(self.line_lists_path)
@@ -458,9 +460,9 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 		
 		for parameter in pars:
-			if globin.mode==2:
+			if self.mode==2:
 				nx, ny = self.nx, self.ny
-			elif globin.mode==3:
+			elif self.mode==3:
 				nx, ny = 1,1
 
 			matrix = np.zeros((self.nx, self.ny, 2, self.line_no[parameter].size))
@@ -503,11 +505,12 @@ class Atmosphere(object):
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
-				low_ind = up_ind
-				up_ind += self.line_no[parameter].size
-				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-				np.nan_to_num(step, nan=0.0, copy=False)
-				self.global_pars[parameter] += step
+				if self.line_no[parameter].size > 0:
+					low_ind = up_ind
+					up_ind += self.line_no[parameter].size
+					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
+					np.nan_to_num(step, nan=0.0, copy=False)
+					self.global_pars[parameter] += step
 		else:
 			low_ind, up_ind = 0, 0
 			# update atmospheric parameters
@@ -527,11 +530,12 @@ class Atmosphere(object):
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
-				low_ind = up_ind
-				up_ind += self.global_pars[parameter].size
-				step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
-				np.nan_to_num(step, nan=0.0, copy=False)
-				self.global_pars[parameter] += step
+				if self.line_no[parameter].size > 0:
+					low_ind = up_ind
+					up_ind += self.global_pars[parameter].size
+					step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
+					np.nan_to_num(step, nan=0.0, copy=False)
+					self.global_pars[parameter] += step
 
 	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
@@ -572,19 +576,20 @@ class Atmosphere(object):
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]])
 				self.vmac = self.global_pars["vmac"]
 			else:
-				if mode==2:
-					nx, ny = self.nx, self.ny
-				elif mode==3:
-					nx, ny = 1,1
-				for idx in range(nx):
-					for idy in range(ny):
-						for i_ in range(self.line_no[parameter].size):
-							# minimum check
-							if self.global_pars[parameter][idx,idy,i_]<self.limit_values[parameter][i_,0]:
-								self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,0]
-							# maximum check
-							if self.global_pars[parameter][idx,idy,i_]>self.limit_values[parameter][i_,1]:
-								self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,1]
+				if self.line_no[parameter].size > 0:
+					if mode==2:
+						nx, ny = self.nx, self.ny
+					elif mode==3:
+						nx, ny = 1,1
+					for idx in range(nx):
+						for idy in range(ny):
+							for i_ in range(self.line_no[parameter].size):
+								# minimum check
+								if self.global_pars[parameter][idx,idy,i_]<self.limit_values[parameter][i_,0]:
+									self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,0]
+								# maximum check
+								if self.global_pars[parameter][idx,idy,i_]>self.limit_values[parameter][i_,1]:
+									self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,1]
 
 	def smooth_parameters(self, cycleID):
 		from scipy.ndimage import gaussian_filter
@@ -617,7 +622,7 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
-	def compute_spectra(self, skip):
+	def compute_spectra(self, skip=[]):
 		args = copy.deepcopy(self.ids_tuple)
 		for item in skip:
 			args.remove(item)
@@ -637,11 +642,24 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, arg):
 		# start = time.time()
 		idx, idy = arg
-		spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
-							  self.data[idx, idy, 2], self.data[idx, idy, 3], 
-							  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
-							  self.data[idx, idy, 6], self.data[idx, idy, 7],
-							  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy])
+		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
+			if self.mode==2:
+				_idx, _idy = idx, idy
+			elif self.mode==3:
+				_idx, _idy = 0, 0
+			spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
+								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
+								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
+								  self.data[idx, idy, 6], self.data[idx, idy, 7],
+								  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy])
+		else:
+			spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
+								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
+								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
+								  self.data[idx, idy, 6], self.data[idx, idy, 7],
+								  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  self.line_no["loggf"], self.global_pars["loggf"])
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
 		return {"spec": spec, "idx" : idx, "idy" : idy}
@@ -815,73 +833,42 @@ class Atmosphere(object):
 					free_par_ID += 1
 
 				elif parameter=="loggf" or parameter=="dlam":
-					perturbation = globin.delta[parameter]
+					if self.line_no[parameter].size > 0:
+						perturbation = self.delta[parameter]
 
-					for idp in range(self.line_no[parameter].size):
-						line_no = self.line_no[parameter][idp]
-						values = copy.deepcopy(self.global_pars[parameter][:,:,idp])
+						for idp in range(self.line_no[parameter].size):
+							model_plus.global_pars[parameter][...,idp] += perturbation
+							spec_plus = model_plus.compute_spectra(skip)
 
-						# positive perturbation
-						values += perturbation
-						# write atomic parameters in files
-						if globin.mode==2:
-							for idx in range(self.nx):
-								for idy in range(self.ny):	
-									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-									globin.write_line_par(fpath,
-														values[idx,idy], line_no, parameter)
-						elif globin.mode==3:
-							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
-						
-						spec_plus,_ = compute_spectra(self)
-						
-						# negative perturbation
-						values -= 2*perturbation
-						if globin.mode==2:
-							for idx in range(self.nx):
-								for idy in range(self.ny):	
-									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-									globin.write_line_par(fpath,
-														values[idx,idy], line_no, parameter)
-						elif globin.mode==3:
-							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
-						
-						spec_minus,_ = compute_spectra(self)
+							model_minus.global_pars[parameter][...,idp] -= perturbation
+							spec_minus = model_minus.compute_spectra(skip)
 
-						diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
-						diff *= globin.weights
-						diff /= rf_noise_scale
+							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+							diff *= weights
+							diff /= rf_noise_scale
 
-						if globin.mode==2:
-							scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
-							for idx in range(self.nx):
-								for idy in range(self.ny):
-									if not np.isnan(np.sum(scale[idx,idy])):
-										globin.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
-									else:
-										globin.parameter_scale[parameter][idx,idy,idp] = 1
-						elif globin.mode==3:
-							scale = np.sqrt(np.sum(diff**2))
-							globin.parameter_scale[parameter][...,idp] = scale
+							if self.mode==2:
+								scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
+								for idx in range(self.nx):
+									for idy in range(self.ny):
+										if not np.isnan(np.sum(scale[idx,idy])):
+											self.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
+										else:
+											self.parameter_scale[parameter][idx,idy,idp] = 1
+							elif self.mode==3:
+								scale = np.sqrt(np.sum(diff**2))
+								self.parameter_scale[parameter][...,idp] = scale
 
-						if globin.mode==2:
-							for idx in range(self.nx):
-								for idy in range(self.ny):
-									rf[idx,idy,free_par_ID] = diff[idx,idy] / globin.parameter_scale[parameter][idx,idy,idp]
-						elif globin.mode==3:
-							rf[:,:,free_par_ID,:,:] = diff / globin.parameter_scale[parameter][0,0,idp]	
-						free_par_ID += 1
-						
-						# return perturbation back
-						values += perturbation
-						if globin.mode==2:
-							for idx in range(self.nx):
-								for idy in range(self.ny):
-									fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"	
-									globin.write_line_par(fpath,
-														values[idx,idy], line_no, parameter)
-						elif globin.mode==3:
-							globin.write_line_par(self.line_lists_path[0], values[0,0], line_no, parameter)
+							if self.mode==2:
+								for idx in range(self.nx):
+									for idy in range(self.ny):
+										rf[idx,idy,free_par_ID] = diff[idx,idy] / self.parameter_scale[parameter][idx,idy,idp]
+							elif self.mode==3:
+								rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter][0,0,idp]
+							free_par_ID += 1
+							
+							model_plus.global_pars[parameter][...,idp] -= perturbation
+							model_minus.global_pars[parameter][...,idp] += perturbation
 
 		#--- broaden the spectra
 		if not mean:

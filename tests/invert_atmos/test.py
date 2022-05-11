@@ -10,7 +10,7 @@ inverter = globin.Inverter()
 inverter.read_input(run_name="pryh_test")
 spec = inverter.run()
 
-# sys.exit()
+sys.exit()
 
 # import timeit
 # def fun():

@@ -35,6 +35,9 @@ class Spectrum(object):
 			self.wavelength = np.zeros(nw)
 			self.wavelength[:] = np.nan
 
+		self.xmin, self.xmax = 0, None
+		self.ymin, self.ymax = 0, None
+
 	def list_spectra(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
