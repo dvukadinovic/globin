@@ -283,6 +283,9 @@ class InputData(object):
 					elements.append((parameter, aux))
 				self.atmos_debug = dict(elements)
 
+		if "temp" in self.atmosphere.nodes:
+			self.atmosphere.hydrostatic = True
+
 		#--- missing parameters
 		# instrument broadening: R or instrument profile provided
 		# strailight contribution

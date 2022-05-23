@@ -21,6 +21,8 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import multiprocessing as mp
 
+import pyrh
+
 # from .input import read_multi, read_spinor, read_inverted_atmosphere
 
 # import globin
@@ -91,6 +93,8 @@ class Atmosphere(object):
 		self.atm_name_list = []
 		# parameter scaling for inversino
 		self.parameter_scale = {}
+
+		self.hydrostatic = False
 
 		# self.atmosphere.RH = pyrh.RH()
 		# self.atmosphere.n_thread = self.n_thread
@@ -307,27 +311,43 @@ class Atmosphere(object):
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
 				atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
-		# if globin.hydrostatic:
+		# if atmos.hydrostatic:
 		# 	# atmos.makeHSE_old(idx, idy)
-		# 	atmos.makeHSE(idx, idy)
+		# 	atmos.makeHSE_new(idx, idy)
 
 		return atmos
 
-	def makeHSE(self, idx, idy):
-		press, pel, kappa, rho = globin.makeHSE(5000, self.data[idx,idy,0], self.data[idx,idy,1])
-		
-		# electron density [1/cm3]
-		self.data[idx,idy,2] = pel/10/globin.K_BOLTZMAN/self.data[idx,idy,1]/1e6
+	def makeHSE(self):
+		args = copy.deepcopy(self.ids_tuple)
 
-		# # Hydrogen populations [1/cm3]
-		self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], press, pel)
-	
-	def makeHSE_new(self, idx, idy):
-		aux = pyrh.RH(argc, argv)
-		pops = aux.setHSE(self.nz)
+		with mp.Pool(self.n_thread) as pool:
+			pops = pool.map(func=self._makeHSE, iterable=args)
 
-		self.data[idx,idy,2] = pops.ne / 1e6 # [1/m3 --> 1/cm3] right?
-		self.data[idx,idy,8:] = pops.nH / 1e6 # [1/m3 --> 1/cm3] right?
+		# we need to assign built atmosphere structure to self atmosphere
+		# otherwise self.data would be only 0's.
+		for item in pops:
+			ne, nH = item["ne"], item["nH"]
+			idx, idy = item["idx"], item["idy"]
+			# idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
+			self.data[idx,idy,2] = ne
+			self.data[idx,idy,8:] = nH
+
+	def _makeHSE(self, arg):
+		fudge_num = 2
+		fudge_lam = np.linspace(401.5, 401.7, num=fudge_num, dtype=np.float64)
+		fudge = np.ones((3, fudge_num), dtype=np.float64)
+
+		idx, idy = arg
+
+		ne, nH = self.RH.hse(0, self.data[idx, idy, 0], self.data[idx, idy, 1], self.data[idx, idy, 2],
+                   self.data[idx, idy, 3], self.data[idx, idy, 4],
+                   self.data[idx, idy, 5] / 1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
+                   self.data[idx, idy, 8:], 0, fudge_lam, fudge)
+
+		return {"ne" : ne/1e6, "nH" : nH/1e6, "idx" : idx, "idy" : idy}
+
+		# self.data[idx,idy,2] = ne / 1e6 # [1/m3 --> 1/cm3]
+		# self.data[idx,idy,8:] = nH / 1e6 # [1/m3 --> 1/cm3]
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
@@ -683,6 +703,8 @@ class Atmosphere(object):
 		"""
 		#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 		self.build_from_nodes()
+		if self.hydrostatic:
+			self.makeHSE()
 		spec = self.compute_spectra(skip)
 		Nw = spec.nw
 

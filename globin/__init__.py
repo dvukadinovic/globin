@@ -22,7 +22,7 @@ import sys
 try:
 	import pyrh
 except ImportError:
-	sys.exit("No module 'pyrh'. Install the module first before using 'globin'")
+	sys.exit("No module 'pyrh'. Install the module first before using 'globin'.")
 
 # from .container import Globin
 from .inversion import Inverter
