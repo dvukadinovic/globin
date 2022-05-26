@@ -34,6 +34,7 @@ class SpectrumFrame(ttk.Frame):
 		self.inverted_spectrum = None
 		self.observed_spectrum = None
 		self.map_window = None
+		self.compare_window = None
 
 		button = tk.Button(self, text="Inverted spectrum...", command=self.load_inverted_spectrum,
 					width=20)
@@ -73,33 +74,33 @@ class SpectrumFrame(ttk.Frame):
 		button = tk.Button(self, text="Plot map(s)", command=self.plot_spectral_maps)
 		button.grid(column=0, row=4, sticky="W")
 
-		label = tk.Label(self, text="logt")
+		label = tk.Label(self, text="lam0")
 		label.grid(column=0, row=5, sticky="E")
 		self.logtau = tk.StringVar("")
 		entry = tk.Entry(self, textvariable=self.logtau)
 		entry.grid(column=1, row=5, sticky="W")
-
-		label = tk.Label(self, text="lam0")
-		label.grid(column=0, row=6, sticky="E")
-		self.logtau = tk.StringVar("")
-		entry = tk.Entry(self, textvariable=self.logtau)
-		entry.grid(column=1, row=6, sticky="W")
 
 		#--- compare
 		button = tk.Button(self, text="Compare", command=self.compare_1D_spectra)
 		button.grid(column=1, row=4, sticky="W")
 
 		label = tk.Label(self, text="X")
-		label.grid(column=0, row=7, sticky="E")
+		label.grid(column=0, row=6, sticky="E")
 		self.idx = tk.StringVar("")
 		entry = tk.Entry(self, textvariable=self.idx)
-		entry.grid(column=1, row=7, sticky="W")
+		entry.grid(column=1, row=6, sticky="W")
 
 		label = tk.Label(self, text="Y")
-		label.grid(column=0, row=8, sticky="E")
+		label.grid(column=0, row=7, sticky="E")
 		self.Y = tk.StringVar("")
 		entry = tk.Entry(self, textvariable=self.Y)
-		entry.grid(column=1, row=8, sticky="W")
+		entry.grid(column=1, row=7, sticky="W")
+
+		#--- should resize widgets with window, but...
+		# for idc in range(3):
+		# 	self.grid_columnconfigure(idc, weight=1)
+		# for idr in range(8):
+		# 	self.grid_rowconfigure(idr, weight=1)
 
 	def load_inverted_spectrum(self):
 		if (self.inverted_spectrum is not None):
@@ -192,8 +193,10 @@ class SpectrumFrame(ttk.Frame):
 					 icon="error")
 			return None, None
 
-	def map_mouse_click(self):
-		pass
+	def map_mouse_click(self, event):
+		if (event.xdata is not None) and (event.ydata is not None):
+			idx, idy = int(event.xdata + 0.5), int(event.ydata + 0.5)
+			self.compare_1D_spectra(idx, idy)
 
 	def plot_spectral_maps(self):
 		if self.inv_flag.get() and (self.inverted_spectrum is not None):
@@ -225,6 +228,8 @@ class SpectrumFrame(ttk.Frame):
 		canvas = FigureCanvasTkAgg(figure, self.map_window)
 		canvas.get_tk_widget().grid(column=0, row=0, padx=PADX, pady=PADY)
 
+		# toolbar = NavigationToolbar2Tk(canvas, self).grid(column=0, row=1, padx=PADX, pady=PADY, sticky="N")
+
 		# create map
 		gs = figure.add_gridspec(ncols=ncols, nrows=nrows)
 		for idx in range(nrows):
@@ -239,12 +244,47 @@ class SpectrumFrame(ttk.Frame):
 
 		canvas.draw()
 
-		figure.canvas.callbacks.connect('button_press_event', self.map_window.map_mouse_click)
+		figure.canvas.callbacks.connect('button_press_event', self.map_mouse_click)
 
-	def compare_1D_spectra(self):
+	def compare_1D_spectra(self, idx=0, idy=0):
 		if (self.inverted_spectrum is None) or \
 		   (self.observed_spectrum is None):
-			showinfo(title="1D spectrum cmpare",
+			showinfo(title="1D spectrum compare",
 					 message="Observed/inverted spectra is missing.",
 					 icon="error")
 			return None
+
+		nrows, ncols = self._get_map_layout()
+		if nrows is None:
+			return None
+
+		if self.compare_window is not None:
+			self.compare_window.destroy()
+			self.compare_window.update()
+
+		wave = self.inverted_spectrum.wavelength
+
+		width = ncols*4 + 1
+		height = nrows*4 + 1
+		figure = Figure(figsize=(width, height), dpi=90)
+
+		# create FigureCanvasTkAgg object
+		self.compare_window = TopWindow(self)
+		canvas = FigureCanvasTkAgg(figure, self.compare_window)
+		canvas.get_tk_widget().grid(column=0, row=0, padx=PADX, pady=PADY)
+
+		gs = figure.add_gridspec(ncols=ncols, nrows=nrows)
+		for idx in range(nrows):
+			for idy in range(ncols):
+				ida = idx * ncols + idy
+				ax = figure.add_subplot(gs[idx,idy])
+
+				ids = IDS[self.stokes[ida]]
+
+				ax.set_title(TITLE[self.stokes[ida]])
+
+				ax.plot(wave, self.observed_spectrum.spec[idx,idy,:,ids], color="black")
+				ax.plot(wave, self.inverted_spectrum.spec[idx,idy,:,ids], color="tab:red")
+				ax.set_xlim([min(wave), max(wave)])
+
+		canvas.draw()
