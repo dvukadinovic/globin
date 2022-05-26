@@ -1,23 +1,27 @@
 import tkinter as tk
-from astropy.io import fits
+from tkinter import ttk
 
-"""
-At start we have small window with TextBox's and Button.
-Additionally, we initialize the window for plotting to which
-we draw everything.
+from spectrum_frame import SpectrumFrame
+from atmosphere_frame import AtmosphereFrame
 
-This figure will be cleared before we replot something else.
+from constants import PADX, PADY
 
-Field for path to observed spectrum.
-Field for path to inverted spectrum (optional).
-Field for path to atmosphere.
-Field for path to inverted atmosphere (optional).
+class MainWindow(tk.Tk):
+	def __init__(self):
+		super().__init__()
+		# self.geometry(width=615, height=180)
 
-Plot options:
-	-- which Stokes components we plot (single or all)
-	-- which atmospheric parameter we plot (one or more)
+		container = ttk.Frame(self)
+		container.grid(column=0, row=1, padx=PADX, pady=PADY, sticky="EW")
 
-Field for picking the pixel position to plot.
+		self.spec_frame = SpectrumFrame(container, self)
+		self.spec_frame.grid(column=0, row=0, padx=PADX, pady=PADY, sticky="N")
 
-Button to generate the spectrum in separate window.
-"""
+		# sep = ttk.Separator(container, orient="vertical")
+		# sep.pack()
+
+		self.atmos_frame = AtmosphereFrame(container, self)
+		self.atmos_frame.grid(column=2, row=0, padx=PADX, pady=PADY, sticky="N")
+
+app = MainWindow()
+app.mainloop()
