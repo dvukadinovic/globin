@@ -246,6 +246,11 @@ class InputData(object):
 			# create arrays to be passed to RH for synthesis
 			self.atmosphere.of_scatter = self.of_scatter
 			self.atmosphere.make_OF_table(self.wavelength_vacuum)
+		else:
+			self.atmosphere.do_fudge = 0
+			self.atmosphere.fudge_lam = np.array([], dtype=np.float64)
+			self.atmosphere.fudge = np.ones((self.atmosphere.nx, self.atmosphere.ny, 3, 0), 
+											dtype=np.float64)
 
 		if self.mean:
 			if len(self.mac_vel)==1:

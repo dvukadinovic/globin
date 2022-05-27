@@ -60,13 +60,8 @@ class Inverter(InputData):
 			if self.mode>=1:
 				self.atmosphere.interp_degree = self.interp_degree
 			
-			if self.do_fudge:
-				self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
-			else:
-				self.atmosphere.do_fudge = 0
-				self.atmosphere.fudge_lam = np.array([], dtype=np.float64)
-				self.atmosphere.fudge = np.ones((self.atmosphere.nx, self.atmosphere.ny, 3, 0), 
-												dtype=np.float64)
+			self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
+
 		else:
 			if rh_input_name is None:
 				print(f"  There is no path for globin input file.")
@@ -105,7 +100,7 @@ class Inverter(InputData):
 			print("\n  Entering synthesis mode.")
 			spec = self.atmosphere.compute_spectra(skip=skip)
 			spec.save(self.output_spectra_path, self.wavelength_air)
-			return spec
+			return self.atmosphere, spec
 			print("\n  Done!")
 		else:
 			print("\n  Unrecognized mode of operation. Check again and run the script.")

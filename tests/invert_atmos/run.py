@@ -20,7 +20,7 @@ inverter = globin.Inverter()
 inverter.read_input(run_name="dummy")
 atmos, inv_spec = inverter.run()
 
-plt.plot(inverter.observation.spec[0,0,:,0])
+# plt.plot(inverter.observation.spec[0,0,:,0])
 plt.plot(inv_spec.spec[0,0,:,0])
 plt.show()
 

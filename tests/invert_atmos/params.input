@@ -7,7 +7,7 @@
 #--- General parameters
 n_thread = 6
 interp_deree = 3
-mode = 1
+mode = 0
 debug = False
 
 #--- Spectra to be fitted

@@ -671,7 +671,8 @@ class Atmosphere(object):
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
 								  self.data[idx, idy, 6], self.data[idx, idy, 7],
-								  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  self.data[idx, idy, 8:], self.wavelength_vacuum,
+								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
@@ -679,7 +680,8 @@ class Atmosphere(object):
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
 								  self.data[idx, idy, 6], self.data[idx, idy, 7],
-								  self.data[idx, idy, 8:], self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  self.data[idx, idy, 8:], self.wavelength_vacuum,
+								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
