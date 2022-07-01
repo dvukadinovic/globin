@@ -15,6 +15,8 @@ from .input import InputData
 from .visualize import plot_spectra
 from .tools import save_chi2
 
+import globin
+
 def pretty_print_parameters(atmos, conv_flag, mode):
 	for parameter in atmos.values:
 		print(parameter)
@@ -55,12 +57,14 @@ class Inverter(InputData):
 			self.atmosphere.n_thread = self.n_thread
 			self.atmosphere.temp_tck = self.falc.temp_tck
 			self.atmosphere.mode = self.mode
-			
+			self.atmosphere.norm = self.norm
+
 			# fudge data
 			if self.mode>=1:
 				self.atmosphere.interp_degree = self.interp_degree
 			
 			self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
+			# self.atmosphere.wavelength = self.wavelength
 
 		else:
 			if rh_input_name is None:
@@ -138,7 +142,11 @@ class Inverter(InputData):
 			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
 
 		if self.norm:
-			get_Icont()
+			icont = get_Icont()
+			nx, ny, = atmos.nx, atmos.ny
+			nw = len(atmos.wavelength_vacuum)
+			atmos.icont = np.ones((nx, ny, nw, 4))
+			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 
 		# flags those pixels whose chi2 converged:
 		#   1 --> we do inversion
@@ -266,6 +274,7 @@ class Inverter(InputData):
 
 				# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
 				# plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# plt.plot(obs.spec[0,0,:,0])
 				# plt.show()
 
 				#--- scale RFs with weights and noise scale
@@ -319,7 +328,7 @@ class Inverter(InputData):
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 
 			# proposed_steps = (nx, ny, npar)
-			proposed_steps = svd_invert(H, delta, stop_flag)
+			proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
 			# proposed_steps = np.linalg.solve(H, delta)
 			# sys.exit()
 
@@ -890,7 +899,7 @@ class Inverter(InputData):
 
 		return atmos, inverted_spectra
 
-def svd_invert(H, delta, stop_flag):
+def svd_invert(H, delta, stop_flag, svd_tolerance):
 	nx, ny, npar, _ = H.shape
 
 	one = np.ones(npar)
@@ -904,7 +913,7 @@ def svd_invert(H, delta, stop_flag):
 				det = np.linalg.det(H[idx,idy])
 				if det==0:
 					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-					vmax = globin.svd_tolerance*np.max(eigen_vals)
+					vmax = svd_tolerance*np.max(eigen_vals)
 					inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
 					Gamma_inv = np.diag(inv_eigen_vals)
 					invHess = np.dot(u, np.dot(Gamma_inv, vh))

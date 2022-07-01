@@ -18,7 +18,7 @@ from .rh import write_wavs
 from .utils import _set_keyword, _slice_line, construct_atmosphere_from_nodes
 from .container import Globin
 
-# import globin
+import globin
 
 class RHInput(object):
 	"""
@@ -148,7 +148,7 @@ class InputData(object):
 			self.lmin = min(wavetable)
 			self.lmax = max(wavetable)
 			self.step = wavetable[1] - wavetable[0]
-			self.interpolate_obs = True
+			# self.interpolate_obs = True
 		else:
 			self.lmin /= 10
 			self.lmax /= 10
@@ -350,7 +350,7 @@ class InputData(object):
 		#--- optional parameters
 		path_to_atmosphere = _find_value_by_key("cube_atmosphere", self.parameters_input, "optional")
 		if path_to_atmosphere is not None:
-			self.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
+			self.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=[0,None,0,None],
 						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 		# if user have not provided reference atmosphere try fidning node atmosphere
 		else:

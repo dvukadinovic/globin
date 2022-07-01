@@ -3,7 +3,7 @@ Script for pool functions passed to multiprocessing module
 for on thread distribution of workload.
 """
 
-from .atmos import write_multi_atmosphere, extract_spectra_and_atmospheres
+# from .atmos import write_multi_atmosphere, extract_spectra_and_atmospheres
 import time
 import multiprocessing as mp
 import subprocess as sp

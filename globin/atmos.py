@@ -25,7 +25,8 @@ import pyrh
 
 # from .input import read_multi, read_spinor, read_inverted_atmosphere
 
-# import globin
+import globin
+from .mppools import pool_spinor2multi
 
 from .tools import bezier_spline
 
@@ -61,11 +62,11 @@ class Atmosphere(object):
 					  "chi"    : 7}
 
 	#--- limit values for atmospheric parameters
-	limit_values = {"temp"  : [3000, 10000], 		# [K]
+	limit_values = {"temp"  : [2800, 10000], 		# [K]
 				"vz"    : [-10, 10],			# [km/s]
 				"vmic"  : [1e-3, 10],			# [km/s]
 				"vmac"  : [0, 5],				# [km/s]
-				"mag"   : [1, 10000],			# [G]
+				"mag"   : [1, 15000],			# [G]
 				"of"    : [0, 20],
 				"gamma" : [-np.pi, np.pi],	# [rad]
 				# "gamma" : [-0.999999, 0.999999],
@@ -117,12 +118,23 @@ class Atmosphere(object):
 		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {}
 		# line number in list of lines for which we are inverting atomic data
-		self.line_no = {}
+		self.line_no = {"loggf" : np.array([], dtype=np.int32), "dlam" : np.array([], dtype=np.int32)}
+		self.global_pars = {"loggf" : np.array([]), "dlam" : np.array([])}
+
+		self.do_fudge = 0
+		self.fudge_lam = np.linspace(400, 500, num=3)
+		self.fudge = np.ones((1, 1, 3, 3))
+		self.of_scatter = 1
+
+		self.ids_tuple = [(0,0)]
+		self.n_thread = 1
 
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
 		self.ymin = atm_range[2]
 		self.ymax = atm_range[3]
+
+		self.norm = False
 
 		self.npar = 14
 
@@ -175,6 +187,9 @@ class Atmosphere(object):
 		new.nodes = copy.deepcopy(self.nodes)
 		new.values = copy.deepcopy(self.values)
 		new.mode = copy.deepcopy(self.mode)
+		new.norm = copy.deepcopy(self.norm)
+		if self.norm:
+			new.icont = copy.deepcopy(self.icont)
 		# if (globin.of_mode) and (globin.mode>=1):
 		try:
 			new.of_num = copy.deepcopy(self.of_num)
@@ -187,6 +202,10 @@ class Atmosphere(object):
 			new.fudge = copy.deepcopy(self.fudge)
 			new.of_scatter = copy.deepcopy(self.of_scatter)
 			new.wavelength_vacuum = copy.deepcopy(self.wavelength_vacuum)
+		except:
+			pass
+		try:
+			new.wavelength = copy.deepcopy(self.wavelength)
 		except:
 			pass
 		new.global_pars = copy.deepcopy(self.global_pars)
@@ -343,7 +362,6 @@ class Atmosphere(object):
                    self.data[idx, idy, 3], self.data[idx, idy, 4],
                    self.data[idx, idy, 5] / 1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
                    self.data[idx, idy, 8:], 0, fudge_lam, fudge)
-
 		return {"ne" : ne/1e6, "nH" : nH/1e6, "idx" : idx, "idy" : idy}
 
 		# self.data[idx,idy,2] = ne / 1e6 # [1/m3 --> 1/cm3]
@@ -657,6 +675,11 @@ class Atmosphere(object):
 			self.spectra.spec[idx,idy,:,2] = spectra[i_]["spec"].U
 			self.spectra.spec[idx,idy,:,3] = spectra[i_]["spec"].V
 
+		if self.norm:
+			self.spectra.spec /= self.icont
+
+		self.spectra.wavelength = self.wavelength_vacuum
+
 		return self.spectra
 
 	def _compute_spectra_sequential(self, arg):
@@ -899,7 +922,7 @@ class Atmosphere(object):
 		#--- broaden the spectra
 		if not mean:
 			spec.broaden_spectra(self.vmac)
-			rf = broaden_rfs(rf, self.vmac, skip_par)
+			rf = broaden_rfs(rf, self.vmac, self.wavelength_vacuum, skip_par)
 
 		# for idy in range(atmos.ny):
 		# 	plt.figure(1)
@@ -1262,14 +1285,14 @@ def compute_spectra(atmos):
 
 	return spectra, atmospheres
 
-def broaden_rfs(rf, vmac, skip_par):
+def broaden_rfs(rf, vmac, wavelength, skip_par):
 	if vmac==0:
 		return rf
 
 	nx, ny, npar, nw, ns = rf.shape
 
-	step = globin.wavelength[1] - globin.wavelength[0]
-	kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (globin.wavelength[0] + globin.wavelength[-1])*0.5 / step
+	step = wavelength[1] - wavelength[0]
+	kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (wavelength[0] + wavelength[-1])*0.5 / step
 
 	# we assume equidistant seprataion
 	radius = int(4*kernel_sigma + 0.5)
@@ -1627,7 +1650,7 @@ def spinor2multi(atmos_data, do_HSE=False, nproc=1):
 	except:
 		import multiprocessing as mp
 		with mp.Pool(nproc) as pool:
-			items = pool.map(func=globin.pool_spinor2multi, iterable=args)
+			items = pool.map(func=pool_spinor2multi, iterable=args)
 	print("Done!")
 
 	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
@@ -1826,7 +1849,7 @@ def read_spinor(fpath):
 	# atmos.logtau = atmos_data[0]
 	# atmos.data = atmos_data
 	
-	atmos = globin.atmos.convert_atmosphere(atmos_data[0], atmos_data, "spinor")
+	atmos = convert_atmosphere(atmos_data[0], atmos_data, "spinor")
 
 	return atmos
 
