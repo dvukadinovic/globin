@@ -18,18 +18,18 @@ from .tools import save_chi2
 import globin
 
 def pretty_print_parameters(atmos, conv_flag, mode):
+	Npar = atmos.nx*atmos.ny
+	if Npar>40:
+		return
+
 	for parameter in atmos.values:
 		print(parameter)
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
 				if conv_flag[idx,idy]==1:
 					if parameter=="gamma":
-						# print(f"[{idx+1},{idy+1}] --> ", 2*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
-						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					elif parameter=="chi":
-						# print(f"[{idx+1},{idy+1}] --> ", 4*np.arctan(atmos.values[parameter][idx,idy]) * 180/np.pi)
-						# print(f"[{idx+1},{idy+1}] --> ", np.arccos(atmos.values[parameter][idx,idy]) * 180/np.pi)
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
 					else:
 						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
@@ -137,7 +137,7 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		
+
 
 		LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * self.marq_lambda
 		if self.debug:

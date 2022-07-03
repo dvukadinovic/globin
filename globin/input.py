@@ -846,8 +846,11 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				try:
 					inds[idx,idy] = argrelextrema(x[idx,idy], np.less, order=3)[0][0]
 				except:
-					print(idx,idy)
-					sys.exit()
+					# plt.plot(x[idx,idy])
+					# plt.show()
+					# print(idx,idy)
+					# sys.exit()
+					inds[idx,idy] = np.argmin(x[idx,idy])
 		return inds
 
 	obs = copy.deepcopy(obs_in)
@@ -934,17 +937,22 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			for idy in range(atmos.ny):
 				mmin = ind_min[idx,idy]
 				mmax = ind_max[idx,idy]
-				try:
+				if mmin!=np.nan and mmax!=np.nan:
 					x[idx,idy] = obs.wavelength[mmin:mmax]
 					si[idx,idy] = obs.spec[idx,idy,mmin:mmax,0]
 					sq[idx,idy] = obs.spec[idx,idy,mmin:mmax,1]
 					su[idx,idy] = obs.spec[idx,idy,mmin:mmax,2]
 					sv[idx,idy] = obs.spec[idx,idy,mmin:mmax,3]
-				except:
-					print(idx,idy)
-					print(mmin, mmax)
+				else:
+					x[idx,idy] = np.nan
+					si[idx,idy] = np.nan
+					sq[idx,idy] = np.nan
+					su[idx,idy] = np.nan
+					sv[idx,idy] = np.nan
+					# print(idx,idy)
+					# print(mmin, mmax)
 					
-					sys.exit()
+					# sys.exit()
 
 		# for idx in range(atmos.nx):
 		# 	for idy in range(atmos.ny):
