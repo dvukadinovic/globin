@@ -1,0 +1,7 @@
+BUTTON_WIDTH = 24
+BUTTON_HEIGHT = 24
+
+FONT = ("Arial", 12, "bold")
+
+PADX = 3
+PADY = 3
