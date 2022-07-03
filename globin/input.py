@@ -424,9 +424,9 @@ class InputData(object):
 			self.atmosphere.hydrostatic = True
 
 		#--- initialize the vz, mag and azimuth based on CoG and WFA methods (optional)
-		# fpath = _find_value_by_key("lines2atm", obj.parameters_input, "optional")
-		# if fpath:
-		# 	initialize_atmos_pars(obj.atmosphere, obj.observation, fpath)
+		fpath = _find_value_by_key("lines2atm", self.parameters_input, "optional")
+		if fpath:
+			initialize_atmos_pars(self.atmosphere, self.observation, fpath, norm=False)
 
 	def read_mode_2(self):
 		#--- Kurucz line list for given spectral region
@@ -853,13 +853,16 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 	obs = copy.deepcopy(obs_in)
 	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
+
 	if norm:
-		if globin.norm:
-			obs.norm()
-		else:
-			globin.norm = True
-			obs.norm()
-			globin.norm = False
+		icont = obs.spec[:,:,0,0]
+		obs.spec = np.einsum("ijkl,ij->ijkl", obs.spec, 1/icont)
+		# if atmos.norm:
+		# 	obs_in.norm()
+		# else:
+		# 	atmos.norm = True
+		# 	obs_in.norm()
+		# 	atmos.norm = False
 
 	lines = open(fpath).readlines()
 	lines = [line.rstrip("\n") for line in lines if (len(line.rstrip("\n"))>0) and ("#" not in line)]
