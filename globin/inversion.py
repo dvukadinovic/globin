@@ -3,6 +3,7 @@ import sys
 import os
 import copy
 import time
+from datetime import datetime
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
@@ -19,6 +20,8 @@ import globin
 
 def pretty_print_parameters(atmos, conv_flag, mode):
 	Npar = atmos.nx*atmos.ny
+	t0 = datetime.now()
+	print(f"[{t0.isoformat(sep=' ', timespec='seconds')}]")
 	if Npar>40:
 		return
 
