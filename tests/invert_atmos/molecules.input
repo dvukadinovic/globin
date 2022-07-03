@@ -5,17 +5,17 @@
 
 # model file
 
-  ../../Molecules/H2.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/H2+.molecule     PASSIVE    LTE_POPULATIONS
-  ../../Molecules/C2.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/N2.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/O2.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/CH.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/CO.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/CN.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/NH.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/NO.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/OH.molecule      PASSIVE    LTE_POPULATIONS
-  ../../Molecules/H2O.molecule     PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/H2.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/H2+.molecule     PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/C2.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/N2.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/O2.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/CH.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/CO.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/CN.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/NH.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/NO.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/OH.molecule      PASSIVE    LTE_POPULATIONS
+  /media/dusan/storage/RH/pyrh/rh/Molecules/H2O.molecule     PASSIVE    LTE_POPULATIONS
 
 #end

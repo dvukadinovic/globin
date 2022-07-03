@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 -WARNING in routine readValues
  Overriding default value NONE for keyword SOLVE_NE with NONE
@@ -58,3 +59,5 @@ Read 18 Kurucz lines from file /home/dusan/Documents/globin/tests/invert_atmos/r
  Spectrum max delta J = 1.0000E+00 (lambda#: 0)
 
  -- Iteration   1
+=======
+>>>>>>> bc52f3f84ae4c7302d4c5b5d886e73db197cde82

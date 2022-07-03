@@ -3,7 +3,7 @@ Script for pool functions passed to multiprocessing module
 for on thread distribution of workload.
 """
 
-from .atmos import write_multi_atmosphere, extract_spectra_and_atmospheres
+# from .atmos import write_multi_atmosphere, extract_spectra_and_atmospheres
 import time
 import multiprocessing as mp
 import subprocess as sp
@@ -18,67 +18,6 @@ def pool_write_atmosphere(args):
 	atmos, idx, idy = args
 	fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
 	write_multi_atmosphere(atmos.data[idx,idy], fpath)
-
-def pool_build_from_nodes(args):
-	atmos, idx, idy, save_atmos = args
-
-	for parameter in atmos.nodes:
-		if parameter!="of":
-			# K0, Kn by default; True for vmic, mag, gamma and chi
-			K0, Kn = 0, 0
-
-			x = atmos.nodes[parameter]
-			y = atmos.values[parameter][idx,idy]
-
-			if parameter=="temp":
-				if len(x)>=2:
-					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					# check if extrapolation at the top atmosphere point goes below the minimum
-					# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
-					if globin.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (globin.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
-				# bottom node slope for extrapolation based on temperature gradient from FAL C model
-				Kn = splev(x[-1], globin.temp_tck, der=1)
-				# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
-				# print(Kn, Knp)
-			# we do tan(gamma/2) interpolation (as in inversion)
-			# elif (parameter=="gamma"):
-			# 	if len(x)>=2:
-			# 		K0 = (y[1]-y[0]) / (x[1]-x[0])
-			# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-			# # we do tan(chi/4) interpolation (as in inversion)
-			# elif (parameter=="chi"):
-			# 	if len(x)>=2:
-			# 		K0 = (y[1]-y[0]) / (x[1]-x[0])
-			# 		Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-			elif (parameter=="gamma") or (parameter=="chi") or (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
-				if len(x)>=2:
-					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-					# check if extrapolation at the top atmosphere point goes below the minimum
-					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-					if globin.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (globin.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
-					elif globin.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (globin.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
-					# similar for the bottom for maximum/min values
-					if globin.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-						Kn = (globin.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-					elif globin.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-						Kn = (globin.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-
-			y_new = globin.bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=globin.interp_degree)
-			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
-
-	if globin.hydrostatic:
-		# atmos.makeHSE_old(idx, idy)
-		atmos.makeHSE(idx, idy)
-
-	if save_atmos:
-		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-		write_multi_atmosphere(atmos.data[idx,idy], fpath)
-
-	return atmos
 
 # obsolete
 def pool_rf(args):

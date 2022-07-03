@@ -8,7 +8,8 @@
 # (both KEYWORD_REQUIRED).
 
   ATMOS_FILE = ../../Atmos/FALC_tau_scale.atmos
-  ABUND_FILE = ../../Atoms/abundance.input
+  #ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
+  ABUND_FILE = /media/dusan/storage/RH/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
@@ -18,13 +19,18 @@
 
   ATOMS_FILE = atoms.input
 
+# Barklem tables for the collisional coefficients
+  BARKLEM_SP_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_spdata.dat
+  BARKLEM_PD_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_pddata.dat
+  BARKLEM_DF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_dfdata.dat
+
 # Input file for all molecules (KEYWORD_REQUIRED).
 
   MOLECULES_FILE = molecules.input
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = ../../Atoms/wave_files/win_4015_two_lines.wave
+  WAVETABLE = spinor.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
@@ -103,7 +109,8 @@
 # type KEYWORD_DEFAULT
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
-  KURUCZ_PF_DATA = ../../Atoms/pf_Kurucz.input
+  #KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
+  KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
   SOLVE_NE = NONE
   RLK_SCATTER = FALSE
@@ -122,8 +129,8 @@
 # OF_SASHA if opacity fudge factors from Shapiro+10 should be used
 # (added on 03/04/2020 by D.Vukadinovic); it does not show any infulence.
 
- OPACITY_FUDGE = ../../Atmos/opacity_fudge.input
-#  OPACITY_FUDGE = ../../Atmos/of_test
+# OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
+#  OPACITY_FUDGE = of.data
 #  OF_SASHA = ../../Atmos/of_sasha.dat
 #  LINE_FUDGE = TRUE
 

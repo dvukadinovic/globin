@@ -5,10 +5,26 @@ import sys
 
 import globin
 
+# atmos = globin.Atmosphere("atmos.fits")
+# atmos.makeHSE_new(0,0)
+# atmos.save_atmosphere("atmos_HSE_pyrh.fits")
+
+# sys.exit()
+
 # run_name = "m1"
 # chi2 = fits.open(f"runs/{run_name}/chi2.fits")[0].data
 # globin.plot_chi2(chi2, f"runs/{run_name}/chi2.png", True)
 # sys.exit()
+
+inverter = globin.Inverter()
+inverter.read_input(run_name="dummy")
+atmos, inv_spec = inverter.run()
+
+# plt.plot(inverter.observation.spec[0,0,:,0])
+plt.plot(inv_spec.spec[0,0,:,0])
+plt.show()
+
+sys.exit()
 
 #--- initialize input object and read input files
 run_name = "dummy"

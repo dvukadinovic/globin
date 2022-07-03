@@ -35,6 +35,17 @@ class Spectrum(object):
 			self.wavelength = np.zeros(nw)
 			self.wavelength[:] = np.nan
 
+		self.xmin, self.xmax = 0, None
+		self.ymin, self.ymax = 0, None
+
+	def list_spectra(self):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				yield self.spec[idx,idy]
+
+	def generate_list(self):
+		self.spectrum_list = [spec for spec in self.list_spectra()]
+
 	def add_noise(self, noise):
 		self.noise = noise
 
@@ -240,18 +251,34 @@ def get_Icont():
 	Compute the continuum intensity in the given wavelength from FAL C model that
 	will be used as a normalization factor for synthetic spectra.
 	"""
-	globin.falc.write_atmosphere()
-	globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-	globin.falc.line_lists_path = atmos.line_lists_path
+	import pyrh
 
-	of_on = False
-	if globin.of_mode:
-		globin.of_mode = False
-		of_on = True
-	falc_spec, _ = globin.compute_spectra(globin.falc)
-	globin.Icont = np.max(falc_spec.spec[0,0,:,0])
-	if of_on:
-		globin.of_mode = True
+	hsrasp = globin.Atmosphere("hsrasp_multi.fits")
+	hsrasp.norm = False
+	hsrasp.RH = pyrh.RH()
+	hsrasp.wavelength_vacuum = np.array([630], dtype=np.float64)
+	nw = len(hsrasp.wavelength_vacuum)
+	
+	hsrasp.do_fudge = 0
+
+	# spec = hsrasp._compute_spectra_sequential(arg=(0,0))
+	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
+	spec = hsrasp.compute_spectra()
+	icont = spec.spec[:,:,-1,0]
+	return icont
+
+	# globin.falc.write_atmosphere()
+	# globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
+	# globin.falc.line_lists_path = atmos.line_lists_path
+
+	# of_on = False
+	# if globin.of_mode:
+	# 	globin.of_mode = False
+	# 	of_on = True
+	# falc_spec, _ = globin.compute_spectra(globin.falc)
+	# globin.Icont = np.max(falc_spec.spec[0,0,:,0])
+	# if of_on:
+	# 	globin.of_mode = True
 	
 	# falc_spec.xmin, falc_spec.xmax = 0, 1
 	# falc_spec.ymin, falc_spec.ymax = 0, 1

@@ -4,7 +4,7 @@ import copy
 from astropy.io import fits
 import sys
 
-import globin
+# import globin
 
 fact = {"temp"  : 1,
 		"ne"    : 1,
@@ -42,16 +42,16 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		ncols = 2
 		nrows = int(np.ceil(n_plots/ncols))
 
-	if globin.atmos_axs is not None:
-		fig = plt.figure()
-		gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
-		fig.subplots_adjust(top=0.95, bottom=0.1, left=0.15, right=0.9)
-		axs = [None]*nrows*ncols
-		for idx in range(ncols):
-			for idy in range(nrows):
-				ida = idx * nrows + idy
-				axs[ida] = gs.add_subplot(gs[idx,idy])
-		globin.atmos_axs = axs
+	# if globin.atmos_axs is not None:
+	# 	fig = plt.figure()
+	# 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
+	# 	fig.subplots_adjust(top=0.95, bottom=0.1, left=0.15, right=0.9)
+	# 	axs = [None]*nrows*ncols
+	# 	for idx in range(ncols):
+	# 		for idy in range(nrows):
+	# 			ida = idx * nrows + idy
+	# 			axs[ida] = gs.add_subplot(gs[idx,idy])
+	# 	globin.atmos_axs = axs
 
 	for k_ in range(n_plots):	
 		parameter = parameters[k_]
@@ -79,7 +79,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			plt.yscale("log")
 
 		plt.xlabel(r"log$\tau$")
-		plt.ylabel(f"{globin.parameter_name[parameter]} [{unit[parameter]}]")
+		plt.ylabel(f"{atmos.parameter_name[parameter]} [{unit[parameter]}]")
 		ax = plt.gca()
 		# ax.set_xticklabels(ax.get_xticks())
 		# ax.set_yticklabels(ax.get_yticks())
