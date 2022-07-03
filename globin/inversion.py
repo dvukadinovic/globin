@@ -137,6 +137,8 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
+		
+
 		LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * self.marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))

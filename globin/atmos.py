@@ -136,7 +136,14 @@ class Atmosphere(object):
 
 		self.norm = False
 
+		self.nx = nx
+		self.ny = ny
 		self.npar = 14
+		if nz is None:
+			self.logtau = np.arange(logtau_top, logtau_bot+logtau_step, logtau_step)
+			self.nz = len(self.logtau)
+		else:
+			self.nz = nz
 
 		# if we provide path to atmosphere, read in data
 		if self.fpath is not None:
@@ -168,8 +175,7 @@ class Atmosphere(object):
 			self.chi_c = atmos.chi_c
 		else:
 			self.header = None
-			if (nx is not None) and (ny is not None) and (nz is not None):
-				self.nx, self.ny, self.nz = nx, ny, nz
+			if (self.nx is not None) and (self.ny is not None) and (self.nz is not None):
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 			else:

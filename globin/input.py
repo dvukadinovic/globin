@@ -270,7 +270,6 @@ class InputData(object):
 		self.atmosphere.idy_meshgrid = idy.flatten()
 
 		self.atmosphere.ids_tuple = list(zip(self.atmosphere.idx_meshgrid, self.atmosphere.idy_meshgrid))
-
 		# for idx in range(obj.atmosphere.nx):
 		# 	for idy in range(globin.atm.ny):
 		# 		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
@@ -338,14 +337,15 @@ class InputData(object):
 			self.weights = np.array([float(item) for item in values], dtype=np.float64)
 		vmac = _find_value_by_key("vmac", self.parameters_input, "default", default_val=0, conversion=float)
 
-		# initialize container for atmosphere which we invert
-		self.atmosphere = Atmosphere(logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
-
 		#--- required parameters
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
 		self.observation = Observation(path_to_observations, obs_range=atm_range)
 		if self.interpolate_obs or (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
 			self.observation.interpolate(self.wavelength_air)
+
+		# initialize container for atmosphere which we invert
+		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
+			logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
 
 		#--- optional parameters
 		path_to_atmosphere = _find_value_by_key("cube_atmosphere", self.parameters_input, "optional")
@@ -362,7 +362,7 @@ class InputData(object):
 				self.reference_atmosphere = globin.falc
 
 		#--- initialize invert atmosphere data from reference atmosphere
-		self.atmosphere.interpolate_atmosphere(self.reference_atmosphere.data[0,0,0], self.reference_atmosphere.data)
+		# self.atmosphere.interpolate_atmosphere(self.reference_atmosphere.data[0,0,0], self.reference_atmosphere.data)
 
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
 		self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))
