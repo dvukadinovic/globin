@@ -76,8 +76,8 @@ class Inverter(InputData):
 			sys.exit()
 
 	def run(self, skip=[]):
-		if self.atmosphere.spectra is None:
-				self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
+		# if self.atmosphere.spectra is None:
+		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
 			print("\n  --- Entering inversion mode ---\n")

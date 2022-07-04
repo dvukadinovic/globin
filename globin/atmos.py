@@ -27,7 +27,7 @@ import pyrh
 
 import globin
 from .mppools import pool_spinor2multi
-
+from .spec import Spectrum
 from .tools import bezier_spline
 
 # order of parameters RFs in output file from 'rf_ray'
@@ -101,9 +101,6 @@ class Atmosphere(object):
 		# self.atmosphere.n_thread = self.n_thread
 		# self.atmosphere.temp_tck = self.falc.temp_tck
 		# self.atmosphere.interp_degree = self.interp_degree
-
-		# container for spectrum
-		self.spectra = None
 
 		# nodes: each atmosphere has the same nodes for given parameter
 		self.nodes = {}
@@ -221,7 +218,6 @@ class Atmosphere(object):
 		new.par_id = copy.deepcopy(self.par_id)
 		new.vmac = copy.deepcopy(self.vmac)
 		new.line_lists_path = copy.deepcopy(self.line_lists_path)
-		new.spectra = copy.deepcopy(self.spectra)
 		new.xmin = copy.deepcopy(self.xmin)
 		new.xmax = copy.deepcopy(self.xmax)
 		new.ymin = copy.deepcopy(self.ymin)
@@ -423,7 +419,7 @@ class Atmosphere(object):
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
-		data = copy.deepcopy(self.data)
+		# data = copy.deepcopy(self.data)
 		# if "gamma" in self.nodes:
 			# data[:,:,6] = 2*np.arctan(data[:,:,6])
 			# data[:,:,6] = np.arccos(data[:,:,6])
@@ -435,7 +431,7 @@ class Atmosphere(object):
 		# data[:,:,6] %= np.pi
 		# data[:,:,7] %= 2*np.pi
 
-		primary = fits.PrimaryHDU(data, do_not_scale_image_data=True)
+		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
 
 		primary.header.comments["NAXIS1"] = "depth points"
@@ -693,21 +689,23 @@ class Atmosphere(object):
 			args.remove(item)
 
 		with mp.Pool(self.n_thread) as pool:
-			spectra = pool.map(func=self._compute_spectra_sequential, iterable=args)
+			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
 
-		for i_ in range(len(spectra)):
-			idx, idy = spectra[i_]["idx"], spectra[i_]["idy"]
-			self.spectra.spec[idx,idy,:,0] = spectra[i_]["spec"].I
-			self.spectra.spec[idx,idy,:,1] = spectra[i_]["spec"].Q
-			self.spectra.spec[idx,idy,:,2] = spectra[i_]["spec"].U
-			self.spectra.spec[idx,idy,:,3] = spectra[i_]["spec"].V
+		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum))
+
+		for i_ in range(len(spectra_list)):
+			idx, idy = spectra_list[i_]["idx"], spectra_list[i_]["idy"]
+			spectra.spec[idx,idy,:,0] = spectra_list[i_]["spec"].I
+			spectra.spec[idx,idy,:,1] = spectra_list[i_]["spec"].Q
+			spectra.spec[idx,idy,:,2] = spectra_list[i_]["spec"].U
+			spectra.spec[idx,idy,:,3] = spectra_list[i_]["spec"].V
 
 		if self.norm:
-			self.spectra.spec /= self.icont
+			spectra.spec /= self.icont
 
-		self.spectra.wavelength = self.wavelength_vacuum
+		spectra.wavelength = self.wavelength_vacuum
 
-		return self.spectra
+		return spectra
 
 	def _compute_spectra_sequential(self, arg):
 		# start = time.time()
@@ -734,6 +732,7 @@ class Atmosphere(object):
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
+		
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
 		return {"spec": spec, "idx" : idx, "idy" : idy}
@@ -797,9 +796,6 @@ class Atmosphere(object):
 		rf = np.zeros((spec.nx, spec.ny, Npar, Nw, 4), dtype=np.float64)
 		node_RF = np.zeros((spec.nx, spec.ny, Nw, 4))
 
-		model_plus = copy.deepcopy(self)
-		model_minus = copy.deepcopy(self)
-
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
 		for parameter in tqdm(self.nodes, desc="parameters", leave=None):
@@ -832,23 +828,23 @@ class Atmosphere(object):
 				elif rf_type=="node":
 					#===--- Computing RFs in nodes
 					
-					model_plus.values[parameter][:,:,nodeID] += perturbation
+					self.values[parameter][:,:,nodeID] += perturbation
 					if parameter=="of":
-						model_plus.make_OF_table(self.wavelength_vacuum)
+						self.make_OF_table(self.wavelength_vacuum)
 					else:
-						model_plus.build_from_nodes()
-					spectra_plus = model_plus.compute_spectra(skip)
-
+						self.build_from_nodes()
+					spectra_plus = self.compute_spectra(skip)
+					
 					# negative perturbation (except for inclination and azimuth)
 					if parameter=="gamma" or parameter=="chi":
 						node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 					else:
-						model_minus.values[parameter][:,:,nodeID] -= perturbation
+						self.values[parameter][:,:,nodeID] -= 2*perturbation
 						if parameter=="of":	
-							model_minus.make_OF_table(self.wavelength_vacuum)
+							self.make_OF_table(self.wavelength_vacuum)
 						else:
-							model_minus.build_from_nodes()
-						spectra_minus = model_minus.compute_spectra(skip)
+							self.build_from_nodes()
+						spectra_minus = self.compute_spectra(skip)
 
 						node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
@@ -876,10 +872,9 @@ class Atmosphere(object):
 				elif rf_type=="node":
 					# return back perturbations (node way)
 					if parameter=="gamma" or parameter=="chi":
-						model_plus.values[parameter][:,:,nodeID] = copy.deepcopy(self.values[parameter][:,:,nodeID])
+						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
-						model_plus.values[parameter][:,:,nodeID] -= perturbation
-						model_minus.values[parameter][:,:,nodeID] += perturbation
+						self.values[parameter][:,:,nodeID] += perturbation
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -969,21 +964,22 @@ class Atmosphere(object):
 		# plt.show()
 
 		#--- compare RFs for single parameter
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-		# 		aux = rf[idx,idy, :, :, :]
-				# plt.plot(aux[0,:,0], label="T-3")
-				# plt.plot(aux[1,:,0], label="T-2")
-				# plt.plot(aux[2,:,0], label="T-1")
-		# 		plt.plot(aux[3,:,0], label="T0")
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				aux = rf[idx,idy, :, :, :]
+				plt.plot(aux[0,:,0], label="T-3")
+				plt.plot(aux[1,:,0], label="T-2")
+				plt.plot(aux[2,:,0], label="T-1")
+				plt.plot(aux[3,:,0], label="T0")
 		# 		plt.plot(aux[4,:,0], label="OF 1")
 		# 		plt.plot(aux[5,:,0], label="OF 2")
 		# 		plt.plot(aux[6,:,0], label="OF 3")
 		# 		plt.plot(aux[7,:,0], label="OF 4")
 		# 		plt.plot(aux[8,:,0], label="OF 5")
-		# plt.legend()
-		# plt.show()
-		# sys.exit()
+		plt.legend()
+		plt.savefig("rfs_new.png")
+		plt.show()
+		sys.exit()
 		print("  Done with the RF!")
 
 		return rf, spec, full_rf
