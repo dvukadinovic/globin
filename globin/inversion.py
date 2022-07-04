@@ -80,7 +80,7 @@ class Inverter(InputData):
 				self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n  --- Entering inversion mode ---")
+			print("\n  --- Entering inversion mode ---\n")
 			for cycle in range(self.ncycle):
 				# double the number of iterations in the last cycle
 				if cycle==self.ncycle-1 and self.ncycle!=1:
@@ -139,14 +139,14 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-
-
 		LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * self.marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
 
 		if self.norm:
-			icont = get_Icont()
+			wavelength = np.mean(obs.wavelength)
+			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			icont = get_Icont(wavelength=wavelength)
 			nx, ny, = atmos.nx, atmos.ny
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((nx, ny, nw, 4))
@@ -178,6 +178,7 @@ class Inverter(InputData):
 		ind_min = np.argmin(abs(obs.wavelength - self.wavelength_air[0]))
 		ind_max = np.argmin(abs(obs.wavelength - self.wavelength_air[-1]))+1
 
+		print("  Get the noise estimate...")
 		if self.noise==0:
 			noise = 1e-4
 		else:
@@ -201,6 +202,7 @@ class Inverter(InputData):
 		# weights on Stokes vector based on observed Stokes I
 		# (nx, ny, nw, 4)
 		if self.weight_type=="StokesI":
+			print("  Set the weight based on Stokes I...")
 			aux = 1/obs.spec[...,0]
 			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
 			norm = np.sum(weights, axis=2)
@@ -235,6 +237,7 @@ class Inverter(InputData):
 
 		old_inds = []
 
+		print()
 		while np.min(itter) <= self.max_iter:
 			#--- if we updated parameters, recaluclate RF and referent spectra
 			# if len(old_inds)!=atmos.nx*atmos.ny:
@@ -242,8 +245,8 @@ class Inverter(InputData):
 			if len(old_inds)!=(atmos.nx*atmos.ny):
 				# print(2*np.arctan(atmos.values["gamma"]) * 180/np.pi)
 				# print(2*np.arctan(atmos.data[0,0,6]) * 180/np.pi)
-				if self.verbose:
-					print("Iteration (min): {:2}\n".format(np.min(itter)+1))
+				# if self.verbose:
+				print("Iteration (min): {:2}\n".format(np.min(itter)+1))
 
 				# atmos.atm_name_list = copy.deepcopy(atm_name_list)
 				# if self.of_mode:	
