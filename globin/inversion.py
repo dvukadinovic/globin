@@ -19,11 +19,10 @@ from .tools import save_chi2
 import globin
 
 def pretty_print_parameters(atmos, conv_flag, mode):
-	Npar = atmos.nx*atmos.ny
-	t0 = datetime.now()
-	print(f"[{t0.isoformat(sep=' ', timespec='seconds')}]")
-	if Npar>40:
-		return
+	# Npar = atmos.nx*atmos.ny
+	# if Npar>40:
+	# 	return
+	# return
 
 	for parameter in atmos.values:
 		print(parameter)
@@ -428,10 +427,12 @@ class Inverter(InputData):
 							# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
+			t0 = datetime.now()
+			print(f"[{t0.isoformat(sep=' ', timespec='seconds')}]")
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
-				print(LM_parameter)
-				print(old_inds)
+			print(LM_parameter)
+			# print(old_inds)
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set stop_flag to 0 (True)
@@ -485,8 +486,8 @@ class Inverter(InputData):
 								stop_flag[idx,idy] = 0
 								print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
 
-			if self.verbose:
-				print("\n--------------------------------------------------\n")
+			# if self.verbose:
+			print("\n--------------------------------------------------\n")
 
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:

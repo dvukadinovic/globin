@@ -18,7 +18,7 @@ import time
 from scipy.ndimage import correlate1d
 from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+from tqdm import tqdm, trange
 import multiprocessing as mp
 
 import pyrh
@@ -778,12 +778,12 @@ class Atmosphere(object):
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
-		for parameter in self.nodes:
+		for parameter in tqdm(self.nodes, desc="parameters", leave=None):
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
 			perturbation = self.delta[parameter]
 
-			for nodeID in range(len(nodes)):
+			for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
 				if rf_type=="snapi":
 					#---
 					# This is "broken" from the point we introduced key mean for the spectrum.
@@ -1376,8 +1376,6 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
 	if (local_params is None) and (global_params is None):
 		return
-
-	from tqdm import tqdm
 
 	# set reference atmosphere
 	atmos = copy.deepcopy(globin.atm)
