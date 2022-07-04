@@ -178,6 +178,8 @@ class Atmosphere(object):
 			if (self.nx is not None) and (self.ny is not None) and (self.nz is not None):
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+				if nz is None:
+					self.data[:,:,0,:] = self.logtau
 			else:
 				self.data = None
 
@@ -342,20 +344,39 @@ class Atmosphere(object):
 
 		return atmos
 
+	def _set_pops(self, pops):
+		"""
+		Store the computed ne and nH pops after async call 
+		into the atmosphere.
+		"""
+		for item in pops:
+			idx, idy = item["idx"], item["idy"]
+			self.data[idx,idy,2] = item["ne"]
+			self.data[idx,idy,8:] = item["nH"]
+
+	def error_callback(self, arg):
+		print("error in computing the HSE")
+		sys.exit()
+
 	def makeHSE(self):
 		args = copy.deepcopy(self.ids_tuple)
 
 		with mp.Pool(self.n_thread) as pool:
-			pops = pool.map(func=self._makeHSE, iterable=args)
+			result = pool.map_async(func=self._makeHSE, iterable=args, 
+					callback=self._set_pops, error_callback=self.error_callback)
+			result.wait()
+			# print(pops)
 
+			# pops.wait()
+			# pops = pops.get()
 		# we need to assign built atmosphere structure to self atmosphere
 		# otherwise self.data would be only 0's.
-		for item in pops:
-			ne, nH = item["ne"], item["nH"]
-			idx, idy = item["idx"], item["idy"]
-			# idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
-			self.data[idx,idy,2] = ne
-			self.data[idx,idy,8:] = nH
+		# for item in pops:
+		# 	ne, nH = item["ne"], item["nH"]
+		# 	idx, idy = item["idx"], item["idy"]
+		# 	# idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
+		# 	self.data[idx,idy,2] = ne
+		# 	self.data[idx,idy,8:] = nH
 
 	def _makeHSE(self, arg):
 		fudge_num = 2
@@ -734,8 +755,11 @@ class Atmosphere(object):
 		"""
 		#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 		self.build_from_nodes()
+		print("  Get parameter RF...")
 		if self.hydrostatic:
+			print("    Set the atmosphere in HSE...")
 			self.makeHSE()
+		print("    Compute spectra...")
 		spec = self.compute_spectra(skip)
 		Nw = spec.nw
 
@@ -960,6 +984,7 @@ class Atmosphere(object):
 		# plt.legend()
 		# plt.show()
 		# sys.exit()
+		print("  Done with the RF!")
 
 		return rf, spec, full_rf
 

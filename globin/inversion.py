@@ -246,7 +246,9 @@ class Inverter(InputData):
 				# print(2*np.arctan(atmos.values["gamma"]) * 180/np.pi)
 				# print(2*np.arctan(atmos.data[0,0,6]) * 180/np.pi)
 				# if self.verbose:
-				print("Iteration (min): {:2}\n".format(np.min(itter)+1))
+				t0 = datetime.now()
+				t0 = t0.isoformat(sep=' ', timespec='seconds')
+				print("[{:s}] Iteration (min): {:2}\n".format(t0, np.min(itter)+1))
 
 				# atmos.atm_name_list = copy.deepcopy(atm_name_list)
 				# if self.of_mode:	
@@ -430,8 +432,6 @@ class Inverter(InputData):
 							# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
-			t0 = datetime.now()
-			print(f"[{t0.isoformat(sep=' ', timespec='seconds')}]")
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
 			print(LM_parameter)
