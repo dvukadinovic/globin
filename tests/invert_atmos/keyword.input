@@ -9,7 +9,7 @@
 
   ATMOS_FILE = ../../Atmos/FALC_tau_scale.atmos
   #ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
-  ABUND_FILE = /media/dusan/storage/RH/pyrh/rh/Atoms/abundance.input
+  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
@@ -19,10 +19,10 @@
 
   ATOMS_FILE = atoms.input
 
-# Barklem tables for the collisional coefficients
-  BARKLEM_SP_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_spdata.dat
-  BARKLEM_PD_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_pddata.dat
-  BARKLEM_DF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/Barklem_dfdata.dat
+# arklem tables for the collisional coefficients
+  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
+  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
+  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
 
 # Input file for all molecules (KEYWORD_REQUIRED).
 
@@ -109,8 +109,8 @@
 # type KEYWORD_DEFAULT
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
-  #KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
-  KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
+  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
+  #KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
   SOLVE_NE = NONE
   RLK_SCATTER = FALSE
