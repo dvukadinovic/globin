@@ -29,6 +29,7 @@ import globin
 from .mppools import pool_spinor2multi
 from .spec import Spectrum
 from .tools import bezier_spline
+from .makeHSE import makeHSE
 
 # order of parameters RFs in output file from 'rf_ray'
 rf_id = {"temp"  : 0,
@@ -59,30 +60,41 @@ class Atmosphere(object):
 					  "vmic"   : 4,
 					  "mag"    : 5,
 					  "gamma"  : 6,
-					  "chi"    : 7}
+					  "chi"    : 7,
+					  "nH"     : 8}
 
 	#--- limit values for atmospheric parameters
-	limit_values = {"temp"  : [2800, 10000], 		# [K]
-				"vz"    : [-10, 10],			# [km/s]
-				"vmic"  : [1e-3, 10],			# [km/s]
-				"vmac"  : [0, 5],				# [km/s]
-				"mag"   : [1, 15000],			# [G]
-				"of"    : [0, 20],
-				"gamma" : [-np.pi, np.pi],	# [rad]
-				# "gamma" : [-0.999999, 0.999999],
-				"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
-				# "chi"   : [-0.999999, 0.999999]}
+	limit_values = {"temp"  : [2800, 10000], 				# [K]
+									"vz"    : [-10, 10],						# [km/s]
+									"vmic"  : [1e-3, 10],						# [km/s]
+									"vmac"  : [0, 5],								# [km/s]
+									"mag"   : [1, 15000],						# [G]
+									"of"    : [0, 20],							#
+									"gamma" : [-np.pi, np.pi],			# [rad]
+									"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
 
 	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
-	delta = {"temp"  : 1,		# K
-			 "vz"    : 1/1e3,	# m/s --> km/s
-			 "vmic"  : 1/1e3,	# m/s --> km/s
-			 "mag"   : 1,		# G
-			 "gamma" : 0.01,	# rad
-			 "chi"   : 0.01,	# rad
-			 "loggf" : 0.001,	# 
-			 "dlam"  : 1,		# mA
-			 "of"    : 0.001}
+	delta = {"temp"  : 1,			# [K]
+					 "vz"    : 1/1e3,	# [m/s --> km/s]
+					 "vmic"  : 1/1e3,	# [m/s --> km/s]
+					 "mag"   : 1,			# [G]
+					 "gamma" : 0.01,	# [rad]
+					 "chi"   : 0.01,	# [rad]
+					 "loggf" : 0.001,	#
+					 "dlam"  : 1,			# [mA]
+					 "of"    : 0.001}
+
+	#--- full names of parameters (for FITS header)
+	parameter_name = {"temp"   : "Temperature",
+									  "ne"     : "Electron density",
+									  "vz"     : "Vertical velocity",
+									  "vmic"   : "Microturbulent velocity",
+									  "vmac"   : "Macroturbulent velocity",
+									  "mag"    : "Magnetic field strength",
+									  "gamma"  : "Inclination",
+									  "chi"    : "Azimuth",
+									  "of"     : "Opacity fudge",
+									  "nH"     : "Hydrogen density"}
 
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.fpath = fpath
@@ -120,7 +132,6 @@ class Atmosphere(object):
 
 		self.do_fudge = 0
 		self.fudge_lam = np.linspace(400, 500, num=3)
-		self.fudge = np.ones((1, 1, 3, 3))
 		self.of_scatter = 1
 
 		self.ids_tuple = [(0,0)]
@@ -141,6 +152,11 @@ class Atmosphere(object):
 			self.nz = len(self.logtau)
 		else:
 			self.nz = nz
+
+		try:
+			self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+		except:
+			pass
 
 		# if we provide path to atmosphere, read in data
 		if self.fpath is not None:
@@ -169,14 +185,27 @@ class Atmosphere(object):
 			self.mask = atmos.mask
 			self.header = atmos.header
 			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+			self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 			self.chi_c = atmos.chi_c
+			self.nHtot = np.sum(atmos.data[:,:,8:,:], axis=-2)
+			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
+			self.idx_meshgrid = self.idx_meshgrid.flatten()
+			self.idy_meshgrid = self.idy_meshgrid.flatten()
+			self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
+			self.fudge = np.ones((self.nx, self.ny, 3, 3))
 		else:
 			self.header = None
 			if (self.nx is not None) and (self.ny is not None) and (self.nz is not None):
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				if nz is None:
 					self.data[:,:,0,:] = self.logtau
+				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
+				self.idx_meshgrid = self.idx_meshgrid.flatten()
+				self.idy_meshgrid = self.idy_meshgrid.flatten()
+				self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
 			else:
 				self.data = None
 
@@ -349,6 +378,8 @@ class Atmosphere(object):
 			idx, idy = item["idx"], item["idy"]
 			self.data[idx,idy,2] = item["ne"]
 			self.data[idx,idy,8:] = item["nH"]
+			self.nHtot[idx,idy] = item["nHtot"]
+			self.rho[idx,idy] = item["rho"]
 
 	def error_callback(self, arg):
 		print("error in computing the HSE")
@@ -361,18 +392,6 @@ class Atmosphere(object):
 			result = pool.map_async(func=self._makeHSE, iterable=args, 
 					callback=self._set_pops, error_callback=self.error_callback)
 			result.wait()
-			# print(pops)
-
-			# pops.wait()
-			# pops = pops.get()
-		# we need to assign built atmosphere structure to self atmosphere
-		# otherwise self.data would be only 0's.
-		# for item in pops:
-		# 	ne, nH = item["ne"], item["nH"]
-		# 	idx, idy = item["idx"], item["idy"]
-		# 	# idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
-		# 	self.data[idx,idy,2] = ne
-		# 	self.data[idx,idy,8:] = nH
 
 	def _makeHSE(self, arg):
 		fudge_num = 2
@@ -380,17 +399,23 @@ class Atmosphere(object):
 		fudge = np.ones((3, fudge_num), dtype=np.float64)
 
 		idx, idy = arg
+		
+		ne, nH, nHtot, rho = self.RH.hse(0, self.data[idx, idy, 0], self.data[idx, idy, 1], self.data[idx, idy, 2],
+			                   self.data[idx, idy, 3], self.data[idx, idy, 4],
+			                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
+			                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
+		
+		return {"ne" : ne/1e6, "nH" : nH/1e6, "nHtot" : nHtot/1e6, "rho" : rho, "idx" : idx, "idy" : idy}
 
-		ne, nH = self.RH.hse(0, self.data[idx, idy, 0], self.data[idx, idy, 1], self.data[idx, idy, 2],
-                   self.data[idx, idy, 3], self.data[idx, idy, 4],
-                   self.data[idx, idy, 5] / 1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
-                   self.data[idx, idy, 8:], 0, fudge_lam, fudge)
-		return {"ne" : ne/1e6, "nH" : nH/1e6, "idx" : idx, "idy" : idy}
+	def makeHSE_old(self):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				pg, pe, _, _ = makeHSE(5000, self.logtau, self.data[idx,idy,1])
 
-		# self.data[idx,idy,2] = ne / 1e6 # [1/m3 --> 1/cm3]
-		# self.data[idx,idy,8:] = nH / 1e6 # [1/m3 --> 1/cm3]
+				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
+				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 
-	def interpolate_atmosphere(self, x_new, ref_atm):
+	def interpolate_atmosphere(self, x_new, ref_atm, atm_range):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
 			# print("--> Warning: atmosphere will be extrapolated")
@@ -400,9 +425,10 @@ class Atmosphere(object):
 			return
 
 		self.nz = len(x_new)
-		self.nx, self.ny, _, _ = ref_atm.shape
 
-		oneD = (self.nx*self.ny==1)
+		# check if reference atmosphere is 1D
+		ref_atm_nx, ref_atm_ny, _, _ = ref_atm.shape
+		oneD = (ref_atm_nx*ref_atm_ny==1)
 
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
 		self.data[:,:,0,:] = x_new
@@ -410,12 +436,13 @@ class Atmosphere(object):
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
-				for parID in range(1,self.npar):
+				for parID in range(1, self.npar):
 					if oneD:
 						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
 					else:
 						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
 					self.data[idx,idy,parID] = splev(x_new, tck)
+				self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
@@ -754,11 +781,11 @@ class Atmosphere(object):
 		"""
 		#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 		self.build_from_nodes()
-		print("  Get parameter RF...")
+		# print("  Get parameter RF...")
 		if self.hydrostatic:
-			print("    Set the atmosphere in HSE...")
+			# print("    Set the atmosphere in HSE...")
 			self.makeHSE()
-		print("    Compute spectra...")
+		# print("    Compute spectra...")
 		spec = self.compute_spectra(skip)
 		Nw = spec.nw
 
@@ -798,12 +825,14 @@ class Atmosphere(object):
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
-		for parameter in tqdm(self.nodes, desc="parameters", leave=None):
+		# for parameter in tqdm(self.nodes, desc="parameters", leave=None):
+		for parameter in self.nodes:
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
 			perturbation = self.delta[parameter]
 
-			for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
+			# for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
+			for nodeID in range(len(nodes)):
 				if rf_type=="snapi":
 					#---
 					# This is "broken" from the point we introduced key mean for the spectrum.
@@ -833,6 +862,8 @@ class Atmosphere(object):
 						self.make_OF_table(self.wavelength_vacuum)
 					else:
 						self.build_from_nodes()
+						# if self.hydrostatic:
+						# 	self.makeHSE()
 					spectra_plus = self.compute_spectra(skip)
 					
 					# negative perturbation (except for inclination and azimuth)
@@ -844,6 +875,8 @@ class Atmosphere(object):
 							self.make_OF_table(self.wavelength_vacuum)
 						else:
 							self.build_from_nodes()
+							# if self.hydrostatic:
+							# 	self.makeHSE()
 						spectra_minus = self.compute_spectra(skip)
 
 						node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
@@ -869,12 +902,17 @@ class Atmosphere(object):
 					# return back perturbation (SNAPI way)
 					self.values[parameter][:,:,nodeID] += perturbation
 					self.build_from_nodes()
+					# if self.hydrostatic:
+					# 	self.makeHSE()
 				elif rf_type=="node":
 					# return back perturbations (node way)
 					if parameter=="gamma" or parameter=="chi":
 						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
+					self.build_from_nodes()
+					# if self.hydrostatic:
+					# 	self.makeHSE()
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -964,23 +1002,23 @@ class Atmosphere(object):
 		# plt.show()
 
 		#--- compare RFs for single parameter
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				aux = rf[idx,idy, :, :, :]
-				plt.plot(aux[0,:,0], label="T-3")
-				plt.plot(aux[1,:,0], label="T-2")
-				plt.plot(aux[2,:,0], label="T-1")
-				plt.plot(aux[3,:,0], label="T0")
+		# for idx in range(self.nx):
+		# 	for idy in range(self.ny):
+		# 		aux = rf[idx,idy, :, :, :]
+		# 		plt.plot(aux[0,:,0], label="T-3")
+		# 		plt.plot(aux[1,:,0], label="T-2")
+		# 		plt.plot(aux[2,:,0], label="T-1")
+		# 		plt.plot(aux[3,:,0], label="T0")
 		# 		plt.plot(aux[4,:,0], label="OF 1")
 		# 		plt.plot(aux[5,:,0], label="OF 2")
 		# 		plt.plot(aux[6,:,0], label="OF 3")
 		# 		plt.plot(aux[7,:,0], label="OF 4")
 		# 		plt.plot(aux[8,:,0], label="OF 5")
-		plt.legend()
-		plt.savefig("rfs_new.png")
-		plt.show()
-		sys.exit()
-		print("  Done with the RF!")
+		# plt.legend()
+		# plt.savefig("rfs_new.png")
+		# plt.show()
+		# sys.exit()
+		# print("  Done with the RF!")
 
 		return rf, spec, full_rf
 
@@ -1042,6 +1080,17 @@ class Atmosphere(object):
 			# last point outside of interval (must be =1)
 			self.fudge_lam[-1] = wavelength_vacuum[-1] + 0.0002
 			self.fudge[...,-1] = 1
+
+	def compare(self, atmos, idx=0, idy=0):
+		print("--------------------------------------")
+		print("Atmosphere compare:")
+		for idp in range(1,self.npar):
+			diff = np.abs(self.data[idx,idy,idp] - atmos[idp])
+			delta = diff / np.abs(self.data[idx,idy,idp])
+			delta = np.sum(delta) / self.nz
+			rmsd = np.sqrt(np.sum(diff**2) / self.nz)
+			print(idp, delta, rmsd)
+		print("--------------------------------------")
 
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844

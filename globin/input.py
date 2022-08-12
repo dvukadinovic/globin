@@ -7,7 +7,7 @@ import copy
 import subprocess as sp
 from scipy.interpolate import interp1d
 from astropy.io import fits
-from scipy.interpolate import splrep
+from scipy.interpolate import splrep, splev
 
 import matplotlib.pyplot as plt
 
@@ -287,9 +287,6 @@ class InputData(object):
 					elements.append((parameter, aux))
 				self.atmos_debug = dict(elements)
 
-		if "temp" in self.atmosphere.nodes:
-			self.atmosphere.hydrostatic = True
-
 		#--- missing parameters
 		# instrument broadening: R or instrument profile provided
 		# strailight contribution
@@ -345,24 +342,32 @@ class InputData(object):
 
 		# initialize container for atmosphere which we invert
 		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
-			logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step, atm_range=atm_range)
+			logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
 
 		#--- optional parameters
+		"""
+		cube_atmosphere -- refrence atmosphere (usually 3D) used for testing purpose; it is sliced as observations
+
+		reference_atmosphere -- 1D reference atmosphere (FALC, HSRASP, HOLMUL,...) that is used as a reference one
+								for inversion; if 'norm' is True, we use this atmosphere to compute the continuum
+								intensity.
+
+		If none of the above is given, we assume that FALC is reference atmosphere.
+		"""
 		path_to_atmosphere = _find_value_by_key("cube_atmosphere", self.parameters_input, "optional")
 		if path_to_atmosphere is not None:
-			self.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=[0,None,0,None],
+			self.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=atm_range,
 						logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
-		# if user have not provided reference atmosphere try fidning node atmosphere
 		else:
-			path_to_node_atmosphere = _find_value_by_key("node_atmosphere", self.parameters_input, "optional")
-			if path_to_node_atmosphere is not None:
-				self.reference_atmosphere = construct_atmosphere_from_nodes(path_to_node_atmosphere, atm_range)
-			# if node atmosphere not given, set FAL C model as reference atmosphere
+			path_to_atmosphere = _find_value_by_key("reference_atmosphere", self.parameters_input, "optional")
+			if path_to_atmosphere is not None:
+				self.reference_atmosphere = Atmosphere(path_to_atmosphere, atm_type=atm_type, atm_range=[0,None,0,None],
+							logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 			else:
 				self.reference_atmosphere = globin.falc
 
 		#--- initialize invert atmosphere data from reference atmosphere
-		# self.atmosphere.interpolate_atmosphere(self.reference_atmosphere.data[0,0,0], self.reference_atmosphere.data)
+		self.atmosphere.interpolate_atmosphere(self.reference_atmosphere.data[0,0,0], self.reference_atmosphere.data, atm_range)
 
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
 		self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))
@@ -787,12 +792,27 @@ def read_node_atmosphere(fpath):
 	atmos.logtau = logtau
 	atmos.data[:,:,0] = logtau
 
-	idx,idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny))
-	globin.idx = idx.flatten()
-	globin.idy = idy.flatten()
+	idx, idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny))
+	atmos.idx_meshgrid = idx.flatten()
+	atmos.idy_meshgrid = idy.flatten()
+	atmos.ids_tuple = list(zip(atmos.idx_meshgrid, atmos.idy_meshgrid))
+
+	path = os.path.dirname(__file__)
+	falc = Atmosphere(fpath=f"{path}/data/falc_multi.atmos", atm_type="multi")
+
+	# temperature interpolation
+	atmos.temp_tck = splrep(falc.data[0,0,0], falc.data[0,0,1])
+	atmos.interp_degree = 3
+	
+	# tck = splrep(falc.data[0,0,0], falc.data[0,0,2])
+	# atmos.data[:,:,2] = splev(atmos.logtau, tck)
+	# for i_ in range(6):
+	# 	idp = 8 + i_
+	# 	tck = splrep(falc.data[0,0,0], falc.data[0,0,idp])
+	# 	atmos.data[:,:,idp] = splev(atmos.logtau, tck)
 
 	# !!! added by hand..
-	globin.pool = mp.Pool(2)
+	# globin.pool = mp.Pool(2)
 
 	i_ = 4
 	for parID in range(6):

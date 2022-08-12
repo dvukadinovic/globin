@@ -25,9 +25,13 @@ class Ion(object):
 		self.mass = mass
 
 	def get_pf0(self, temp):
+		if temp>10000:
+			return 1
 		return splev(temp, self.pf0_tck)
 
 	def get_pf1(self, temp):
+		if temp>10000:
+			return 1
 		return splev(temp, self.pf1_tck)
 
 	def get_phi(self, temp):
@@ -246,7 +250,7 @@ def makeHSE(wave, logt, temp):
 		pg[0] = pg_
 
 		niter_pg += 1
-		if niter_pg==100:
+		if niter_pg==20:
 			print("Max iter in Pg loop @ top.")
 			break
 
@@ -268,11 +272,12 @@ def makeHSE(wave, logt, temp):
 			pg[i_] = pg_
 
 			niter_pg += 1
-			if niter_pg==100:
+			if niter_pg==20:
 				print(f"Max iter in Pg loop @ k={i_}.")
 				break
 
 	rho = (pg-pe)/K_BOLTZMAN/temp/10 / 1e6 * np.mean(Axmu)
+	# ne = pe/10/K_BOLTZMAN/temp / 1e6 # [1/cm3]
 
 	return pg, pe, kappa, rho
 

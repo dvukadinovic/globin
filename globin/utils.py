@@ -6,9 +6,12 @@ from astropy.io import fits
 import subprocess as sp
 import multiprocessing as mp
 import copy
+import pyrh
+from .makeHSE import makeHSE
 
 from scipy.constants import m_e, m_p
-k_b = 1.38064852e-16
+from scipy.constants import k as k_b
+
 m_p *= 1e3
 m_e *= 1e3
 
@@ -30,13 +33,20 @@ def remove_dirs():
             sys.exit()
 
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
-    atmos = globin.read_node_atmosphere(node_atmosphere_path)
+    atmos = globin.input.read_node_atmosphere(node_atmosphere_path)
 
     # atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
     # atmos.data[:,:,0,:] = atmos.logtau
     atmos.vmac = vmac
     # atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
-    atmos.build_from_nodes(False)
+    atmos.build_from_nodes()
+    atmos.RH = pyrh.RH()
+    # for idx in range(atmos.nx):
+    #     for idy in range(atmos.ny):
+    #         pg, pe, _,_ = makeHSE(5000, atmos.logtau, atmos.data[idx,idy,1])
+    #         atmos.data[idx,idy,2] = pe/10/k_b/atmos.data[idx,idy,1] / 1e6
+    #         atmos.data[idx,idy,8:] = globin.atmos.distribute_hydrogen(atmos.data[idx,idy,1], pg, pe)
+    atmos.makeHSE()
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)

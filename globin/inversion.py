@@ -102,6 +102,7 @@ class Inverter(InputData):
 					self.marq_lambda /= 10
 
 				return atm, spec
+
 		elif self.mode==0:
 			print("\n  Entering synthesis mode.")
 			spec = self.atmosphere.compute_spectra(skip=skip)
@@ -178,7 +179,7 @@ class Inverter(InputData):
 		ind_min = np.argmin(abs(obs.wavelength - self.wavelength_air[0]))
 		ind_max = np.argmin(abs(obs.wavelength - self.wavelength_air[-1]))+1
 
-		print("  Get the noise estimate...")
+		# print("  Get the noise estimate...")
 		if self.noise==0:
 			noise = 1e-4
 		else:
@@ -213,7 +214,7 @@ class Inverter(InputData):
 		noise_stokes /= weights
 
 		chi2 = np.zeros((atmos.nx, atmos.ny, self.max_iter), dtype=np.float64)
-		Ndof = np.count_nonzero(self.weights) * Nw # - Npar
+		Ndof = np.count_nonzero(self.weights) * Nw - Npar
 
 		start = time.time()
 
@@ -263,9 +264,18 @@ class Inverter(InputData):
 				# if self.rf_type=="snapi":
 				# 	# rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_atmos_parameters)
 				# 	rf, spec, full_rf = self.compute_rfs(old_rf=full_rf, old_pars=old_atmos_parameters)
+				# print(atmos.data[0,0,8])
 				if self.rf_type=="node":
 					# rf, spec, _ = globin.compute_rfs(atmos, skip, rf_noise_scale=noise_stokes)
-					rf, spec, _ = self.atmosphere.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=old_inds, rf_type=self.rf_type)
+					rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=old_inds, rf_type=self.rf_type)
+
+				# plt.plot(spec.spec[0,0,:,0])
+				# ax2.plot(atmos.data[0,0,1])
+
+				# ax1.legend()
+				# plt.legend()
+				
+				# plt.show()
 
 				# copy old RF into new for new itteration inversion
 				if len(old_inds)>0:
@@ -281,10 +291,17 @@ class Inverter(InputData):
 								niter = itter[idx,idy]
 								self.rf_debug[idx,idy,niter] = rf[idx,idy]
 
-				# axs = globin.plot_spectra(obs.spec[0,0], obs.wavelength)
-				# plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
-				# plt.plot(obs.spec[0,0,:,0])
+				# atmos.compare(self.reference_atmosphere.data[0,0])
+				parameters = ["temp", "ne", "nH"]
+				# globin.visualize.plot_atmosphere(atmos, parameters, color="tab:red", label="inv")
+				# globin.visualize.plot_atmosphere(self.reference_atmosphere, parameters, label="ref")
 				# plt.show()
+				# sys.exit()
+
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# plt.show()
+				# plt.close()
+				# sys.exit()
 
 				#--- scale RFs with weights and noise scale
 				_rf = rf
@@ -337,16 +354,19 @@ class Inverter(InputData):
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 
 			# proposed_steps = (nx, ny, npar)
-			proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
-			# proposed_steps = np.linalg.solve(H, delta)
-			# sys.exit()
+			# proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
+			try:
+				proposed_steps = np.linalg.solve(H, delta)
+			except np.linalg.LinAlgError:
+				print(H)
+				sys.exit()
 
 			old_atmos_parameters = copy.deepcopy(atmos.values)
 			if self.mode==2:
 				old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 			atmos.update_parameters(proposed_steps, stop_flag)
 			atmos.check_parameter_bounds(self.mode)
-			
+
 			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
 			# 	for idx in range(atmos.nx):
 			# 		for idy in range(atmos.ny):
@@ -358,15 +378,25 @@ class Inverter(InputData):
 				atmos.make_OF_table(self.wavelength_vacuum)
 
 			atmos.build_from_nodes()
+			if atmos.hydrostatic:
+				atmos.makeHSE()
+
 			corrected_spec = atmos.compute_spectra(old_inds)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
+
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=corrected_spec.spec[0,0])
+			# plt.show()
 
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
+			# if chi2_new[0,0]==np.nan:
+			# globin.visualize.plot_atmosphere(atmos, ["temp", "ne", "nH"])
+			# plt.show()
+			
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
 					if self.debug and stop_flag[idx,idy]==1:
@@ -374,6 +404,7 @@ class Inverter(InputData):
 						LM_debug[niter] = LM_parameter[idx,idy]
 
 					if stop_flag[idx,idy]==1:
+						print(chi2_old[idx,idy], chi2_new[idx,idy])
 						if chi2_new[idx,idy] > chi2_old[idx,idy]:
 							LM_parameter[idx,idy] *= 10
 							for parameter in old_atmos_parameters:
@@ -524,6 +555,8 @@ class Inverter(InputData):
 		# 	atmos.values["chi"] %= 2*np.pi
 
 		atmos.build_from_nodes()
+		if atmos.hydrostatic:
+			atmos.makeHSE()
 		inverted_spectra = atmos.compute_spectra()
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac)
@@ -640,7 +673,7 @@ class Inverter(InputData):
 		ind_max = np.argmin(abs(obs.wavelength - self.wavelength_air[-1]))+1
 
 		if self.noise==0:
-			noise = 1e-8
+			noise = 1e-4
 		else:
 			noise = self.noise
 
@@ -676,7 +709,7 @@ class Inverter(InputData):
 			LM_debug = np.zeros((self.max_iter), dtype=np.float64)
 
 		Natmos = atmos.nx * atmos.ny
-		Ndof = np.count_nonzero(self.weights)*Nw # - atmos.n_local_pars*Natmos - atmos.n_global_pars
+		Ndof = np.count_nonzero(self.weights)*Nw - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
 		start = time.time()
 
@@ -774,6 +807,8 @@ class Inverter(InputData):
 				atmos.make_OF_table(self.wavelength_vacuum)
 
 			atmos.build_from_nodes()
+			if atmos.hydrostatic:
+				atmos.makeHSE()
 			corrected_spec = atmos.compute_spectra()
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
@@ -843,6 +878,8 @@ class Inverter(InputData):
 				break
 
 		atmos.build_from_nodes()
+		if atmos.hydrostatic:
+			atmos.makeHSE()
 		inverted_spectra = atmos.compute_spectra()
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac)

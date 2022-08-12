@@ -12,17 +12,19 @@ fact = {"temp"  : 1,
 		"vmic"  : 1,
 		"mag"   : 1,
 		"gamma" : 180/np.pi,
-		"chi"   : 180/np.pi}
+		"chi"   : 180/np.pi,
+		"nH"    : 1}
 
 unit = {"temp"  : "K",
-		"ne"    : "1/3",
+		"ne"    : "1/m3",
 		"vz"    : "km/s",
 		"vmic"  : "km/s",
 		"mag"   : "G",
 		"gamma" : "deg",
-		"chi"   : "deg"}
+		"chi"   : "deg",
+		"nH"    : "1/m3"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:blue", label=None, transangles=False):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black", label=None, transangles=False):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 	# if transangles:
@@ -75,7 +77,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 			pass
 
 		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color, label=label)
-		if parameter=="ne":
+		if parameter=="ne" or parameter=="nH":
 			plt.yscale("log")
 
 		plt.xlabel(r"log$\tau$")
@@ -83,6 +85,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:bl
 		ax = plt.gca()
 		# ax.set_xticklabels(ax.get_xticks())
 		# ax.set_yticklabels(ax.get_yticks())
+	plt.legend()
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
 	"""

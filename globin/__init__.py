@@ -127,17 +127,6 @@ diff = {"temp"   : 10,		# K
 		"gamma"  : 0.001,	# rad = 0.057 deg
 		"chi"    : 0.001}	# rad = 0.057 deg
 
-#--- full names of parameters (for FITS header)
-parameter_name = {"temp"   : "Temperature",
-				  "ne"     : "Electron density",
-				  "vz"     : "Vertical velocity",
-				  "vmic"   : "Microturbulent velocity",
-				  "vmac"   : "Macroturbulent velocity",
-				  "mag"    : "Magnetic field strength",
-				  "gamma"  : "Inclination",
-				  "chi"    : "Azimuth",
-				  "of"     : "Opacity fudge"}
-
 #--- parameters units (for FITS header)
 parameter_unit = {"temp"   : "K",
 				  "ne"     : "1/3",
