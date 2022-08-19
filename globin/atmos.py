@@ -431,6 +431,8 @@ class Atmosphere(object):
 		oneD = (ref_atm_nx*ref_atm_ny==1)
 
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
+		self.nHtot = np.zeros((self.nx, self.ny, self.nz))
+		self.rho = np.zeros((self.nx, self.ny, self.nz))
 		self.data[:,:,0,:] = x_new
 		self.logtau = x_new
 
@@ -618,12 +620,19 @@ class Atmosphere(object):
 
 			# update atomic parameters + vmac
 			for parameter in self.global_pars:
-				if self.line_no[parameter].size > 0:
+				if parameter=="vmac":
 					low_ind = up_ind
-					up_ind += self.global_pars[parameter].size
+					up_ind += 1
 					step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
 					np.nan_to_num(step, nan=0.0, copy=False)
 					self.global_pars[parameter] += step
+				else:
+					if self.line_no[parameter].size > 0:
+						low_ind = up_ind
+						up_ind += self.global_pars[parameter].size
+						step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
+						np.nan_to_num(step, nan=0.0, copy=False)
+						self.global_pars[parameter] += step
 
 	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
@@ -718,7 +727,7 @@ class Atmosphere(object):
 		with mp.Pool(self.n_thread) as pool:
 			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
 
-		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum))
+		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum), nz=self.nz)
 
 		for i_ in range(len(spectra_list)):
 			idx, idy = spectra_list[i_]["idx"], spectra_list[i_]["idy"]
@@ -726,8 +735,18 @@ class Atmosphere(object):
 			spectra.spec[idx,idy,:,1] = spectra_list[i_]["spec"].Q
 			spectra.spec[idx,idy,:,2] = spectra_list[i_]["spec"].U
 			spectra.spec[idx,idy,:,3] = spectra_list[i_]["spec"].V
+			# spectra.J[idx,idy] = spectra_list[i_]["spec"].J
+
+		# print(spectra.J[0,0,:,0])
+		
+		# plt.imshow(np.log10(spectra.J[0,0].T), cmap="plasma")
+		# plt.colorbar()
+		# plt.show()
 
 		if self.norm:
+			# if self.mode==3:
+			self.icont = spectra.spec[:,:,0,0]
+			# self.icont = globin.spec.get_Icont(np.mean(self.wavelength_vacuum))
 			spectra.spec /= self.icont
 
 		spectra.wavelength = self.wavelength_vacuum
@@ -926,7 +945,7 @@ class Atmosphere(object):
 					phi = np.exp(-x**2/kernel_sigma**2)
 					# normalaizing the profile
 					phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-					kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / globin.step
+					kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / self.step
 					# since we are correlating, we need to reverse the order of data
 					kernel = kernel[::-1]
 
@@ -934,12 +953,12 @@ class Atmosphere(object):
 						for idy in range(spec.ny):
 							for sID in range(4):
 								rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
-								rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * globin.step / self.global_pars["vmac"]
-								rf[idx,idy,free_par_ID,:,sID] *= globin.weights[sID]
+								rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * self.step / self.global_pars["vmac"]
+								rf[idx,idy,free_par_ID,:,sID] *= weights[sID]
 								rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
 
-					globin.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
-					rf[:,:,free_par_ID,:,:] /= globin.parameter_scale[parameter]
+					self.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
+					rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
 
 					skip_par = free_par_ID
 					free_par_ID += 1
@@ -949,11 +968,12 @@ class Atmosphere(object):
 						perturbation = self.delta[parameter]
 
 						for idp in range(self.line_no[parameter].size):
-							model_plus.global_pars[parameter][...,idp] += perturbation
-							spec_plus = model_plus.compute_spectra(skip)
+							# model_plus.global_pars[parameter][...,idp] += perturbation
+							self.global_pars[parameter][...,idp] += perturbation
+							spec_plus = self.compute_spectra(skip)
 
-							model_minus.global_pars[parameter][...,idp] -= perturbation
-							spec_minus = model_minus.compute_spectra(skip)
+							self.global_pars[parameter][...,idp] -= 2*perturbation
+							spec_minus = self.compute_spectra(skip)
 
 							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 							diff *= weights
@@ -979,8 +999,7 @@ class Atmosphere(object):
 								rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter][0,0,idp]
 							free_par_ID += 1
 							
-							model_plus.global_pars[parameter][...,idp] -= perturbation
-							model_minus.global_pars[parameter][...,idp] += perturbation
+							self.global_pars[parameter][...,idp] += perturbation
 
 		#--- broaden the spectra
 		if not mean:
@@ -1121,7 +1140,7 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	
 	return pops
 
-def write_multi_atmosphere(atm, fpath):
+def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 	# write atmosphere 'atm' of MULTI type
 	# into separate file and store them at 'fpath'.
 
@@ -1134,12 +1153,12 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Model file\n")
 	out.write("*\n")
 	out.write(f"  {fname}\n")
-	if globin.atm_scale=="tau":	
+	if atm_scale=="tau":	
 		out.write("  Tau scale\n")
-	elif globin.atm_scale=="cmass":
+	elif atm_scale=="cmass":
 		out.write("  Mass scale\n")
 	else:
-		print(f"Error: Not supported {globin.atm_scale} atmosphere scale.")
+		print(f"Error: Not supported {atm_scale} atmosphere scale.")
 		sys.exit()
 	out.write("*\n")
 	out.write("* log(g) [cm s^-2]\n")
@@ -1148,11 +1167,11 @@ def write_multi_atmosphere(atm, fpath):
 	out.write("* Ndep\n")
 	out.write(f"  {nz}\n")
 	out.write("*\n")
-	if globin.atm_scale=="tau":
+	if atm_scale=="tau":
 		out.write("* log tau    Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
 		for i_ in range(nz):
 			out.write("  {:+5.4f}    {:12.6f}   {:8.6e}   {:8.6e}   {:8.6e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
-	elif globin.atm_scale=="cmass":
+	elif atm_scale=="cmass":
 		out.write("* log cmass      Temp[K]    n_e[cm-3]    v_z[km/s]   v_turb[km/s]\n")
 		for i_ in range(nz):
 			out.write("  {:+8.6f}    {:12.6f}   {:8.6e}   {:8.6e}   {:8.6e}\n".format(atm[0,i_], atm[1,i_], atm[2,i_], atm[3,i_], atm[4,i_]))
@@ -1178,7 +1197,7 @@ def write_multi_atmosphere(atm, fpath):
 	# 	# chi = 4*np.arctan(atm[7])
 	# 	chi = np.arccos(atm[7])
 
-	globin.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
+	globin.rh.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)
@@ -1750,50 +1769,58 @@ def multi2spinor(multi_atmosphere, fname=None):
 
 	for idx in range(nx):
 		for idy in range(ny):
-			pg, pe, kappa, rho = globin.makeHSE(5000, multi_atmosphere[idx,idy,0], multi_atmosphere[idx,idy,1])
+			# pg, pe, kappa, rho = globin.makeHSE(5000, multi_atmosphere[idx,idy,0], multi_atmosphere[idx,idy,1])
 
-			spinor_atmosphere[idx,idy,:,3] = pg
-			spinor_atmosphere[idx,idy,:,4] = pe
-			spinor_atmosphere[idx,idy,:,5] = kappa
+			nHtot = np.sum(multi_atmosphere[idx,idy,8:,:], axis=0)
+			pe = multi_atmosphere[idx,idy,2] * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]# * 10 # [CGS]
+			pg = pe + nHtot * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]
+			rho = nHtot * np.mean(Axmu)
+
+			spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
+			spinor_atmosphere[idx,idy,:,4] = pe*10 # [CGS unit]
 			spinor_atmosphere[idx,idy,:,6] = rho
 
 			# nHtot = np.sum(multi_atmosphere[idx,idy,8:], axis=0)
 			# avg_mass = np.mean(Axmu)
 			# rho = nHtot * avg_mass
 
-			for idz in range(nz-2,-1,-1):
-				height[idz] = height[idz+1] + 2*(kappa[idz+1] - kappa[idz]) / (rho[idz+1] + rho[idz])
+			# for idz in range(nz-2,-1,-1):
+			# 	height[idz] = height[idz+1] + 2*(kappa[idz+1] - kappa[idz]) / (rho[idz+1] + rho[idz])
 
-			height -= height[ind0]
-			spinor_atmosphere[idx,idy,:,1] = height
+			# height -= height[ind0]
+			# spinor_atmosphere[idx,idy,:,1] = height
 
 	spinor_atmosphere[:,:,:,0] = multi_atmosphere[:,:,0,:]
 	spinor_atmosphere[:,:,:,2] = multi_atmosphere[:,:,1,:]
 	spinor_atmosphere[:,:,:,7] = multi_atmosphere[:,:,4,:]*1e5
 	spinor_atmosphere[:,:,:,8] = multi_atmosphere[:,:,3,:]*1e5
-	spinor_atmosphere[:,:,:,9] = multi_atmosphere[:,:,5,:]
-	spinor_atmosphere[:,:,:,10] = multi_atmosphere[:,:,6,:]
-	spinor_atmosphere[:,:,:,11] = multi_atmosphere[:,:,7,:]
+	# No magnetic field
+	# spinor_atmosphere[:,:,:,9] = multi_atmosphere[:,:,5,:]
+	# spinor_atmosphere[:,:,:,10] = multi_atmosphere[:,:,6,:]
+	# spinor_atmosphere[:,:,:,11] = multi_atmosphere[:,:,7,:]
 
 	if fname:
-		primary = fits.PrimaryHDU(spinor_atmosphere)
-		primary.header["LTTOP"] = min(spinor_atmosphere[0,0,0])
-		primary.header["LTBOT"] = max(spinor_atmosphere[0,0,0])
-		primary.header["LTINC"] = np.round(spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0], decimals=2)
-		primary.header["LOGTAU"] = (1, "optical depth scale")
-		primary.header["HEIGHT"] = (2, "height scale (cm)")
-		primary.header["TEMP"] = (3, "temperature (K)")
-		primary.header["PGAS"] = (4, "gass pressure (dyn/cm2)")
-		primary.header["PEL"] = (5, "electron pressure (dyn/cm2)")
-		primary.header["KAPPA"] = (6, "mass density (g/cm2)")
-		primary.header["DENS"] = (7, "density (g/cm3)")
-		primary.header["VMIC"] = (8, "micro-turbulent velocity (cm/s)")
-		primary.header["VZ"] = (9, "vertical velocity (cm/s)")
-		primary.header["MAG"] = (10, "magnetic field strength (G)")
-		primary.header["GAMMA"] = (11, "magnetic field inclination (rad)")
-		primary.header["CHI"] = (12, "magnetic field azimuth (rad)")
+		np.savetxt(fname, spinor_atmosphere[0,0], header=" {:2d}  1.0 ".format(nz))
 
-		primary.writeto(fname, overwrite=True)
+	# if fname:
+	# 	primary = fits.PrimaryHDU(spinor_atmosphere)
+	# 	primary.header["LTTOP"] = min(spinor_atmosphere[0,0,0])
+	# 	primary.header["LTBOT"] = max(spinor_atmosphere[0,0,0])
+	# 	primary.header["LTINC"] = np.round(spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0], decimals=2)
+	# 	primary.header["LOGTAU"] = (1, "optical depth scale")
+	# 	primary.header["HEIGHT"] = (2, "height scale (cm)")
+	# 	primary.header["TEMP"] = (3, "temperature (K)")
+	# 	primary.header["PGAS"] = (4, "gass pressure (dyn/cm2)")
+	# 	primary.header["PEL"] = (5, "electron pressure (dyn/cm2)")
+	# 	primary.header["KAPPA"] = (6, "mass density (g/cm2)")
+	# 	primary.header["DENS"] = (7, "density (g/cm3)")
+	# 	primary.header["VMIC"] = (8, "micro-turbulent velocity (cm/s)")
+	# 	primary.header["VZ"] = (9, "vertical velocity (cm/s)")
+	# 	primary.header["MAG"] = (10, "magnetic field strength (G)")
+	# 	primary.header["GAMMA"] = (11, "magnetic field inclination (rad)")
+	# 	primary.header["CHI"] = (12, "magnetic field azimuth (rad)")
+
+	# 	primary.writeto(fname, overwrite=True)
 
 	return spinor_atmosphere
 

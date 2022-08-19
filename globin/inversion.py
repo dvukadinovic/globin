@@ -38,9 +38,13 @@ def pretty_print_parameters(atmos, conv_flag, mode):
 
 	if mode>=2:
 		for parameter in atmos.global_pars:
-			if atmos.line_no[parameter].size > 0:
+			if parameter=="vmac":
 				print(parameter)
 				print(atmos.global_pars[parameter])
+			else:
+				if atmos.line_no[parameter].size > 0:
+					print(parameter)
+					print(atmos.global_pars[parameter])
 
 class Inverter(InputData):
 	def __init__(self, save_output=True, verbose=True):
@@ -60,6 +64,7 @@ class Inverter(InputData):
 			self.atmosphere.temp_tck = self.falc.temp_tck
 			self.atmosphere.mode = self.mode
 			self.atmosphere.norm = self.norm
+			self.atmosphere.step = self.step
 
 			# fudge data
 			if self.mode>=1:
@@ -657,8 +662,8 @@ class Inverter(InputData):
 		Nw = len(self.wavelength_air)
 		Npar = self._get_Npar()
 
-		if self.norm:
-			get_Icont()
+		# if self.norm:
+		# 	get_Icont()
 
 		# if globin.norm:
 			# globin.falc.write_atmosphere()

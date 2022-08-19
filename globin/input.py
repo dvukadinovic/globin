@@ -341,8 +341,9 @@ class InputData(object):
 			self.observation.interpolate(self.wavelength_air)
 
 		# initialize container for atmosphere which we invert
-		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
-			logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
+		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
+		# 	logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
+		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny)# atm_range=atm_range)
 
 		#--- optional parameters
 		"""

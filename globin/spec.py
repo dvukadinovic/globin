@@ -12,13 +12,14 @@ class Spectrum(object):
 	Custom class for storing computed spectra object. It is rebuilt from RH
 	class.
 	"""
-	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None):
+	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None, nz=None):
 		if fpath:
 			self.read(fpath)
 
 		self.nx = nx
 		self.ny = ny
 		self.nw = nw
+		self.nz = nz
 		self.noise = None
 		# storage for full wavelength list from RH (used for full RF calculation)
 		self.wave = wave
@@ -34,6 +35,8 @@ class Spectrum(object):
 			self.spec[:,:,:,:] = np.nan
 			self.wavelength = np.zeros(nw)
 			self.wavelength[:] = np.nan
+			if self.nz is not None:
+				self.J = np.zeros((nx, ny, nw, nz))
 
 		self.xmin, self.xmax = 0, None
 		self.ymin, self.ymax = 0, None
@@ -61,6 +64,7 @@ class Spectrum(object):
 		self.spec[...,3] += wavs_dependent_factor * SI_cont_err[...,3]
 
 	def get_kernel_sigma(self, vmac):
+		# vmac is in km/s
 		step = self.wavelength[1] - self.wavelength[0]
 		return vmac*1e3 / globin.LIGHT_SPEED * (self.wavelength[0] + self.wavelength[-1])*0.5 / step
 
@@ -87,6 +91,10 @@ class Spectrum(object):
 					# plt.plot(spectra[idx,idy,:,1+sID])
 					# plt.plot(output[idx,idy,:,1+sID])
 					# plt.show()
+
+	def instrumental_broadening(self, R):
+		vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
+		self.broaden_spectra(vinst)
 
 	def norm(self):
 		if (globin.norm) and (globin.Icont is not None):
@@ -199,7 +207,7 @@ class Observation(Spectrum):
 	row in last axis is reserved for wavelength and rest 4 are for Stokes vector.
 	"""
 
-	def __init__(self, fpath, obs_range=[0,None,0,None]):
+	def __init__(self, fpath, obs_range=[0,None,0,None], spec_type="globin"):
 		super().__init__()
 		ftype = fpath.split(".")[-1]
 
@@ -214,7 +222,10 @@ class Observation(Spectrum):
 			sys.exit()
 
 		if ftype=="fits" or ftype=="fit":
-			self.read_fits(fpath, obs_range)
+			if spec_type=="globin":
+				self.read_fits(fpath, obs_range)
+			if spec_type=="spinor":
+				self.read_spinor(fpath, obs_range)
 
 	def read_fits(self, fpath, obs_range):
 		hdu = fits.open(fpath)[0]
@@ -228,6 +239,22 @@ class Observation(Spectrum):
 		self.spec = data[:,:,:,1:]
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
+		self.shape = self.spec.shape
+
+	def read_spinor(self, fpath, obs_range):
+		hdu = fits.open(fpath)
+		header = hdu[0].header
+
+		self.spec = hdu[0].data
+		self.spec = np.swapaxes(self.spec, 2, 3)
+		self.nx, self.ny, self.nw, _ = self.spec.shape
+
+		wave_ref = header["WLREF"]/10
+		wave_min = header["WLMIN"]/10 + wave_ref
+		wave_max = header["WLMAX"]/10 + wave_ref
+
+		self.wavelength = np.linspace(wave_min, wave_max, num=self.nw)
+
 		self.shape = self.spec.shape
 
 	def interpolate(self, wavs):
