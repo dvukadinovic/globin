@@ -1102,7 +1102,7 @@ class Atmosphere(object):
 
 	def compare(self, atmos, idx=0, idy=0):
 		print("--------------------------------------")
-		print("Atmosphere compare:")
+		print("Atmosphere compare for [{:d},{:d}]:".format(idx,idy))
 		for idp in range(1,self.npar):
 			diff = np.abs(self.data[idx,idy,idp] - atmos[idp])
 			delta = diff / np.abs(self.data[idx,idy,idp])

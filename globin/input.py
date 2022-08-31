@@ -429,14 +429,6 @@ class InputData(object):
 		if "temp" in self.atmosphere.nodes:
 			self.atmosphere.hydrostatic = True
 
-		#--- setup ne and nH
-		fun = interp1d(self.reference_atmosphere.logtau, self.reference_atmosphere.data[0,0,2], kind=3)
-		self.atmosphere.data[:,:,2,:] = fun(self.atmosphere.logtau)
-
-		for idp in range(6):
-			fun = interp1d(self.reference_atmosphere.logtau, self.reference_atmosphere.data[0,0,idp+8], kind=3)
-			self.atmosphere.data[:,:,idp+8,:] = fun(self.atmosphere.logtau)
-
 		#--- initialize the vz, mag and azimuth based on CoG and WFA methods (optional)
 		fpath = _find_value_by_key("lines2atm", self.parameters_input, "optional")
 		if fpath:

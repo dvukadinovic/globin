@@ -409,7 +409,6 @@ class Inverter(InputData):
 						LM_debug[niter] = LM_parameter[idx,idy]
 
 					if stop_flag[idx,idy]==1:
-						print(chi2_old[idx,idy], chi2_new[idx,idy])
 						if chi2_new[idx,idy] > chi2_old[idx,idy]:
 							LM_parameter[idx,idy] *= 10
 							for parameter in old_atmos_parameters:
