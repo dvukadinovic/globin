@@ -355,21 +355,17 @@ class Inverter(InputData):
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if self.debug:
-						for parameter in atmos.nodes:
-							niter = itter[idx,idy]-1
-							self.atmos_debug[parameter][niter,idx,idy] = atmos.values[parameter][idx,idy]
-					if stop_flag[idx,idy]==1:
-						if LM_parameter[idx,idy]<=1e-5:
-							LM_parameter[idx,idy] = 1e-5
-						# if Marquardt parameter is to large, we break
-						if LM_parameter[idx,idy]>=1e8:
-							stop_flag[idx,idy] = 0
-							itter[idx,idy] = self.max_iter
-							print(f"[{idx},{idy}] --> Large LM parameter. We break.")
+			#--- check the Marquardt parameter value
+			indx, indy = np.where(LM_parameter<1e-5)
+			LM_parameter[indx,indy] = 1e-5
 
+			indx, indy = np.where(LM_parameter>=1e5)
+			stop_flag[indx,indy] = 0
+			itter[indx,indy] = self.max_iter
+			# if self.verbose:
+			# 	print("Large LM parameter for ", indx, indy)
+
+			#--- print the current state of the inversion
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
 			idx, idy = np.where(stop_flag==1)
