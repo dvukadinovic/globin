@@ -19,11 +19,6 @@ from .tools import save_chi2
 import globin
 
 def pretty_print_parameters(atmos, conv_flag, mode):
-	# Npar = atmos.nx*atmos.ny
-	# if Npar>40:
-	# 	return
-	# return
-
 	for parameter in atmos.values:
 		print(parameter)
 		for idx in range(atmos.nx):
@@ -243,44 +238,21 @@ class Inverter(InputData):
 
 		old_inds = []
 
-		print()
 		while np.min(itter) <= self.max_iter:
 			#--- if we updated parameters, recaluclate RF and referent spectra
-			# if len(old_inds)!=atmos.nx*atmos.ny:
-			# if len(atm_name_list)>0:
 			if len(old_inds)!=(atmos.nx*atmos.ny):
-				# print(2*np.arctan(atmos.values["gamma"]) * 180/np.pi)
-				# print(2*np.arctan(atmos.data[0,0,6]) * 180/np.pi)
 				# if self.verbose:
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
 				print("[{:s}] Iteration (min): {:2}\n".format(t0, np.min(itter)+1))
 
-				# atmos.atm_name_list = copy.deepcopy(atm_name_list)
-				# if self.of_mode:	
-				# 	atmos.of_paths = copy.deepcopy(of_paths)
-				# if self.mode==2:
-				# 	atmos.line_lists_path = copy.deepcopy(line_lists_path)
-
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#             spec.shape = (nx, ny, Nw, 5)
 				old_rf = copy.deepcopy(rf)
 				old_spec = copy.deepcopy(spec)
-				# if self.rf_type=="snapi":
-				# 	# rf, spec, full_rf = globin.compute_rfs(atmos, full_rf, old_atmos_parameters)
-				# 	rf, spec, full_rf = self.compute_rfs(old_rf=full_rf, old_pars=old_atmos_parameters)
-				# print(atmos.data[0,0,8])
-				if self.rf_type=="node":
-					# rf, spec, _ = globin.compute_rfs(atmos, skip, rf_noise_scale=noise_stokes)
-					rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=old_inds, rf_type=self.rf_type)
 
-				# plt.plot(spec.spec[0,0,:,0])
-				# ax2.plot(atmos.data[0,0,1])
 
-				# ax1.legend()
-				# plt.legend()
-				
-				# plt.show()
+				rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=old_inds, rf_type=self.rf_type)
 
 				# copy old RF into new for new itteration inversion
 				if len(old_inds)>0:
@@ -296,18 +268,6 @@ class Inverter(InputData):
 								niter = itter[idx,idy]
 								self.rf_debug[idx,idy,niter] = rf[idx,idy]
 
-				# atmos.compare(self.reference_atmosphere.data[0,0])
-				parameters = ["temp", "ne", "nH"]
-				# globin.visualize.plot_atmosphere(atmos, parameters, color="tab:red", label="inv")
-				# globin.visualize.plot_atmosphere(self.reference_atmosphere, parameters, label="ref")
-				# plt.show()
-				# sys.exit()
-
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
-				# plt.show()
-				# plt.close()
-				# sys.exit()
-
 				#--- scale RFs with weights and noise scale
 				_rf = rf
 
@@ -320,13 +280,11 @@ class Inverter(InputData):
 				Gymnastics with indices for solving LM equations for
 				next step parameters.
 				"""
-				# J = (nx, ny, npar, 4*nw)
+				# JT = (nx, ny, npar, 4*nw)
 				JT = _rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				# J = (nx, ny, 4*nw, npar)
 				J = np.moveaxis(JT, 2, 3)
-				# JT = (nx, ny, npar, 4*nw)
-				# JT = np.einsum("ijlk", J)
-
+				
 				# JTJ = (nx, ny, npar, npar)
 				JTJ = np.einsum("...ij,...jk", JT, J)
 				# get diagonal elements from hessian matrix
@@ -349,21 +307,8 @@ class Inverter(InputData):
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 
-			proposed_steps = invert_Hessian(H, delta, stop_flag, atmos.idx_meshgrid, atmos.idy_meshgrid, Npar, atmos.nx, atmos.ny, self.n_thread)
-
-			# xinds, yinds = np.where(stop_flag==0)
-			# if len(xinds)!=0 and len(yinds)!=0:
-			# 	for idx, idy in zip(xinds, yinds):
-			# 		np.fill_diagonal(H[idx,idy], 1)
-
-			# # proposed_steps = (nx, ny, npar)
-			# # proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
-			# try:
-			# 	proposed_steps = np.linalg.solve(H, delta)
-			# except np.linalg.LinAlgError:
-			# 	print(H)
-			# 	print("singular Hessian matrix")
-			# 	sys.exit()
+			# invert Hessian matrix using SVD method with specified svd_tolerance
+			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, atmos.idx_meshgrid, atmos.idy_meshgrid, Npar, atmos.nx, atmos.ny, self.n_thread)
 
 			old_atmos_parameters = copy.deepcopy(atmos.values)
 			if self.mode==2:
@@ -863,12 +808,12 @@ class Inverter(InputData):
 
 		return atmos, inverted_spectra
 
-def invert_Hessian(H, delta, stop_flag, IDx, IDy, Npar, nx, ny, n_thread=1):
+def invert_Hessian(H, delta, svd_tolerance, stop_flag, IDx, IDy, Npar, nx, ny, n_thread=1):
 	hessians = H[IDx,IDy]
 	deltas = delta[IDx,IDy]
 	flags = stop_flag[IDx,IDy]
 
-	args = list(zip(hessians, deltas, flags, [Npar]*len(IDx)))
+	args = list(zip(hessians, deltas, flags, [Npar]*len(IDx), [svd_tolerance]*len(IDx)))
 
 	with mp.Pool(n_thread) as pool:
 		results = pool.map(func=_invert_Hessian, iterable=args)
@@ -879,40 +824,23 @@ def invert_Hessian(H, delta, stop_flag, IDx, IDy, Npar, nx, ny, n_thread=1):
 	return results
 
 def _invert_Hessian(args):
-	hessian, delta, flag, Npar = args
+	hessian, delta, flag, Npar, svd_tolerance = args
+	
+	one = np.ones(Npar)
 
 	if flag==0:
 		return [0]*Npar
 
-	steps = np.linalg.solve(hessian, delta)
-
-	return steps
-
-def svd_invert(H, delta, stop_flag, svd_tolerance):
-	nx, ny, npar, _ = H.shape
-
-	one = np.ones(npar)
-
-	np.nan_to_num(H, nan=0.0, copy=False)
-
-	steps = np.zeros((nx, ny, npar))
-	for idx in range(nx):
-		for idy in range(ny):
-			if stop_flag[idx,idy]==1:
-				det = np.linalg.det(H[idx,idy])
-				if det==0:
-					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-					vmax = svd_tolerance*np.max(eigen_vals)
-					inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
-					Gamma_inv = np.diag(inv_eigen_vals)
-					invHess = np.dot(u, np.dot(Gamma_inv, vh))
-					steps[idx,idy] = np.dot(invHess, delta[idx,idy])
-				else:
-					u, eigen_vals, vh = np.linalg.svd(H[idx,idy], full_matrices=True, hermitian=True)
-					inv_eigen_vals = np.divide(one, eigen_vals)
-					Gamma_inv = np.diag(inv_eigen_vals)
-					invHess = np.dot(u, np.dot(Gamma_inv, vh))
-					steps[idx,idy] = np.dot(invHess, delta[idx,idy])
+	det = np.linalg.det(hessian)
+	if det==0:
+		u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
+		vmax = svd_tolerance*np.max(eigen_vals)
+		inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
+		Gamma_inv = np.diag(inv_eigen_vals)
+		invHess = np.dot(u, np.dot(Gamma_inv, vh))
+		steps = np.dot(invHess, delta)
+	else:
+		steps = np.linalg.solve(hessian, delta)
 
 	return steps
 
