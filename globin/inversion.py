@@ -38,8 +38,9 @@ def pretty_print_parameters(atmos, conv_flag, mode):
 				print(atmos.global_pars[parameter])
 			else:
 				if atmos.line_no[parameter].size > 0:
+					indx, indy = np.where(conv_flag==1)
 					print(parameter)
-					print(atmos.global_pars[parameter])
+					print(atmos.global_pars[parameter][indx,indy])
 
 class Inverter(InputData):
 	def __init__(self, save_output=True, verbose=True):
@@ -288,7 +289,7 @@ class Inverter(InputData):
 				# This was tested with arrays filled with hand and
 				# checked if the array manipulations return what we expect
 				# and it does!
-				
+
 				updated_pars = np.ones((atmos.nx, atmos.ny))
 
 			old_inds = []
@@ -300,59 +301,57 @@ class Inverter(InputData):
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 
-			# invert Hessian matrix using SVD method with specified svd_tolerance
+			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, atmos.idx_meshgrid, atmos.idy_meshgrid, Npar, atmos.nx, atmos.ny, self.n_thread)
 
+			#--- save old parameters (atmospheric and atomic)
 			old_atmos_parameters = copy.deepcopy(atmos.values)
 			if self.mode==2:
 				old_atomic_parameters = copy.deepcopy(atmos.global_pars)
+			
+			#--- update and check parameter boundaries
 			atmos.update_parameters(proposed_steps, stop_flag)
 			atmos.check_parameter_bounds(self.mode)
 
+			#--- set OF table after parameters update
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
+			#--- rebuild new atmosphere after parameters update
 			atmos.build_from_nodes()
 			if atmos.hydrostatic:
 				atmos.makeHSE()
 
+			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(old_inds)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
 
+			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
+
+			#--- if chi2 converges
+			indx, indy = np.where(chi2_new<chi2_old)
+			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
+			LM_parameter[indx,indy] /= 10
+			itter[indx,indy] += 1
+			updated_pars[indx,indy] = 1
 			
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if self.debug and stop_flag[idx,idy]==1:
-						niter = itter[idx,idy]
-						LM_debug[niter] = LM_parameter[idx,idy]
+			#--- if chi2 diverges
+			indx, indy = np.where(chi2_new>chi2_old)
+			LM_parameter[indx,indy] *= 10
+			for parameter in old_atmos_parameters:
+				atmos.values[parameter][indx,indy] = copy.deepcopy(old_atmos_parameters[parameter][indx,indy])
+				if self.mode==2:
+					for parameter in old_atomic_parameters:
+						atmos.global_pars[parameter][indx,indy] = copy.deepcopy(old_atomic_parameters[parameter][indx,indy])
+					old_inds.append((indx,indy))
+					updated_pars[indx,indy] = 0
 
-					if stop_flag[idx,idy]==1:
-						if chi2_new[idx,idy] > chi2_old[idx,idy]:
-							LM_parameter[idx,idy] *= 10
-							for parameter in old_atmos_parameters:
-								atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-							if self.mode==2:
-								for parameter in old_atomic_parameters:
-									atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-							old_inds.append((idx,idy))
-							updated_pars[idx,idy] = 0
-						else:
-							chi2[idx,idy,itter[idx,idy]] = chi2_new[idx,idy] / Ndof
-							LM_parameter[idx,idy] /= 10
-							itter[idx,idy] += 1
-							updated_pars[idx,idy] = 1
-					else:
-						for parameter in old_atmos_parameters:
-							atmos.values[parameter][idx,idy] = copy.deepcopy(old_atmos_parameters[parameter][idx,idy])
-						if self.mode==2:
-							for parameter in old_atomic_parameters:
-								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-
+			#--- remake OF table after check of chi2 convergance
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
