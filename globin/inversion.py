@@ -219,25 +219,17 @@ class Inverter(InputData):
 		start = time.time()
 
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
-		# we iterate until one of the pixels reach maximum numbre of iterations
-		# other pixels will be blocked at max itteration earlier than or
-		# will stop due to convergence criterium
 		
 		full_rf, old_atmos_parameters = None, None
 
 		rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
-		# original_atm_name_list = copy.deepcopy(atmos.atm_name_list)
-		# original_line_lists_path = copy.deepcopy(atmos.line_lists_path)
-		# atm_name_list = copy.deepcopy(atmos.atm_name_list)
-		# line_lists_path = copy.deepcopy(atmos.line_lists_path)
-		# if self.of_mode:
-		# 	original_of_paths = copy.deepcopy(atmos.of_paths)
-		# 	of_paths = copy.deepcopy(atmos.of_paths)
-
 		old_inds = []
 
+		# we iterate until one of the pixels reach maximum numbre of iterations
+		# other pixels will be blocked at max itteration earlier than or
+		# will stop due to convergence criterium
 		while np.min(itter) <= self.max_iter:
 			#--- if we updated parameters, recaluclate RF and referent spectra
 			if len(old_inds)!=(atmos.nx*atmos.ny):
@@ -268,9 +260,7 @@ class Inverter(InputData):
 								niter = itter[idx,idy]
 								self.rf_debug[idx,idy,niter] = rf[idx,idy]
 
-				#--- scale RFs with weights and noise scale
-				_rf = rf
-
+				#--- compute chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
 				diff /= noise_stokes
@@ -280,15 +270,17 @@ class Inverter(InputData):
 				Gymnastics with indices for solving LM equations for
 				next step parameters.
 				"""
+
 				# JT = (nx, ny, npar, 4*nw)
-				JT = _rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				JT = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				# J = (nx, ny, 4*nw, npar)
 				J = np.moveaxis(JT, 2, 3)
-				
 				# JTJ = (nx, ny, npar, npar)
 				JTJ = np.einsum("...ij,...jk", JT, J)
+				
 				# get diagonal elements from hessian matrix
 				diagonal_elements = np.einsum("...kk->...k", JTJ)
+				
 				# reshaped array of differences between computed and observed spectra
 				# flatted_diff = (nx, ny, 4*Nw)
 				flatted_diff = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
@@ -296,6 +288,7 @@ class Inverter(InputData):
 				# This was tested with arrays filled with hand and
 				# checked if the array manipulations return what we expect
 				# and it does!
+				
 				updated_pars = np.ones((atmos.nx, atmos.ny))
 
 			old_inds = []
@@ -380,7 +373,8 @@ class Inverter(InputData):
 
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
-			print(LM_parameter)
+			idx, idy = np.where(stop_flag==1)
+			print(LM_parameter[idx,idy])
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set stop_flag to 0 (True)

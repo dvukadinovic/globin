@@ -52,7 +52,7 @@ class Atmosphere(object):
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
-			# index of parameters in self.data ndarray
+	# index of parameters in self.data ndarray
 	par_id = {"logtau" : 0,
 					  "temp"   : 1,
 					  "ne"     : 2,
@@ -583,14 +583,6 @@ class Atmosphere(object):
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
 				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-				# we do not perturb parameters of those pixels which converged
-				step = np.einsum("...i,...->...i", step, stop_flag)
-				# if globin.rf_type=="snapi":
-				# 	# RH returns RFs in m/s and we are working with km/s in globin
-				# 	# so we have to return the values from m/s to km/s
-				# 	if parameter=="vz" or parameter=="vmic":
-				# 		step /= 1e3
-				np.nan_to_num(step, nan=0.0, copy=False)
 				self.values[parameter] += step
 
 			# update atomic parameters + vmac
@@ -599,7 +591,6 @@ class Atmosphere(object):
 					low_ind = up_ind
 					up_ind += self.line_no[parameter].size
 					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-					np.nan_to_num(step, nan=0.0, copy=False)
 					self.global_pars[parameter] += step
 		else:
 			low_ind, up_ind = 0, 0
@@ -640,28 +631,18 @@ class Atmosphere(object):
 			if parameter=="gamma":
 				y = np.cos(self.values[parameter])
 				self.values[parameter] = np.arccos(y)
-				# gamma = 2*np.arctan(self.values[parameter])
-				# gamma %= np.pi
-				# self.values[parameter] = np.tan(gamma/2)
-				pass
-			# azimuth is wrapped around [0, 360] interval
+			# azimuth is wrapped around [0, 180] interval
 			elif parameter=="chi":
-				# chi = 4*np.arctan(self.values[parameter])
-				# chi %= 2*np.pi
-				# self.values[parameter] = np.tan(chi/4)
 				y = np.cos(self.values[parameter])
 				self.values[parameter] = np.arccos(y)
-				pass
 			else:
-				for i_ in range(len(self.nodes[parameter])):
-					for idx in range(self.nx):
-						for idy in range(self.ny):
-							# minimum check
-							if self.values[parameter][idx,idy,i_]<self.limit_values[parameter][0]:
-								self.values[parameter][idx,idy,i_] = self.limit_values[parameter][0]
-							# maximum check
-							if self.values[parameter][idx,idy,i_]>self.limit_values[parameter][1]:
-								self.values[parameter][idx,idy,i_] = self.limit_values[parameter][1]
+				# check lower boundary condition
+				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
+				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
+
+				# check upper boundary condition
+				indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
+				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
@@ -673,20 +654,16 @@ class Atmosphere(object):
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]])
 				self.vmac = self.global_pars["vmac"]
 			else:
-				if self.line_no[parameter].size > 0:
-					if mode==2:
-						nx, ny = self.nx, self.ny
-					elif mode==3:
-						nx, ny = 1,1
-					for idx in range(nx):
-						for idy in range(ny):
-							for i_ in range(self.line_no[parameter].size):
-								# minimum check
-								if self.global_pars[parameter][idx,idy,i_]<self.limit_values[parameter][i_,0]:
-									self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,0]
-								# maximum check
-								if self.global_pars[parameter][idx,idy,i_]>self.limit_values[parameter][i_,1]:
-									self.global_pars[parameter][idx,idy,i_] = self.limit_values[parameter][i_,1]
+				Npar = self.line_no[parameter].size
+				if Npar > 0:
+					for idl in range(Npar):
+						# check lower boundary condition
+						indx, indy = np.where(self.global_pars[parameter][...,idl]<self.limit_values[parameter][idl,0])
+						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
+
+						# check upper boundary condition
+						indx, indy = np.where(self.global_pars[parameter][...,idl]>self.limit_values[parameter][idl,1])
+						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
 	def smooth_parameters(self, cycleID):
 		from scipy.ndimage import gaussian_filter
