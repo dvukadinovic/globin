@@ -696,43 +696,36 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
-	def compute_spectra(self, skip=[]):
-		args = copy.deepcopy(self.ids_tuple)
-		for item in skip:
-			args.remove(item)
-
+	def compute_spectra(self, synthesize=[]):
+		args = zip(self.idx_meshgrid, self.idy_meshgrid, synthesize.flatten())
+		
 		with mp.Pool(self.n_thread) as pool:
 			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
 
+		spectra_list = np.array(spectra_list)
+		_, ns, nw = spectra_list.shape
+		spectra_list = spectra_list.reshape(self.nx, self.ny, ns, nw, order="F")
+		spectra_list = np.swapaxes(spectra_list, 2, 3)
+
 		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum), nz=self.nz)
-
-		for i_ in range(len(spectra_list)):
-			idx, idy = spectra_list[i_]["idx"], spectra_list[i_]["idy"]
-			spectra.spec[idx,idy,:,0] = spectra_list[i_]["spec"].I
-			spectra.spec[idx,idy,:,1] = spectra_list[i_]["spec"].Q
-			spectra.spec[idx,idy,:,2] = spectra_list[i_]["spec"].U
-			spectra.spec[idx,idy,:,3] = spectra_list[i_]["spec"].V
-			# spectra.J[idx,idy] = spectra_list[i_]["spec"].J
-
-		# print(spectra.J[0,0,:,0])
-		
-		# plt.imshow(np.log10(spectra.J[0,0].T), cmap="plasma")
-		# plt.colorbar()
-		# plt.show()
+		spectra.spec = spectra_list
+		spectra.wavelength = self.wavelength_vacuum
 
 		if self.norm:
-			# if self.mode==3:
-			self.icont = spectra.spec[:,:,0,0]
-			# self.icont = globin.spec.get_Icont(np.mean(self.wavelength_vacuum))
+			if self.icont is None:
+				self.icont = spectra.spec[:,:,0,0]
 			spectra.spec /= self.icont
-
-		spectra.wavelength = self.wavelength_vacuum
 
 		return spectra
 
-	def _compute_spectra_sequential(self, arg):
+	def _compute_spectra_sequential(self, args):
 		# start = time.time()
-		idx, idy = arg
+		idx, idy, flag = args
+
+		# pixel converged or have not updated parameters
+		if flag==0:
+			return np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum))
+
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
 				_idx, _idy = idx, idy
@@ -758,7 +751,8 @@ class Atmosphere(object):
 		
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
-		return {"spec": spec, "idx" : idx, "idy" : idy}
+		# return {"spec": spec, "idx" : idx, "idy" : idy}
+		return spec.I, spec.Q, spec.U, spec.V
 
 	def compute_rfs(self, rf_noise_scale, weights=1, skip=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
@@ -775,7 +769,6 @@ class Atmosphere(object):
 
 		old_rf : ndarray
 		"""
-		#--- get inversion parameters for atmosphere and interpolate it on finner grid (original)
 		self.build_from_nodes()
 		# print("  Get parameter RF...")
 		if self.hydrostatic:

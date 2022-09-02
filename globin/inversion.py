@@ -76,7 +76,7 @@ class Inverter(InputData):
 				print(f"  There is no path for RH input file.")
 			sys.exit()
 
-	def run(self, skip=[]):
+	def run(self):
 		# if self.atmosphere.spectra is None:
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
@@ -106,7 +106,7 @@ class Inverter(InputData):
 
 		elif self.mode==0:
 			print("\n  Entering synthesis mode.")
-			spec = self.atmosphere.compute_spectra(skip=skip)
+			spec = self.atmosphere.compute_spectra(skip=np.ones(self.atmosphere.nx, self.atmosphere.ny))
 			spec.save(self.output_spectra_path, self.wavelength_air)
 			return self.atmosphere, spec
 			print("\n  Done!")
@@ -226,14 +226,20 @@ class Inverter(InputData):
 		rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
-		old_inds = []
+		# 0 -- no parameters update --> we have not got good parameters or we converged
+		# 1 -- we have updated parameters; we need new RF and spectrum
+		updated_pars = np.ones((atmos.nx, atmos.ny))
+
+		# old_inds = []
 
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
 		while np.min(itter) <= self.max_iter:
 			#--- if we updated parameters, recaluclate RF and referent spectra
-			if len(old_inds)!=(atmos.nx*atmos.ny):
+			# if len(old_inds)!=(atmos.nx*atmos.ny):
+			total = np.sum(updated_pars)
+			if total!=0:
 				# if self.verbose:
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
@@ -244,15 +250,19 @@ class Inverter(InputData):
 				old_rf = copy.deepcopy(rf)
 				old_spec = copy.deepcopy(spec)
 
-
-				rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=old_inds, rf_type=self.rf_type)
+				rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=updated_pars, rf_type=self.rf_type)
 
 				# copy old RF into new for new itteration inversion
-				if len(old_inds)>0:
-					for ind in old_inds:
-						idx, idy = ind
-						rf[idx,idy] = old_rf[idx,idy]
-						spec.spec[idx,idy] = old_spec.spec[idx,idy]
+				# Hmmmmm....
+				if total!=atmos.nx*atmos.ny:
+					active_indx, active_indy = np.where(updated_pars==0)
+					rf[active_indx,active_indy] += old_rf[active_indx, active_indy]
+					spec.spec[active_indx,active_indy] += old_spec.spec[active_indx, active_indy]
+				# if len(old_inds)>0:
+				# 	for ind in old_inds:
+				# 		idx, idy = ind
+				# 		rf[idx,idy] = old_rf[idx,idy]
+				# 		spec.spec[idx,idy] = old_spec.spec[idx,idy]
 
 				if self.debug:
 					for idx in range(atmos.nx):
@@ -290,9 +300,7 @@ class Inverter(InputData):
 				# checked if the array manipulations return what we expect
 				# and it does!
 
-				updated_pars = np.ones((atmos.nx, atmos.ny))
-
-			old_inds = []
+			# old_inds = []
 
 			# hessian = (nx, ny, npar, npar)
 			H = copy.deepcopy(JTJ)
@@ -323,7 +331,7 @@ class Inverter(InputData):
 				atmos.makeHSE()
 
 			#--- compute new spectrum after parameters update
-			corrected_spec = atmos.compute_spectra(old_inds)
+			corrected_spec = atmos.compute_spectra(updated_pars)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
 
@@ -333,23 +341,22 @@ class Inverter(InputData):
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
-			#--- if chi2 converges
+			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
 			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
 			LM_parameter[indx,indy] /= 10
 			itter[indx,indy] += 1
 			updated_pars[indx,indy] = 1
 			
-			#--- if chi2 diverges
-			indx, indy = np.where(chi2_new>chi2_old)
+			#--- if new chi2 is worse than old chi2
+			indx, indy = np.where(chi2_new>=chi2_old)
 			LM_parameter[indx,indy] *= 10
 			for parameter in old_atmos_parameters:
 				atmos.values[parameter][indx,indy] = copy.deepcopy(old_atmos_parameters[parameter][indx,indy])
-				if self.mode==2:
-					for parameter in old_atomic_parameters:
-						atmos.global_pars[parameter][indx,indy] = copy.deepcopy(old_atomic_parameters[parameter][indx,indy])
-					old_inds.append((indx,indy))
-					updated_pars[indx,indy] = 0
+			if self.mode==2:
+				for parameter in old_atomic_parameters:
+					atmos.global_pars[parameter][indx,indy] = copy.deepcopy(old_atomic_parameters[parameter][indx,indy])
+			updated_pars[indx,indy] = 0
 
 			#--- remake OF table after check of chi2 convergance
 			if atmos.do_fudge==1:
@@ -362,14 +369,15 @@ class Inverter(InputData):
 			indx, indy = np.where(LM_parameter>=1e5)
 			stop_flag[indx,indy] = 0
 			itter[indx,indy] = self.max_iter
-			# if self.verbose:
-			# 	print("Large LM parameter for ", indx, indy)
 
 			#--- print the current state of the inversion
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
 			idx, idy = np.where(stop_flag==1)
 			print(LM_parameter[idx,idy])
+
+			#--- check the convergence only for pixels whose iteration number is larger than 2
+			# chi2_convergence(chi2, itter, stop_flag, updated_pars, atmos.idx_meshgrid, atmos.idy_meshgrid)
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set stop_flag to 0 (True)
@@ -385,18 +393,22 @@ class Inverter(InputData):
 								print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
+								updated_pars[idx,idy] = 0
 							elif relative_change<self.chi2_tolerance:
 								print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
+								updated_pars[idx,idy] = 0
 							elif chi2[idx,idy,it_no-1] < 1:
 								print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
+								updated_pars[idx,idy] = 0
 							# if given pixel iteration number has reached the maximum number of iterations
 							# we stop the convergence for given pixel
 							if it_no-1==self.max_iter-1:
 								stop_flag[idx,idy] = 0
+								updated_pars[idx,idy] = 0
 								print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
 
 			# if self.verbose:
@@ -406,10 +418,12 @@ class Inverter(InputData):
 			if np.sum(stop_flag)==0:
 				break
 
+		updated_pars[...] = 1
+
 		atmos.build_from_nodes()
 		if atmos.hydrostatic:
 			atmos.makeHSE()
-		inverted_spectra = atmos.compute_spectra()
+		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac)
 
@@ -832,6 +846,47 @@ def _invert_Hessian(args):
 		steps = np.linalg.solve(hessian, delta)
 
 	return steps
+
+#--- check the convergence of chi2
+def chi2_convergence(chi2, itter, stop_flag, updated_pars, idx_meshgrid, idy_meshgrid, n_thread=1, max_iter=30, chi2_tolerance=1e-3):
+	active_indx, active_indy = np.where(stop_flag==1)
+
+	nx, ny = stop_flag.shape
+
+	_chi2 = chi2[active_indx,active_indy]
+	_itter = itter[active_indx, active_indy]
+	_flag = stop_flag[active_indx, active_indy]
+	_max_iter = [max_iter]*len(active_indx)
+	_chi2_tolerance = [chi2_tolerance]*len(active_indx)
+
+	args = zip(_chi2, _itter, _flag, _max_iter, _chi2_tolerance)
+
+	with mp.Pool(n_thread) as pool:
+		results = pool.map(func=_chi2_convergence, iterable=args)
+
+	results = np.array(results)
+	print(results.shape)
+	stop_flag[active_indx, active_indy] = results.reshape(nx, ny)
+
+	return
+
+def _chi2_convergence(args):
+	chi2, itter, flag, max_iter, chi2_tolerance = args
+
+	if flag==0:
+		return 0
+
+	if itter==max_iter:
+		return 0
+
+	if chi2[itter-1]<1:
+		return 0
+
+	relative_change = np.abs(chi2[itter-1]/chi2[itter-1] - 1)
+	if relative_change<chi2_tolerance:
+		return 0
+
+	return 1
 
 def invert_mcmc(init, save_output, verbose):
 	obs = init.obs
