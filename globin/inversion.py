@@ -321,11 +321,11 @@ class Inverter(InputData):
 				next step parameters.
 				"""
 				# J = (nx, ny, npar, 4*nw)
-				J = _rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				JT = _rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				# J = (nx, ny, 4*nw, npar)
-				J = np.moveaxis(J, 2, 3)
+				J = np.moveaxis(JT, 2, 3)
 				# JT = (nx, ny, npar, 4*nw)
-				JT = np.einsum("ijlk", J)
+				# JT = np.einsum("ijlk", J)
 
 				# JTJ = (nx, ny, npar, npar)
 				JTJ = np.einsum("...ij,...jk", JT, J)
@@ -340,15 +340,6 @@ class Inverter(InputData):
 				# and it does!
 				updated_pars = np.ones((atmos.nx, atmos.ny))
 
-			# atmos.atm_name_list = copy.deepcopy(original_atm_name_list)
-			# atm_name_list = copy.deepcopy(original_atm_name_list)
-			# if self.of_mode:
-			# 	atmos.of_paths = copy.deepcopy(original_of_paths)
-			# 	of_paths = copy.deepcopy(original_of_paths)
-			# if self.mode==2:
-			# 	atmos.line_lists_path = copy.deepcopy(original_line_lists_path)
-			# 	line_lists_path = copy.deepcopy(original_line_lists_path)
-			
 			old_inds = []
 
 			# hessian = (nx, ny, npar, npar)
@@ -358,13 +349,21 @@ class Inverter(InputData):
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 
-			# proposed_steps = (nx, ny, npar)
-			# proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
-			try:
-				proposed_steps = np.linalg.solve(H, delta)
-			except np.linalg.LinAlgError:
-				print(H)
-				sys.exit()
+			proposed_steps = invert_Hessian(H, delta, stop_flag, atmos.idx_meshgrid, atmos.idy_meshgrid, Npar, atmos.nx, atmos.ny, self.n_thread)
+
+			# xinds, yinds = np.where(stop_flag==0)
+			# if len(xinds)!=0 and len(yinds)!=0:
+			# 	for idx, idy in zip(xinds, yinds):
+			# 		np.fill_diagonal(H[idx,idy], 1)
+
+			# # proposed_steps = (nx, ny, npar)
+			# # proposed_steps = svd_invert(H, delta, stop_flag, self.svd_tolerance)
+			# try:
+			# 	proposed_steps = np.linalg.solve(H, delta)
+			# except np.linalg.LinAlgError:
+			# 	print(H)
+			# 	print("singular Hessian matrix")
+			# 	sys.exit()
 
 			old_atmos_parameters = copy.deepcopy(atmos.values)
 			if self.mode==2:
@@ -372,13 +371,6 @@ class Inverter(InputData):
 			atmos.update_parameters(proposed_steps, stop_flag)
 			atmos.check_parameter_bounds(self.mode)
 
-			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			# 	for idx in range(atmos.nx):
-			# 		for idy in range(atmos.ny):
-			# 			fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-			# 			globin.write_line_parameters(fpath,
-			# 									   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
-			# 									   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
@@ -390,17 +382,10 @@ class Inverter(InputData):
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac)
 
-			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=corrected_spec.spec[0,0])
-			# plt.show()
-
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
-
-			# if chi2_new[0,0]==np.nan:
-			# globin.visualize.plot_atmosphere(atmos, ["temp", "ne", "nH"])
-			# plt.show()
 			
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
@@ -416,13 +401,6 @@ class Inverter(InputData):
 							if self.mode==2:
 								for parameter in old_atomic_parameters:
 									atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-							# 	fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-							# 	line_lists_path.remove(fpath)
-							# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-							# atm_name_list.remove(fpath)
-							# if self.of_mode:
-							# 	fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-							# 	of_paths.remove(fpath)
 							old_inds.append((idx,idy))
 							updated_pars[idx,idy] = 0
 						else:
@@ -436,15 +414,6 @@ class Inverter(InputData):
 						if self.mode==2:
 							for parameter in old_atomic_parameters:
 								atmos.global_pars[parameter][idx,idy] = copy.deepcopy(old_atomic_parameters[parameter][idx,idy])
-
-			# we write down those atomic parameters which are not updated (rewerting back to old ones)
-			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			# 	for ind in old_inds:
-			# 		idx, idy = ind
-			# 		fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-			# 		globin.write_line_parameters(fpath,
-			# 								   atmos.global_pars["loggf"][idx,idy], atmos.line_no["loggf"],
-			# 								   atmos.global_pars["dlam"][idx,idy], atmos.line_no["dlam"])
 
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
@@ -462,15 +431,11 @@ class Inverter(InputData):
 						if LM_parameter[idx,idy]>=1e8:
 							stop_flag[idx,idy] = 0
 							itter[idx,idy] = self.max_iter
-							# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-							# if self.mode==2:
-							# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							print(f"[{idx},{idy}] --> Large LM parameter. We break.")
 
 			if self.verbose:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
 			print(LM_parameter)
-			# print(old_inds)
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set stop_flag to 0 (True)
@@ -486,38 +451,14 @@ class Inverter(InputData):
 								print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
-								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# if globin.of_mode:
-								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# if globin.mode==2:
-								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							elif relative_change<self.chi2_tolerance:
 								print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
-								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# if globin.of_mode:
-								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# if globin.mode==2:
-								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							elif chi2[idx,idy,it_no-1] < 1:
 								print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
 								stop_flag[idx,idy] = 0
 								itter[idx,idy] = self.max_iter
-								# original_atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# atm_name_list.remove(f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}")
-								# if globin.of_mode:
-								# 	original_of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# 	of_paths.remove(f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}")
-								# if globin.mode==2:
-								# 	original_line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
-								# 	line_lists_path.remove(f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}")
 							# if given pixel iteration number has reached the maximum number of iterations
 							# we stop the convergence for given pixel
 							if it_no-1==self.max_iter-1:
@@ -530,33 +471,6 @@ class Inverter(InputData):
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:
 				break
-
-		# return all original paths for final output
-		# atmos.atm_name_list = []
-		# atmos.line_lists_path = []
-		# if globin.of_mode:
-		# 	atmos.of_paths = []
-		
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-				# fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-				# atmos.atm_name_list.append(fpath)
-				# if globin.of_mode:
-				# 	fpath = f"{globin.cwd}/runs/{globin.wd}/ofs/of_{idx}_{idy}"
-				# 	atmos.of_paths.append(fpath)
-				# if globin.mode==2:
-				# 	fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-				# 	atmos.line_lists_path.append(fpath)
-		
-		# if self.mode==1:
-		# 	fpath = f"runs/{globin.wd}/{globin.linelist_name}"
-		# 	atmos.line_lists_path.append(fpath)
-
-		# wrap the nodes of angles in 0-180 degrees and 0-360 degrees
-		# if "gamma" in atmos.nodes:
-		# 	atmos.values["gamma"] %= np.pi
-		# if "chi" in atmos.nodes:
-		# 	atmos.values["chi"] %= 2*np.pi
 
 		atmos.build_from_nodes()
 		if atmos.hydrostatic:
@@ -948,6 +862,31 @@ class Inverter(InputData):
 			print("Finished in: {0}\n".format(end))
 
 		return atmos, inverted_spectra
+
+def invert_Hessian(H, delta, stop_flag, IDx, IDy, Npar, nx, ny, n_thread=1):
+	hessians = H[IDx,IDy]
+	deltas = delta[IDx,IDy]
+	flags = stop_flag[IDx,IDy]
+
+	args = list(zip(hessians, deltas, flags, [Npar]*len(IDx)))
+
+	with mp.Pool(n_thread) as pool:
+		results = pool.map(func=_invert_Hessian, iterable=args)
+
+	results = np.array(results)
+	results = results.reshape(nx, ny, Npar)
+
+	return results
+
+def _invert_Hessian(args):
+	hessian, delta, flag, Npar = args
+
+	if flag==0:
+		return [0]*Npar
+
+	steps = np.linalg.solve(hessian, delta)
+
+	return steps
 
 def svd_invert(H, delta, stop_flag, svd_tolerance):
 	nx, ny, npar, _ = H.shape
