@@ -377,39 +377,39 @@ class Inverter(InputData):
 			print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
-			# chi2_convergence(chi2, itter, stop_flag, updated_pars, atmos.idx_meshgrid, atmos.idy_meshgrid)
+			stop_flag, itter, update_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set stop_flag to 0 (True)
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if stop_flag[idx,idy]==1 and updated_pars[idx,idy]==1:
-						it_no = itter[idx,idy]
-						if it_no>=2:
-							# need to get -2 and -1 because I already rised itter by 1
-							# when chi2 list was updated.
-							relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
-							if chi2[idx,idy,it_no-1]<1e-32:
-								print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
-								stop_flag[idx,idy] = 0
-								itter[idx,idy] = self.max_iter
-								updated_pars[idx,idy] = 0
-							elif relative_change<self.chi2_tolerance:
-								print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
-								stop_flag[idx,idy] = 0
-								itter[idx,idy] = self.max_iter
-								updated_pars[idx,idy] = 0
-							elif chi2[idx,idy,it_no-1] < 1:
-								print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
-								stop_flag[idx,idy] = 0
-								itter[idx,idy] = self.max_iter
-								updated_pars[idx,idy] = 0
-							# if given pixel iteration number has reached the maximum number of iterations
-							# we stop the convergence for given pixel
-							if it_no-1==self.max_iter-1:
-								stop_flag[idx,idy] = 0
-								updated_pars[idx,idy] = 0
-								print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		if stop_flag[idx,idy]==1 and updated_pars[idx,idy]==1:
+			# 			it_no = itter[idx,idy]
+			# 			if it_no>=2:
+			# 				# need to get -2 and -1 because I already rised itter by 1
+			# 				# when chi2 list was updated.
+			# 				relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
+			# 				if chi2[idx,idy,it_no-1]<1e-32:
+			# 					print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
+			# 					stop_flag[idx,idy] = 0
+			# 					itter[idx,idy] = self.max_iter
+			# 					updated_pars[idx,idy] = 0
+			# 				elif relative_change<self.chi2_tolerance:
+			# 					print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
+			# 					stop_flag[idx,idy] = 0
+			# 					itter[idx,idy] = self.max_iter
+			# 					updated_pars[idx,idy] = 0
+			# 				elif chi2[idx,idy,it_no-1] < 1:
+			# 					print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
+			# 					stop_flag[idx,idy] = 0
+			# 					itter[idx,idy] = self.max_iter
+			# 					updated_pars[idx,idy] = 0
+			# 				# if given pixel iteration number has reached the maximum number of iterations
+			# 				# we stop the convergence for given pixel
+			# 				if it_no-1==self.max_iter-1:
+			# 					stop_flag[idx,idy] = 0
+			# 					updated_pars[idx,idy] = 0
+			# 					print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
 
 			# if self.verbose:
 			print("\n--------------------------------------------------\n")
@@ -418,6 +418,7 @@ class Inverter(InputData):
 			if np.sum(stop_flag)==0:
 				break
 
+		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
 
 		atmos.build_from_nodes()
@@ -848,45 +849,52 @@ def _invert_Hessian(args):
 	return steps
 
 #--- check the convergence of chi2
-def chi2_convergence(chi2, itter, stop_flag, updated_pars, idx_meshgrid, idy_meshgrid, n_thread=1, max_iter=30, chi2_tolerance=1e-3):
-	active_indx, active_indy = np.where(stop_flag==1)
-
+def chi2_convergence(chi2, itter, stop_flag, updated_pars, n_thread, max_iter, chi2_tolerance):
 	nx, ny = stop_flag.shape
 
-	_chi2 = chi2[active_indx,active_indy]
-	_itter = itter[active_indx, active_indy]
-	_flag = stop_flag[active_indx, active_indy]
-	_max_iter = [max_iter]*len(active_indx)
-	_chi2_tolerance = [chi2_tolerance]*len(active_indx)
+	_max_iter = [max_iter]*nx*ny
+	_chi2_tolerance = [chi2_tolerance]*nx*ny
 
-	args = zip(_chi2, _itter, _flag, _max_iter, _chi2_tolerance)
+	args = zip(chi2.reshape(nx*ny, max_iter), stop_flag.flatten(), itter.flatten(), _max_iter, _chi2_tolerance)
 
 	with mp.Pool(n_thread) as pool:
 		results = pool.map(func=_chi2_convergence, iterable=args)
 
-	results = np.array(results)
-	print(results.shape)
-	stop_flag[active_indx, active_indy] = results.reshape(nx, ny)
 
-	return
+	results = np.array(results)
+
+	return results[...,0].reshape(nx, ny), results[...,1].reshape(nx, ny), results[...,2].reshape(nx, ny)
 
 def _chi2_convergence(args):
-	chi2, itter, flag, max_iter, chi2_tolerance = args
+	"""
+	Return:
+	----------
+ 	stop_flag    --> 0 for the end
+ 	max_iter     --> maximum number of iteration if we ended
+	updated_pars --> flag if we do not need to update parameters 
+					 anymore since we converged
+	"""
+	chi2, flag, itter, max_iter, chi2_tolerance = args
 
+	# we do not check chi2 until the iteration=3
+	if itter<2:
+		return 1, itter, 1
+	
+	# if we have already converged
 	if flag==0:
-		return 0
+		return 0, max_iter, 0
 
-	if itter==max_iter:
-		return 0
-
+	# if chi2 is lower than 1
 	if chi2[itter-1]<1:
-		return 0
+		return 0, max_iter, 0
 
-	relative_change = np.abs(chi2[itter-1]/chi2[itter-1] - 1)
+	relative_change = np.abs(chi2[itter-1]/chi2[itter-2] - 1)
+	# if relative change of chi2 is lower than given tolerance level
 	if relative_change<chi2_tolerance:
-		return 0
+		return 0, max_iter, 0
 
-	return 1
+	# if we still have not converged
+	return 1, itter, 1
 
 def invert_mcmc(init, save_output, verbose):
 	obs = init.obs
