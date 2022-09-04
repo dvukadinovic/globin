@@ -230,14 +230,11 @@ class Inverter(InputData):
 		# 1 -- we have updated parameters; we need new RF and spectrum
 		updated_pars = np.ones((atmos.nx, atmos.ny))
 
-		# old_inds = []
-
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
 		while np.min(itter) <= self.max_iter:
 			#--- if we updated parameters, recaluclate RF and referent spectra
-			# if len(old_inds)!=(atmos.nx*atmos.ny):
 			total = np.sum(updated_pars)
 			if total!=0:
 				# if self.verbose:
@@ -258,12 +255,7 @@ class Inverter(InputData):
 					active_indx, active_indy = np.where(updated_pars==0)
 					rf[active_indx,active_indy] += old_rf[active_indx, active_indy]
 					spec.spec[active_indx,active_indy] += old_spec.spec[active_indx, active_indy]
-				# if len(old_inds)>0:
-				# 	for ind in old_inds:
-				# 		idx, idy = ind
-				# 		rf[idx,idy] = old_rf[idx,idy]
-				# 		spec.spec[idx,idy] = old_spec.spec[idx,idy]
-
+				
 				if self.debug:
 					for idx in range(atmos.nx):
 						for idy in range(atmos.ny):
@@ -299,8 +291,6 @@ class Inverter(InputData):
 				# This was tested with arrays filled with hand and
 				# checked if the array manipulations return what we expect
 				# and it does!
-
-			# old_inds = []
 
 			# hessian = (nx, ny, npar, npar)
 			H = copy.deepcopy(JTJ)
@@ -343,6 +333,9 @@ class Inverter(InputData):
 
 			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
+			print(stop_flag[indx,indy])
+			print(updated_pars[indx,indy])
+			print(chi2_new[indx,indy], chi2_old[indx,indy])
 			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
 			LM_parameter[indx,indy] /= 10
 			itter[indx,indy] += 1
@@ -371,45 +364,13 @@ class Inverter(InputData):
 			itter[indx,indy] = self.max_iter
 
 			#--- print the current state of the inversion
-			if self.verbose:
+			if self.verbose and np.sum(stop_flag)!=0:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
 			idx, idy = np.where(stop_flag==1)
 			print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
-			stop_flag, itter, update_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
-
-			# we check if chi2 has converged for each pixel
-			# if yes, we set stop_flag to 0 (True)
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		if stop_flag[idx,idy]==1 and updated_pars[idx,idy]==1:
-			# 			it_no = itter[idx,idy]
-			# 			if it_no>=2:
-			# 				# need to get -2 and -1 because I already rised itter by 1
-			# 				# when chi2 list was updated.
-			# 				relative_change = abs(chi2[idx,idy,it_no-1]/chi2[idx,idy,it_no-2] - 1)
-			# 				if chi2[idx,idy,it_no-1]<1e-32:
-			# 					print(f"--> [{idx+1},{idy+1}] : chi2 is way low!\n")
-			# 					stop_flag[idx,idy] = 0
-			# 					itter[idx,idy] = self.max_iter
-			# 					updated_pars[idx,idy] = 0
-			# 				elif relative_change<self.chi2_tolerance:
-			# 					print(f"--> [{idx+1},{idy+1}] : chi2 relative change is smaller than given value.\n")
-			# 					stop_flag[idx,idy] = 0
-			# 					itter[idx,idy] = self.max_iter
-			# 					updated_pars[idx,idy] = 0
-			# 				elif chi2[idx,idy,it_no-1] < 1:
-			# 					print(f"--> [{idx+1},{idy+1}] : chi2 smaller than 1\n")
-			# 					stop_flag[idx,idy] = 0
-			# 					itter[idx,idy] = self.max_iter
-			# 					updated_pars[idx,idy] = 0
-			# 				# if given pixel iteration number has reached the maximum number of iterations
-			# 				# we stop the convergence for given pixel
-			# 				if it_no-1==self.max_iter-1:
-			# 					stop_flag[idx,idy] = 0
-			# 					updated_pars[idx,idy] = 0
-			# 					print(f"--> [{idx+1},{idy+1}] : Maximum number of iterations reached. We break.\n")
+			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
 
 			# if self.verbose:
 			print("\n--------------------------------------------------\n")
@@ -479,9 +440,6 @@ class Inverter(InputData):
 					mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
 				else:
 					mean_dlam = None
-
-				# globin.write_line_pars(f"{output_path}/line_pars_m3", mean_loggf, atmos.line_no["loggf"],
-				# 													  mean_dlam, atmos.line_no["dlam"])
 
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
