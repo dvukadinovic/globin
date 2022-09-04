@@ -29,19 +29,27 @@ description of it.
 
 ## ToDo
 
-* add inversion for OF parameters
+* add covolution with PSF profile
+* add weights for each Stokes that are pixel dependent ?
+* temperature initialization based on relative continuum intensity between pixels ?
+
 * make unit test
 * extend Atmosphere() to hold and AtomicLine() class (?)
 
 ## Rewritings
 
-Rewrite output routines from RH of output spectrum? To write out only spectrum
-at highest mu?
+
+## Comments
+
+Higher noise will lower the impact of lower signals (like weak polarization ones). Can we
+utilize this during inversion runs putting more constraints to Stokes I (temperature, v_LOS)
+and later we lower tha noise and let the code see more polarization and adjust magnetic field 
+vector. Hm?
 
 ## RH changes
 
 1. Fixed problem with SOLVE_NE in ITERATION mode (check mail to Sowmya where it is explained what is changed).
-2. Hydrostatic() is done even if H atom is not in ACTIVE state (iterate.c) --> nope, changes have been reverted.
+2. HSE is done consistently inside RH (separate routine call)
 
 ## Requierments
 
