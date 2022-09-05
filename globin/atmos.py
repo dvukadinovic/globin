@@ -289,7 +289,7 @@ class Atmosphere(object):
 		args = zip(atmos, globin.idx, globin.idy)
 		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
 
-	def build_from_nodes(self):
+	def build_from_nodes(self, flag):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -312,19 +312,25 @@ class Atmosphere(object):
 		"""
 
 		atmos = [self]*(self.nx*self.ny)
-		args = zip(atmos, self.idx_meshgrid, self.idy_meshgrid)
+		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid)
 
 		with mp.Pool(self.n_thread) as pool:
-			atm = pool.map(func=self._build_from_nodes, iterable=args)
+			results = pool.map(func=self._build_from_nodes, iterable=args)
 
-		# we need to assign built atmosphere structure to self atmosphere
-		# otherwise self.data would be only 0's.
-		for idl in range(self.nx*self.ny):
-			idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
-			self.data[idx,idy] = atm[idl].data[idx,idy]
+		results = np.array(results)
+		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
+
+		# # we need to assign built atmosphere structure to self atmosphere
+		# # otherwise self.data would be only 0's.
+		# for idl in range(self.nx*self.ny):
+		# 	idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
+		# 	self.data[idx,idy] = atm[idl].data[idx,idy]
 
 	def _build_from_nodes(self, args):
-		atmos, idx, idy = args
+		atmos, flag, idx, idy = args
+
+		if flag==0:
+			return atmos.data[idx,idy]
 
 		for parameter in atmos.nodes:
 			if parameter!="of":
@@ -363,11 +369,7 @@ class Atmosphere(object):
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
 				atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
-		# if atmos.hydrostatic:
-		# 	# atmos.makeHSE_old(idx, idy)
-		# 	atmos.makeHSE_new(idx, idy)
-
-		return atmos
+		return atmos.data[idx,idy]
 
 	def _set_pops(self, pops):
 		"""
@@ -575,9 +577,10 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
-	def update_parameters(self, proposed_steps, stop_flag=None):
-		if stop_flag is not None:
+	def update_parameters(self, proposed_steps, mode):
+		if mode==1 or mode==2:
 			low_ind, up_ind = 0, 0
+			
 			# update atmospheric parameters
 			for parameter in self.values:
 				low_ind = up_ind
@@ -592,37 +595,38 @@ class Atmosphere(object):
 					up_ind += self.line_no[parameter].size
 					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 					self.global_pars[parameter] += step
-		else:
-			low_ind, up_ind = 0, 0
-			# update atmospheric parameters
-			for idx in range(self.nx):
-				for idy in range(self.ny):
-					for parameter in self.values:
-						low_ind = up_ind
-						up_ind += len(self.nodes[parameter])
-						step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter][idx,idy]
-						# RH returns RFs in m/s and we are working with km/s in globin
-						# so we have to return the values from m/s to km/s
-						# if globin.rf_type=="snapi":
-						# 	if parameter=="vz" or parameter=="vmic":
-						# 		step /= 1e3
-						np.nan_to_num(step, nan=0.0, copy=False)
-						self.values[parameter][idx,idy] += step
 
-			# update atomic parameters + vmac
+		if mode==3:
+			Natmos = self.nx*self.ny
+			NparLocal = self.n_local_pars
+			NparGlobal = self.n_global_pars
+
+
+			#--- update local parameters (atmospheric)			
+			local_pars = proposed_steps[:NparLocal*Natmos]
+			local_pars = local_pars.reshape(self.nx, self.ny, NparLocal, order="C")
+
+			low_ind, up_ind = 0, 0
+			for parameter in self.values:
+				low_ind = up_ind
+				up_ind += len(self.nodes[parameter])
+				self.values[parameter] += local_pars[..., low_ind:up_ind] / self.parameter_scale[parameter]
+
+			#--- update global (atomic) parameters and macro-turbulent velocity
+			global_pars = proposed_steps[NparLocal*Natmos:]
+			low_ind, up_ind = 0, 0
 			for parameter in self.global_pars:
 				if parameter=="vmac":
 					low_ind = up_ind
 					up_ind += 1
-					step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
-					np.nan_to_num(step, nan=0.0, copy=False)
+					step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 					self.global_pars[parameter] += step
 				else:
-					if self.line_no[parameter].size > 0:
+					Nlines = self.global_pars[parameter].size
+					if Nlines>0:
 						low_ind = up_ind
-						up_ind += self.global_pars[parameter].size
-						step = proposed_steps[low_ind:up_ind] / self.parameter_scale[parameter]
-						np.nan_to_num(step, nan=0.0, copy=False)
+						up_ind += Nlines
+						step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 						self.global_pars[parameter] += step
 
 	def check_parameter_bounds(self, mode):
@@ -752,7 +756,7 @@ class Atmosphere(object):
 
 		return spec.I, spec.Q, spec.U, spec.V
 
-	def compute_rfs(self, rf_noise_scale, weights=1, skip=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
 		Parameters:
 		-----------
@@ -767,47 +771,17 @@ class Atmosphere(object):
 
 		old_rf : ndarray
 		"""
-		self.build_from_nodes()
+		self.build_from_nodes(synthesize)
 		# print("  Get parameter RF...")
 		if self.hydrostatic:
 			# print("    Set the atmosphere in HSE...")
 			self.makeHSE()
 		# print("    Compute spectra...")
-		spec = self.compute_spectra(skip)
+		spec = self.compute_spectra(synthesize)
 		Nw = spec.nw
 
-		if rf_type=="snapi":	
-			# full_rf.shape = (nx, ny, np, nz, nw, 4)
-			# check weather we need to recalculate RF for atmospheric parameters;
-			# if change in parameters is less than 10 x perturbation we do not compute RF again
-			if atmos.n_local_pars!=0:
-				pars = list(atmos.nodes.keys())
-				par_flag = [True]*len(pars)
-				# if old_pars is not None:
-				# 	for i_, par in enumerate(atmos.nodes):
-				# 		delta = np.abs(atmos.values[par].flatten() - old_pars[par].flatten())
-				# 		flag = [False if item<globin.diff[par] else True for item in delta]
-				# 		if any(flag):
-				# 			par_flag[i_] = True
-				# 		else:
-				# 			par_flag[i_] = False
-				full_rf = RH_compute_RF(atmos, par_flag, globin.rh_spec_name, globin.wavelength)
-				for i_,par in enumerate(pars):
-					rfID = rf_id[par]
-					if not par_flag[i_]:
-						full_rf[:,:, rfID] = old_rf[:,:, rfID]
-			else:
-				full_rf = None
-		elif rf_type=="node":
-			full_rf = None
-		else:
-			print("\n  Not proper RF type calculation.")
-			sys.exit()
+		active_indx, active_indy = np.where(synthesize==1)
 
-		#--- get total number of parameters (local + global)
-		Npar = self.n_local_pars + self.n_global_pars
-		
-		rf = np.zeros((spec.nx, spec.ny, Npar, Nw, 4), dtype=np.float64)
 		node_RF = np.zeros((spec.nx, spec.ny, Nw, 4))
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
@@ -819,52 +793,29 @@ class Atmosphere(object):
 			perturbation = self.delta[parameter]
 
 			# for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
-			for nodeID in range(len(nodes)):
-				if rf_type=="snapi":
-					#---
-					# This is "broken" from the point we introduced key mean for the spectrum.
-					#---
-					#===--- computing RFs for given parameter (proper way as in SNAPI)
-					# positive perturbation
-					self.values[parameter][:,:,nodeID] += perturbation
-					self.build_from_nodes(False)
-					positive = copy.deepcopy(self.data[:,:,parID])
-
-					# negative perturbation
+			for nodeID in range(len(nodes)):				
+				#--- positive perturbation
+				self.values[parameter][:,:,nodeID] += perturbation
+				if parameter=="of":
+					self.make_OF_table(self.wavelength_vacuum)
+				else:
+					self.build_from_nodes(synthesize)
+				spectra_plus = self.compute_spectra(synthesize)
+				
+				#--- negative perturbation (except for inclination and azimuth)
+				if parameter=="gamma" or parameter=="chi":
+					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
+				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
-					self.build_from_nodes(False)
-					negative = copy.deepcopy(self.data[:,:,parID])
-
-					# derivative of parameter distribution to node perturbation
-					dy_dnode = (positive - negative) / 2 / perturbation
-
-					for idx in range(spec.nx):
-						for idy in range(spec.ny):
-							node_RF[idx,idy] = np.einsum("i,ijk", dy_dnode[idx,idy], full_rf[idx,idy,rfID])
-				elif rf_type=="node":
-					#===--- Computing RFs in nodes
-					
-					# positive perturbation
-					self.values[parameter][:,:,nodeID] += perturbation
-					if parameter=="of":
+					if parameter=="of":	
 						self.make_OF_table(self.wavelength_vacuum)
 					else:
-						self.build_from_nodes()
-					spectra_plus = self.compute_spectra(skip)
-					
-					# negative perturbation (except for inclination and azimuth)
-					if parameter=="gamma" or parameter=="chi":
-						node_RF = (spectra_plus.spec - spec.spec ) / perturbation
-					else:
-						self.values[parameter][:,:,nodeID] -= 2*perturbation
-						if parameter=="of":	
-							self.make_OF_table(self.wavelength_vacuum)
-						else:
-							self.build_from_nodes()
-						spectra_minus = self.compute_spectra(skip)
+						self.build_from_nodes(synthesize)
+					spectra_minus = self.compute_spectra(synthesize)
 
-						node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
+					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
+				#--- compute parameter scale
 				node_RF *= weights
 				node_RF /= rf_noise_scale
 				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
@@ -875,23 +826,23 @@ class Atmosphere(object):
 
 				# recompute the scales for only those pixels for which we computed spectra
 				# (do not touch old ones)
-				indx, indy = np.where(skip==1)
-				self.parameter_scale[parameter][indx,indy,nodeID] = scale[indx,indy]
+				# indx, indy = np.where(synthesize==1)
+				self.parameter_scale[parameter][active_indx,active_indy,nodeID] = scale[active_indx,active_indy]
 
-				rf[:,:,free_par_ID] = np.einsum("ijkl,ij->ijkl", node_RF, 1/self.parameter_scale[parameter][...,nodeID])
+				#--- set RFs value
+				self.rf[active_indx,active_indy,free_par_ID] = np.einsum("ikl,i->ikl", node_RF[active_indx, active_indy], 1/self.parameter_scale[parameter][active_indx,active_indy,nodeID])
 				free_par_ID += 1
 
-				if rf_type=="snapi":
-					# return back perturbation (SNAPI way)
+				#--- return back perturbations (node way)
+				if parameter=="of":	
 					self.values[parameter][:,:,nodeID] += perturbation
-					self.build_from_nodes()
-				elif rf_type=="node":
-					# return back perturbations (node way)
+					self.make_OF_table(self.wavelength_vacuum)
+				else:
 					if parameter=="gamma" or parameter=="chi":
 						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
-					self.build_from_nodes()
+					self.build_from_nodes(synthesize)
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -908,13 +859,13 @@ class Atmosphere(object):
 						results = pool.map(func=_compute_vmac_RF, iterable=args)
 
 					results = np.array(results)
-					rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
-					rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
-					rf[:,:,free_par_ID] /= rf_noise_scale
-					rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", rf[:,:,free_par_ID], weights)
+					self.rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
+					self.rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
+					self.rf[:,:,free_par_ID] /= rf_noise_scale
+					self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
 
-					self.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
-					rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
+					self.parameter_scale[parameter] = np.sqrt(np.sum(self.rf[:,:,free_par_ID,:,:]**2))
+					self.rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
 
 					skip_par = free_par_ID
 					free_par_ID += 1
@@ -926,10 +877,10 @@ class Atmosphere(object):
 						for idp in range(self.line_no[parameter].size):
 							# model_plus.global_pars[parameter][...,idp] += perturbation
 							self.global_pars[parameter][...,idp] += perturbation
-							spec_plus = self.compute_spectra(skip)
+							spec_plus = self.compute_spectra(synthesize)
 
 							self.global_pars[parameter][...,idp] -= 2*perturbation
-							spec_minus = self.compute_spectra(skip)
+							spec_minus = self.compute_spectra(synthesize)
 
 							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 							diff *= weights
@@ -950,54 +901,23 @@ class Atmosphere(object):
 							if self.mode==2:
 								for idx in range(self.nx):
 									for idy in range(self.ny):
-										rf[idx,idy,free_par_ID] = diff[idx,idy] / self.parameter_scale[parameter][idx,idy,idp]
+										self.rf[idx,idy,free_par_ID] = diff[idx,idy] / self.parameter_scale[parameter][idx,idy,idp]
 							elif self.mode==3:
-								rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter][0,0,idp]
+								self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter][0,0,idp]
 							free_par_ID += 1
 							
 							self.global_pars[parameter][...,idp] += perturbation
 
 		#--- broaden the spectra
 		if not mean:
-			spec.broaden_spectra(self.vmac, skip, self.n_thread)
+			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
-				rf = broaden_rfs(rf, kernel, skip, skip_par, self.n_thread)
+				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
 
-		# for idy in range(atmos.ny):
-		# 	plt.figure(1)
-		# 	for parID in range(4):
-		# 		plt.plot(rf[0, idy, parID, :, 0])
-		# 	plt.figure(2)
-		# 	for parID in range(4,Npar):
-		# 		plt.plot(rf[0, idy, parID, :, 0])
-		# plt.show()
-		# sys.exit()
+		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 
-		# plt.plot(globin.obs.spec[0,0,:,0])
-		# plt.plot(spec.spec[0,0,:,0])
-		# plt.show()
-
-		#--- compare RFs for single parameter
-		# for idx in range(self.nx):
-		# 	for idy in range(self.ny):
-		# 		aux = rf[idx,idy, :, :, :]
-		# 		plt.plot(aux[0,:,0], label="T-3")
-		# 		plt.plot(aux[1,:,0], label="T-2")
-		# 		plt.plot(aux[2,:,0], label="T-1")
-		# 		plt.plot(aux[3,:,0], label="T0")
-		# 		plt.plot(aux[4,:,0], label="OF 1")
-		# 		plt.plot(aux[5,:,0], label="OF 2")
-		# 		plt.plot(aux[6,:,0], label="OF 3")
-		# 		plt.plot(aux[7,:,0], label="OF 4")
-		# 		plt.plot(aux[8,:,0], label="OF 5")
-		# plt.legend()
-		# plt.savefig("rfs_new.png")
-		# plt.show()
-		# sys.exit()
-		# print("  Done with the RF!")
-
-		return rf, spec, full_rf
+		return spec
 
 	def make_OF_table(self, wavelength_vacuum):
 		if wavelength_vacuum[0]<=210:

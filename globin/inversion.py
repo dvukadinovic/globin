@@ -7,6 +7,7 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
+from scipy.sparse import block_diag
 
 import pyrh
 
@@ -39,6 +40,8 @@ def pretty_print_parameters(atmos, conv_flag, mode):
 			else:
 				if atmos.line_no[parameter].size > 0:
 					indx, indy = np.where(conv_flag==1)
+					if mode==3:
+						indx, indy = 0, 0
 					print(parameter)
 					print(atmos.global_pars[parameter][indx,indy])
 
@@ -173,10 +176,6 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		LM_parameter = np.ones((obs.nx, obs.ny), dtype=np.float64) * self.marq_lambda
-		if self.debug:
-			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
-
 		if self.norm:
 			wavelength = obs.wavelength[0]
 			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
@@ -184,22 +183,35 @@ class Inverter(InputData):
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
-
-		# flags those pixels whose chi2 converged:
-		#   1 --> we do inversion
-		#   0 --> we converged
-		# with flag we multiply the proposed steps, in that case for those pixles
-		# in which we converged we will not change parameters, but, the calculations
-		# will be done, as well as RFs... Find smarter way around it.
-		stop_flag = np.ones((obs.nx, obs.ny), dtype=np.int32)
-
+		
 		if self.verbose:
 			print("\nInitial parameters:\n")
-			pretty_print_parameters(atmos, stop_flag, atmos.mode)
+			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
 		Nw = len(self.wavelength_air)
 		Npar = self._get_Npar()
+		Ndof = np.count_nonzero(self.weights) * Nw - Npar
+
+		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * self.marq_lambda
+		if self.debug:
+			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
+
+		# flags those pixels whose chi2 converged:
+		#   1 --> we do inversion
+		#   0 --> we converged
+		stop_flag = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
+
+		# flag those pixels whose parameter we have updated
+		#   0 -- no parameters update --> we have not got good parameters or we converged
+		#   1 -- we have updated parameters; we need new RF and spectrum
+		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
+
+		"""
+		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
+		parameters in one pixel in given iteration, but in the next one, we can. While 'stop_flag'
+		will always stay 0 after convergence and parameters will not change.
+		"""
 
 		# indices of diagonal elements of Hessian matrix
 		x = np.arange(atmos.nx)
@@ -210,20 +222,14 @@ class Inverter(InputData):
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
 		chi2 = np.zeros((atmos.nx, atmos.ny, self.max_iter), dtype=np.float64)
-		Ndof = np.count_nonzero(self.weights) * Nw - Npar
+		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
+
+		# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
 
 		start = time.time()
-
-		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
-		
-		full_rf, old_atmos_parameters = None, None
-
-		rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-
-		# 0 -- no parameters update --> we have not got good parameters or we converged
-		# 1 -- we have updated parameters; we need new RF and spectrum
-		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
 
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
@@ -235,15 +241,14 @@ class Inverter(InputData):
 				# if self.verbose:
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
-				print("[{:s}] Iteration (min): {:2}\n".format(t0, np.min(itter)+1))
+				print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2}\n")
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#             spec.shape = (nx, ny, Nw, 5)
 				if total!=atmos.nx*atmos.ny:
-					old_rf = copy.deepcopy(rf)
 					old_spec = copy.deepcopy(spec)
-
-				rf, spec, _ = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, skip=updated_pars, rf_type=self.rf_type)
+				
+				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
@@ -251,7 +256,6 @@ class Inverter(InputData):
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:
 					indx, indy = np.where(updated_pars==0)
-					rf[indx,indy] = old_rf[indx, indy]
 					spec.spec[indx,indy] = old_spec.spec[indx, indy]
 
 				if self.debug:
@@ -273,7 +277,7 @@ class Inverter(InputData):
 				"""
 
 				# JT = (nx, ny, npar, 4*nw)
-				JT = rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				JT = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				# J = (nx, ny, 4*nw, npar)
 				J = np.moveaxis(JT, 2, 3)
 				# JTJ = (nx, ny, npar, npar)
@@ -306,7 +310,7 @@ class Inverter(InputData):
 				old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 			
 			#--- update and check parameter boundaries
-			atmos.update_parameters(proposed_steps, stop_flag)
+			atmos.update_parameters(proposed_steps, self.mode)
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF table after parameters update
@@ -314,7 +318,7 @@ class Inverter(InputData):
 				atmos.make_OF_table(self.wavelength_vacuum)
 
 			#--- rebuild new atmosphere after parameters update
-			atmos.build_from_nodes()
+			atmos.build_from_nodes(stop_flag)
 			if atmos.hydrostatic:
 				atmos.makeHSE()
 
@@ -377,10 +381,9 @@ class Inverter(InputData):
 		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
 
-		atmos.build_from_nodes()
+		atmos.build_from_nodes(updated_pars)
 		if atmos.hydrostatic:
-			atmos.makeHSE()
-		inverted_spectra = atmos.compute_spectra(updated_pars)
+			inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 
@@ -484,119 +487,170 @@ class Inverter(InputData):
 
 		Nw = len(self.wavelength_air)
 		Npar = self._get_Npar()
+		Natmos = atmos.nx * atmos.ny
+		Nlocalpar = atmos.n_local_pars
+		Nglobalpar = atmos.n_global_pars
+		Ndof = np.count_nonzero(self.weights)*Nw*Natmos - Nlocalpar*Natmos - Nglobalpar
 
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
 		chi2 = np.zeros((obs.nx, obs.ny, self.max_iter), dtype=np.float64)
 		LM_parameter = self.marq_lambda
-		dof = np.count_nonzero(self.weights)*Nw - Npar
-
 		if self.debug:
 			LM_debug = np.zeros((self.max_iter), dtype=np.float64)
 
-		Natmos = atmos.nx * atmos.ny
-		Ndof = np.count_nonzero(self.weights)*Nw - atmos.n_local_pars*Natmos - atmos.n_global_pars
-
-		start = time.time()
-
+		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
 
+		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
+		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+
+		# if we reach convergence, we break from the loop
 		break_flag = False
+
+		# if proposed steps gave better fit; used to skip computing RFs otherwise
 		updated_parameters = True
+
+		# number of times we failed to adjust parameters (rise in Marquardt parameter)
 		num_failed = 0
 
+		start = time.time()
+		
 		itter = 0
-		full_rf, old_local_parameters = None, None
 		while itter<self.max_iter:
 			if self.debug:
 				LM_debug[itter] = LM_parameter
 			#--- if we updated parameters, recaluclate RF and referent spectra
 			if updated_parameters:
-				if self.verbose:
-					print("Iteration: {:2}\n".format(itter+1))
+				t0 = datetime.now()
+				t0 = t0.isoformat(sep=' ', timespec='seconds')
+				print(f"[{t0:s}] Iteration: {np.min(itter)+1:2}\n")
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				rf, spec, full_rf = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, skip=ones, mean=self.mean)
-
+				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean)
 
 				if self.debug:
 					for idx in range(atmos.nx):
 						for idy in range(atmos.ny):
 							self.rf_debug[idx,idy,itter] = rf[idx,idy]
 
-				# calculate chi2
-				# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
-				
-				# calculate difference between observation and synthesis
+				#--- calculate chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
-				# make Jacobian matrix and fill with RF values
-				aux = rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
+				#--- create Jacobian matrix and fill it with RF values
+				aux = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				aux = np.swapaxes(aux, 2, 3)
+				# aux = np.ones((atmos.nx, atmos.ny, 4*Nw, Npar))
 
-				J = np.zeros((4*Nw*(obs.nx*obs.ny), atmos.n_local_pars*(obs.nx*obs.ny) + atmos.n_global_pars), dtype=np.float64)
-				flatted_diff = np.zeros(obs.nx*obs.ny*Nw*4, dtype=np.float64)
+				J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
 
 				l = 4*Nw
 				n_atmosphere = 0
-				for idx in range(obs.nx):
-					for idy in range(obs.ny):
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
 						low = n_atmosphere*l
 						up = low + l
 						ll = n_atmosphere*atmos.n_local_pars
 						uu = ll + atmos.n_local_pars
-						J[low:up,ll:uu] = aux[idx,idy,:atmos.n_local_pars].T
-						flatted_diff[low:up] = diff[idx,idy].flatten(order="F")
+						J[low:up,ll:uu] = aux[idx,idy,:,:atmos.n_local_pars]#*(n_atmosphere+1)
 						n_atmosphere += 1
+				
+				# aux = np.ones((atmos.nx, atmos.ny, 4*Nw, Npar))
+				
+				# indx, indy = np.where(ones==1)
+				# J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
+				# J[:,Nlocalpar*Natmos:] = aux[:,:,:,-Nglobalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="F")
+
+				# plt.imshow(J, cmap="gray", origin="upper", aspect="auto")
+				# plt.colorbar()
+				# plt.show()
+
+				# sys.exit()
+
+				# low, up = 0, 0
+				# for parameter in atmos.nodes:
+				# 	n = len(atmos.nodes[parameter])
+				# 	low = up
+				# 	up = low + n
+				# 	J[:,low:up] = aux[...,low:up].reshape(4*Nw*Natmos, n)
+
+				# low, up = 0, Nlocalpar*Natmos
+				# for idp, parameter in enumerate(atmos.global_pars):
+				# 	if parameter=="vmac":
+				# 		n = 1
+				# 	else:
+				# 		n = len(atmos.global_pars[parameter][0,0])
+				# 	low = up
+				# 	up = low + n
+				# 	J[:,low:up] = aux[...,low:up].reshape(4*Nw*Natmos, n)
 
 				n_atmosphere = 0
-				for idx in range(obs.nx):
-					for idy in range(obs.ny):
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
 						low = n_atmosphere*l
 						up = low+l
 						for gID in range(atmos.n_global_pars):
-							J[low:up,uu+gID] = aux[idx,idy,atmos.n_local_pars+gID].T
+							J[low:up,uu+gID] = aux[idx,idy,:,atmos.n_local_pars+gID]
 						n_atmosphere += 1
+
+				# plt.imshow(J, cmap="gray", origin="upper", aspect="auto")
+				# plt.colorbar()
+				# plt.show()
+
+				# sys.exit()
 
 				JT = J.T
 				JTJ = np.dot(JT,J)
-				delta = np.dot(JT, flatted_diff)
+				aux = diff.reshape(Natmos*Nw*4, order="F")
+				delta = np.dot(JT, aux)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
-			H = copy.deepcopy(JTJ)
+			#--- invert Hessian matrix
+			H = JTJ
 			diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 			np.fill_diagonal(H, diagonal_elements)
 			proposed_steps = np.linalg.solve(H, delta)
 
+			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
 			old_global_pars = copy.deepcopy(atmos.global_pars)
-			atmos.update_parameters(proposed_steps)
+			
+			#--- update and check boundaries for new parameter values
+			atmos.update_parameters(proposed_steps, self.mode)
 			atmos.check_parameter_bounds(self.mode)
 
+			#--- set OF data (if we are inverting for them)
 			if self.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
-			atmos.build_from_nodes()
+			#--- rebuild the atmosphere and compute new spectrum
+			atmos.build_from_nodes(ones)
 			if atmos.hydrostatic:
 				atmos.makeHSE()
 			corrected_spec = atmos.compute_spectra(ones)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 
+			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
+			#--- check if chi2 is improved
 			if np.sum(chi2_new) > np.sum(chi2_old):
 				LM_parameter *= 10
 				atmos.values = old_local_parameters
 				atmos.global_pars = old_global_pars
+				# when we fail, we must revert the OF parameters
+				if self.do_fudge==1:
+					atmos.make_OF_table(self.wavelength_vacuum)
 				updated_parameters = False
 				num_failed += 1
 			else:
@@ -610,49 +664,50 @@ class Inverter(InputData):
 				for parameter in atmos.nodes:
 					self.atmos_debug[parameter][itter-1] = atmos.values[parameter]
 
-			if self.do_fudge==1:
-				atmos.make_OF_table(self.wavelength_vacuum)
-
+			#--- check the Marquardt parameter boundaries
 			if LM_parameter<=1e-5:
 				LM_parameter = 1e-5
-			# if Marquardt parameter is to large, we break
-			if LM_parameter>=1e8:
+			if LM_parameter>=1e5:
 				print("Upper limit in LM_parameter. We break\n")
 				break_flag = True
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
-			# we do not check for chi2 convergence until 3rd iteration
-			if (itter)>=3 and updated_parameters:
-				# need to get -2 and -1 because I already rised itter by 1
-				# when chi2 list was updated.
-				new_chi2 = np.sum(chi2[...,itter-1]) / Natmos
-				old_chi2 = np.sum(chi2[...,itter-2]) / Natmos
-				relative_change = abs(new_chi2/old_chi2 - 1)
-				if new_chi2<1e-32:
-					print("chi2 is way low!\n")
-					break_flag = True
-				elif relative_change<self.chi2_tolerance:
+			# we do not check for chi2 convergence until 2nd iteration
+			if (itter)>=2 and updated_parameters:
+				# need to get -2 and -1 because we already rised itter by 1
+				# when chi2 was updated
+				new_chi2 = np.sum(chi2[...,itter-1])
+				old_chi2 = np.sum(chi2[...,itter-2])
+				relative_change = np.abs(new_chi2/old_chi2 - 1)
+				if relative_change<self.chi2_tolerance:
 					print("chi2 relative change is smaller than given value.\n")
 					break_flag = True
-				elif new_chi2 < 1:
+				elif new_chi2<1:
 					print("chi2 smaller than 1\n")
 					break_flag = True
+				elif itter==self.max_iter:
+					print("Maximum number of iteratinos reached.")
+					break_flag = True
+				else:
+					pass
 
+			#--- print current parameters
 			if updated_parameters and self.verbose:
-				pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
+				pretty_print_parameters(atmos, ones, atmos.mode)
 				print(LM_parameter)
 				print("\n--------------------------------------------------\n")
 
-			# if all pixels have converged, we stop inversion
+			#--- if all pixels have converged, we stop inversion
 			if break_flag:
 				break
 
-			if (num_failed==10 and itter>=3):
-				print("Failed 10 times to fix the LM parameter. We break.\n")
+			#--- break if we could not adjust Marquardt parameter more than 6 times
+			if (num_failed==6 and itter>=2):
+				print("Failed 6 times to fix the LM parameter. We break.\n")
 				break
 
-		atmos.build_from_nodes()
+		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:
 			atmos.makeHSE()
 		inverted_spectra = atmos.compute_spectra(ones)
