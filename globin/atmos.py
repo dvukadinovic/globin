@@ -844,6 +844,7 @@ class Atmosphere(object):
 				elif rf_type=="node":
 					#===--- Computing RFs in nodes
 					
+					# positive perturbation
 					self.values[parameter][:,:,nodeID] += perturbation
 					if parameter=="of":
 						self.make_OF_table(self.wavelength_vacuum)
@@ -899,22 +900,18 @@ class Atmosphere(object):
 			for parameter in self.global_pars:
 				if parameter=="vmac":
 					kernel_sigma = spec.get_kernel_sigma(self.vmac)
-					radius = int(4*kernel_sigma + 0.5)
-					x = np.arange(-radius, radius+1)
-					phi = np.exp(-x**2/kernel_sigma**2)
-					# normalaizing the profile
-					phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-					kernel = phi*(2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / self.step
-					# since we are correlating, we need to reverse the order of data
-					kernel = kernel[::-1]
+					kernel = spec.get_kernel(self.vmac, order=1)
 
-					for idx in range(spec.nx):
-						for idy in range(spec.ny):
-							for sID in range(4):
-								rf[idx,idy,free_par_ID,:,sID] = correlate1d(spec.spec[idx,idy,:,sID], kernel)
-								rf[idx,idy,free_par_ID,:,sID] *= kernel_sigma * self.step / self.global_pars["vmac"]
-								rf[idx,idy,free_par_ID,:,sID] *= weights[sID]
-								rf[idx,idy,free_par_ID,:,sID] /= rf_noise_scale[idx,idy,:,sID]
+					args = zip(spec.spec.reshape(self.nx*self.ny, Nw, 4), [kernel]*self.nx*self.ny)
+
+					with mp.Pool(self.n_thread) as pool:
+						results = pool.map(func=_compute_vmac_RF, iterable=args)
+
+					results = np.array(results)
+					rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
+					rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
+					rf[:,:,free_par_ID] /= rf_noise_scale
+					rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", rf[:,:,free_par_ID], weights)
 
 					self.parameter_scale[parameter] = np.sqrt(np.sum(rf[:,:,free_par_ID,:,:]**2))
 					rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
@@ -962,8 +959,10 @@ class Atmosphere(object):
 
 		#--- broaden the spectra
 		if not mean:
-			spec.broaden_spectra(self.vmac)
-			rf = broaden_rfs(rf, self.vmac, self.wavelength_vacuum, skip_par)
+			spec.broaden_spectra(self.vmac, skip, self.n_thread)
+			if self.vmac!=0:
+				kernel = spec.get_kernel(self.vmac, order=0)
+				rf = broaden_rfs(rf, kernel, skip, skip_par, self.n_thread)
 
 		# for idy in range(atmos.ny):
 		# 	plt.figure(1)
@@ -1069,6 +1068,50 @@ class Atmosphere(object):
 			rmsd = np.sqrt(np.sum(diff**2) / self.nz)
 			print(idp, delta, rmsd)
 		print("--------------------------------------")
+
+def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
+	nx, ny, npar, nw, ns = rf.shape
+
+	indx, indy = np.where(flag==1)
+	indp = np.arange(npar, dtype=np.int32)
+	if skip_par!=-1:
+		npar -= 1
+		indp = np.delete(indp, skip_par)
+
+	# this happens when vmac is the only parameter in inversion;
+	# we do not need to broaden RF for vmac
+	if len(indp)==0:
+		return rf
+
+	_rf = rf[indx,indy][:,indp]
+	_rf = _rf.reshape(len(indx)*npar, nw, ns)
+	
+	args = zip(_rf,[kernel]*len(indx)*npar)
+
+	with mp.Pool(n_thread) as pool:
+		results = pool.map(func=_broaden_rfs, iterable=args)
+
+	results = np.array(results)
+	results = results.reshape(len(indx), npar, nw, ns)
+	rf[indx,indy][:,indp] = results
+
+	return rf
+
+def _broaden_rfs(args):
+	rf, kernel = args
+
+	for ids in range(4):
+		rf[...,ids] = correlate1d(rf[...,ids], kernel)
+
+	return rf
+
+def _compute_vmac_RF(args):
+	spec, kernel = args
+
+	for ids in range(4):
+		spec[...,ids] = correlate1d(spec[...,ids], kernel)
+
+	return spec
 
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844
@@ -1338,32 +1381,6 @@ def compute_spectra(atmos):
 	spectra.norm()
 
 	return spectra, atmospheres
-
-def broaden_rfs(rf, vmac, wavelength, skip_par):
-	if vmac==0:
-		return rf
-
-	nx, ny, npar, nw, ns = rf.shape
-
-	step = wavelength[1] - wavelength[0]
-	kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (wavelength[0] + wavelength[-1])*0.5 / step
-
-	# we assume equidistant seprataion
-	radius = int(4*kernel_sigma + 0.5)
-	x = np.arange(-radius, radius+1)
-	phi = np.exp(-x**2/kernel_sigma**2)
-	kernel = phi/phi.sum()
-	# since we are correlating, we need to reverse the order of data
-	kernel = kernel[::-1]
-
-	for idx in range(nx):
-		for idy in range(ny):
-			for sID in range(ns):
-				for pID in range(npar):
-					if pID!=skip_par:
-						rf[idx,idy,pID,:,sID] = correlate1d(rf[idx,idy,pID,:,sID], kernel)
-
-	return rf
 
 def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 	compute_spectra(atmos, rh_spec_name, wavelength)

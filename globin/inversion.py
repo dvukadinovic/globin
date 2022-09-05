@@ -106,10 +106,16 @@ class Inverter(InputData):
 
 		elif self.mode==0:
 			print("\n --- Entering synthesis mode ---\n")
-			spec = self.atmosphere.compute_spectra(np.ones((self.atmosphere.nx, self.atmosphere.ny)))
+			
+			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
+			spec = self.atmosphere.compute_spectra(ones)
+			
+			spec.broaden_spectra(self.atmosphere.vmac, ones, self.n_thread)
 			spec.save(self.output_spectra_path, self.wavelength_air)
+			
+			print("All done!")
+
 			return self.atmosphere, spec
-			print("\n  Done!")
 		else:
 			print("\n  Unrecognized mode of operation. Check again and run the script.")
 			sys.exit()
@@ -126,6 +132,32 @@ class Inverter(InputData):
 			sys.exit()
 
 		return Npar
+
+	def _estimate_noise_level(self, nx, ny, nw):
+		# print("  Get the noise estimate...")
+		if self.noise==0:
+			noise = 1e-4
+		else:
+			noise = self.noise
+		
+		noise_stokes = np.ones((nx, ny, nw, 4))
+		StokesI_cont = self.observation.spec[...,0,0]
+		noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+
+		# weights on Stokes vector based on observed Stokes I
+		# (nx, ny, nw, 4)
+		if self.weight_type=="StokesI":
+			# print("  Set the weight based on Stokes I...")
+			aux = 1/self.observation.spec[...,0]
+			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+			norm = np.sum(weights, axis=2)
+			weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
+		else:
+			weights = 1
+
+		noise_stokes /= weights
+
+		return noise_stokes
 
 	def invert_pxl_by_pxl(self):
 		"""
@@ -146,12 +178,11 @@ class Inverter(InputData):
 			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
 
 		if self.norm:
-			wavelength = np.mean(obs.wavelength)
+			wavelength = obs.wavelength[0]
 			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
 			icont = get_Icont(wavelength=wavelength)
-			nx, ny, = atmos.nx, atmos.ny
 			nw = len(atmos.wavelength_vacuum)
-			atmos.icont = np.ones((nx, ny, nw, 4))
+			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 
 		# flags those pixels whose chi2 converged:
@@ -176,43 +207,7 @@ class Inverter(InputData):
 		p = np.arange(Npar)
 		X,Y,P = np.meshgrid(x,y,p, indexing="ij")
 
-		# indices for wavelengths min/max for which we are fiting; based on input
-		ind_min = np.argmin(abs(obs.wavelength - self.wavelength_air[0]))
-		ind_max = np.argmin(abs(obs.wavelength - self.wavelength_air[-1]))+1
-
-		# print("  Get the noise estimate...")
-		if self.noise==0:
-			noise = 1e-4
-		else:
-			noise = self.noise
-		StokesI_cont = obs.spec[...,ind_min,0]
-		noise_lvl = noise * StokesI_cont
-		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.spec[...,ind_min:ind_max,0].T / StokesI_cont.T).T
-		# noise_stokes_scale = (nx, ny, nw, 4)
-		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
-		# noise = (nx, ny, nw)
-		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
-		# noise_stokes = (nx, ny, nw, 4)
-		noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
-		# noies_scale_rf = (nx, ny, npar, nw, 4)
-		# noise_scale_rf = np.repeat(noise_stokes_scale[:,:, np.newaxis ,:,:], Npar, axis=2)
-		# noise_scale_rf = 1
-		# noise_stokes_scale = 1
-		# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
-
-		# weights on Stokes vector based on observed Stokes I
-		# (nx, ny, nw, 4)
-		if self.weight_type=="StokesI":
-			print("  Set the weight based on Stokes I...")
-			aux = 1/obs.spec[...,0]
-			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-			norm = np.sum(weights, axis=2)
-			weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-		else:
-			weights = 1
-
-		noise_stokes /= weights
+		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
 		chi2 = np.zeros((atmos.nx, atmos.ny, self.max_iter), dtype=np.float64)
 		Ndof = np.count_nonzero(self.weights) * Nw - Npar
@@ -326,7 +321,7 @@ class Inverter(InputData):
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag)
 			if not self.mean:
-				corrected_spec.broaden_spectra(atmos.vmac)
+				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -387,7 +382,7 @@ class Inverter(InputData):
 			atmos.makeHSE()
 		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
-			inverted_spectra.broaden_spectra(atmos.vmac)
+			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 
 		try:
 			atmos.compute_errors(JTJ, chi2_old)
@@ -479,52 +474,18 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
+		if self.norm:
+			wavelength = obs.wavelength[0]
+			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			icont = get_Icont(wavelength=wavelength)
+			nw = len(atmos.wavelength_vacuum)
+			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
+			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
+
 		Nw = len(self.wavelength_air)
 		Npar = self._get_Npar()
 
-		# if self.norm:
-		# 	get_Icont()
-
-		# if globin.norm:
-			# globin.falc.write_atmosphere()
-			# globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-			# globin.falc.line_lists_path = atmos.line_lists_path
-			
-			# falc_spec, _ = globin.compute_spectra(obin.falc)
-			# globin.Icont = np.max(falc_spec.spec[0,0,:,0])
-
-		# indices for wavelengths min/max for which we are fiting; based on input
-		ind_min = np.argmin(abs(obs.wavelength - self.wavelength_air[0]))
-		ind_max = np.argmin(abs(obs.wavelength - self.wavelength_air[-1]))+1
-
-		if self.noise==0:
-			noise = 1e-4
-		else:
-			noise = self.noise
-
-		StokesI_cont = obs.spec[...,ind_min,0]
-		noise_lvl = noise * StokesI_cont
-		# noise_wavelength = (nx, ny, nw)
-		noise_wavelength = np.sqrt(obs.spec[...,ind_min:ind_max,0].T / StokesI_cont.T).T
-		# noise = (nx, ny, nw)
-		noise = np.einsum("...,...w", noise_lvl, noise_wavelength)
-		# noise_stokes_scale = (nx, ny, nw, 4)
-		noise_stokes_scale = np.repeat(noise_wavelength[..., np.newaxis], 4, axis=3)
-		# noise_stokes = (nx, ny, nw, 4)
-		noise_stokes = np.repeat(noise[..., np.newaxis], 4, axis=3)
-		# noise_stokes_scale = 1
-		# noise_stokes = np.ones((obs.nx, obs.ny, Nw, 4))
-
-		# weights on Stokes vector based on observed Stokes I
-		if self.weight_type=="StokesI":
-			aux = 1/obs.spec[...,0]
-			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-			# norm = np.sum(weights, axis=2)
-			# weights = weights / np.repeat(norm[:,:, np.newaxis, :], Nw, axis=2)
-		else:
-			weights = 1
-
-		noise_stokes /= weights
+		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
 		chi2 = np.zeros((obs.nx, obs.ny, self.max_iter), dtype=np.float64)
 		LM_parameter = self.marq_lambda
@@ -537,6 +498,8 @@ class Inverter(InputData):
 		Ndof = np.count_nonzero(self.weights)*Nw - atmos.n_local_pars*Natmos - atmos.n_global_pars
 
 		start = time.time()
+
+		ones = np.ones((atmos.nx, atmos.ny))
 
 		break_flag = False
 		updated_parameters = True
@@ -554,25 +517,8 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				rf, spec, full_rf = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, mean=self.mean)
+				rf, spec, full_rf = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, skip=ones, mean=self.mean)
 
-				# plt.plot(obs.spec[0,0,:,0])
-				# plt.plot(spec.spec[0,0,:,0])
-				# plt.show()
-
-				# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-				# diff = np.zeros((atmos.nx, atmos.ny, Nw, 4))
-				# for idx in range(atmos.nx):
-				# 	for idy in range(atmos.ny):
-				# 		for pID in range(Npar):
-				# 			for sID in range(4):
-				# 				rf[idx,idy,pID,:,sID] = np.ones(Nw)*(1+sID) + 10*pID + 100*idy + 1000*idx
-				# 		for sID in range(4):
-				# 			diff[idx,idy,:,sID] = np.ones(Nw)*(1+sID) + 10*idy + 100*idx
-
-				# calculate difference between observation and synthesis
-				diff = obs.spec - spec.spec
-				diff *= self.weights
 
 				if self.debug:
 					for idx in range(atmos.nx):
@@ -581,6 +527,10 @@ class Inverter(InputData):
 
 				# calculate chi2
 				# chi2_old = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2 * weights**2, axis=(2,3))
+				
+				# calculate difference between observation and synthesis
+				diff = obs.spec - spec.spec
+				diff *= self.weights
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
@@ -634,9 +584,9 @@ class Inverter(InputData):
 			atmos.build_from_nodes()
 			if atmos.hydrostatic:
 				atmos.makeHSE()
-			corrected_spec = atmos.compute_spectra()
+			corrected_spec = atmos.compute_spectra(ones)
 			if not self.mean:
-				corrected_spec.broaden_spectra(atmos.vmac)
+				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
@@ -705,9 +655,9 @@ class Inverter(InputData):
 		atmos.build_from_nodes()
 		if atmos.hydrostatic:
 			atmos.makeHSE()
-		inverted_spectra = atmos.compute_spectra()
+		inverted_spectra = atmos.compute_spectra(ones)
 		if not self.mean:
-			inverted_spectra.broaden_spectra(atmos.vmac)
+			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
 
 		try:
 			atmos.compute_errors(JTJ, chi2_old)
