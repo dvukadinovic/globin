@@ -632,9 +632,10 @@ class Atmosphere(object):
 				y = np.cos(self.values[parameter])
 				self.values[parameter] = np.arccos(y)
 			# azimuth is wrapped around [0, 180] interval
+			# check how to wrap azimuth in reasonable values
 			elif parameter=="chi":
-				y = np.cos(self.values[parameter])
-				self.values[parameter] = np.arccos(y)
+				y = np.sin(self.values[parameter])
+				self.values[parameter] = np.arcsin(y)
 			else:
 				# check lower boundary condition
 				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
@@ -696,35 +697,33 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
-	def compute_spectra(self, synthesize=[]):
-		args = zip(self.idx_meshgrid, self.idy_meshgrid, synthesize.flatten())
+	def compute_spectra(self, synthesize):
+		indx, indy = np.where(synthesize==1)
+		args = zip(indx, indy)
 		
 		with mp.Pool(self.n_thread) as pool:
 			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
 
 		spectra_list = np.array(spectra_list)
-		_, ns, nw = spectra_list.shape
-		spectra_list = spectra_list.reshape(self.nx, self.ny, ns, nw, order="F")
-		spectra_list = np.swapaxes(spectra_list, 2, 3)
+		natm, ns, nw = spectra_list.shape
+		spectra_list = spectra_list.reshape(natm, ns, nw, order="C")
+		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
 		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum), nz=self.nz)
-		spectra.spec = spectra_list
 		spectra.wavelength = self.wavelength_vacuum
+		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
 			if self.icont is None:
-				self.icont = spectra.spec[:,:,0,0]
-			spectra.spec /= self.icont
+				spectra.spec /= spectra.spec[:,:,0,0]
+			else:
+				spectra.spec /= self.icont
 
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
 		# start = time.time()
-		idx, idy, flag = args
-
-		# pixel converged or have not updated parameters
-		if flag==0:
-			return np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum)), np.zeros(len(self.wavelength_vacuum))
+		idx, idy = args
 
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
@@ -751,7 +750,6 @@ class Atmosphere(object):
 		
 		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
-		# return {"spec": spec, "idx" : idx, "idy" : idy}
 		return spec.I, spec.Q, spec.U, spec.V
 
 	def compute_rfs(self, rf_noise_scale, weights=1, skip=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
@@ -851,8 +849,6 @@ class Atmosphere(object):
 						self.make_OF_table(self.wavelength_vacuum)
 					else:
 						self.build_from_nodes()
-						# if self.hydrostatic:
-						# 	self.makeHSE()
 					spectra_plus = self.compute_spectra(skip)
 					
 					# negative perturbation (except for inclination and azimuth)
@@ -864,8 +860,6 @@ class Atmosphere(object):
 							self.make_OF_table(self.wavelength_vacuum)
 						else:
 							self.build_from_nodes()
-							# if self.hydrostatic:
-							# 	self.makeHSE()
 						spectra_minus = self.compute_spectra(skip)
 
 						node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
@@ -873,26 +867,23 @@ class Atmosphere(object):
 				node_RF *= weights
 				node_RF /= rf_noise_scale
 				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-
-				for idx in range(spec.nx):
-					for idy in range(spec.ny):
-						if scale[idx,idy]==0:
-							# print("scale==0 for --> ", parameter)
-							self.parameter_scale[parameter][idx,idy,nodeID] = 1
-						elif not np.isnan(np.sum(scale[idx,idy])):
-							self.parameter_scale[parameter][idx,idy,nodeID] = scale[idx,idy]
 				
-				for idx in range(spec.nx):
-					for idy in range(spec.ny):
-						rf[idx,idy,free_par_ID] = node_RF[idx,idy] / self.parameter_scale[parameter][idx,idy,nodeID]
+				# save parameter scales from previous iteration
+				indx, indy = np.where(scale==0)
+				scale[indx,indy] = self.parameter_scale[parameter][indx,indy,nodeID]
+
+				# recompute the scales for only those pixels for which we computed spectra
+				# (do not touch old ones)
+				indx, indy = np.where(skip==1)
+				self.parameter_scale[parameter][indx,indy,nodeID] = scale[indx,indy]
+
+				rf[:,:,free_par_ID] = np.einsum("ijkl,ij->ijkl", node_RF, 1/self.parameter_scale[parameter][...,nodeID])
 				free_par_ID += 1
 
 				if rf_type=="snapi":
 					# return back perturbation (SNAPI way)
 					self.values[parameter][:,:,nodeID] += perturbation
 					self.build_from_nodes()
-					# if self.hydrostatic:
-					# 	self.makeHSE()
 				elif rf_type=="node":
 					# return back perturbations (node way)
 					if parameter=="gamma" or parameter=="chi":
@@ -900,8 +891,6 @@ class Atmosphere(object):
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
 					self.build_from_nodes()
-					# if self.hydrostatic:
-					# 	self.makeHSE()
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
