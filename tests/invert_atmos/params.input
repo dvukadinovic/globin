@@ -5,7 +5,7 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 2
+n_thread = 4
 interp_deree = 3
 mode = 1
 debug = False
@@ -13,12 +13,12 @@ debug = False
 #--- Spectra to be fitted
 observation = obs.fits
 noise = 1e-8
-weights = 2,1,1,1
+weights = 1,5,5,3
 vmac = 0
 norm = False
 
 #--- Output spectra
-#spectrum = obs.fits
+spectrum = obs.fits
 
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/test/inverted_atmos.fits
@@ -30,7 +30,7 @@ nodes_vz = -2, -0.5
 nodes_vz_values = 0.5, 0.5
 
 nodes_vmic = 0
-nodes_vmic_values = 1
+nodes_vmic_values = 0.65
 
 nodes_mag = -2, -0.5
 nodes_mag_values = 300, 300
@@ -70,8 +70,8 @@ line_parameters = line_pars
 #cube_atmosphere = ../../../globin_inversion/muram_sunspot/sunspot_slice_y50.fits
 # reference_atmosphere = some_1D_atmosphere.fits
 cube_atmosphere = atmos_HSE_pyrh.fits
-#range = 1,2,1,2
-#range = 1,2,1,3
+#range = 1,1,1,1
+range = 1,2,1,3
 
 #--- RH root folder path
 #rh_path = /data/slam/home/vukadinovic/rh-globin

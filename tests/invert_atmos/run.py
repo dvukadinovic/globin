@@ -8,15 +8,21 @@ import globin
 obs = globin.Observation("obs.fits")
 atmos = globin.Atmosphere("atmos_HSE_pyrh.fits")
 
-# inv = globin.Atmosphere("runs/dummy/inverted_atmos.fits")
+inv = globin.Atmosphere("runs/dummy/inverted_atmos.fits")
+inv_spec = globin.Observation("runs/dummy/inverted_spectra.fits")
 
-# params = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
+params = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
 # params = ["ne", "nH"]
-# globin.visualize.plot_atmosphere(atmos, params)
-# globin.visualize.plot_atmosphere(inv, params, color="tab:red")
-# plt.show()
+for idx in range(atmos.nx):
+	for idy in range(atmos.ny):
+		globin.visualize.plot_atmosphere(atmos, params, idx=idx, idy=idy)
+		globin.visualize.plot_atmosphere(inv, params, idx=idx, idy=idy, color="tab:red")
+		plt.show()
 
-# sys.exit()
+		# globin.visualize.plot_spectra(inverter.observation.spec[idx,idy], inverter.observation.wavelength, inv=inv_spec.spec[idx,idy])
+		# plt.show()
+
+sys.exit()
 
 inverter = globin.Inverter()
 inverter.read_input(run_name="dummy")
@@ -37,6 +43,11 @@ inv_atmos, inv_spec = inverter.run()
 
 # plt.yscale("log")
 # plt.show()
+
+for idx in range(inv_atmos.nx):
+	for idy in range(inv_atmos.ny):
+		atmos.compare(inv_atmos.data[idx,idy], idx=idx, idy=idy)
+		print("-----=-----=-----")
 
 for idx in range(inv_spec.nx):
 	for idy in range(inv_spec.ny):
