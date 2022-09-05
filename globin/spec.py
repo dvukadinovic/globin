@@ -4,6 +4,7 @@ import numpy as np
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 import matplotlib.pyplot as plt
 from scipy.interpolate import splev, splrep
+import multiprocessing as mp
 
 import globin
 
@@ -64,37 +65,54 @@ class Spectrum(object):
 		self.spec[...,3] += wavs_dependent_factor * SI_cont_err[...,3]
 
 	def get_kernel_sigma(self, vmac):
-		# vmac is in km/s
+		"""
+		Get Gaussian kernel standard deviation based on given macro-turbulent velocity (in km/s).
+		"""
 		step = self.wavelength[1] - self.wavelength[0]
 		return vmac*1e3 / globin.LIGHT_SPEED * (self.wavelength[0] + self.wavelength[-1])*0.5 / step
 
-	def broaden_spectra(self, vmac):
-		if vmac==0:
-			return
-
-		# we assume equidistant seprataion
+	def get_kernel(self, vmac, order=0):
+		# we assume equidistant seprataion in wavelength grid
 		kernel_sigma = self.get_kernel_sigma(vmac)
 		radius = int(4*kernel_sigma + 0.5)
 		x = np.arange(-radius, radius+1)
 		phi = np.exp(-x**2/kernel_sigma**2)
 		kernel = phi/phi.sum()
-		# since we are correlating, we need to reverse the order of data
-		kernel = kernel[::-1]
 
-		# output = gaussian_filter(spectra, [0,0,kernel_sigma,0], mode="reflect")
+		if order==0:
+			# Gaussian kernel
+			return kernel[::-1]
+		elif order==1:
+			# first derivative of Gaussian kernel with respect to standard deviation
+			step = self.wavelength[1] - self.wavelength[0]
+			kernel *= (2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / step
+			return kernel[::-1]
+		else:
+			raise ValueError(f"Kernel order {order} not supported.")
 
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for sID in range(4):
-					self.spec[idx,idy,:,sID] = correlate1d(self.spec[idx,idy,:,sID], kernel)
-					
-					# plt.plot(spectra[idx,idy,:,1+sID])
-					# plt.plot(output[idx,idy,:,1+sID])
-					# plt.show()
+	def broaden_spectra(self, vmac, flag, n_thread=1):
+		if vmac==0:
+			return
+
+		# get Gaussian kernel
+		kernel = self.get_kernel(vmac, order=0)
+
+		# get only sample of spectra that we want to convolve
+		# (no need to do it in every pixel during inversion if
+		# we have not updated parameters)
+		indx, indy = np.where(flag==1)
+		args = zip(self.spec[indx,indy], [kernel]*len(indx))
+
+		with mp.Pool(n_thread) as pool:
+			results = pool.map(func=_broaden_spectra, iterable=args)
+
+		results = np.array(results)
+		self.spec[indx, indy] = results
 
 	def instrumental_broadening(self, R):
-		vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
-		self.broaden_spectra(vinst)
+		# vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
+		# self.broaden_spectra(vinst)
+		pass
 
 	def norm(self):
 		if (globin.norm) and (globin.Icont is not None):
@@ -196,7 +214,7 @@ class Spectrum(object):
 		hdulist.writeto(fpath, overwrite=True)
 
 	def read(self, fpath):
-		return 
+		return
 
 class Observation(Spectrum):
 	"""
@@ -273,6 +291,14 @@ class Observation(Spectrum):
 	def norm(self):
 		Spectrum.norm(self)
 
+def _broaden_spectra(args):
+	spec, kernel = args
+
+	for ids in range(4):
+		spec[...,ids] = correlate1d(spec[...,ids], kernel)
+
+	return spec
+
 def get_Icont(wavelength=500):
 	"""
 	Compute the continuum intensity in the given wavelength from FAL C model that
@@ -293,21 +319,3 @@ def get_Icont(wavelength=500):
 	spec = hsrasp.compute_spectra()
 	icont = spec.spec[:,:,-1,0]
 	return icont
-
-	# globin.falc.write_atmosphere()
-	# globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-	# globin.falc.line_lists_path = atmos.line_lists_path
-
-	# of_on = False
-	# if globin.of_mode:
-	# 	globin.of_mode = False
-	# 	of_on = True
-	# falc_spec, _ = globin.compute_spectra(globin.falc)
-	# globin.Icont = np.max(falc_spec.spec[0,0,:,0])
-	# if of_on:
-	# 	globin.of_mode = True
-	
-	# falc_spec.xmin, falc_spec.xmax = 0, 1
-	# falc_spec.ymin, falc_spec.ymax = 0, 1
-	# falc_spec.save("FALC.fits", falc_spec.wavelength)
-	# sys.exit()
