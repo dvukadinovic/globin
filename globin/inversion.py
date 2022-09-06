@@ -266,8 +266,7 @@ class Inverter(InputData):
 				else:
 					n = Natmos - np.sum(stop_flag)
 					dt = datetime.now() - iter_start
-					# dt = dt.isoformat(sep=' ', timespec='minutes')
-					dt = dt.total_seconds()/1
+					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
 					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}\r", end="")
 					iter_start = datetime.now()
@@ -570,6 +569,7 @@ class Inverter(InputData):
 		num_failed = 0
 
 		start = time.time()
+		iter_start = datetime.now()
 		
 		itter = 0
 		while itter<self.max_iter:
@@ -580,7 +580,14 @@ class Inverter(InputData):
 			if updated_parameters:
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
-				print(f"[{t0:s}] Iteration: {np.min(itter)+1:2}\n")
+				if self.verbose:
+					print(f"[{t0:s}] Iteration: {np.min(itter)+1:2}\n")
+				else:
+					dt = datetime.now() - iter_start
+					dt = dt.total_seconds()/60
+					dt = np.round(dt, decimals=1)
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min\r", end="")
+					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
