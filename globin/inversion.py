@@ -310,7 +310,7 @@ class Inverter(InputData):
 				old_atomic_parameters = copy.deepcopy(atmos.global_pars)
 			
 			#--- update and check parameter boundaries
-			atmos.update_parameters(proposed_steps, self.mode)
+			atmos.update_parameters(proposed_steps)
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF table after parameters update
@@ -486,12 +486,15 @@ class Inverter(InputData):
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 
 		Nw = len(self.wavelength_air)
+		# number of total free parameters: local per pixel + global
 		Npar = self._get_Npar()
 		Natmos = atmos.nx * atmos.ny
 		Nlocalpar = atmos.n_local_pars
 		Nglobalpar = atmos.n_global_pars
+		# number of degrees of freedom
 		Ndof = np.count_nonzero(self.weights)*Nw*Natmos - Nlocalpar*Natmos - Nglobalpar
 
+		#--- estimate of Stokes noise
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
 		chi2 = np.zeros((obs.nx, obs.ny, self.max_iter), dtype=np.float64)
@@ -501,6 +504,8 @@ class Inverter(InputData):
 
 		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
+		# indices for transforming 4D array of RFs into 2D Jacobian matrix [slicing through atmospheres]
+		indx, indy = np.where(ones==1)		
 
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
@@ -520,6 +525,7 @@ class Inverter(InputData):
 		while itter<self.max_iter:
 			if self.debug:
 				LM_debug[itter] = LM_parameter
+			
 			#--- if we updated parameters, recaluclate RF and referent spectra
 			if updated_parameters:
 				t0 = datetime.now()
@@ -541,71 +547,22 @@ class Inverter(InputData):
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
-				#--- create Jacobian matrix and fill it with RF values
-				aux = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
-				aux = np.swapaxes(aux, 2, 3)
-				# aux = np.ones((atmos.nx, atmos.ny, 4*Nw, Npar))
-
+				#--- create the global Jacobian matrix and fill it with RF values
 				J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
 
-				l = 4*Nw
-				n_atmosphere = 0
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						low = n_atmosphere*l
-						up = low + l
-						ll = n_atmosphere*atmos.n_local_pars
-						uu = ll + atmos.n_local_pars
-						J[low:up,ll:uu] = aux[idx,idy,:,:atmos.n_local_pars]#*(n_atmosphere+1)
-						n_atmosphere += 1
-				
-				# aux = np.ones((atmos.nx, atmos.ny, 4*Nw, Npar))
-				
-				# indx, indy = np.where(ones==1)
-				# J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
-				# J[:,Nlocalpar*Natmos:] = aux[:,:,:,-Nglobalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="F")
+				aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
+				aux = np.swapaxes(aux, 2, 3)
 
-				# plt.imshow(J, cmap="gray", origin="upper", aspect="auto")
-				# plt.colorbar()
-				# plt.show()
+				# block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
+				J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
 
-				# sys.exit()
-
-				# low, up = 0, 0
-				# for parameter in atmos.nodes:
-				# 	n = len(atmos.nodes[parameter])
-				# 	low = up
-				# 	up = low + n
-				# 	J[:,low:up] = aux[...,low:up].reshape(4*Nw*Natmos, n)
-
-				# low, up = 0, Nlocalpar*Natmos
-				# for idp, parameter in enumerate(atmos.global_pars):
-				# 	if parameter=="vmac":
-				# 		n = 1
-				# 	else:
-				# 		n = len(atmos.global_pars[parameter][0,0])
-				# 	low = up
-				# 	up = low + n
-				# 	J[:,low:up] = aux[...,low:up].reshape(4*Nw*Natmos, n)
-
-				n_atmosphere = 0
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						low = n_atmosphere*l
-						up = low+l
-						for gID in range(atmos.n_global_pars):
-							J[low:up,uu+gID] = aux[idx,idy,:,atmos.n_local_pars+gID]
-						n_atmosphere += 1
-
-				# plt.imshow(J, cmap="gray", origin="upper", aspect="auto")
-				# plt.colorbar()
-				# plt.show()
-
-				# sys.exit()
+				# part of the global Jacobian matrix containing RFs for global [atomic] parameters
+				J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
 
 				JT = J.T
 				JTJ = np.dot(JT,J)
-				aux = diff.reshape(Natmos*Nw*4, order="F")
+				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
+				aux = aux.reshape(4*Nw*Natmos, order="C")
 				delta = np.dot(JT, aux)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
@@ -615,14 +572,14 @@ class Inverter(InputData):
 			H = JTJ
 			diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
 			np.fill_diagonal(H, diagonal_elements)
-			proposed_steps = np.linalg.solve(H, delta)
-
+			proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
+			
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
 			old_global_pars = copy.deepcopy(atmos.global_pars)
 			
 			#--- update and check boundaries for new parameter values
-			atmos.update_parameters(proposed_steps, self.mode)
+			atmos.update_parameters(proposed_steps)
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF data (if we are inverting for them)
@@ -670,6 +627,12 @@ class Inverter(InputData):
 			if LM_parameter>=1e5:
 				print("Upper limit in LM_parameter. We break\n")
 				break_flag = True
+			
+			#--- print current parameters
+			if updated_parameters and self.verbose:
+				pretty_print_parameters(atmos, ones, atmos.mode)
+				print(LM_parameter)
+				print("\n--------------------------------------------------\n")
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
@@ -692,19 +655,13 @@ class Inverter(InputData):
 				else:
 					pass
 
-			#--- print current parameters
-			if updated_parameters and self.verbose:
-				pretty_print_parameters(atmos, ones, atmos.mode)
-				print(LM_parameter)
-				print("\n--------------------------------------------------\n")
-
-			#--- if all pixels have converged, we stop inversion
-			if break_flag:
-				break
-
 			#--- break if we could not adjust Marquardt parameter more than 6 times
 			if (num_failed==6 and itter>=2):
 				print("Failed 6 times to fix the LM parameter. We break.\n")
+				break_flag = True
+
+			#--- if all pixels have converged, we stop inversion
+			if break_flag:
 				break
 
 		atmos.build_from_nodes(ones)
@@ -755,19 +712,18 @@ class Inverter(InputData):
 		if self.save_output is not None:
 			output_path = f"runs/{self.run_name}"
 
-			# if ("loggf" in atmos.global_pars) or ("dlam" in atmos.global_pars):
-			# 	globin.write_line_pars(f"{output_path}/line_pars_m3", atmos.global_pars["loggf"][0,0], atmos.line_no["loggf"],
-			# 													  atmos.global_pars["dlam"][0,0], atmos.line_no["dlam"])
-
 			inverted_spectra.xmin = obs.xmin
 			inverted_spectra.xmax = obs.xmax
 			inverted_spectra.ymin = obs.ymin
 			inverted_spectra.ymax = obs.ymax
 
 			atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
+			
 			if atmos.n_global_pars!=0:	
 				atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{self.linelist_name}", "reference line list")})
+			
 			inverted_spectra.save(f"{output_path}/inverted_spectra.fits", self.wavelength_air)
+			
 			save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
 
 			end = time.time() - start

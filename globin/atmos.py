@@ -577,8 +577,8 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
-	def update_parameters(self, proposed_steps, mode):
-		if mode==1 or mode==2:
+	def update_parameters(self, proposed_steps):
+		if self.mode==1 or self.mode==2:
 			low_ind, up_ind = 0, 0
 			
 			# update atmospheric parameters
@@ -596,7 +596,7 @@ class Atmosphere(object):
 					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 					self.global_pars[parameter] += step
 
-		if mode==3:
+		if self.mode==3:
 			Natmos = self.nx*self.ny
 			NparLocal = self.n_local_pars
 			NparGlobal = self.n_global_pars
