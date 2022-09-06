@@ -68,7 +68,7 @@ class Atmosphere(object):
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
 									"vmac"  : [0, 5],								# [km/s]
-									"mag"   : [1, 15000],						# [G]
+									"mag"   : [1, 10000],						# [G]
 									"of"    : [0, 20],							#
 									"gamma" : [-np.pi, np.pi],			# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
@@ -640,6 +640,9 @@ class Atmosphere(object):
 			elif parameter=="chi":
 				y = np.sin(self.values[parameter])
 				self.values[parameter] = np.arcsin(y)
+				# make all angles positive always
+				# (RH has a problem with negative values)
+				# self.values[parameter] += np.pi
 			else:
 				# check lower boundary condition
 				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
@@ -758,7 +761,7 @@ class Atmosphere(object):
 
 		return spec.I, spec.Q, spec.U, spec.V
 
-	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
 		Parameters:
 		-----------
@@ -918,9 +921,9 @@ class Atmosphere(object):
 				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
 
 		#--- add instrumental broadening
-		if self.instrumental_profile is not None:
-			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		if instrumental_profile is not None:
+			spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
 
 		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 

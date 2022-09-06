@@ -311,7 +311,7 @@ def _broaden_spectra(args):
 
 	return spec
 
-def get_Icont(wavelength=500):
+def get_Icont(wavelength=500, mu=1.0):
 	"""
 	Compute the continuum intensity in the given wavelength from FAL C model that
 	will be used as a normalization factor for synthetic spectra.
@@ -319,6 +319,7 @@ def get_Icont(wavelength=500):
 	import pyrh
 
 	hsrasp = globin.Atmosphere("hsrasp_multi.fits")
+	hsrasp.mu = mu
 	hsrasp.norm = False
 	hsrasp.RH = pyrh.RH()
 	hsrasp.wavelength_vacuum = np.array([wavelength], dtype=np.float64)
@@ -328,6 +329,6 @@ def get_Icont(wavelength=500):
 
 	# spec = hsrasp._compute_spectra_sequential(arg=(0,0))
 	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
-	spec = hsrasp.compute_spectra()
+	spec = hsrasp.compute_spectra(np.ones((1,1)))
 	icont = spec.spec[:,:,-1,0]
 	return icont

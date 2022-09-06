@@ -187,7 +187,7 @@ class Inverter(InputData):
 		if self.norm:
 			wavelength = obs.wavelength[0]
 			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
-			icont = get_Icont(wavelength=wavelength)
+			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
@@ -256,9 +256,12 @@ class Inverter(InputData):
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
 				
-				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
+				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# plt.show()
+
+				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
 				# plt.show()
 
 				# copy old RF into new for new itteration inversion
@@ -492,7 +495,7 @@ class Inverter(InputData):
 		if self.norm:
 			wavelength = obs.wavelength[0]
 			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
-			icont = get_Icont(wavelength=wavelength)
+			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
@@ -546,7 +549,7 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean)
+				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
 
 				if self.debug:
 					for idx in range(atmos.nx):
