@@ -9,6 +9,8 @@ from astropy.io import fits
 import multiprocessing as mp
 from scipy.sparse import block_diag
 
+from tqdm import tqdm, trange
+
 import pyrh
 
 from .spec import get_Icont, Spectrum
@@ -199,6 +201,7 @@ class Inverter(InputData):
 
 		Nw = len(self.wavelength_air)
 		Npar = self._get_Npar()
+		Natmos = atmos.nx*atmos.ny
 		Ndof = np.count_nonzero(self.weights) * Nw - Npar
 
 		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * self.marq_lambda
@@ -214,6 +217,10 @@ class Inverter(InputData):
 		#   0 -- no parameters update --> we have not got good parameters or we converged
 		#   1 -- we have updated parameters; we need new RF and spectrum
 		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
+
+		# progress bar tracking
+		# pbar = tqdm(total=atmos.nx*atmos.ny, desc="Converged pixels", position=0)
+		# print()
 
 		"""
 		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
@@ -238,18 +245,32 @@ class Inverter(InputData):
 		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
 
 		start = time.time()
+		iter_start = datetime.now()
 
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
 		while np.min(itter) <= self.max_iter:
+			start_iter = time.time
+			# counter for the progress bar
+			old = np.sum(stop_flag)
+
 			#--- if we updated parameters, recaluclate RF and referent spectra
 			total = np.sum(updated_pars)
 			if total!=0:
 				# if self.verbose:
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
-				print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2}\n")
+				if self.verbose:
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2}\n")
+				else:
+					n = Natmos - np.sum(stop_flag)
+					dt = datetime.now() - iter_start
+					# dt = dt.isoformat(sep=' ', timespec='minutes')
+					dt = dt.total_seconds()/1
+					dt = np.round(dt, decimals=1)
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}\r", end="")
+					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#             spec.shape = (nx, ny, Nw, 5)
@@ -378,25 +399,39 @@ class Inverter(InputData):
 			#--- print the current state of the inversion
 			if self.verbose and np.sum(stop_flag)!=0:
 				pretty_print_parameters(atmos, stop_flag, atmos.mode)
-			idx, idy = np.where(stop_flag==1)
-			print(LM_parameter[idx,idy])
+				idx, idy = np.where(stop_flag==1)
+				print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
 			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
 
-			# if self.verbose:
-			print("\n--------------------------------------------------\n")
+			# if np.sum(stop_flag)!=old:
+			# 	n = old - np.sum(stop_flag)
+			# 	a = pbar.update(n)
+			# 	print(a)
+			# 	pbar.display(pos=0)
+
+			if self.verbose:
+				print("\n--------------------------------------------------\n")
 
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:
 				break
+
+		# pbar.close()
+
+		print()
+		t0 = datetime.now()
+		t0 = t0.isoformat(sep=' ', timespec='seconds')
+		print(f"[{t0:s}] Finished!")
 
 		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
 
 		atmos.build_from_nodes(updated_pars)
 		if atmos.hydrostatic:
-			inverted_spectra = atmos.compute_spectra(updated_pars)
+			atmos.makeHSE()
+		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 		if self.instrumental_profile is not None:
