@@ -113,10 +113,18 @@ class Inverter(InputData):
 			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
 			spec = self.atmosphere.compute_spectra(ones)
 			
+			#--- add macro-turbulent broadening
 			spec.broaden_spectra(self.atmosphere.vmac, ones, self.n_thread)
+			
+			#--- add instrument broadening (if applicable)
+			if self.instrumental_profile is not None:
+				spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+
+			#--- save spectra
 			spec.save(self.output_spectra_path, self.wavelength_air)
 			
-			print("All done!")
+			print("  All done!")
+			print("-------------------------------------------------\n")
 
 			return self.atmosphere, spec
 		else:
@@ -326,6 +334,8 @@ class Inverter(InputData):
 			corrected_spec = atmos.compute_spectra(stop_flag)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
+			if self.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -386,6 +396,8 @@ class Inverter(InputData):
 			inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
+		if self.instrumental_profile is not None:
+			corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
 		try:
 			atmos.compute_errors(JTJ, chi2_old)
@@ -593,6 +605,8 @@ class Inverter(InputData):
 			corrected_spec = atmos.compute_spectra(ones)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
+			if self.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -670,6 +684,8 @@ class Inverter(InputData):
 		inverted_spectra = atmos.compute_spectra(ones)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
+		if self.instrumental_profile is not None:
+			corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		try:
 			atmos.compute_errors(JTJ, chi2_old)

@@ -109,10 +109,22 @@ class Spectrum(object):
 		results = np.array(results)
 		self.spec[indx, indy] = results
 
-	def instrumental_broadening(self, R):
-		# vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
-		# self.broaden_spectra(vinst)
-		pass
+	def instrumental_broadening(self, flag, n_thread, kernel=None, R=None):
+		if R is not None:
+			vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
+			self.broaden_spectra(vinst, flag, n_thread)
+		if kernel is not None:
+			# get only sample of spectra that we want to convolve
+			# (no need to do it in every pixel during inversion if
+			# we have not updated parameters)
+			indx, indy = np.where(flag==1)
+			args = zip(self.spec[indx,indy], [kernel]*len(indx))
+
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_broaden_spectra, iterable=args)
+
+			results = np.array(results)
+			self.spec[indx,indy] = results
 
 	def norm(self):
 		if (globin.norm) and (globin.Icont is not None):

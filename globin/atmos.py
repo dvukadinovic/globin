@@ -734,7 +734,8 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-			spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
+			spec = self.RH.compute1d(self.mu, 0, self.data[idx, idy, 0], 
+									self.data[idx, idy, 1], 
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
 								  self.data[idx, idy, 6], self.data[idx, idy, 7],
@@ -743,7 +744,8 @@ class Atmosphere(object):
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			spec = self.RH.compute1d(0, self.data[idx, idy, 0], self.data[idx, idy, 1], 
+			spec = self.RH.compute1d(self.mu, 0, self.data[idx, idy, 0], 
+									self.data[idx, idy, 1], 
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
 								  self.data[idx, idy, 6], self.data[idx, idy, 7],
@@ -914,6 +916,11 @@ class Atmosphere(object):
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
 				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
+
+		#--- add instrumental broadening
+		if self.instrumental_profile is not None:
+			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
 
 		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 

@@ -8,6 +8,7 @@ import subprocess as sp
 from scipy.interpolate import interp1d
 from astropy.io import fits
 from scipy.interpolate import splrep, splev
+from scipy.signal import resample
 
 import matplotlib.pyplot as plt
 
@@ -75,10 +76,10 @@ class InputData(object):
 		text = open(self.rh_input_name, "r").read()
 		self.keyword_input = text
 
-		wave_file_path = _find_value_by_key("WAVETABLE", self.keyword_input, "required")
-		wave_file_path = wave_file_path.split("/")[-1]
-		# obj.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", obj.keyword_input, "default", "spectrum.out")
-		self.solve_ne = _find_value_by_key("SOLVE_NE", self.keyword_input, "optional")
+		# wave_file_path = _find_value_by_key("WAVETABLE", self.keyword_input, "required")
+		# wave_file_path = wave_file_path.split("/")[-1]
+		# # obj.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", obj.keyword_input, "default", "spectrum.out")
+		# self.solve_ne = _find_value_by_key("SOLVE_NE", self.keyword_input, "optional")
 		# obj.hydrostatic = _find_value_by_key("HYDROSTATIC", obj.keyword_input, "optional")
 		# obj.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", obj.keyword_input, "required")
 		# obj.rf_file_path = _find_value_by_key("RF_OUTPUT", obj.keyword_input, "default", "rfs.out")
@@ -112,6 +113,7 @@ class InputData(object):
 		else:
 			self.norm = False
 
+		# flag for computing the mean spectrum
 		mean = _find_value_by_key("mean", self.parameters_input, "optional")
 		if mean is not None:
 			if mean.lower()=="true":
@@ -121,21 +123,14 @@ class InputData(object):
 		else:
 			self.mean = False
 
+		# if we are computing the mean spectrum, we need also macro velocity and filling factor
+		# for each atmosphere component. Usefull only when we have 2-3 components, not for whole cube.
 		if self.mean:
 			mac_vel = _find_value_by_key("mac_vel", self.parameters_input, "required")
 			self.mac_vel = [float(item) for item in mac_vel.split(",")]
 
 			items = _find_value_by_key("filling_factor", self.parameters_input, "required")
 			self.filling_factor = [float(item) for item in items.split(",")]
-
-		# path to RH main folder
-		rh_path = _find_value_by_key("rh_path", self.parameters_input, "required")
-		if rh_path.rstrip("\n")[-1]=="/":
-			rh_path = rh_path.rstrip("/")
-		self.rh_path = rh_path
-
-		# flag for HSE computation; by default we do HSE
-		#obj.hydrostatic = _find_value_by_key("hydrostatic", obj.parameters_input, "default", 1, conversion=int)
 		
 		#--- get wavelength range and save it to file ('wave_file_path')
 		self.lmin = _find_value_by_key("wave_min", self.parameters_input, "optional", conversion=float)
@@ -156,10 +151,8 @@ class InputData(object):
 			wavetable = np.arange(self.lmin, self.lmax+self.step, self.step)
 		
 		self.wavelength_air = copy.deepcopy(wavetable)
-		self.wavelength_vacuum = write_wavs(wavetable, wave_file_path)
-		# self.Globin.wavelength_vacuum = wavetable
-		# self.Globin.RH.set_wavetable(self.Globin.wavelength_vacuum)
-
+		self.wavelength_vacuum = write_wavs(wavetable, fname=None)
+		
 		# common parameters for all modes
 		atm_range = get_atmosphere_range(self.parameters_input)
 		logtau_top = _find_value_by_key("logtau_top", self.parameters_input, "default", -6,float)
@@ -169,6 +162,17 @@ class InputData(object):
 		atm_type = _find_value_by_key("atm_type", self.parameters_input, "default", "multi", str)
 		atm_type = atm_type.lower()
 		self.atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", str)
+		
+		# load the telescope instrumental profile
+		self.instrumental_profile = None
+		instrumental_profile_path = _find_value_by_key("instrumental_profile", self.parameters_input, "optional", None, str)
+		if instrumental_profile_path is not None:	
+			self.instrumental_wave, self.instrumental_profile = np.loadtxt(instrumental_profile_path, unpack=True)
+
+		# angle for the outgoing radiation; forwarded to RH
+		mu = _find_value_by_key("mu", self.parameters_input, "default", 1.0, float)
+		if mu>1 or mu<0:
+			raise ValueError(f"Angle mu={mu} for computing the outgoing radiation is out of bounds [0,1].")
 
 		#--- read Opacity Fudge (OF) data
 		self.of_mode = _find_value_by_key("of_mode", self.parameters_input, "default", -1, int)
@@ -217,6 +221,9 @@ class InputData(object):
 			print("  Negative mode not supported. Soon to be RF calculation.")
 			sys.exit()
 
+		# add angle for which we need to compute spectrum to atmosphere
+		self.atmosphere.mu = mu
+
 		if not "loggf" in self.atmosphere.global_pars:
 			self.atmosphere.global_pars["loggf"] = np.array([], dtype=np.float64)
 			self.atmosphere.line_no["loggf"] = np.array([], dtype=np.int32)
@@ -229,7 +236,6 @@ class InputData(object):
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
 			print(f"  Warning: reduced the number of threads to {self.n_thread}.")
 
-		
 		#--- set OF data in atmosphere
 		if self.do_fudge:
 			# if we have 1D OF values, set equal values in all pixels
@@ -287,9 +293,18 @@ class InputData(object):
 					elements.append((parameter, aux))
 				self.atmos_debug = dict(elements)
 
+		#--- resample and normalize the instrumental profile to specified wavelength grid
+		if self.instrumental_profile is not None:
+			dx = self.instrumental_wave[1] - self.instrumental_wave[0] # [A]
+			M = len(self.instrumental_wave)
+			dxp = self.step * 10 # [A]
+			N = int(dx/dxp * M)
+
+			aux = resample(self.instrumental_profile, N)
+			self.instrumental_profile = aux / np.sum(aux)
+
 		#--- missing parameters
-		# instrument broadening: R or instrument profile provided
-		# strailight contribution
+		# straylight contribution
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
