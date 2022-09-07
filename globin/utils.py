@@ -7,6 +7,7 @@ import subprocess as sp
 import multiprocessing as mp
 import copy
 import pyrh
+
 from .makeHSE import makeHSE
 
 from scipy.constants import m_e, m_p
@@ -62,6 +63,9 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
     return atmos
 
 def make_synthetic_observations(obj, atm_fpath=None, save_height=False):
+    """
+    Obsolete function (05.09.2022.)
+    """
     # if globin.norm:
     #     globin.falc.write_atmosphere()
     #     globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]

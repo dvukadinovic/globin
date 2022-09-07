@@ -186,6 +186,8 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
+		print(f"Observation: {obs.nx} x {obs.ny}")
+
 		if self.norm:
 			wavelength = obs.wavelength[0]
 			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
@@ -278,6 +280,10 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
+				# plt.plot(obs.spec[0,0,:,0])
+				# plt.plot(spec.spec[0,0,:,0])
+				# plt.show()
+
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
 
@@ -351,7 +357,7 @@ class Inverter(InputData):
 			#--- rebuild new atmosphere after parameters update
 			atmos.build_from_nodes(stop_flag)
 			if atmos.hydrostatic:
-				atmos.makeHSE()
+				atmos.makeHSE(stop_flag)
 
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag)
@@ -429,7 +435,7 @@ class Inverter(InputData):
 
 		atmos.build_from_nodes(updated_pars)
 		if atmos.hydrostatic:
-			atmos.makeHSE()
+			atmos.makeHSE(updated_pars)
 		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
@@ -646,7 +652,7 @@ class Inverter(InputData):
 			#--- rebuild the atmosphere and compute new spectrum
 			atmos.build_from_nodes(ones)
 			if atmos.hydrostatic:
-				atmos.makeHSE()
+				atmos.makeHSE(ones)
 			corrected_spec = atmos.compute_spectra(ones)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
@@ -725,7 +731,7 @@ class Inverter(InputData):
 
 		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:
-			atmos.makeHSE()
+			atmos.makeHSE(ones)
 		inverted_spectra = atmos.compute_spectra(ones)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)

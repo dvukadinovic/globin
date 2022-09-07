@@ -289,7 +289,7 @@ class Atmosphere(object):
 		args = zip(atmos, globin.idx, globin.idy)
 		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
 
-	def build_from_nodes(self, flag):
+	def build_from_nodes(self, flag, params=None):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -371,29 +371,17 @@ class Atmosphere(object):
 
 		return atmos.data[idx,idy]
 
-	def _set_pops(self, pops):
-		"""
-		Store the computed ne and nH pops after async call 
-		into the atmosphere.
-		"""
-		for item in pops:
-			idx, idy = item["idx"], item["idy"]
-			self.data[idx,idy,2] = item["ne"]
-			self.data[idx,idy,8:] = item["nH"]
-			self.nHtot[idx,idy] = item["nHtot"]
-			self.rho[idx,idy] = item["rho"]
-
-	def error_callback(self, arg):
-		print("error in computing the HSE")
-		sys.exit()
-
-	def makeHSE(self):
-		args = copy.deepcopy(self.ids_tuple)
+	def makeHSE(self, flag):
+		indx, indy = np.where(flag==1)
+		args = zip(indx, indy)
 
 		with mp.Pool(self.n_thread) as pool:
-			result = pool.map_async(func=self._makeHSE, iterable=args, 
-					callback=self._set_pops, error_callback=self.error_callback)
-			result.wait()
+			results = pool.map(func=self._makeHSE, iterable=args)
+
+		results = np.array(results)
+
+		self.data[indx,indy,2] = results[:,0,:]
+		self.data[indx,indy,8:] = results[:,1:,:]
 
 	def _makeHSE(self, arg):
 		fudge_num = 2
@@ -407,7 +395,8 @@ class Atmosphere(object):
 			                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
 			                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
 		
-		return {"ne" : ne/1e6, "nH" : nH/1e6, "nHtot" : nHtot/1e6, "rho" : rho, "idx" : idx, "idy" : idy}
+		result = np.vstack((ne/1e6, nH/1e6))
+		return result
 
 	def makeHSE_old(self):
 		for idx in range(self.nx):
@@ -780,7 +769,7 @@ class Atmosphere(object):
 		# print("  Get parameter RF...")
 		if self.hydrostatic:
 			# print("    Set the atmosphere in HSE...")
-			self.makeHSE()
+			self.makeHSE(synthesize)
 		# print("    Compute spectra...")
 		spec = self.compute_spectra(synthesize)
 		Nw = spec.nw
