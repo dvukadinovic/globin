@@ -86,28 +86,24 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n  --- Entering inversion mode ---\n")
+			print("\n             --- Entering inversion mode ---\n")
 			for cycle in range(self.ncycle):
-				# double the number of iterations in the last cycle
-				if cycle==self.ncycle-1 and self.ncycle!=1:
-					self.max_iter *= 2
+				if self.ncycle>1:
+					print(f"Starting inversion cycle {cycle+1}\n")
 
 				if (self.mode==1) or (self.mode==2):
-					atm, spec = self.invert_pxl_by_pxl()
+					atmos, spec = self.invert_pxl_by_pxl()
 				elif self.mode==3:
-					atm, spec = self.invert_global()
-				# elif self.mode==4:
-				# 	atm, spec = invert_mcmc(save_output, verbose)
+					atmos, spec = self.invert_global()
 				else:
 					print(f"Not supported mode {self.mode}, currently.")
 					return None, None
 
-				# in last cycle we do not smooth atmospheric parameters
+				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
-					self.atmosphere.smooth_parameters(cycle)
-					self.marq_lambda /= 10
+					self.atmosphere.smooth_parameters()
 
-				return atm, spec
+			return atmos, spec
 
 		elif self.mode==0:
 			print("\n --- Entering synthesis mode ---\n")
@@ -130,7 +126,7 @@ class Inverter(InputData):
 
 			return self.atmosphere, spec
 		else:
-			print("\n  Unrecognized mode of operation. Check again and run the script.")
+			print("\n[Error] Unrecognized mode of operation. Check input parameters.\n")
 			sys.exit()
 
 	def _get_Npar(self):
@@ -186,18 +182,16 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		print(f"Observation: {obs.nx} x {obs.ny}")
-
-		if self.norm:
+		if self.norm and atmos.icont is None:
 			wavelength = obs.wavelength[0]
-			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 		
 		if self.verbose:
-			print("\nInitial parameters:\n")
+			print("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
@@ -249,6 +243,10 @@ class Inverter(InputData):
 		start = time.time()
 		iter_start = datetime.now()
 
+		print(f"Observations: {obs.nx} x {obs.ny}")
+		print(f"Number of parameters: {Npar}")
+		print(f"Number of degrees of freedom: {Ndof}\n")
+
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
@@ -270,7 +268,7 @@ class Inverter(InputData):
 					dt = datetime.now() - iter_start
 					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
-					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}\r", end="")
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}")
 					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
@@ -528,13 +526,13 @@ class Inverter(InputData):
 		atmos = self.atmosphere
 
 		if self.verbose:
-			print("\nInitial parameters:\n")
+			print("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
-		if self.norm:
+		if self.norm and atmos.icont is None:
 			wavelength = obs.wavelength[0]
-			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			print(f"Get the HSRA continuum intensity @ {wavelength}...")
 			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
@@ -592,7 +590,7 @@ class Inverter(InputData):
 					dt = datetime.now() - iter_start
 					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
-					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min\r", end="")
+					print(f"[{t0:s}] Iteration: {np.min(itter)+1:2} | per. iter {dt} min")
 					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
