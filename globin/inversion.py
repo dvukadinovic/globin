@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
 from scipy.sparse import block_diag
+import scipy.sparse as sp
+from scipy.sparse.linalg import spsolve
 
 from tqdm import tqdm, trange
 
@@ -278,9 +280,15 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
+				# print(atmos.values["temp"])
+				# print(atmos.data[0,0,2])
+				# print(atmos.data[0,0,8])
+
 				# plt.plot(obs.spec[0,0,:,0])
 				# plt.plot(spec.spec[0,0,:,0])
 				# plt.show()
+
+				# return None, None
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
@@ -563,6 +571,9 @@ class Inverter(InputData):
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
+		# eye matrix
+		eye = sp.eye(Natmos*Nlocalpar + Nglobalpar, Natmos*Nlocalpar + Nglobalpar)
+
 		# if we reach convergence, we break from the loop
 		break_flag = False
 
@@ -609,31 +620,65 @@ class Inverter(InputData):
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
 				#--- create the global Jacobian matrix and fill it with RF values
-				J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
+				# J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
 
-				aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
-				aux = np.swapaxes(aux, 2, 3)
+				# aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
+				# aux = np.swapaxes(aux, 2, 3)
 
-				# block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
-				J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
+				# # block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
+				# J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
 
-				# part of the global Jacobian matrix containing RFs for global [atomic] parameters
-				J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
+				# # part of the global Jacobian matrix containing RFs for global [atomic] parameters
+				# J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
 
-				JT = J.T
-				JTJ = np.dot(JT,J)
+				#--------------------------
+				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				tmp = np.swapaxes(tmp, 2, 3)
+				tmp = tmp.reshape(Natmos, 4*Nw, Npar)
+
+				# local part
+				Jl = sp.block_diag(tmp[...,:Nlocalpar].tolist())
+				# global part
+				Jg = sp.coo_matrix(tmp[...,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar))
+				
+				# del tmp
+
+				# global Jacobian matrix
+				Jglobal = sp.hstack([Jl,Jg]).tocsr()
+				
+				# delete parts of Jacobian (to save some bits of memory)
+				# del Jl
+				# del Jg
+
+				#--- 
+				JglobalT = Jglobal.transpose()
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
 				aux = aux.reshape(4*Nw*Natmos, order="C")
-				delta = np.dot(JT, aux)
+				deltaSP = JglobalT.dot(aux)
+				# del aux
+
+				# JT = J.T
+				# delta = np.dot(JT, aux)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
 			#--- invert Hessian matrix
-			H = JTJ
-			diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
-			np.fill_diagonal(H, diagonal_elements)
-			proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
+			# H = np.dot(JT, J)
+			# diagonal_elements = np.diag(H) * (1 + LM_parameter)
+			# np.fill_diagonal(H, diagonal_elements)
+			# proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
+			
+			# print(H)
+			# print(proposed_steps)
+
+			H = JglobalT.dot(Jglobal) + eye*LM_parameter
+			proposed_steps = spsolve(H, deltaSP)
+
+			# print(H.toarray())
+			# print(proposed_steps)
+
+			# return None, None
 			
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
