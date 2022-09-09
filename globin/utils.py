@@ -32,7 +32,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
     #         pg, pe, _,_ = makeHSE(5000, atmos.logtau, atmos.data[idx,idy,1])
     #         atmos.data[idx,idy,2] = pe/10/k_b/atmos.data[idx,idy,1] / 1e6
     #         atmos.data[idx,idy,8:] = globin.atmos.distribute_hydrogen(atmos.data[idx,idy,1], pg, pe)
-    atmos.makeHSE(np.ones((atmos.ny, atmos.ny)))
+    atmos.makeHSE(np.ones((atmos.nx, atmos.ny)))
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
