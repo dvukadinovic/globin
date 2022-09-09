@@ -24,6 +24,13 @@ unit = {"temp"  : "K",
 		"chi"   : "deg",
 		"nH"    : "1/m3"}
 
+pars_symbol = {"temp"  : "T",
+			   "vz"    : r"$v_\mathrm{LOS}$",
+			   "vmic"  : r"$v_\mathrm{mic}$",
+			   "mag"   : "B",
+			   "gamma" : r"$\gamma$",
+			   "chi"   : r"$\phi$"}
+
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black", label=None, transangles=False):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
@@ -81,7 +88,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black"
 			plt.yscale("log")
 
 		plt.xlabel(r"log$\tau$")
-		plt.ylabel(f"{atmos.parameter_name[parameter]} [{unit[parameter]}]")
+		plt.ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
 		ax = plt.gca()
 		# ax.set_xticklabels(ax.get_xticks())
 		# ax.set_yticklabels(ax.get_yticks())
@@ -202,7 +209,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SI.plot((wavelength - lam0)*10, inv[:,0], color="tab:red", lw=1.5)
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SI.set_ylabel(r"$I$")
-		ax0_SI.set_xticks([], [])
 		ax0_SI.set_xlim([-dlam, dlam])
 
 		difference = obs[:,0] - inv[:,0]
@@ -219,7 +225,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SQ.plot((wavelength - lam0)*10, inv[:,1], color="tab:red", lw=1.5)
 		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SQ.set_ylabel(r"$Q$")
-		ax0_SQ.set_xticks([], [])
 		ax0_SQ.set_xlim([-dlam, dlam])
 
 		difference = obs[:,1] - inv[:,1]
@@ -236,7 +241,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SU.plot((wavelength - lam0)*10, inv[:,2], color="tab:red", lw=1.5)
 		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SU.set_ylabel(r"$U$")
-		ax0_SU.set_xticks([], [])
 		ax0_SU.set_xlim([-dlam, dlam])
 
 		difference = obs[:,2] - inv[:,2]
@@ -254,7 +258,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax0_SV.plot((wavelength - lam0)*10, inv[:,3], color="tab:red", lw=1.5)
 		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SV.set_ylabel(r"$V$")
-		ax0_SV.set_xticks([], [])
 		ax0_SV.set_xlim([-dlam, dlam])
 
 		difference = obs[:,3] - inv[:,3]
