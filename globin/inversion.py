@@ -540,7 +540,7 @@ class Inverter(InputData):
 
 		if self.norm and atmos.icont is None:
 			wavelength = obs.wavelength[0]
-			print(f"Get the HSRA continuum intensity @ {wavelength}...")
+			print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
@@ -582,6 +582,10 @@ class Inverter(InputData):
 
 		# number of times we failed to adjust parameters (rise in Marquardt parameter)
 		num_failed = 0
+
+		print(f"Observations: {obs.nx} x {obs.ny}")
+		print(f"Number of parameters: {Npar}")
+		print(f"Number of degrees of freedom: {Ndof}\n")
 
 		start = time.time()
 		iter_start = datetime.now()
@@ -735,6 +739,9 @@ class Inverter(InputData):
 			if LM_parameter>=1e5:
 				print("Upper limit in LM_parameter. We break\n")
 				break_flag = True
+
+			if updated_parameters:
+				print("chi2 --> {:4.3e} | LM --> {:.1e}".format(np.sum(chi2[...,itter-1]), LM_parameter))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
