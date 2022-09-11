@@ -5,20 +5,22 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 4
+n_thread = 6
 interp_deree = 3
 mode = 1
 debug = False
 
 #--- Spectra to be fitted
 observation = obs.fits
-noise = 1e-8
-weights = 1,5,5,3
+noise = 1e-5
+weights = 1,1,1,1
 vmac = 0
 norm = False
+#mu = 1.0
+#instrumental_profile = hinode_instr_prof.dat
 
 #--- Output spectra
-spectrum = obs.fits
+#spectrum = obs_vmac.fits
 
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/test/inverted_atmos.fits
@@ -26,20 +28,20 @@ spectrum = obs.fits
 nodes_temp = -2.2, -1.6, -0.9, 0
 nodes_temp_values = 4400, 5500, 6600, 7800
 
-nodes_vz = -2, -0.5
-nodes_vz_values = 0.5, 0.5
+#nodes_vz = -2, -0.5
+#nodes_vz_values = 0.5, 0.5
 
-nodes_vmic = 0
-nodes_vmic_values = 0.65
+#nodes_vmic = 0
+#nodes_vmic_values = 0.65
 
-nodes_mag = -2, -0.5
-nodes_mag_values = 300, 300
+#nodes_mag = -2, -0.5
+#nodes_mag_values = 300, 300
 
-nodes_gamma = 0
-nodes_gamma_values = 45
+#nodes_gamma = 0
+#nodes_gamma_values = 45
 
-nodes_chi = 0
-nodes_chi_values = 25
+#nodes_chi = 0
+#nodes_chi_values = 25
 
 #--- opacity fudge coefficients
 # interpolation degree of OF is determined by the
@@ -56,7 +58,7 @@ of_scatt_flag = 1
 linelist = lines_4016
 wave_min = 4015
 wave_max = 4017
-wave_step = 0.01
+wave_step = 0.010
 
 #--- Levenberg-Marquardt parameters
 marq_lambda = 1e-1
@@ -64,16 +66,11 @@ max_iter = 20
 chi2_tolerance = 1e-3
 
 #--- Line parameters
-line_parameters = line_pars
+#line_parameters = line_pars
 
 #--- Reference atmosphere (optional)
 #cube_atmosphere = ../../../globin_inversion/muram_sunspot/sunspot_slice_y50.fits
 # reference_atmosphere = some_1D_atmosphere.fits
 cube_atmosphere = atmos_HSE_pyrh.fits
-#range = 1,1,1,1
-range = 1,2,1,3
-
-#--- RH root folder path
-#rh_path = /data/slam/home/vukadinovic/rh-globin
-#rh_path = /media/dusan/storage/RH/rh
-rh_path = /home/dusan/Documents/pyrh/rh
+#range = 2,2,2,2
+#range = 1,2,1,3

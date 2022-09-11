@@ -424,10 +424,11 @@ class InputData(object):
 		if fpath is not None:
 			# read node parameters from .fits file that is inverted atmosphere
 			# from older inversion run
-			init_atmosphere = read_inverted_atmosphere(fpath, atm_range)
+			init_atmosphere = globin.atmos.read_inverted_atmosphere(fpath, atm_range=[0,None,0,None])
 			self.atmosphere.nodes = init_atmosphere.nodes
 			self.atmosphere.values = init_atmosphere.values
 			self.atmosphere.mask = init_atmosphere.mask
+			self.atmosphere.parameter_scale = init_atmosphere.parameter_scale
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
 				print("--> Error in input.read_inverted_atmosphere()")
 				print("    initial atmosphere does not have same dimensions")

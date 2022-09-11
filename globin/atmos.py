@@ -15,7 +15,7 @@ import os
 import sys
 import copy
 import time
-from scipy.ndimage import correlate1d
+from scipy.ndimage import median_filter, correlate1d
 from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm, trange
@@ -68,7 +68,7 @@ class Atmosphere(object):
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
 									"vmac"  : [0, 5],								# [km/s]
-									"mag"   : [1, 10000],						# [G]
+									"mag"   : [10, 10000],						# [G]
 									"of"    : [0, 20],							#
 									"gamma" : [-np.pi, np.pi],			# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
@@ -136,6 +136,8 @@ class Atmosphere(object):
 
 		self.ids_tuple = [(0,0)]
 		self.n_thread = 1
+
+		self.icont = None
 
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
@@ -624,11 +626,13 @@ class Atmosphere(object):
 			if parameter=="gamma":
 				y = np.cos(self.values[parameter])
 				self.values[parameter] = np.arccos(y)
+				pass
 			# azimuth is wrapped around [0, 180] interval
 			# check how to wrap azimuth in reasonable values
 			elif parameter=="chi":
 				y = np.sin(self.values[parameter])
 				self.values[parameter] = np.arcsin(y)
+				pass
 				# make all angles positive always
 				# (RH has a problem with negative values)
 				# self.values[parameter] += np.pi
@@ -662,15 +666,21 @@ class Atmosphere(object):
 						indx, indy = np.where(self.global_pars[parameter][...,idl]>self.limit_values[parameter][idl,1])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
-	def smooth_parameters(self, cycleID):
-		from scipy.ndimage import gaussian_filter
-
-		stds = [5,3,1]
-		std = stds[cycleID]
-
+	def smooth_parameters(self, num=5, std=2.5):
 		for parameter in self.nodes:
-			for nodeID in range(len(self.nodes[parameter])):
-				self.values[parameter][...,nodeID] = gaussian_filter(self.values[parameter][...,nodeID], std)
+			for idn in range(len(self.nodes[parameter])):
+				if parameter=="chi":
+					aux = globin.utils.azismooth(self.values[parameter][...,idn]*180/np.pi, num)
+					aux *= np.pi/180
+				elif parameter=="gamma":
+					aux = globin.utils.mygsmooth(self.values[parameter][...,idn]*180/np.pi, num, std)
+					aux *= np.pi/180
+				elif parameter=="of":
+					aux = self.values[parameter][...,idn]
+				else:
+					aux = globin.utils.mygsmooth(self.values[parameter][...,idn], num, std)
+
+				self.values[parameter][...,idn] = median_filter(aux, size=4)		
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
@@ -1766,7 +1776,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 			# angles are saved in radians, no need to convert them here
 			if parameter=="gamma":
 				# atmos.values[parameter] = np.tan(data[1]/2)
-				atmos.values[parameter] = np.cos(data[1])
+				# atmos.values[parameter] = np.cos(data[1])
 				atmos.values[parameter] = data[1]
 			elif parameter=="chi":
 				# atmos.values[parameter] = np.tan(data[1]/4)

@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
 from scipy.sparse import block_diag
+import scipy.sparse as sp
+from scipy.sparse.linalg import spsolve
 
 from tqdm import tqdm, trange
 
@@ -86,28 +88,24 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n  --- Entering inversion mode ---\n")
+			print("\n             --- Entering inversion mode ---\n")
 			for cycle in range(self.ncycle):
-				# double the number of iterations in the last cycle
-				if cycle==self.ncycle-1 and self.ncycle!=1:
-					self.max_iter *= 2
+				if self.ncycle>1:
+					print(f"Starting inversion cycle {cycle+1}\n")
 
 				if (self.mode==1) or (self.mode==2):
-					atm, spec = self.invert_pxl_by_pxl()
+					atmos, spec = self.invert_pxl_by_pxl()
 				elif self.mode==3:
-					atm, spec = self.invert_global()
-				# elif self.mode==4:
-				# 	atm, spec = invert_mcmc(save_output, verbose)
+					atmos, spec = self.invert_global()
 				else:
 					print(f"Not supported mode {self.mode}, currently.")
 					return None, None
 
-				# in last cycle we do not smooth atmospheric parameters
+				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
-					self.atmosphere.smooth_parameters(cycle)
-					self.marq_lambda /= 10
+					self.atmosphere.smooth_parameters()
 
-				return atm, spec
+			return atmos, spec
 
 		elif self.mode==0:
 			print("\n --- Entering synthesis mode ---\n")
@@ -130,7 +128,7 @@ class Inverter(InputData):
 
 			return self.atmosphere, spec
 		else:
-			print("\n  Unrecognized mode of operation. Check again and run the script.")
+			print("\n[Error] Unrecognized mode of operation. Check input parameters.\n")
 			sys.exit()
 
 	def _get_Npar(self):
@@ -186,18 +184,16 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		print(f"Observation: {obs.nx} x {obs.ny}")
-
-		if self.norm:
+		if self.norm and atmos.icont is None:
 			wavelength = obs.wavelength[0]
-			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 		
 		if self.verbose:
-			print("\nInitial parameters:\n")
+			print("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
@@ -249,6 +245,10 @@ class Inverter(InputData):
 		start = time.time()
 		iter_start = datetime.now()
 
+		print(f"Observations: {obs.nx} x {obs.ny}")
+		print(f"Number of parameters: {Npar}")
+		print(f"Number of degrees of freedom: {Ndof}\n")
+
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
@@ -270,7 +270,7 @@ class Inverter(InputData):
 					dt = datetime.now() - iter_start
 					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
-					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}\r", end="")
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min | Finished {n}/{Natmos}")
 					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
@@ -280,9 +280,15 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
+				# print(atmos.values["temp"])
+				# print(atmos.data[0,0,2])
+				# print(atmos.data[0,0,8])
+
 				# plt.plot(obs.spec[0,0,:,0])
 				# plt.plot(spec.spec[0,0,:,0])
 				# plt.show()
+
+				# return None, None
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
@@ -528,13 +534,13 @@ class Inverter(InputData):
 		atmos = self.atmosphere
 
 		if self.verbose:
-			print("\nInitial parameters:\n")
+			print("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
-		if self.norm:
+		if self.norm and atmos.icont is None:
 			wavelength = obs.wavelength[0]
-			print(f"  Get the HSRA continuum intensity @ {wavelength}...")
+			print(f"Get the HSRA continuum intensity @ {wavelength}...")
 			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
@@ -565,6 +571,9 @@ class Inverter(InputData):
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
+		# eye matrix
+		eye = sp.eye(Natmos*Nlocalpar + Nglobalpar, Natmos*Nlocalpar + Nglobalpar)
+
 		# if we reach convergence, we break from the loop
 		break_flag = False
 
@@ -592,7 +601,7 @@ class Inverter(InputData):
 					dt = datetime.now() - iter_start
 					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
-					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2} | per. iter {dt} min\r", end="")
+					print(f"[{t0:s}] Iteration: {np.min(itter)+1:2} | per. iter {dt} min")
 					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
@@ -611,31 +620,65 @@ class Inverter(InputData):
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
 				#--- create the global Jacobian matrix and fill it with RF values
-				J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
+				# J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
 
-				aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
-				aux = np.swapaxes(aux, 2, 3)
+				# aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
+				# aux = np.swapaxes(aux, 2, 3)
 
-				# block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
-				J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
+				# # block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
+				# J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
 
-				# part of the global Jacobian matrix containing RFs for global [atomic] parameters
-				J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
+				# # part of the global Jacobian matrix containing RFs for global [atomic] parameters
+				# J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
 
-				JT = J.T
-				JTJ = np.dot(JT,J)
+				#--------------------------
+				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
+				tmp = np.swapaxes(tmp, 2, 3)
+				tmp = tmp.reshape(Natmos, 4*Nw, Npar)
+
+				# local part
+				Jl = sp.block_diag(tmp[...,:Nlocalpar].tolist())
+				# global part
+				Jg = sp.coo_matrix(tmp[...,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar))
+				
+				# del tmp
+
+				# global Jacobian matrix
+				Jglobal = sp.hstack([Jl,Jg]).tocsr()
+				
+				# delete parts of Jacobian (to save some bits of memory)
+				# del Jl
+				# del Jg
+
+				#--- 
+				JglobalT = Jglobal.transpose()
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
 				aux = aux.reshape(4*Nw*Natmos, order="C")
-				delta = np.dot(JT, aux)
+				deltaSP = JglobalT.dot(aux)
+				# del aux
+
+				# JT = J.T
+				# delta = np.dot(JT, aux)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
 			#--- invert Hessian matrix
-			H = JTJ
-			diagonal_elements = np.diag(JTJ) * (1 + LM_parameter)
-			np.fill_diagonal(H, diagonal_elements)
-			proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
+			# H = np.dot(JT, J)
+			# diagonal_elements = np.diag(H) * (1 + LM_parameter)
+			# np.fill_diagonal(H, diagonal_elements)
+			# proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
+			
+			# print(H)
+			# print(proposed_steps)
+
+			H = JglobalT.dot(Jglobal) + eye*LM_parameter
+			proposed_steps = spsolve(H, deltaSP)
+
+			# print(H.toarray())
+			# print(proposed_steps)
+
+			# return None, None
 			
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)

@@ -18,21 +18,6 @@ m_e *= 1e3
 
 import globin
 
-def remove_dirs():
-    """
-    We remove working dirs located in rh/rhf1d if we fail to run RH
-    or if we have finished synthesis/inversion.
-
-    In case of an error, logs of running RH will be saved and could be
-    investigated further.
-    """
-    for threadID in range(globin.n_thread):
-        out = sp.run(f"rm -r {globin.rh_path}/rhf1d/{globin.wd}_{threadID+1}", 
-                shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-        if out.returncode!=0:
-            print(out.stdout)
-            sys.exit()
-
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.input.read_node_atmosphere(node_atmosphere_path)
 
@@ -40,14 +25,14 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
     # atmos.data[:,:,0,:] = atmos.logtau
     atmos.vmac = vmac
     # atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
-    atmos.build_from_nodes()
+    atmos.build_from_nodes(np.ones((atmos.nx, atmos.ny)))
     atmos.RH = pyrh.RH()
     # for idx in range(atmos.nx):
     #     for idy in range(atmos.ny):
     #         pg, pe, _,_ = makeHSE(5000, atmos.logtau, atmos.data[idx,idy,1])
     #         atmos.data[idx,idy,2] = pe/10/k_b/atmos.data[idx,idy,1] / 1e6
     #         atmos.data[idx,idy,8:] = globin.atmos.distribute_hydrogen(atmos.data[idx,idy,1], pg, pe)
-    atmos.makeHSE()
+    atmos.makeHSE(np.ones((atmos.nx, atmos.ny)))
 
     if output_atmos_path is not None:
         atmos.save_atmosphere(output_atmos_path)
@@ -61,42 +46,6 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
     print("  (nx, ny, nz, npar) = ({0}, {1}, {2}, {3})".format(atmos.nx, atmos.ny, atmos.nz, atmos.npar))
 
     return atmos
-
-def make_synthetic_observations(obj, atm_fpath=None, save_height=False):
-    """
-    Obsolete function (05.09.2022.)
-    """
-    # if globin.norm:
-    #     globin.falc.write_atmosphere()
-    #     globin.falc.atm_name_list = [f"runs/{globin.wd}/atmospheres/atm_0_0"]
-    #     globin.falc.line_lists_path = atmos.line_lists_path
-        
-    #     falc_spec, _ = globin.compute_spectra(globin.falc)
-    #     globin.Icont = np.max(falc_spec.spec[0,0,:,0])
-
-    # atmos.write_atmosphere()
-    spec, atm = globin.compute_spectra(atmos)
-
-    spec.xmin = atmos.xmin
-    spec.xmax = atmos.xmax
-    spec.ymin = atmos.ymin
-    spec.ymax = atmos.ymax
-    if not globin.mean:
-        spec.broaden_spectra(atmos.vmac)
-    spec.add_noise(noise)
-    spec.save(globin.output_spectra_path, globin.wavelength)
-
-    # if save_height:
-    #     height *= 1e2 # [m --> cm]
-    #     primary = fits.PrimaryHDU(height)
-    #     primary.writeto("height.fits", overwrite=True)
-
-    if atm_fpath is not None:
-        atm.save_atmosphere(atm_fpath)
-
-    # globin.remove_dirs()
-
-    return spec
 
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))
@@ -336,3 +285,93 @@ def _slice_line(line, dtype=float, separator=" "):
     lista = map(dtype, lista)
     # return list of values
     return list(lista)
+
+#--- routines for smoothing out the inversion parameters 
+#    (used for SPINOR; got it from Sebas)
+def sqr(x):
+    return x*x
+
+def mygsmooth(a, num, sd):
+    d = int(num/2)
+    dim = a.shape
+    ny = dim[0]
+    nx = dim[1]
+
+    # make gaussian filter (cut to 1.0 std)
+    x, y = np.meshgrid(np.arange(num), np.arange(num))
+    r = ((x-d)**2 + (y-d)**2) / (2*sd)**2
+    f = np.zeros((ny,nx))
+    f[:num, :num] = np.exp(-r)
+    nn = np.sum(f)
+    f /= nn
+
+    # smooth parameter
+    rv = np.zeros((ny,nx))
+    for x in range(nx):
+        xl=np.max([x-d,0])
+        xh=np.min([x+d,nx-1])
+        for y in range(ny):
+            yl=np.max([y-d,0])
+            yh=np.min([y+d,ny-1])
+            nn=np.sum(f[d+(yl-y):d+(yh-y),d+(xl-x):d+(xh-x)])
+            rv[y,x]=np.sum(f[d+(yl-y):d+(yh-y),d+(xl-x):d+(xh-x)]*a[yl:yh,xl:xh])/nn
+    
+    return rv
+
+def mysmooth(a, num):
+    d = int(num/2)
+    dim = a.shape
+    ny = dim[0]
+    nx = dim[1]
+    rv = np.zeros((ny,nx))
+    sd = np.zeros((ny,nx))
+    
+    for x in range(nx):
+        xl = np.max([x-d,0])
+        xh = np.min([x+d,nx-1])
+        mm = xh-xl+1
+        for y in range(ny):
+            yl = np.max([y-d,0])
+            yh = np.min([y+d,ny-1])
+            nn = mm*(yh-yl+1)
+            rv[y,x] = np.sum(a[yl:yh,xl:xh])/nn
+            sd[y,x] = np.sum(sqr(a[yl:yh,xl:xh]-rv[y,x]))/nn
+
+    # return average of the map inside num x num of pixels and
+    # standard deviation of this patch
+    return rv, sd
+    
+def azismooth(tmp,num):
+    """
+    Smoothing out the azimuth. Must be taken care separately 
+    because of the ambiguity and switches between pixels.
+
+    This has to be modified a bit for the usage in globin.
+    """
+    eps=0.01
+    ma=360.0
+    a1=((tmp+ma) % 180.0)             #   0 .. 180
+    a2=((tmp+ma+90.0) % 180.0)-90.0   # -90 ..  90
+  
+    sa1, d1 = mysmooth(a1,num)
+    sa2, d2 = mysmooth(a2,num)
+  
+    sa2b = ((sa2+180.0) % 180.0)           #   0 .. 180
+
+    
+    idx1 = np.where((np.abs(sa1-sa2b) >  eps) & (d2 > d1))  # problem points
+    idx2 = np.where((np.abs(sa1-sa2b) >  eps) & (d1 >= d2)) # problem points
+
+    az = (sa1+sa2b)/2.0
+    
+    nidx1 = len(idx1[0])
+    nidx2 = len(idx2[0])
+
+    if nidx1 > 0: 
+        for x in range(nidx1):
+            az[idx1[0][x],idx1[1][x]]=sa1[idx1[0][x],idx1[1][x]]
+    if nidx2 > 0:         
+        for x in range(nidx2):
+            az[idx2[0][x],idx2[1][x]]=sa2[idx2[0][x],idx2[1][x]]
+
+    return ((az+90.0) % 180.0) - 90.0
