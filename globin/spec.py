@@ -318,7 +318,7 @@ def get_Icont(wavelength=500, mu=1.0):
 	"""
 	import pyrh
 
-	hsrasp = globin.Atmosphere("hsrasp_multi.fits")
+	hsrasp = globin.Atmosphere(f"{globin.__path__}/data/hsrasp_multi.fits")
 	hsrasp.mu = mu
 	hsrasp.norm = False
 	hsrasp.RH = pyrh.RH()
