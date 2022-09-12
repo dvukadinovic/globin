@@ -67,11 +67,12 @@ class Atmosphere(object):
 	limit_values = {"temp"  : [2800, 10000], 				# [K]
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
-									"vmac"  : [0, 5],								# [km/s]
-									"mag"   : [10, 10000],						# [G]
-									"of"    : [0, 20],							#
+									"mag"   : [10, 10000],					# [G]
 									"gamma" : [-np.pi, np.pi],			# [rad]
-									"chi"   : [-2*np.pi, 2*np.pi]}	# [rad]
+									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
+									"of"    : [0, 20],							#
+									"stray" : [0,1],								#
+									"vmac"  : [0, 5]}								# [km/s]
 
 	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
 	delta = {"temp"  : 1,			# [K]
@@ -82,7 +83,8 @@ class Atmosphere(object):
 					 "chi"   : 0.01,	# [rad]
 					 "loggf" : 0.001,	#
 					 "dlam"  : 1,			# [mA]
-					 "of"    : 0.001}
+					 "of"    : 0.001,
+					 "stray" : 0}			# no perturbations (done analytically)
 
 	#--- full names of parameters (for FITS header)
 	parameter_name = {"temp"   : "Temperature",
@@ -124,10 +126,9 @@ class Atmosphere(object):
 
 		self.chi_c = None
 		
-		# global parameters: each is given in a list size equal to number of parameters
-		self.global_pars = {}
 		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {"loggf" : np.array([], dtype=np.int32), "dlam" : np.array([], dtype=np.int32)}
+		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {"loggf" : np.array([]), "dlam" : np.array([])}
 
 		self.do_fudge = 0
@@ -138,6 +139,9 @@ class Atmosphere(object):
 		self.n_thread = 1
 
 		self.icont = None
+
+		self.add_stray_light = False
+		self.invert_stray = False
 
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
@@ -335,41 +339,44 @@ class Atmosphere(object):
 			return atmos.data[idx,idy]
 
 		for parameter in atmos.nodes:
-			if parameter!="of":
-				# K0, Kn by default; True for vmic, mag, gamma and chi
-				K0, Kn = 0, 0
+			# skip over OF and stray light parameters
+			if parameter=="stray" or parameter=="of":
+				continue
 
-				x = atmos.nodes[parameter]
-				y = atmos.values[parameter][idx,idy]
+			# K0, Kn by default; True for vmic, mag, gamma and chi
+			K0, Kn = 0, 0
 
-				if parameter=="temp":
-					if len(x)>=2:
-						K0 = (y[1]-y[0]) / (x[1]-x[0])
-						# check if extrapolation at the top atmosphere point goes below the minimum
-						# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
-						if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-							K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
-					# bottom node slope for extrapolation based on temperature gradient from FAL C model
-					Kn = splev(x[-1], self.temp_tck, der=1)
-					# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
-				elif (parameter=="gamma") or (parameter=="chi") or (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
-					if len(x)>=2:
-						K0 = (y[1]-y[0]) / (x[1]-x[0])
-						Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-						# check if extrapolation at the top atmosphere point goes below the minimum
-						# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-						if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-							K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
-						elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-							K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
-						# similar for the bottom for maximum/min values
-						if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-							Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-						elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-							Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+			x = atmos.nodes[parameter]
+			y = atmos.values[parameter][idx,idy]
 
-				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
-				atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
+			if parameter=="temp":
+				if len(x)>=2:
+					K0 = (y[1]-y[0]) / (x[1]-x[0])
+					# check if extrapolation at the top atmosphere point goes below the minimum
+					# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
+					if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
+				# bottom node slope for extrapolation based on temperature gradient from FAL C model
+				Kn = splev(x[-1], self.temp_tck, der=1)
+				# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
+			elif (parameter=="gamma") or (parameter=="chi") or (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
+				if len(x)>=2:
+					K0 = (y[1]-y[0]) / (x[1]-x[0])
+					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+					# check if extrapolation at the top atmosphere point goes below the minimum
+					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
+					if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
+					elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
+					# similar for the bottom for maximum/min values
+					if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+
+			y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]
 
@@ -574,6 +581,9 @@ class Atmosphere(object):
 			
 			# update atmospheric parameters
 			for parameter in self.values:
+				if parameter=="stray" and not self.invert_stray:
+					continue
+
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
 				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
@@ -592,13 +602,14 @@ class Atmosphere(object):
 			NparLocal = self.n_local_pars
 			NparGlobal = self.n_global_pars
 
-
 			#--- update local parameters (atmospheric)			
 			local_pars = proposed_steps[:NparLocal*Natmos]
 			local_pars = local_pars.reshape(self.nx, self.ny, NparLocal, order="C")
 
 			low_ind, up_ind = 0, 0
 			for parameter in self.values:
+				if parameter=="stray" and not self.invert_stray:
+					continue
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
 				self.values[parameter] += local_pars[..., low_ind:up_ind] / self.parameter_scale[parameter]
@@ -622,28 +633,31 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
+			if parameter=="stray" and not self.invert_stray:
+				continue
+
 			# inclination is wrapped around [0, 180] interval
-			if parameter=="gamma":
-				y = np.cos(self.values[parameter])
-				self.values[parameter] = np.arccos(y)
-				pass
+			# if parameter=="gamma":
+			# 	y = np.cos(self.values[parameter])
+			# 	self.values[parameter] = np.arccos(y)
+			# 	pass
 			# azimuth is wrapped around [0, 180] interval
 			# check how to wrap azimuth in reasonable values
-			elif parameter=="chi":
-				y = np.sin(self.values[parameter])
-				self.values[parameter] = np.arcsin(y)
-				pass
+			# elif parameter=="chi":
+			# 	y = np.sin(self.values[parameter])
+			# 	self.values[parameter] = np.arcsin(y)
+			# 	pass
 				# make all angles positive always
 				# (RH has a problem with negative values)
 				# self.values[parameter] += np.pi
-			else:
+			# else:
 				# check lower boundary condition
-				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
-				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
+			indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
+			self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
 
-				# check upper boundary condition
-				indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
-				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
+			# check upper boundary condition
+			indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
+			self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
@@ -667,20 +681,26 @@ class Atmosphere(object):
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
 	def smooth_parameters(self, num=5, std=2.5):
-		for parameter in self.nodes:
-			for idn in range(len(self.nodes[parameter])):
-				if parameter=="chi":
-					aux = globin.utils.azismooth(self.values[parameter][...,idn]*180/np.pi, num)
-					aux *= np.pi/180
-				elif parameter=="gamma":
-					aux = globin.utils.mygsmooth(self.values[parameter][...,idn]*180/np.pi, num, std)
-					aux *= np.pi/180
-				elif parameter=="of":
-					aux = self.values[parameter][...,idn]
-				else:
-					aux = globin.utils.mygsmooth(self.values[parameter][...,idn], num, std)
+		if self.nx>=num and self.ny>=num:
+			for parameter in self.nodes:
+				for idn in range(len(self.nodes[parameter])):
+					if parameter=="chi":
+						aux = globin.utils.azismooth(self.values[parameter][...,idn]*180/np.pi, num)
+						aux *= np.pi/180
+					elif parameter=="gamma":
+						aux = globin.utils.mygsmooth(self.values[parameter][...,idn]*180/np.pi, num, std)
+						aux *= np.pi/180
+					elif parameter=="of":
+						aux = self.values[parameter][...,idn]
+					else:
+						aux = globin.utils.mygsmooth(self.values[parameter][...,idn], num, std)
 
-				self.values[parameter][...,idn] = median_filter(aux, size=4)		
+					self.values[parameter][...,idn] = median_filter(aux, size=4)
+		else:
+			for parameter in self.nodes:
+				for idn in range(len(self.nodes[parameter])):
+					tmp = median_filter(self.values[parameter][...,idn], size=11)
+					self.values[parameter][...,idn] = tmp
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
@@ -720,10 +740,7 @@ class Atmosphere(object):
 		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
-			if self.icont is None:
-				spectra.spec /= spectra.spec[:,:,0,0]
-			else:
-				spectra.spec /= self.icont
+			spectra.spec /= self.icont
 
 		return spectra
 
@@ -792,6 +809,11 @@ class Atmosphere(object):
 		free_par_ID = 0
 		# for parameter in tqdm(self.nodes, desc="parameters", leave=None):
 		for parameter in self.nodes:
+			
+			# we skip over stray light factor if we are not inverting for it
+			if parameter=="stray" and not self.invert_stray:
+				continue
+
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
 			perturbation = self.delta[parameter]
@@ -802,6 +824,8 @@ class Atmosphere(object):
 				self.values[parameter][:,:,nodeID] += perturbation
 				if parameter=="of":
 					self.make_OF_table(self.wavelength_vacuum)
+				elif parameter=="stray":
+					pass
 				else:
 					self.build_from_nodes(synthesize)
 				spectra_plus = self.compute_spectra(synthesize)
@@ -809,6 +833,8 @@ class Atmosphere(object):
 				#--- negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma" or parameter=="chi":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
+				elif parameter=="stray":
+					pass
 				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
 					if parameter=="of":	
@@ -819,7 +845,10 @@ class Atmosphere(object):
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
-				#--- compute parameter scale
+				if parameter=="stray":
+					node_RF = self.hsra_spec - spec.spec
+				
+				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
 				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
@@ -841,6 +870,8 @@ class Atmosphere(object):
 				if parameter=="of":	
 					self.values[parameter][:,:,nodeID] += perturbation
 					self.make_OF_table(self.wavelength_vacuum)
+				elif parameter=="stray":
+					pass
 				else:
 					if parameter=="gamma" or parameter=="chi":
 						self.values[parameter][:,:,nodeID] -= perturbation
@@ -917,12 +948,19 @@ class Atmosphere(object):
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
-				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
+				# self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
+
+		#--- add the stray light component:
+		if self.add_stray_light:
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					stray_factor = self.values["stray"][idx,idy]
+					spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 
 		#--- add instrumental broadening
 		if instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+			# self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
 
 		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 

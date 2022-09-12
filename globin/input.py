@@ -112,6 +112,12 @@ class InputData(object):
 				self.norm = False
 		else:
 			self.norm = False
+		# filling-factor for stray light correction (using HSRA spectrum)
+		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, float)
+		if stray_factor>1:
+			raise ValueError("Stray light factor value above 1.")
+		if stray_factor<-1:
+			raise ValueError("Stray light factor value below -1.")
 
 		# flag for computing the mean spectrum
 		mean = _find_value_by_key("mean", self.parameters_input, "optional")
@@ -177,7 +183,7 @@ class InputData(object):
 		#--- read Opacity Fudge (OF) data
 		self.of_mode = _find_value_by_key("of_mode", self.parameters_input, "default", -1, int)
 		# of_mode:
-		#   0    -- use if only for synthesis
+		#   0    -- use it only for synthesis
 		#   1    -- invert for it in pixel-by-pixel manner
 		#   else -- OF is not applyed
 		self.do_fudge = False
@@ -197,7 +203,7 @@ class InputData(object):
 		# 	print(str(out.stdout, "utf-8"))
 
 		#--- read data for different modus operandi
-		if self.mode<=0:
+		if self.mode==0:
 			self.read_mode_0(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)
 		elif self.mode>=1:
 			self.read_inversion_base(atm_range, atm_type, logtau_top, logtau_bot, logtau_step)			
@@ -265,6 +271,18 @@ class InputData(object):
 
 				ff = self.filling_factor[0]
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
+
+		#--- check the status of stray light factor and if to be inverted, add it to atmosphere
+		if abs(stray_factor)!=0:
+			self.atmosphere.add_stray_light = True
+			if stray_factor<0:
+				self.atmosphere.invert_stray = True
+				if self.mode>0:
+					self.atmosphere.n_local_pars += 1
+			self.atmosphere.nodes["stray"] = np.array([0])
+			eye = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+			self.atmosphere.values["stray"] = eye * abs(stray_factor)
+			self.atmosphere.parameter_scale["stray"] = eye
 
 		# #--- for each thread make working directory inside rh/rhf1d directory
 		# for pid in range(self.n_thread):
