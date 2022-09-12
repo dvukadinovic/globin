@@ -11,19 +11,20 @@ mode = 1
 debug = False
 
 #--- Spectra to be fitted
-observation = obs.fits
+observation = obs_stray_light.fits
 noise = 1e-5
 weights = 1,1,1,1
 vmac = 0
-norm = False
+norm = True
 #mu = 1.0
 #instrumental_profile = hinode_instr_prof.dat
+stray_factor = -0.5
 
 #--- Output spectra
-#spectrum = obs_vmac.fits
+#spectrum = obs_stray_light.fits
 
 #--- atmospheric parameters: nodes and values
-#initial_atmosphere = runs/test/inverted_atmos.fits
+#initial_atmosphere = runs/dummy/inverted_atmos.fits
 
 nodes_temp = -2.2, -1.6, -0.9, 0
 nodes_temp_values = 4400, 5500, 6600, 7800
@@ -61,7 +62,7 @@ wave_max = 4017
 wave_step = 0.010
 
 #--- Levenberg-Marquardt parameters
-marq_lambda = 1e-1
+marq_lambda = 1e-2
 max_iter = 20
 chi2_tolerance = 1e-3
 
@@ -72,5 +73,5 @@ chi2_tolerance = 1e-3
 #cube_atmosphere = ../../../globin_inversion/muram_sunspot/sunspot_slice_y50.fits
 # reference_atmosphere = some_1D_atmosphere.fits
 cube_atmosphere = atmos_HSE_pyrh.fits
-#range = 2,2,2,2
+range = 1,1,1,1
 #range = 1,2,1,3

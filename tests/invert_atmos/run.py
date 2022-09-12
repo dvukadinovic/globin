@@ -5,7 +5,15 @@ import sys
 
 import globin
 
-# obs = globin.Observation("obs.fits")
+obs = globin.Observation("obs_norm.fits")
+# obs2 = globin.Observation("obs_stray_light.fits")
+
+# plt.plot(obs.spec[0,0,:,0])
+# plt.plot(obs2.spec[0,0,:,0])
+
+# plt.show()
+# sys.exit()
+
 # atmos = globin.Atmosphere("atmos_HSE_pyrh.fits")
 
 # inv = globin.Atmosphere("runs/mode3_test/inverted_atmos.fits")
@@ -28,6 +36,9 @@ import globin
 inverter = globin.Inverter(verbose=True)
 inverter.read_input(run_name="dummy")
 inv_atmos, inv_spec = inverter.run()
+
+globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=inv_spec.spec[0,0])
+plt.show()
 
 # inv_atmos.compare(atmos.data[0,0], idx=0, idy=0)
 # inv_atmos.compare(atmos.data[0,1], idx=0, idy=1)
