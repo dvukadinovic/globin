@@ -91,15 +91,23 @@ class Inverter(InputData):
 			print("\n             --- Entering inversion mode ---\n")
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
-					print(f"Starting inversion cycle {cycle+1}\n")
+					print("=====================================")
+					print(f"  Starting inversion cycle {cycle+1}")
+					print("=====================================\n")
 
 				if (self.mode==1) or (self.mode==2):
-					atmos, spec = self.invert_pxl_by_pxl()
+					atmos, spec, chi2 = self.invert_pxl_by_pxl()
 				elif self.mode==3:
-					atmos, spec = self.invert_global()
+					atmos, spec, chi2 = self.invert_global()
 				else:
 					print(f"Not supported mode {self.mode}, currently.")
 					return None, None
+
+				if self.debug:
+					self.save_debug()
+
+				if self.save_output:
+					self.save_cycle(chi2, self.observation, spec, atmos, cycle+1)
 
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
@@ -109,12 +117,25 @@ class Inverter(InputData):
 
 		elif self.mode==0:
 			print("\n --- Entering synthesis mode ---\n")
-			
+
+			#--- get the Icont from HSRA atmosphere			
+			if self.norm:
+				print(f"Get the HSRA continuum intensity and spectrum...\n")
+				icont, hsra_spec = get_Icont(wavelength=self.atmosphere.wavelength_vacuum, mu=self.atmosphere.mu)
+				self.atmosphere.icont = icont
+
 			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
 			spec = self.atmosphere.compute_spectra(ones)
 			
 			#--- add macro-turbulent broadening
 			spec.broaden_spectra(self.atmosphere.vmac, ones, self.n_thread)
+
+			#--- add stray light contribution
+			if self.atmosphere.add_stray_light:
+				for idx in range(self.atmosphere.nx):
+					for idy in range(self.atmosphere.ny):
+						stray_factor = self.atmosphere.values["stray"][idx,idy]
+						spec.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 			
 			#--- add instrument broadening (if applicable)
 			if self.instrumental_profile is not None:
@@ -184,14 +205,20 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		if self.norm and atmos.icont is None:
-			wavelength = obs.wavelength[0]
-			print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
-			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
+		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
+			if atmos.add_stray_light:
+				wavelength = obs.wavelength[0]
+				print(f"Get the HSRA continuum intensity and spectrum...\n")
+				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
+			else:
+				wavelength = obs.wavelength[0]
+				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
+				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
-		
+			atmos.hsra_spec = spec
+
 		if self.verbose:
 			print("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
@@ -215,10 +242,6 @@ class Inverter(InputData):
 		#   0 -- no parameters update --> we have not got good parameters or we converged
 		#   1 -- we have updated parameters; we need new RF and spectrum
 		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
-
-		# progress bar tracking
-		# pbar = tqdm(total=atmos.nx*atmos.ny, desc="Converged pixels", position=0)
-		# print()
 
 		"""
 		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
@@ -279,22 +302,6 @@ class Inverter(InputData):
 					old_spec = copy.deepcopy(spec)
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
-
-				# print(atmos.values["temp"])
-				# print(atmos.data[0,0,2])
-				# print(atmos.data[0,0,8])
-
-				# plt.plot(obs.spec[0,0,:,0])
-				# plt.plot(spec.spec[0,0,:,0])
-				# plt.show()
-
-				# return None, None
-
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
-				# plt.show()
-
-				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
-				# plt.show()
 
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:
@@ -369,6 +376,13 @@ class Inverter(InputData):
 			corrected_spec = atmos.compute_spectra(stop_flag)
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
+			
+			if atmos.add_stray_light:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						stray_factor = atmos.values["stray"][idx,idy]
+						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+			
 			if self.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
@@ -416,12 +430,6 @@ class Inverter(InputData):
 			#--- check the convergence only for pixels whose iteration number is larger than 2
 			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
 
-			# if np.sum(stop_flag)!=old:
-			# 	n = old - np.sum(stop_flag)
-			# 	a = pbar.update(n)
-			# 	print(a)
-			# 	pbar.display(pos=0)
-
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
 
@@ -429,12 +437,11 @@ class Inverter(InputData):
 			if np.sum(stop_flag)==0:
 				break
 
-		# pbar.close()
-
 		print()
 		t0 = datetime.now()
 		t0 = t0.isoformat(sep=' ', timespec='seconds')
-		print(f"[{t0:s}] Finished!")
+		end = time.time() - start
+		print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
 		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
@@ -446,78 +453,14 @@ class Inverter(InputData):
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 		if self.instrumental_profile is not None:
-			corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+		
+		# try:
+		# 	atmos.compute_errors(JTJ, chi2_old)
+		# except:
+		# 	print("Failed to compute parameters error\n")
 
-		try:
-			atmos.compute_errors(JTJ, chi2_old)
-		except:
-			print("Failed to compute parameters error\n")
-
-		if self.debug:
-
-			output_path = f"runs/{self.run_name}"
-
-			primary = fits.PrimaryHDU(self.rf_debug)
-			primary.header.comments["NAXIS1"] = "Stokes components"
-			primary.header.comments["NAXIS2"] = "wavelengths"
-			primary.header.comments["NAXIS3"] = "parameters"
-			primary.header.comments["NAXIS4"] = "iterations"
-			primary.header.comments["NAXIS5"] = "y-axis atmospheres"
-			primary.header.comments["NAXIS6"] = "x-axis atmospheres"
-			primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
-
-			hdulist = fits.HDUList([])
-
-			for parameter in atmos.nodes:
-				matrix = self.atmos_debug[parameter]
-
-				par_hdu = fits.ImageHDU(matrix)
-				par_hdu.name = parameter
-
-				# par_hdu.header["unit"] = globin.parameter_unit[parameter]
-				par_hdu.header.comments["NAXIS1"] = "number of nodes"
-				par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
-				par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
-				par_hdu.header.comments["NAXIS4"] = "number of iterations"
-
-				hdulist.append(par_hdu)
-
-			hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
-
-			primary = fits.PrimaryHDU(LM_debug)
-			primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
-
-		if self.save_output:
-			output_path = f"runs/{self.run_name}"
-
-			if self.mode==2:
-				if atmos.line_no["loggf"].size>0:
-					mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
-				else:
-					mean_loggf = None
-				if atmos.line_no["dlam"].size>0:
-					mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
-				else:
-					mean_dlam = None
-
-			if atmos.do_fudge==1:
-				atmos.make_OF_table(self.wavelength_vacuum)
-
-			inverted_spectra.xmin = obs.xmin
-			inverted_spectra.xmax = obs.xmax
-			inverted_spectra.ymin = obs.ymin
-			inverted_spectra.ymax = obs.ymax
-
-			atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-			if self.mode==2:
-				atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{self.linelist_name}", "reference line list")})
-			inverted_spectra.save(f"{output_path}/inverted_spectra.fits", self.wavelength_air)
-			save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
-
-			end = time.time() - start
-			print("\nFinished in: {0}\n".format(end))
-
-		return atmos, inverted_spectra
+		return atmos, inverted_spectra, chi2
 
 	def invert_global(self):
 		"""
@@ -538,13 +481,19 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
-		if self.norm and atmos.icont is None:
-			wavelength = obs.wavelength[0]
-			print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
-			icont = get_Icont(wavelength=wavelength, mu=atmos.mu)
+		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
+			if atmos.add_stray_light:
+				wavelength = obs.wavelength[0]
+				print(f"Get the HSRA continuum intensity and spectrum...\n")
+				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
+			else:
+				wavelength = obs.wavelength[0]
+				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
+				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
+			atmos.hsra_spec = spec
 
 		Nw = len(self.wavelength_air)
 		# number of total free parameters: local per pixel + global
@@ -624,18 +573,6 @@ class Inverter(InputData):
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
 				#--- create the global Jacobian matrix and fill it with RF values
-				# J = np.zeros((4*Nw*Natmos, Nlocalpar*Natmos + Nglobalpar), dtype=np.float64)
-
-				# aux = atmos.rf.reshape(obs.nx, obs.ny, Npar, 4*Nw, order="F")
-				# aux = np.swapaxes(aux, 2, 3)
-
-				# # block diagonal part of the global Jacobian matrix [represents atmospheric/local parameters]
-				# J[:,:Nlocalpar*Natmos] = block_diag(aux[indx,indy,:,:Nlocalpar].tolist()).toarray()
-
-				# # part of the global Jacobian matrix containing RFs for global [atomic] parameters
-				# J[:,Nlocalpar*Natmos:] = aux[:,:,:,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C")
-
-				#--------------------------
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				tmp = np.swapaxes(tmp, 2, 3)
 				tmp = tmp.reshape(Natmos, 4*Nw, Npar)
@@ -645,45 +582,29 @@ class Inverter(InputData):
 				# global part
 				Jg = sp.coo_matrix(tmp[...,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar))
 				
-				# del tmp
+				del tmp
 
 				# global Jacobian matrix
 				Jglobal = sp.hstack([Jl,Jg]).tocsr()
 				
 				# delete parts of Jacobian (to save some bits of memory)
-				# del Jl
-				# del Jg
+				del Jl
+				del Jg
 
 				#--- 
 				JglobalT = Jglobal.transpose()
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
 				aux = aux.reshape(4*Nw*Natmos, order="C")
 				deltaSP = JglobalT.dot(aux)
-				# del aux
-
-				# JT = J.T
-				# delta = np.dot(JT, aux)
+				del aux
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
 			#--- invert Hessian matrix
-			# H = np.dot(JT, J)
-			# diagonal_elements = np.diag(H) * (1 + LM_parameter)
-			# np.fill_diagonal(H, diagonal_elements)
-			# proposed_steps = _invert_Hessian((H, delta, self.svd_tolerance))
-			
-			# print(H)
-			# print(proposed_steps)
-
 			H = JglobalT.dot(Jglobal) + eye*LM_parameter
 			proposed_steps = spsolve(H, deltaSP)
 
-			# print(H.toarray())
-			# print(proposed_steps)
-
-			# return None, None
-			
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
 			old_global_pars = copy.deepcopy(atmos.global_pars)
@@ -701,8 +622,19 @@ class Inverter(InputData):
 			if atmos.hydrostatic:
 				atmos.makeHSE(ones)
 			corrected_spec = atmos.compute_spectra(ones)
+			
+			# broaden the corrected spectra by macro velocity
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
+			
+			# add the stray light contamination
+			if atmos.add_stray_light:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						stray_factor = atmos.values["stray"][idx,idy]
+						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+
+			# convolve profiles with instrumental profile
 			if self.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
@@ -779,74 +711,87 @@ class Inverter(InputData):
 			if break_flag:
 				break
 
+		print()
+		t0 = datetime.now()
+		t0 = t0.isoformat(sep=' ', timespec='seconds')
+		end = time.time() - start
+		print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+
 		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:
 			atmos.makeHSE(ones)
 		inverted_spectra = atmos.compute_spectra(ones)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
+		if atmos.add_stray_light:
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					stray_factor = atmos.values["stray"][idx,idy]
+					inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
 		if self.instrumental_profile is not None:
-			corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
-		try:
-			atmos.compute_errors(JTJ, chi2_old)
-		except:
-			print("Failed to compute parameters error\n")
+		return atmos, inverted_spectra, chi2
 
-		if self.debug:
-			output_path = f"runs/{self.run_name}"
+	def save_debug(self):
+		output_path = f"runs/{self.run_name}"
 
-			primary = fits.PrimaryHDU(self.rf_debug)
-			primary.header.comments["NAXIS1"] = "Stokes components"
-			primary.header.comments["NAXIS2"] = "wavelengths"
-			primary.header.comments["NAXIS3"] = "parameters"
-			primary.header.comments["NAXIS4"] = "iterations"
-			primary.header.comments["NAXIS5"] = "y-axis atmospheres"
-			primary.header.comments["NAXIS6"] = "x-axis atmospheres"
-			primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
+		primary = fits.PrimaryHDU(self.rf_debug)
+		primary.header.comments["NAXIS1"] = "Stokes components"
+		primary.header.comments["NAXIS2"] = "wavelengths"
+		primary.header.comments["NAXIS3"] = "parameters"
+		primary.header.comments["NAXIS4"] = "iterations"
+		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
+		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
+		primary.writeto(f"{output_path}/rf_pars_debug.fits", overwrite=True)
 
-			hdulist = fits.HDUList([])
+		hdulist = fits.HDUList([])
 
-			for parameter in atmos.nodes:
-				matrix = self.atmos_debug[parameter]
+		for parameter in atmos.nodes:
+			matrix = self.atmos_debug[parameter]
 
-				par_hdu = fits.ImageHDU(matrix)
-				par_hdu.name = parameter
+			par_hdu = fits.ImageHDU(matrix)
+			par_hdu.name = parameter
 
-				# par_hdu.header["unit"] = globin.parameter_unit[parameter]
-				par_hdu.header.comments["NAXIS1"] = "number of nodes"
-				par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
-				par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
-				par_hdu.header.comments["NAXIS4"] = "number of iterations"
+			# par_hdu.header["unit"] = globin.parameter_unit[parameter]
+			par_hdu.header.comments["NAXIS1"] = "number of nodes"
+			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "number of iterations"
 
-				hdulist.append(par_hdu)
+			hdulist.append(par_hdu)
 
-			hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
+		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
 
-			primary = fits.PrimaryHDU(LM_debug)
-			primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
+		primary = fits.PrimaryHDU(LM_debug)
+		primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
 
-		if self.save_output is not None:
-			output_path = f"runs/{self.run_name}"
+	def save_cycle(self, chi2, obs, spec, atmos, cycle):
+		output_path = f"runs/{self.run_name}"
 
-			inverted_spectra.xmin = obs.xmin
-			inverted_spectra.xmax = obs.xmax
-			inverted_spectra.ymin = obs.ymin
-			inverted_spectra.ymax = obs.ymax
+		if self.mode==2:
+			if atmos.line_no["loggf"].size>0:
+				mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
+			else:
+				mean_loggf = None
+			if atmos.line_no["dlam"].size>0:
+				mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
+			else:
+				mean_dlam = None
 
-			atmos.save_atmosphere(f"{output_path}/inverted_atmos.fits")
-			
-			if atmos.n_global_pars!=0:	
-				atmos.save_atomic_parameters(f"{output_path}/inverted_atoms.fits", kwargs={"RLK_LIST" : (f"{self.linelist_name}", "reference line list")})
-			
-			inverted_spectra.save(f"{output_path}/inverted_spectra.fits", self.wavelength_air)
-			
-			save_chi2(chi2, f"{output_path}/chi2.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
+		if atmos.do_fudge==1:
+			atmos.make_OF_table(self.wavelength_vacuum)
 
-			end = time.time() - start
-			print("Finished in: {0}\n".format(end))
+		spec.xmin = obs.xmin
+		spec.xmax = obs.xmax
+		spec.ymin = obs.ymin
+		spec.ymax = obs.ymax
 
-		return atmos, inverted_spectra
+		atmos.save_atmosphere(f"{output_path}/inverted_atmos_c{cycle}.fits")
+		if self.mode==2 or self.mode==3:
+			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms_c{cycle}.fits")
+		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", self.wavelength_air)
+		save_chi2(chi2, f"{output_path}/chi2_c{cycle}.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, Npar, nx, ny, n_thread=1):
 	indx, indy = np.where(stop_flag==1)
