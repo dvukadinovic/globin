@@ -322,7 +322,11 @@ def get_Icont(wavelength=500, mu=1.0):
 	hsrasp.mu = mu
 	hsrasp.norm = False
 	hsrasp.RH = pyrh.RH()
-	hsrasp.wavelength_vacuum = np.array([wavelength], dtype=np.float64)
+	try:
+		nw = len(wavelength)
+		hsrasp.wavelength_vacuum = wavelength
+	except:
+		hsrasp.wavelength_vacuum = np.array([wavelength], dtype=np.float64)
 	nw = len(hsrasp.wavelength_vacuum)
 	
 	hsrasp.do_fudge = 0
@@ -331,4 +335,4 @@ def get_Icont(wavelength=500, mu=1.0):
 	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
 	spec = hsrasp.compute_spectra(np.ones((1,1)))
 	icont = spec.spec[:,:,-1,0]
-	return icont
+	return icont, spec.spec/icont
