@@ -355,8 +355,14 @@ class InputData(object):
 		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-4, float)
 
 		#--- default parameters
-		self.marq_lambda = _find_value_by_key("marq_lambda", self.parameters_input, "default", 1e-3, float)
-		self.max_iter = _find_value_by_key("max_iter", self.parameters_input, "default", 30, int)
+		marq_lambda = _find_value_by_key("marq_lambda", self.parameters_input, "default", 1e-2, str)
+		tmp = marq_lambda.split(",")
+		self.marq_lambda = np.array([float(item) for item in tmp])
+
+		max_iter = _find_value_by_key("max_iter", self.parameters_input, "default", 30, str)
+		tmp = max_iter.split(",")
+		self.max_iter = np.array([int(item) for item in tmp])
+
 		self.chi2_tolerance = _find_value_by_key("chi2_tolerance", self.parameters_input, "default", 1e-2, float)
 		self.ncycle = _find_value_by_key("ncycle", self.parameters_input, "default", 1, int)
 		self.rf_type = _find_value_by_key("rf_type", self.parameters_input, "default", "node", str)

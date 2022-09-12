@@ -95,10 +95,24 @@ class Inverter(InputData):
 					print(f"  Starting inversion cycle {cycle+1}")
 					print("=====================================\n")
 
+				# if the cycle number is larger than the number of given max iterations
+				# take the last given number of max iterations
+				if len(self.max_iter)<cycle+1:
+					max_iter = self.max_iter[-1]
+				else:
+					max_iter = self.max_iter[cycle]
+
+				# if the cycle number is larger than the number of given max iterations
+				# take the last given number of max iterations
+				if len(self.marq_lambda)<cycle+1:
+					marq_lambda = self.marq_lambda[-1]
+				else:
+					marq_lambda = self.marq_lambda[cycle]
+
 				if (self.mode==1) or (self.mode==2):
-					atmos, spec, chi2 = self.invert_pxl_by_pxl()
+					atmos, spec, chi2 = self.invert_pxl_by_pxl(max_iter, marq_lambda)
 				elif self.mode==3:
-					atmos, spec, chi2 = self.invert_global()
+					atmos, spec, chi2 = self.invert_global(max_iter, marq_lambda)
 				else:
 					print(f"Not supported mode {self.mode}, currently.")
 					return None, None
@@ -191,7 +205,7 @@ class Inverter(InputData):
 
 		return noise_stokes
 
-	def invert_pxl_by_pxl(self):
+	def invert_pxl_by_pxl(self, max_iter, marq_lambda):
 		"""
 		As input we expect all data to be present :)
 
@@ -229,7 +243,7 @@ class Inverter(InputData):
 		Natmos = atmos.nx*atmos.ny
 		Ndof = np.count_nonzero(self.weights) * Nw - Npar
 
-		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * self.marq_lambda
+		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
 
@@ -257,7 +271,7 @@ class Inverter(InputData):
 
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((atmos.nx, atmos.ny, self.max_iter), dtype=np.float64)
+		chi2 = np.zeros((atmos.nx, atmos.ny, max_iter), dtype=np.float64)
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 
 		# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
@@ -275,7 +289,7 @@ class Inverter(InputData):
 		# we iterate until one of the pixels reach maximum numbre of iterations
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
-		while np.min(itter) <= self.max_iter:
+		while np.min(itter) <=max_iter:
 			start_iter = time.time
 			# counter for the progress bar
 			old = np.sum(stop_flag)
@@ -419,7 +433,7 @@ class Inverter(InputData):
 
 			indx, indy = np.where(LM_parameter>=1e5)
 			stop_flag[indx,indy] = 0
-			itter[indx,indy] = self.max_iter
+			itter[indx,indy] = max_iter
 
 			#--- print the current state of the inversion
 			if self.verbose and np.sum(stop_flag)!=0:
@@ -428,7 +442,7 @@ class Inverter(InputData):
 				print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
-			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, self.max_iter, self.chi2_tolerance)
+			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
 
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
@@ -462,7 +476,7 @@ class Inverter(InputData):
 
 		return atmos, inverted_spectra, chi2
 
-	def invert_global(self):
+	def invert_global(self, max_iter, marq_lambda):
 		"""
 		As input we expect all data to be present :)
 
@@ -507,10 +521,10 @@ class Inverter(InputData):
 		#--- estimate of Stokes noise
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((obs.nx, obs.ny, self.max_iter), dtype=np.float64)
-		LM_parameter = self.marq_lambda
+		chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		LM_parameter = marq_lambda
 		if self.debug:
-			LM_debug = np.zeros((self.max_iter), dtype=np.float64)
+			LM_debug = np.zeros((max_iter), dtype=np.float64)
 
 		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
@@ -540,7 +554,7 @@ class Inverter(InputData):
 		iter_start = datetime.now()
 		
 		itter = 0
-		while itter<self.max_iter:
+		while itter<max_iter:
 			if self.debug:
 				LM_debug[itter] = LM_parameter
 			
@@ -696,7 +710,7 @@ class Inverter(InputData):
 				elif new_chi2<1:
 					print("chi2 smaller than 1\n")
 					break_flag = True
-				elif itter==self.max_iter:
+				elif itter==max_iter:
 					print("Maximum number of iteratinos reached.")
 					break_flag = True
 				else:
