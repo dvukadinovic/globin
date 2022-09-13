@@ -272,7 +272,7 @@ class InputData(object):
 				ff = self.filling_factor[0]
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
-		#--- check the status of stray light factor and if to be inverted, add it to atmosphere
+		#--- check the status of stray light factor and if to be inverted; add it to atmosphere
 		if abs(stray_factor)!=0:
 			self.atmosphere.add_stray_light = True
 			eye = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
@@ -281,27 +281,19 @@ class InputData(object):
 				# we are inverting for stray light factor
 				self.atmosphere.invert_stray = True
 				self.atmosphere.n_local_pars += 1
-			self.atmosphere.nodes["stray"] = np.array([0])
-			self.atmosphere.values["stray"] = eye * abs(stray_factor)
-			self.atmosphere.parameter_scale["stray"] = eye
+				self.atmosphere.nodes["stray"] = np.array([0])
+				self.atmosphere.values["stray"] = self.atmosphere.stray_light
+				self.atmosphere.parameter_scale["stray"] = eye
 
-		# #--- for each thread make working directory inside rh/rhf1d directory
-		# for pid in range(self.n_thread):
-		# 	if not os.path.exists(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}"):
-		# 		os.mkdir(f"{globin.rh_path}/rhf1d/{globin.wd}_{pid+1}")
-
+		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
 		self.atmosphere.idx_meshgrid = idx.flatten()
 		self.atmosphere.idy_meshgrid = idy.flatten()
 
 		self.atmosphere.ids_tuple = list(zip(self.atmosphere.idx_meshgrid, self.atmosphere.idy_meshgrid))
-		# for idx in range(obj.atmosphere.nx):
-		# 	for idy in range(globin.atm.ny):
-		# 		fpath = f"runs/{globin.wd}/atmospheres/atm_{idx}_{idy}"
-		# 		globin.atm.atm_name_list.append(fpath)
 
+		#--- debugging variables initialization
 		if self.mode>=1:
-			#--- debugging variables initialization
 			if self.debug:
 				Npar = self.atmosphere.n_local_pars + self.atmosphere.n_global_pars
 				self.rf_debug = np.zeros((self.atmosphere.nx, self.atmosphere.ny, self.max_iter, Npar, len(self.wavelength_air), 4))
@@ -321,9 +313,6 @@ class InputData(object):
 
 			aux = resample(self.instrumental_profile, N)
 			self.instrumental_profile = aux / np.sum(aux)
-
-		#--- missing parameters
-		# straylight contribution
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 

@@ -584,17 +584,14 @@ class Atmosphere(object):
 		if self.mode==1 or self.mode==2:
 			low_ind, up_ind = 0, 0
 			
-			# update atmospheric parameters
+			#--- update atmospheric parameters
 			for parameter in self.values:
-				if parameter=="stray" and not self.invert_stray:
-					continue
-
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
 				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 				self.values[parameter] += step
 
-			# update atomic parameters + vmac
+			#--- update atomic parameters + vmac
 			for parameter in self.global_pars:
 				if self.line_no[parameter].size > 0:
 					low_ind = up_ind
@@ -613,8 +610,6 @@ class Atmosphere(object):
 
 			low_ind, up_ind = 0, 0
 			for parameter in self.values:
-				if parameter=="stray" and not self.invert_stray:
-					continue
 				low_ind = up_ind
 				up_ind += len(self.nodes[parameter])
 				self.values[parameter] += local_pars[..., low_ind:up_ind] / self.parameter_scale[parameter]
@@ -813,13 +808,7 @@ class Atmosphere(object):
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
-		# for parameter in tqdm(self.nodes, desc="parameters", leave=None):
 		for parameter in self.nodes:
-			
-			# we skip over stray light factor if we are not inverting for it
-			if parameter=="stray" and not self.invert_stray:
-				continue
-
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
 			perturbation = self.delta[parameter]
@@ -840,7 +829,7 @@ class Atmosphere(object):
 				if parameter=="gamma" or parameter=="chi":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
-					pass
+					node_RF = self.hsra_spec - spec.spec
 				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
 					if parameter=="of":	
@@ -850,9 +839,6 @@ class Atmosphere(object):
 					spectra_minus = self.compute_spectra(synthesize)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
-
-				if parameter=="stray":
-					node_RF = self.hsra_spec - spec.spec
 				
 				#--- compute parameter scale				
 				node_RF *= weights
@@ -960,7 +946,7 @@ class Atmosphere(object):
 		if self.add_stray_light:
 			for idx in range(self.nx):
 				for idy in range(self.ny):
-					stray_factor = self.values["stray"][idx,idy]
+					stray_factor = self.stray_light[idx,idy]
 					spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 
 		#--- add instrumental broadening
@@ -1413,7 +1399,7 @@ def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
 
 def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
 	if (local_params is None) and (global_params is None):
-		return
+		raise ValueError("None of atmospheric or atomic are given for RF computation.")
 
 	# set reference atmosphere
 	atmos = copy.deepcopy(globin.atm)

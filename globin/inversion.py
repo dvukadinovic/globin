@@ -150,7 +150,7 @@ class Inverter(InputData):
 			if self.atmosphere.add_stray_light:
 				for idx in range(self.atmosphere.nx):
 					for idy in range(self.atmosphere.ny):
-						stray_factor = self.atmosphere.values["stray"][idx,idy]
+						stray_factor = self.atmosphere.stray_light[idx,idy]
 						spec.spec[idx,idy] = stray_factor * hsra_spec[0,0] + (1-stray_factor) * spec.spec[idx,idy]
 			
 			#--- add instrument broadening (if applicable)
@@ -398,7 +398,7 @@ class Inverter(InputData):
 			if atmos.add_stray_light:
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						stray_factor = atmos.values["stray"][idx,idy]
+						stray_factor = atmos.stray_light[idx,idy]
 						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
 			
 			if self.instrumental_profile is not None:
@@ -470,13 +470,13 @@ class Inverter(InputData):
 		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
+		if atmos.add_stray_light:
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					stray_factor = atmos.stray_light[idx,idy]
+					inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
 		if self.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
-		
-		# try:
-		# 	atmos.compute_errors(JTJ, chi2_old)
-		# except:
-		# 	print("Failed to compute parameters error\n")
 
 		return atmos, inverted_spectra, chi2
 
@@ -651,7 +651,7 @@ class Inverter(InputData):
 			if atmos.add_stray_light:
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						stray_factor = atmos.values["stray"][idx,idy]
+						stray_factor = atmos.stray_light[idx,idy]
 						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
 
 			# convolve profiles with instrumental profile
@@ -746,7 +746,7 @@ class Inverter(InputData):
 		if atmos.add_stray_light:
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					stray_factor = atmos.values["stray"][idx,idy]
+					stray_factor = atmos.stray_light[idx,idy]
 					inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
 		if self.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
