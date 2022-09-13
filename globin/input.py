@@ -275,12 +275,13 @@ class InputData(object):
 		#--- check the status of stray light factor and if to be inverted, add it to atmosphere
 		if abs(stray_factor)!=0:
 			self.atmosphere.add_stray_light = True
-			if stray_factor<0:
-				self.atmosphere.invert_stray = True
-				if self.mode>0:
-					self.atmosphere.n_local_pars += 1
-			self.atmosphere.nodes["stray"] = np.array([0])
 			eye = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+			self.atmosphere.stray_light = eye * abs(stray_factor)
+			if stray_factor<0:
+				# we are inverting for stray light factor
+				self.atmosphere.invert_stray = True
+				self.atmosphere.n_local_pars += 1
+			self.atmosphere.nodes["stray"] = np.array([0])
 			self.atmosphere.values["stray"] = eye * abs(stray_factor)
 			self.atmosphere.parameter_scale["stray"] = eye
 
@@ -407,7 +408,9 @@ class InputData(object):
 				self.reference_atmosphere = globin.falc
 
 		#--- initialize invert atmosphere data from reference atmosphere
-		self.atmosphere.interpolate_atmosphere(self.reference_atmosphere.data[0,0,0], self.reference_atmosphere.data, atm_range)
+		logtau = np.arange(logtau_top, logtau_bot + logtau_step, logtau_step)
+		logtau = np.round(logtau, decimals=2)
+		self.atmosphere.interpolate_atmosphere(logtau, self.reference_atmosphere.data)
 
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
 		self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))

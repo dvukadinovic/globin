@@ -71,7 +71,7 @@ class Atmosphere(object):
 									"gamma" : [-np.pi, np.pi],			# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
 									"of"    : [0, 20],							#
-									"stray" : [0,1],								#
+									"stray" : [0,0.2],							#
 									"vmac"  : [0, 5]}								# [km/s]
 
 	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
@@ -415,11 +415,12 @@ class Atmosphere(object):
 				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 
-	def interpolate_atmosphere(self, x_new, ref_atm, atm_range):
+	def interpolate_atmosphere(self, x_new, ref_atm):
 		if (x_new[0]<ref_atm[0,0,0,0]) or \
 		   (x_new[-1]>ref_atm[0,0,0,-1]):
-			# print("--> Warning: atmosphere will be extrapolated")
-			# print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
+			print("--> Warning: atmosphere will be extrapolated")
+			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
+			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
 			self.logtau = ref_atm[0,0,0]
 			self.data = ref_atm
 			return
@@ -436,15 +437,19 @@ class Atmosphere(object):
 		self.data[:,:,0,:] = x_new
 		self.logtau = x_new
 
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for parID in range(1, self.npar):
-					if oneD:
-						tck = splrep(ref_atm[0,0,0], ref_atm[0,0,parID])
-					else:
-						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,parID])
-					self.data[idx,idy,parID] = splev(x_new, tck)
-				self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
+		if oneD:
+			for idp in range(1, self.npar):
+				tck = splrep(ref_atm[0,0,0], ref_atm[0,0,idp])
+				self.data[...,idp,:] = splev(x_new, tck)
+			self.nHtot = np.sum(self.data[...,8:,:], axis=2)
+			print(self.nHtot.shape)
+		else:
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					for idp in range(1, self.npar):
+						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,idp])
+						self.data[idx,idy,idp] = splev(x_new, tck)
+					self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		# reverting back angles into radians
@@ -633,31 +638,26 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
+			# skip strayt light parameter if we are not fitting for it
 			if parameter=="stray" and not self.invert_stray:
 				continue
 
 			# inclination is wrapped around [0, 180] interval
-			# if parameter=="gamma":
-			# 	y = np.cos(self.values[parameter])
-			# 	self.values[parameter] = np.arccos(y)
-			# 	pass
-			# azimuth is wrapped around [0, 180] interval
-			# check how to wrap azimuth in reasonable values
-			# elif parameter=="chi":
-			# 	y = np.sin(self.values[parameter])
-			# 	self.values[parameter] = np.arcsin(y)
-			# 	pass
-				# make all angles positive always
-				# (RH has a problem with negative values)
-				# self.values[parameter] += np.pi
-			# else:
+			if parameter=="gamma":
+				y = np.cos(self.values[parameter])
+				self.values[parameter] = np.arccos(y)
+			# azimuth is wrapped around [-90, 90] interval
+			elif parameter=="chi":
+				y = np.sin(self.values[parameter])
+				self.values[parameter] = np.arcsin(y)
+			else:
 				# check lower boundary condition
-			indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
-			self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
+				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
+				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
 
-			# check upper boundary condition
-			indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
-			self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
+				# check upper boundary condition
+				indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
+				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
@@ -680,7 +680,7 @@ class Atmosphere(object):
 						indx, indy = np.where(self.global_pars[parameter][...,idl]>self.limit_values[parameter][idl,1])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
-	def smooth_parameters(self, num=5, std=2.5):
+	def smooth_parameters(self, cycle, num=5, std=2.5):
 		if self.nx>=num and self.ny>=num:
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
@@ -697,9 +697,15 @@ class Atmosphere(object):
 
 					self.values[parameter][...,idn] = median_filter(aux, size=4)
 		else:
+			size = 11
+			if cycle==1:
+				size = 7
+			if cycle>=2:
+				size = 5
+
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
-					tmp = median_filter(self.values[parameter][...,idn], size=11)
+					tmp = median_filter(self.values[parameter][...,idn], size=size)
 					self.values[parameter][...,idn] = tmp
 
 	def compute_errors(self, H, chi2):
@@ -1804,7 +1810,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 
-	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of"]:
+	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
 		try:
 			ind = hdu_list.index_of(parameter)
 			data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
