@@ -125,7 +125,7 @@ class Inverter(InputData):
 
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
-					self.atmosphere.smooth_parameters()
+					self.atmosphere.smooth_parameters(cycle)
 
 			return atmos, spec
 
@@ -133,10 +133,12 @@ class Inverter(InputData):
 			print("\n --- Entering synthesis mode ---\n")
 
 			#--- get the Icont from HSRA atmosphere			
-			if self.norm:
+			if self.norm or self.atmosphere.add_stray_light:
 				print(f"Get the HSRA continuum intensity and spectrum...\n")
 				icont, hsra_spec = get_Icont(wavelength=self.atmosphere.wavelength_vacuum, mu=self.atmosphere.mu)
 				self.atmosphere.icont = icont
+				if self.norm:
+					hsra_spec = np.einsum("ijkl,ij->ijkl", hsra_spec, 1/icont)
 
 			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
 			spec = self.atmosphere.compute_spectra(ones)
@@ -149,7 +151,7 @@ class Inverter(InputData):
 				for idx in range(self.atmosphere.nx):
 					for idy in range(self.atmosphere.ny):
 						stray_factor = self.atmosphere.values["stray"][idx,idy]
-						spec.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+						spec.spec[idx,idy] = stray_factor * hsra_spec[0,0] + (1-stray_factor) * spec.spec[idx,idy]
 			
 			#--- add instrument broadening (if applicable)
 			if self.instrumental_profile is not None:
@@ -232,6 +234,8 @@ class Inverter(InputData):
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 			atmos.hsra_spec = spec
+			if self.norm:
+				atmos.hsra_spec = np.einsum("ijkl,ij->ijkl", atmos.hsra_spec, 1/icont)
 
 		if self.verbose:
 			print("Initial parameters:\n")
@@ -508,6 +512,8 @@ class Inverter(InputData):
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
 			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
 			atmos.hsra_spec = spec
+			if self.norm:
+				atmos.hsra_spec = np.einsum("ijkl,ij->ijkl", atmos.hsra_spec, 1/icont)
 
 		Nw = len(self.wavelength_air)
 		# number of total free parameters: local per pixel + global
