@@ -10,12 +10,12 @@ To have an updated version of **globin** package, download it from `gitlab repo 
 	
 	pip3 install -e /path/to/package
 
-Since the package is wrapped around RH it requieres also and functional installation of the code which can be downloaded from ``here``.
+The package is based on the Python implementation of RH through the use of Cython language. Before using the **globin** you must also install and **pyrh** package from `here <https://gitlab.gwdg.de/dusan.vukadinovic01/pyrh>`_.
 
 Test
 ---------------
 
-To test the package, copy the sample files located in 'globin/test' directory and simply run ``python run.py``. In the terminal, it will write down the current progress of the test. Test results will then be writen inside `result` directory.
+To test the package, copy the sample files located in 'globin/test' directory and simply run ``python run.py``. In the terminal, it will write down the current progress of the test. Test results will then be writen inside `runs` directory under the sub-directory that was given in the ``run.py`` script.
 
 Dependencies
 ---------------

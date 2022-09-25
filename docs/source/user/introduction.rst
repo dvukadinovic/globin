@@ -13,6 +13,11 @@ Atmospheric structure is assumed to be given in optical depth scale which is the
 
 Response function, necessary for spectropolarimetric inversion using LM algorithm, are calculated numerical using ``rf_ray`` executable of RH. It is modified executable of ``sovleray``.
 
+Inverter
+============
+
+Main class that is used for synthesizing spectra from given atmospheric model, or inverting the observations is the ``Inverter``. Through inverter we specify the input files path that contain all neccessary variables for running the **globin**.
+
 Quick start
 ---------------
 
