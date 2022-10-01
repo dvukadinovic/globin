@@ -334,6 +334,6 @@ def get_Icont(wavelength=500, mu=1.0):
 	# spec = hsrasp._compute_spectra_sequential(arg=(0,0))
 	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
 	spec = hsrasp.compute_spectra(np.ones((1,1)))
-	icont = spec.spec[:,:,-1,0]
+	icont = spec.spec[0,0,-1,0]
 	
-	return icont, spec.spec
+	return icont, spec.spec[0,0]

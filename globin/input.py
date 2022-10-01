@@ -105,13 +105,16 @@ class InputData(object):
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 		norm = _find_value_by_key("norm", self.parameters_input, "optional")
+		self.norm = False
 		if norm is not None:
-			if norm.lower()=="true":
+			norm = norm.lower()
+			if norm=="hsra" or norm=="true":
 				self.norm = True
-			elif norm.lower()=="false":
-				self.norm = False
-		else:
-			self.norm = False
+				self.norm_level = "hsra"
+			if norm=="1":
+				self.norm = True
+				self.norm_level = 1
+
 		# filling-factor for stray light correction (using HSRA spectrum)
 		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, float)
 		if stray_factor>1:
@@ -273,17 +276,35 @@ class InputData(object):
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
 		#--- check the status of stray light factor and if to be inverted; add it to atmosphere
-		if abs(stray_factor)!=0:
+		if np.abs(stray_factor)!=0:
+			# get the mode of stray light
+			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
+			self.stray_type = self.stray_type.lower()
+			if self.stray_type!="gray" and self.stray_type!="hsra":
+				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray' or 'hsra'.")
+
+			# get the mode for stray light (synthesis/inversion)			
+			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
+
 			self.atmosphere.add_stray_light = True
 			eye = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-			self.atmosphere.stray_light = eye * abs(stray_factor)
+			self.atmosphere.stray_light = eye * np.abs(stray_factor)
+			
 			if stray_factor<0:
-				# we are inverting for stray light factor
 				self.atmosphere.invert_stray = True
-				self.atmosphere.n_local_pars += 1
-				self.atmosphere.nodes["stray"] = np.array([0])
-				self.atmosphere.values["stray"] = self.atmosphere.stray_light
-				self.atmosphere.parameter_scale["stray"] = eye
+				if self.stray_mode==1 or self.stray_mode==2:
+					# we are inverting for stray light factor (pixel-by-pixel mode)
+					self.atmosphere.n_local_pars += 1
+					self.atmosphere.nodes["stray"] = np.array([0])
+					self.atmosphere.values["stray"] = self.atmosphere.stray_light
+					self.atmosphere.parameter_scale["stray"] = eye
+				elif self.stray_mode==3:
+					# stray light inversion in global mode
+					self.atmosphere.n_global_pars += 1
+					self.atmosphere.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
+					self.atmosphere.parameter_scale["stray"] = 1.0
+				else:
+					raise ValueError(f"Warning: Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
@@ -402,8 +423,9 @@ class InputData(object):
 		self.atmosphere.interpolate_atmosphere(logtau, self.reference_atmosphere.data)
 
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
-		self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))
+		self.wavs_weight = None
 		if fpath is not None:
+			self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))
 			lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
 			# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
 			if len(lam)==len(self.wavelength_air):
@@ -947,7 +969,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				geff = 1/2*gs + 1/4*gd*_d
 			Geff = geff**2 - delta
 		else:
-			print("Error: input.initialize_atmos_pars():")
+			print("  Error: input.initialize_atmos_pars():")
 			print("  Wrong number of parameters for initializing")
 			print("  the vertical velocity and magnetic field vector.")
 			sys.exit()
@@ -1026,10 +1048,10 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 
 		if init_mag:
 			#--- azimuth initialization
-			if "chi" in atmos.nodes:	
-				_azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
-				_azimuth %= 2*np.pi
-				azimuth += _azimuth
+			# if "chi" in atmos.nodes:	
+			# 	_azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
+			# 	# _azimuth %= 2*np.pi
+			# 	azimuth += _azimuth
 				# azimuth = np.mean(azimuth, axis=-1)
 				# print(azimuth)
 			
@@ -1060,62 +1082,63 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				# print(blos_wf, blos[0,0])
 
 			#--- inclination initialization
-			if "gamma" in atmos.nodes:
-				ind_lam_wing = dd//2-1
-				L = np.sqrt(sq**2 + su**2)
+			# if "gamma" in atmos.nodes:
+			# 	ind_lam_wing = dd//2-1
+			# 	L = np.sqrt(sq**2 + su**2)
 
-				gamma = np.zeros((atmos.nx, atmos.ny))
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						tck = splrep(x[idx,idy], si[idx,idy])
-						si_der = splev(x[idx,idy,ind_lam_wing], tck, der=1)
+			# 	gamma = np.zeros((atmos.nx, atmos.ny))
+			# 	for idx in range(atmos.nx):
+			# 		for idy in range(atmos.ny):
+			# 			tck = splrep(x[idx,idy], si[idx,idy])
+			# 			si_der = splev(x[idx,idy,ind_lam_wing], tck, der=1)
 						
-						_L = L[idx,idy,ind_lam_wing]
-						delta_lam = x[idx,idy,dd] - x[idx,idy,ind_lam_wing]
+			# 			_L = L[idx,idy,ind_lam_wing]
+			# 			delta_lam = x[idx,idy,dd] - x[idx,idy,ind_lam_wing]
 
-						denom = -4*geff*delta_lam*si_der * _L
-						denom = np.sqrt(np.abs(denom))
-						nom = 3*Geff*sv[idx,idy,ind_lam_wing]**2
-						nom = np.sqrt(np.abs(nom))
-						gamma[idx,idy] = np.arctan2(denom, nom)
+			# 			denom = -4*geff*delta_lam*si_der * _L
+			# 			denom = np.sqrt(np.abs(denom))
+			# 			nom = 3*Geff*sv[idx,idy,ind_lam_wing]**2
+			# 			nom = np.sqrt(np.abs(nom))
+			# 			gamma[idx,idy] = np.arctan2(denom, nom)
 
-				inclination += gamma
+			# 	inclination += gamma
 
 	if "vz" in atmos.nodes:
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
 
 	if init_mag:
-		if "gamma" in atmos.nodes:
-			#--- check for the bounds in inclination
-			#--- inclination can not be closer than 5 degrees to 90 degrees
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
-						inclination[idx,idy] = np.pi/2 + 5*np.pi/180 * np.sign(inclination[idx,idy] - np.pi/2)
-			# atmos.values["gamma"] = np.repeat(np.tan(inclination[..., np.newaxis]/nl_mag/2), len(atmos.nodes["gamma"]), axis=-1)
-			# atmos.values["gamma"] = np.repeat(np.cos(inclination[..., np.newaxis]/nl_mag), len(atmos.nodes["gamma"]), axis=-1)
-			atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
-			y = np.cos(atmos.values["gamma"])
-			atmos.values["gamma"] = np.arccos(y)
+		# if "gamma" in atmos.nodes:
+		# 	#--- check for the bounds in inclination
+		# 	#--- inclination can not be closer than 5 degrees to 90 degrees
+		# 	for idx in range(atmos.nx):
+		# 		for idy in range(atmos.ny):
+		# 			if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
+		# 				inclination[idx,idy] = np.pi/2 + 5*np.pi/180 * np.sign(inclination[idx,idy] - np.pi/2)
+		# 	# atmos.values["gamma"] = np.repeat(np.tan(inclination[..., np.newaxis]/nl_mag/2), len(atmos.nodes["gamma"]), axis=-1)
+		# 	# atmos.values["gamma"] = np.repeat(np.cos(inclination[..., np.newaxis]/nl_mag), len(atmos.nodes["gamma"]), axis=-1)
+		# 	atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
+		# 	y = np.cos(atmos.values["gamma"])
+		# 	atmos.values["gamma"] = np.arccos(y)
 		if "mag" in atmos.nodes:
 			blos /= nl_mag
-			inclination /= nl_mag
-			if "gamma" in atmos.nodes:
-				mag = blos / np.cos(inclination)
-			else:
-				mag = blos / np.cos(np.pi/3)
+			# inclination /= nl_mag
+			# if "gamma" in atmos.nodes:
+			# 	# mag = blos / np.cos(inclination)
+			# 	mag = blos / np.cos(atmos.values["gamma"])
+			# else:
+			mag = blos / np.cos(np.pi/3)
 			#--- check for the bounds in magnetic field strength
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
 					if mag[idx,idy] > atmos.limit_values["mag"][1]:
 						mag[idx,idy] = atmos.limit_values["mag"][1]
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
-		if "chi" in atmos.nodes:
-			# atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)
-			# atmos.values["chi"] = np.repeat(np.cos(azimuth[..., np.newaxis]/nl), len(atmos.nodes["chi"]), axis=-1)
-			atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
-			y = np.cos(atmos.values["chi"])
-			atmos.values["chi"] = np.arccos(y)
+		# if "chi" in atmos.nodes:
+		# 	# atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)
+		# 	# atmos.values["chi"] = np.repeat(np.cos(azimuth[..., np.newaxis]/nl), len(atmos.nodes["chi"]), axis=-1)
+		# 	atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
+		# 	y = np.cos(atmos.values["chi"])
+		# 	atmos.values["chi"] = np.arccos(y)
 
 		# print("-----")
 		# # print(atmos.values["mag"])

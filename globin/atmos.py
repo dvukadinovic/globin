@@ -67,11 +67,11 @@ class Atmosphere(object):
 	limit_values = {"temp"  : [2800, 10000], 				# [K]
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
-									"mag"   : [10, 10000],					# [G]
+									"mag"   : [1, 10000],						# [G]
 									"gamma" : [-np.pi, np.pi],			# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
 									"of"    : [0, 20],							#
-									"stray" : [0,0.2],							#
+									"stray" : [0, 1],								#
 									"vmac"  : [0, 5]}								# [km/s]
 
 	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
@@ -442,7 +442,6 @@ class Atmosphere(object):
 				tck = splrep(ref_atm[0,0,0], ref_atm[0,0,idp])
 				self.data[...,idp,:] = splev(x_new, tck)
 			self.nHtot = np.sum(self.data[...,8:,:], axis=2)
-			print(self.nHtot.shape)
 		else:
 			for idx in range(self.nx):
 				for idy in range(self.ny):
@@ -452,19 +451,6 @@ class Atmosphere(object):
 					self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
-		# reverting back angles into radians
-		# data = copy.deepcopy(self.data)
-		# if "gamma" in self.nodes:
-			# data[:,:,6] = 2*np.arctan(data[:,:,6])
-			# data[:,:,6] = np.arccos(data[:,:,6])
-		# if "chi" in self.nodes:
-			# data[:,:,7] = 4*np.arctan(data[:,:,7])
-			# data[:,:,7] = np.arccos(data[:,:,7])
-
-		# wraping the angles into the interval 0-180 degrees and 0-360 degrees
-		# data[:,:,6] %= np.pi
-		# data[:,:,7] %= 2*np.pi
-
 		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
 
@@ -546,15 +532,15 @@ class Atmosphere(object):
 
 	def save_atomic_parameters(self, fpath="inverted_atoms.fits", kwargs=None):
 		pars = list(self.global_pars.keys())
-		try:
-			pars.remove("vmac")
-		except:
-			pass
 
 		primary = fits.PrimaryHDU()
 		hdulist = fits.HDUList([primary])
 		
 		for parameter in pars:
+			if parameter=="vmac" or parameter=="stray":
+				primary.header[parameter] = self.global_pars[parameter][0]
+				continue
+
 			if self.mode==2:
 				nx, ny = self.nx, self.ny
 			elif self.mode==3:
@@ -591,7 +577,7 @@ class Atmosphere(object):
 				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 				self.values[parameter] += step
 
-			#--- update atomic parameters + vmac
+			#--- update atomic parameters
 			for parameter in self.global_pars:
 				if self.line_no[parameter].size > 0:
 					low_ind = up_ind
@@ -618,7 +604,7 @@ class Atmosphere(object):
 			global_pars = proposed_steps[NparLocal*Natmos:]
 			low_ind, up_ind = 0, 0
 			for parameter in self.global_pars:
-				if parameter=="vmac":
+				if parameter=="vmac" or parameter=="stray":
 					low_ind = up_ind
 					up_ind += 1
 					step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
@@ -633,10 +619,6 @@ class Atmosphere(object):
 
 	def check_parameter_bounds(self, mode):
 		for parameter in self.values:
-			# skip strayt light parameter if we are not fitting for it
-			if parameter=="stray" and not self.invert_stray:
-				continue
-
 			# inclination is wrapped around [0, 180] interval
 			if parameter=="gamma":
 				y = np.cos(self.values[parameter])
@@ -655,14 +637,18 @@ class Atmosphere(object):
 				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
 
 		for parameter in self.global_pars:
-			if parameter=="vmac":
+			if parameter=="vmac" or parameter=="stray":
 				# minimum check
 				if self.global_pars[parameter]<self.limit_values[parameter][0]:
-					self.global_pars[parameter] = np.array([self.limit_values[parameter][0]])
+					self.global_pars[parameter] = np.array([self.limit_values[parameter][0]], dtype=np.float64)
 				# maximum check
 				if self.global_pars[parameter]>self.limit_values[parameter][1]:
-					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]])
-				self.vmac = self.global_pars["vmac"]
+					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]], dtype=np.float64)
+				# get back values into the atmosphere structure
+				if parameter=="vmac":
+					self.vmac = self.global_pars["vmac"]
+				if parameter=="stray":
+					self.stray_light = self.global_pars["stray"]
 			else:
 				Npar = self.line_no[parameter].size
 				if Npar > 0:
@@ -741,7 +727,10 @@ class Atmosphere(object):
 		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
-			spectra.spec /= self.icont
+			if self.norm_level=="hsra":
+				spectra.spec /= self.icont
+			if self.norm_level==1:
+				spectra.spec /= spectra.spec[:,:,0,0]
 
 		return spectra
 
@@ -829,7 +818,10 @@ class Atmosphere(object):
 				if parameter=="gamma" or parameter=="chi":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
-					node_RF = self.hsra_spec - spec.spec
+					if self.stray_type=="hsra":
+						node_RF = self.hsra_spec - spec.spec
+					if self.stray_type=="gray":
+						node_RF = -spec.spec
 				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
 					if parameter=="of":	
@@ -853,7 +845,7 @@ class Atmosphere(object):
 				# (do not touch old ones)
 				# indx, indy = np.where(synthesize==1)
 				self.parameter_scale[parameter][active_indx,active_indy,nodeID] = scale[active_indx,active_indy]
-
+				
 				#--- set RFs value
 				self.rf[active_indx,active_indy,free_par_ID] = np.einsum("ikl,i->ikl", node_RF[active_indx, active_indy], 1/self.parameter_scale[parameter][active_indx,active_indy,nodeID])
 				free_par_ID += 1
@@ -895,6 +887,20 @@ class Atmosphere(object):
 					self.rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
 
 					skip_par = free_par_ID
+					free_par_ID += 1
+
+				elif parameter=="stray":
+					if self.stray_type=="hsra":
+						diff = self.hsra_spec - spec.spec
+					if self.stray_type=="gray":
+						diff = -spec.spec
+					diff *= weights
+					diff /= rf_noise_scale
+
+					scale = np.sqrt(np.sum(diff**2))
+					self.parameter_scale[parameter] = scale
+
+					self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter]
 					free_par_ID += 1
 
 				elif parameter=="loggf" or parameter=="dlam":
@@ -946,8 +952,17 @@ class Atmosphere(object):
 		if self.add_stray_light:
 			for idx in range(self.nx):
 				for idy in range(self.ny):
-					stray_factor = self.stray_light[idx,idy]
-					spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+					if self.stray_mode==1 or self.stray_mode==2:
+						stray_factor = self.stray_light[idx,idy]
+					if self.stray_mode==3:
+						stray_factor = self.global_pars["stray"]
+					if self.stray_type=="hsra":
+						spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+					if self.stray_type=="gray":
+						spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
+						spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
+						spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
+						spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
 		if instrumental_profile is not None:

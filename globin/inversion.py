@@ -38,7 +38,7 @@ def pretty_print_parameters(atmos, conv_flag, mode):
 
 	if mode>=2:
 		for parameter in atmos.global_pars:
-			if parameter=="vmac":
+			if parameter=="vmac" or parameter=="stray":
 				print(parameter)
 				print(atmos.global_pars[parameter])
 			else:
@@ -66,7 +66,10 @@ class Inverter(InputData):
 			self.atmosphere.n_thread = self.n_thread
 			self.atmosphere.temp_tck = self.falc.temp_tck
 			self.atmosphere.mode = self.mode
+			self.atmosphere.stray_mode = self.stray_mode
+			self.atmosphere.stray_type = self.stray_type
 			self.atmosphere.norm = self.norm
+			self.atmosphere.norm_level = self.norm_level
 			self.atmosphere.step = self.step
 
 			# fudge data
@@ -138,7 +141,7 @@ class Inverter(InputData):
 				icont, hsra_spec = get_Icont(wavelength=self.atmosphere.wavelength_vacuum, mu=self.atmosphere.mu)
 				self.atmosphere.icont = icont
 				if self.norm:
-					hsra_spec = np.einsum("ijkl,ij->ijkl", hsra_spec, 1/icont)
+					hsra_spec /= icont
 
 			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
 			spec = self.atmosphere.compute_spectra(ones)
@@ -151,7 +154,13 @@ class Inverter(InputData):
 				for idx in range(self.atmosphere.nx):
 					for idy in range(self.atmosphere.ny):
 						stray_factor = self.atmosphere.stray_light[idx,idy]
-						spec.spec[idx,idy] = stray_factor * hsra_spec[0,0] + (1-stray_factor) * spec.spec[idx,idy]
+						if self.stray_type=="hsra":
+							spec.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+						if self.stray_type=="gray":
+							spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
+							spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
+							spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
+							spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 			
 			#--- add instrument broadening (if applicable)
 			if self.instrumental_profile is not None:
@@ -202,7 +211,7 @@ class Inverter(InputData):
 			weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
 		else:
 			weights = 1
-
+		
 		noise_stokes /= weights
 
 		return noise_stokes
@@ -223,7 +232,6 @@ class Inverter(InputData):
 
 		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
 			if atmos.add_stray_light:
-				wavelength = obs.wavelength[0]
 				print(f"Get the HSRA continuum intensity and spectrum...\n")
 				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
 			else:
@@ -231,11 +239,10 @@ class Inverter(InputData):
 				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
-			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
-			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
+			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec
 			if self.norm:
-				atmos.hsra_spec = np.einsum("ijkl,ij->ijkl", atmos.hsra_spec, 1/icont)
+				atmos.hsra_spec /= icont
 
 		if self.verbose:
 			print("Initial parameters:\n")
@@ -336,6 +343,8 @@ class Inverter(InputData):
 				#--- compute chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
+				if self.wavs_weight is not None:
+					diff *= self.wavs_weight
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
@@ -398,8 +407,17 @@ class Inverter(InputData):
 			if atmos.add_stray_light:
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						stray_factor = atmos.stray_light[idx,idy]
-						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+						if self.stray_mode==1 or self.stray_type==2:
+							stray_factor = atmos.stray_light[idx,idy]
+						if self.stray_mode==3:
+							stray_factor = atmos.global_pars["stray"]
+						if self.stray_type=="hsra":
+							corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+						if self.stray_type=="gray":
+							corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
+							corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
+							corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
+							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
 			if self.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
@@ -407,6 +425,8 @@ class Inverter(InputData):
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
+			if self.wavs_weight is not None:
+					diff *= self.wavs_weight
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
@@ -473,8 +493,17 @@ class Inverter(InputData):
 		if atmos.add_stray_light:
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					stray_factor = atmos.stray_light[idx,idy]
-					inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
+					if self.stray_mode==1 or self.stray_mode==2:
+						stray_factor = atmos.stray_light[idx,idy]
+					if self.stray_mode==3:
+						stray_factor = atmos.global_pars["stray"]
+					if self.stray_type=="hsra":
+						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
+					if self.stray_type=="gray":
+						inverted_spectra.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * inverted_spectra.spec[idx,idy,:,0]
+						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
+						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
+						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
 		if self.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
@@ -501,7 +530,6 @@ class Inverter(InputData):
 
 		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
 			if atmos.add_stray_light:
-				wavelength = obs.wavelength[0]
 				print(f"Get the HSRA continuum intensity and spectrum...\n")
 				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
 			else:
@@ -509,11 +537,10 @@ class Inverter(InputData):
 				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
 			nw = len(atmos.wavelength_vacuum)
-			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4))
-			atmos.icont = np.einsum("ijkl,ij->ijkl", atmos.icont, icont)
+			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec
 			if self.norm:
-				atmos.hsra_spec = np.einsum("ijkl,ij->ijkl", atmos.hsra_spec, 1/icont)
+				atmos.hsra_spec /= icont
 
 		Nw = len(self.wavelength_air)
 		# number of total free parameters: local per pixel + global
@@ -581,6 +608,9 @@ class Inverter(InputData):
 				#               spec.shape = (nx, ny, Nw, 5)
 				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
 
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# plt.show()
+
 				if self.debug:
 					for idx in range(atmos.nx):
 						for idy in range(atmos.ny):
@@ -589,6 +619,8 @@ class Inverter(InputData):
 				#--- calculate chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
+				if self.wavs_weight is not None:
+					diff *= self.wavs_weight
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
@@ -651,8 +683,21 @@ class Inverter(InputData):
 			if atmos.add_stray_light:
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						stray_factor = atmos.stray_light[idx,idy]
-						corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+						if self.stray_mode==1 or self.stray_mode==2:
+							stray_factor = atmos.stray_light[idx,idy]
+						if self.stray_mode==3:
+							stray_factor = atmos.global_pars["stray"]
+						if self.stray_type=="hsra":
+							corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+						if self.stray_type=="gray":
+							corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
+							corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
+							corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
+							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
+
+			# print(atmos.stray_light)
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=corrected_spec.spec[0,0])
+			# plt.show()
 
 			# convolve profiles with instrumental profile
 			if self.instrumental_profile is not None:
@@ -661,6 +706,8 @@ class Inverter(InputData):
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
+			if self.wavs_weight is not None:
+				new_diff *= self.wavs_weight
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
@@ -693,7 +740,7 @@ class Inverter(InputData):
 				break_flag = True
 
 			if updated_parameters:
-				print("chi2 --> {:4.3e} | LM --> {:.1e}".format(np.sum(chi2[...,itter-1]), LM_parameter))
+				print("  chi2 --> {:4.3e} | LM --> {:.1e}".format(np.sum(chi2[...,itter-1]), LM_parameter))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
@@ -717,7 +764,7 @@ class Inverter(InputData):
 					print("chi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
-					print("Maximum number of iteratinos reached.")
+					print("Maximum number of iteratinos reached.\n")
 					break_flag = True
 				else:
 					pass
@@ -731,7 +778,6 @@ class Inverter(InputData):
 			if break_flag:
 				break
 
-		print()
 		t0 = datetime.now()
 		t0 = t0.isoformat(sep=' ', timespec='seconds')
 		end = time.time() - start
@@ -741,13 +787,25 @@ class Inverter(InputData):
 		if atmos.hydrostatic:
 			atmos.makeHSE(ones)
 		inverted_spectra = atmos.compute_spectra(ones)
+		
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
+		
 		if atmos.add_stray_light:
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					stray_factor = atmos.stray_light[idx,idy]
-					inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
+					if self.stray_mode==1 or self.stray_mode==2:
+						stray_factor = atmos.stray_light[idx,idy]
+					if self.stray_mode==3:
+						stray_factor = atmos.global_pars["stray"]
+					if self.stray_type=="hsra":
+						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
+					if self.stray_type=="gray":
+						inverted_spectra.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * inverted_spectra.spec[idx,idy,:,0]
+						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
+						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
+						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
+		
 		if self.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
