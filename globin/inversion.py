@@ -7,7 +7,6 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
-from scipy.sparse import block_diag
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
 
@@ -327,6 +326,7 @@ class Inverter(InputData):
 					old_spec = copy.deepcopy(spec)
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
+				gamma = atmos.get_regularization()
 
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:

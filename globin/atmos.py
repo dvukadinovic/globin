@@ -98,6 +98,16 @@ class Atmosphere(object):
 									  "of"     : "Opacity fudge",
 									  "nH"     : "Hydrogen density"}
 
+	#--- normalization values for atmospheric parameters (used in regularization)
+	parameter_norm = {"temp"  : 5000,			# [K]
+										"vz" 	  : 6,				# [km/s]
+										"vmic"  : 6,				# [km/s]
+										"mag"   : 1000,			# [G]
+										"gamma" : np.pi/3,	# [rad]
+										"chi"   : np.pi/3,	# [rad]
+										"of"    : 2,				#
+										"stray" : 0.1}			#
+
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.fpath = fpath
 		self.type = atm_type
@@ -108,6 +118,13 @@ class Atmosphere(object):
 		self.atm_name_list = []
 		# parameter scaling for inversino
 		self.parameter_scale = {}
+
+		# container for regularization types for atmospheric parameters
+		self.regularization = {}
+		# number of regularization functions per parameter (not per node):
+		#   -- depth regularization counts as 1
+		#   -- spatial regularization counts as 2 (in x and y directions each)
+		self.nreg = 0
 
 		self.hydrostatic = False
 
@@ -416,8 +433,8 @@ class Atmosphere(object):
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
-		if (x_new[0]<ref_atm[0,0,0,0]) or \
-		   (x_new[-1]>ref_atm[0,0,0,-1]):
+		if np.abs(x_new[0]-ref_atm[0,0,0,0])/x_new[0]>1e-2 or \
+		   np.abs(x_new[-1]-ref_atm[0,0,0,-1])/x_new[-1]>1e-2:
 			print("--> Warning: atmosphere will be extrapolated")
 			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
@@ -973,6 +990,105 @@ class Atmosphere(object):
 
 		return spec
 
+	def get_regularization(self):
+		# number of regularization functions (per parameter; not per node)
+		# if self.nreg==0:
+		# 	return None
+		
+		if not self.spatial_regularization:
+			return None
+
+		import scipy.sparse as sp
+
+		npar = self.n_local_pars
+		
+		# number of regularization functions (per pixel)
+		# we regularize spatialy in x- and y-axis
+		nreg = 2
+
+		#--- get regularization function values
+		gamma = np.zeros((self.nx, self.ny, nreg))
+		
+		for parameter in self.nodes:
+			for idn in range(len(self.nodes[parameter])):
+				# p@x - p@x-1
+				gamma[1:,:,0] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
+				gamma[1:,:,0] /= self.parameter_norm[parameter]
+				# p@y - p@y-1
+				gamma[:,1:,1] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
+				gamma[:,1:,1] /= self.parameter_norm[parameter]
+
+		#--- compute derivative of regularization functions
+		rows, cols = np.array([], dtype=np.int32), np.array([], dtype=np.int32)
+		values = np.array([], dtype=np.float64)
+
+		ida = 0
+		idp = np.arange(npar)
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				ida = idx*self.ny + idy
+				
+				# Gamma_0 contribution
+				if idx>0:
+					ind = ida*npar + idp
+					rows = np.append(rows, ind)
+
+					ind = ida*npar*nreg + idp*2
+					cols = np.append(cols, ind)
+					
+					values = np.append(values, np.ones(npar))
+
+					# derivative in respect to neighbouring pixel (up)
+					tmp = (idx-1)*self.ny + idy
+					ind = tmp*npar + idp
+					rows = np.append(rows, ind)
+					# print(idx, idy, ida, tmp)
+					# print(ind)
+
+					# ind = tmp*npar*nreg + idp*2 + ida*npar
+					ind = ida*npar*nreg + idp*2
+					# print(ind)
+					# print("-----")
+					cols = np.append(cols, ind)
+
+					values = np.append(values, -1*np.ones(npar))
+				
+				# Gamma_1 contribution
+				if idy>0:
+					ind = ida*npar + idp
+					rows = np.append(rows, ind)
+					
+					ind = ida*npar*nreg + idp*2 + 1
+					cols = np.append(cols, ind)
+					
+					values = np.append(values, np.ones(npar))
+
+					# derivative in respect to neighbouring pixel (left)
+					tmp = idx*self.ny + idy-1
+					ind = tmp*npar + idp
+					rows = np.append(rows, ind)
+
+					ind = ida*npar*nreg + idp*2 + 1
+					cols = np.append(cols, ind)
+
+					values = np.append(values, -1*np.ones(npar))
+
+				# print(rows)
+				# print("-----")
+
+		print(rows)
+		print(cols)
+
+		shape = (self.nx*self.ny*npar, self.nx*self.ny*npar*nreg)
+		gamma_der = sp.coo_matrix((values, (rows, cols)), shape=shape, dtype=np.float64)
+		print(gamma_der.shape)
+		
+		LTL = gamma_der.dot(gamma_der.transpose())
+
+		plt.imshow(LTL.toarray().T, origin="upper", cmap="bwr")
+		plt.colorbar()
+		plt.show()
+		
 	def make_OF_table(self, wavelength_vacuum):
 		if wavelength_vacuum[0]<=210:
 			print("  Sorry, but OF is not properly implemented for wavelengths")
@@ -1820,12 +1936,8 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 			atmos.nodes[parameter] = data[0,0,0]
 			# angles are saved in radians, no need to convert them here
 			if parameter=="gamma":
-				# atmos.values[parameter] = np.tan(data[1]/2)
-				# atmos.values[parameter] = np.cos(data[1])
 				atmos.values[parameter] = data[1]
 			elif parameter=="chi":
-				# atmos.values[parameter] = np.tan(data[1]/4)
-				# atmos.values[parameter] = np.cos(data[1])
 				atmos.values[parameter] = data[1]
 			else:
 				atmos.values[parameter] = data[1]

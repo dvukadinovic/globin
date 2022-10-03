@@ -62,7 +62,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black"
 	# 			axs[ida] = gs.add_subplot(gs[idx,idy])
 	# 	globin.atmos_axs = axs
 
-	for k_ in range(n_plots):	
+	for k_ in range(n_plots):
 		parameter = parameters[k_]
 		parID = atmos.par_id[parameter]
 

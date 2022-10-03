@@ -106,6 +106,7 @@ class InputData(object):
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 		norm = _find_value_by_key("norm", self.parameters_input, "optional")
 		self.norm = False
+		self.norm_level = None
 		if norm is not None:
 			norm = norm.lower()
 			if norm=="hsra" or norm=="true":
@@ -335,6 +336,9 @@ class InputData(object):
 			aux = resample(self.instrumental_profile, N)
 			self.instrumental_profile = aux / np.sum(aux)
 
+		self.atmosphere.get_regularization()
+		sys.exit()
+
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
 		Get parameters for synthesis.
@@ -479,6 +483,19 @@ class InputData(object):
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter, self.parameters_input)
 
+		# check for spatial regularization of atmospheric parameters
+		tmp = _find_value_by_key("spatial_regularization", self.parameters_input, "optional")
+		self.atmosphere.spatial_regularization = False
+		if tmp is not None:
+			if tmp.lower()=="true":
+				self.atmosphere.spatial_regularization = True
+
+		#============================================================================
+		# if we are doing a spatial regularization, we MUST go into mode 3 inversion!
+		#============================================================================
+		if self.mode!=3 and self.atmosphere.spatial_regularization:
+			raise ValueError("Can not perform spatial regularization in mode=1. Change to mode=3.")
+
 		self.atmosphere.hydrostatic = False
 		if "temp" in self.atmosphere.nodes:
 			self.atmosphere.hydrostatic = True
@@ -590,8 +607,8 @@ class InputData(object):
 
 	def read_node_parameters(self, parameter, text):
 		"""
-		For a given parameter read from input file node positions, values and 
-		parameter mask (optional).
+		For a given parameter read from input file the node positions, the values,
+		the parameter mask (optional) and the regularization type(s).
 
 		Parameters:
 		---------------
@@ -606,6 +623,19 @@ class InputData(object):
 		values = _find_value_by_key(f"nodes_{parameter}_values", text, "optional")
 		mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
 		
+		# # get all regularization types for a given parameter
+		# reg_types = _find_value_by_key(f"{parameter}_regularize", text, "optional")
+		# if reg_types is not None:
+		# 	reg_types = list(filter(None,reg_types.rstrip("\n").split(",")))
+		# 	atmosphere.regularization[parameter] = reg_types
+		# 	for rtype in reg_types:
+		# 		if rtype=="spatial":
+		# 			# we regularize in x and y directions
+		# 			atmosphere.nreg += 2
+		# 		if rtype=="depth":
+		# 			# we regularize only in depth
+		# 			atmosphere.nreg += 1
+		
 		if (nodes is not None) and (values is not None):
 			atmosphere.nodes[parameter] = [float(item) for item in nodes.split(",")]
 			
@@ -617,13 +647,9 @@ class InputData(object):
 			matrix[:,:] = copy.deepcopy(values)
 			if parameter=="gamma":
 				matrix *= np.pi/180
-				# atmosphere.values[parameter] = np.tan(matrix/2)
-				# atmosphere.values[parameter] = np.cos(matrix)
 				atmosphere.values[parameter] = matrix
 			elif parameter=="chi":
 				matrix *= np.pi/180
-				# atmosphere.values[parameter] = np.tan(matrix/4)
-				# atmosphere.values[parameter] = np.cos(matrix)
 				atmosphere.values[parameter] = matrix
 			else:
 				atmosphere.values[parameter] = matrix
