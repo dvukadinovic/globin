@@ -65,8 +65,9 @@ class Inverter(InputData):
 			self.atmosphere.n_thread = self.n_thread
 			self.atmosphere.temp_tck = self.falc.temp_tck
 			self.atmosphere.mode = self.mode
-			self.atmosphere.stray_mode = self.stray_mode
-			self.atmosphere.stray_type = self.stray_type
+			if self.atmosphere.add_stray_light:
+				self.atmosphere.stray_mode = self.stray_mode
+				self.atmosphere.stray_type = self.stray_type
 			self.atmosphere.norm = self.norm
 			self.atmosphere.norm_level = self.norm_level
 			self.atmosphere.step = self.step
@@ -91,6 +92,7 @@ class Inverter(InputData):
 		
 		if self.mode>=1:
 			print("\n             --- Entering inversion mode ---\n")
+			start = time.time()
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
 					print("=====================================")
@@ -129,30 +131,44 @@ class Inverter(InputData):
 				if (cycle+1)<self.ncycle:
 					self.atmosphere.smooth_parameters(cycle)
 
+			t0 = datetime.now()
+			t0 = t0.isoformat(sep=' ', timespec='seconds')
+			end = time.time() - start
+			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+
 			return atmos, spec
 
 		elif self.mode==0:
 			print("\n --- Entering synthesis mode ---\n")
 
-			#--- get the Icont from HSRA atmosphere			
-			if self.norm or self.atmosphere.add_stray_light:
-				print(f"Get the HSRA continuum intensity and spectrum...\n")
-				icont, hsra_spec = get_Icont(wavelength=self.atmosphere.wavelength_vacuum, mu=self.atmosphere.mu)
-				self.atmosphere.icont = icont
-				if self.norm:
-					hsra_spec /= icont
+			atmos = self.atmosphere
 
-			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny))
-			spec = self.atmosphere.compute_spectra(ones)
+			#--- get the Icont from HSRA atmosphere
+			if (self.norm and atmos.icont is None) or atmos.add_stray_light:
+				if atmos.add_stray_light:
+					print(f"Get the HSRA continuum intensity and spectrum...\n")
+					icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
+				else:
+					wavelength = self.wavelength_air[0]
+					print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
+					icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
+				nw = len(atmos.wavelength_vacuum)
+				atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
+				atmos.hsra_spec = spec
+				if self.norm:
+					atmos.hsra_spec /= icont
+
+			ones = np.ones((atmos.nx, atmos.ny))
+			spec = atmos.compute_spectra(ones)
 			
 			#--- add macro-turbulent broadening
-			spec.broaden_spectra(self.atmosphere.vmac, ones, self.n_thread)
+			spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 
 			#--- add stray light contribution
-			if self.atmosphere.add_stray_light:
-				for idx in range(self.atmosphere.nx):
-					for idy in range(self.atmosphere.ny):
-						stray_factor = self.atmosphere.stray_light[idx,idy]
+			if atmos.add_stray_light:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						stray_factor = atmos.stray_light[idx,idy]
 						if self.stray_type=="hsra":
 							spec.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 						if self.stray_type=="gray":
@@ -171,7 +187,7 @@ class Inverter(InputData):
 			print("  All done!")
 			print("-------------------------------------------------\n")
 
-			return self.atmosphere, spec
+			return atmos, spec
 		else:
 			print("\n[Error] Unrecognized mode of operation. Check input parameters.\n")
 			sys.exit()
@@ -326,7 +342,6 @@ class Inverter(InputData):
 					old_spec = copy.deepcopy(spec)
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
-				gamma = atmos.get_regularization()
 
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:
@@ -511,14 +526,7 @@ class Inverter(InputData):
 
 	def invert_global(self, max_iter, marq_lambda):
 		"""
-		As input we expect all data to be present :)
-
 		Glonal inversion of atmospheric and atomic parameters.
-
-		Parameters:
-		---------------
-		init : InputData
-			InputData object in which we have everything stored.
 		"""
 		obs = self.observation
 		atmos = self.atmosphere
@@ -559,6 +567,14 @@ class Inverter(InputData):
 		if self.debug:
 			LM_debug = np.zeros((max_iter), dtype=np.float64)
 
+		#--- the regularization function Jacobian (only spatial)
+		if atmos.spatial_regularization:
+			reg_weight = self.spatial_regularization_weight
+			LT = atmos.get_regularization_der()
+			LT *= np.sqrt(Ndof)
+			LT *= np.sqrt(reg_weight)
+			LTL = LT.dot(LT.transpose())
+
 		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
 		# indices for transforming 4D array of RFs into 2D Jacobian matrix [slicing through atmospheres]
@@ -583,7 +599,6 @@ class Inverter(InputData):
 		print(f"Number of parameters: {Npar}")
 		print(f"Number of degrees of freedom: {Ndof}\n")
 
-		start = time.time()
 		iter_start = datetime.now()
 		
 		itter = 0
@@ -607,6 +622,10 @@ class Inverter(InputData):
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
 				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
+				if atmos.spatial_regularization:
+					Gamma = atmos.get_regularization_gamma()
+					Gamma *= np.sqrt(Ndof)
+					Gamma *= np.sqrt(reg_weight)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
@@ -623,6 +642,9 @@ class Inverter(InputData):
 					diff *= self.wavs_weight
 				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
+				if atmos.spatial_regularization:
+					tmp = np.sum(Gamma**2, axis=-1)
+					chi2_old += tmp
 
 				#--- create the global Jacobian matrix and fill it with RF values
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -650,11 +672,18 @@ class Inverter(InputData):
 				deltaSP = JglobalT.dot(aux)
 				del aux
 
+				if atmos.spatial_regularization:
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*atmos.n_local_pars)
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*atmos.n_local_pars)
+					deltaSP -= LT.dot(Gamma)
+
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
 			#--- invert Hessian matrix
 			H = JglobalT.dot(Jglobal) + eye*LM_parameter
+			if atmos.spatial_regularization:
+				H += LTL
 			proposed_steps = spsolve(H, deltaSP)
 
 			#--- save the old parameters
@@ -695,10 +724,6 @@ class Inverter(InputData):
 							corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
 							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 
-			# print(atmos.stray_light)
-			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=corrected_spec.spec[0,0])
-			# plt.show()
-
 			# convolve profiles with instrumental profile
 			if self.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
@@ -710,6 +735,11 @@ class Inverter(InputData):
 				new_diff *= self.wavs_weight
 			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
+			if atmos.spatial_regularization:
+				Gamma = atmos.get_regularization_gamma()
+				Gamma *= np.sqrt(Ndof)
+				Gamma *= np.sqrt(reg_weight)
+				chi2_new += np.sum(Gamma**2, axis=-1)
 
 			#--- check if chi2 is improved
 			if np.sum(chi2_new) > np.sum(chi2_old):
@@ -777,11 +807,6 @@ class Inverter(InputData):
 			#--- if all pixels have converged, we stop inversion
 			if break_flag:
 				break
-
-		t0 = datetime.now()
-		t0 = t0.isoformat(sep=' ', timespec='seconds')
-		end = time.time() - start
-		print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
 		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:

@@ -20,6 +20,7 @@ from scipy.interpolate import splev, splrep
 import matplotlib.pyplot as plt
 from tqdm import tqdm, trange
 import multiprocessing as mp
+import scipy.sparse as sp
 
 import pyrh
 
@@ -990,16 +991,15 @@ class Atmosphere(object):
 
 		return spec
 
-	def get_regularization(self):
+	def get_regularization_gamma(self):
 		# number of regularization functions (per parameter; not per node)
 		# if self.nreg==0:
 		# 	return None
-		
-		if not self.spatial_regularization:
-			return None
 
-		import scipy.sparse as sp
-
+		"""
+		Gamma matrix containing the regularization function values for each pixel.
+		We already summed the contributions from each atmospheric parameter.
+		"""
 		npar = self.n_local_pars
 		
 		# number of regularization functions (per pixel)
@@ -1007,16 +1007,40 @@ class Atmosphere(object):
 		nreg = 2
 
 		#--- get regularization function values
-		gamma = np.zeros((self.nx, self.ny, nreg))
+		gamma = np.zeros((self.nx, self.ny, nreg, npar))
 		
+		idp = 0
 		for parameter in self.nodes:
 			for idn in range(len(self.nodes[parameter])):
-				# p@x - p@x-1
-				gamma[1:,:,0] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
-				gamma[1:,:,0] /= self.parameter_norm[parameter]
-				# p@y - p@y-1
-				gamma[:,1:,1] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
-				gamma[:,1:,1] /= self.parameter_norm[parameter]
+				# p@x - p@x-1 (difference to the upper pixel)
+				gamma[1:,:,0,idp] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
+				gamma[1:,:,0,idp] /= self.parameter_norm[parameter]
+				# p@y - p@y-1 (difference to the left pixel)
+				gamma[:,1:,1,idp] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
+				gamma[:,1:,1,idp] /= self.parameter_norm[parameter]
+				idp += 1
+
+		return gamma.reshape(self.nx, self.ny, nreg*npar, order="F")
+
+	def get_regularization_der(self):
+		"""
+		Get the Jacobian matrix (transposed by default) for the spatial
+		regularization functions. We assume that the spatial regularizations
+		are linear function over atmospheric parameters and that we impose
+		regularization to the upper and left pixel in respect to the target
+		pixel.
+
+		This has to be done only once, before iterative procedure since the
+		matrix is filled with 1's and -1's and it does not depend on 
+		the atmospheric parameters.
+
+		[Dusan] it needs to be optimized; could be slow for big FOVs. 
+		"""
+		npar = self.n_local_pars
+		
+		# number of regularization functions (per pixel)
+		# we regularize spatialy in x- and y-axis
+		nreg = 2
 
 		#--- compute derivative of regularization functions
 		rows, cols = np.array([], dtype=np.int32), np.array([], dtype=np.int32)
@@ -1042,13 +1066,8 @@ class Atmosphere(object):
 					tmp = (idx-1)*self.ny + idy
 					ind = tmp*npar + idp
 					rows = np.append(rows, ind)
-					# print(idx, idy, ida, tmp)
-					# print(ind)
 
-					# ind = tmp*npar*nreg + idp*2 + ida*npar
 					ind = ida*npar*nreg + idp*2
-					# print(ind)
-					# print("-----")
 					cols = np.append(cols, ind)
 
 					values = np.append(values, -1*np.ones(npar))
@@ -1073,22 +1092,18 @@ class Atmosphere(object):
 
 					values = np.append(values, -1*np.ones(npar))
 
-				# print(rows)
-				# print("-----")
-
-		print(rows)
-		print(cols)
-
-		shape = (self.nx*self.ny*npar, self.nx*self.ny*npar*nreg)
-		gamma_der = sp.coo_matrix((values, (rows, cols)), shape=shape, dtype=np.float64)
-		print(gamma_der.shape)
+		shape = (self.nx*self.ny*npar + self.n_global_pars, 
+						 self.nx*self.ny*npar*nreg)
+		LT = sp.csr_matrix((values, (rows, cols)), shape=shape, dtype=np.float64)
 		
-		LTL = gamma_der.dot(gamma_der.transpose())
+		# LTL = LT.dot(LT.transpose())
 
-		plt.imshow(LTL.toarray().T, origin="upper", cmap="bwr")
-		plt.colorbar()
-		plt.show()
-		
+		# plt.imshow(LTL.toarray().T, origin="upper", cmap="bwr")
+		# plt.colorbar()
+		# plt.show()
+
+		return LT
+
 	def make_OF_table(self, wavelength_vacuum):
 		if wavelength_vacuum[0]<=210:
 			print("  Sorry, but OF is not properly implemented for wavelengths")

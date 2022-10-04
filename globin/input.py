@@ -336,9 +336,6 @@ class InputData(object):
 			aux = resample(self.instrumental_profile, N)
 			self.instrumental_profile = aux / np.sum(aux)
 
-		self.atmosphere.get_regularization()
-		sys.exit()
-
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
 		Get parameters for synthesis.
@@ -484,17 +481,17 @@ class InputData(object):
 				self.read_node_parameters(parameter, self.parameters_input)
 
 		# check for spatial regularization of atmospheric parameters
-		tmp = _find_value_by_key("spatial_regularization", self.parameters_input, "optional")
+		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
 		self.atmosphere.spatial_regularization = False
 		if tmp is not None:
-			if tmp.lower()=="true":
-				self.atmosphere.spatial_regularization = True
+			self.atmosphere.spatial_regularization = True
+			self.spatial_regularization_weight = float(tmp)
 
 		#============================================================================
 		# if we are doing a spatial regularization, we MUST go into mode 3 inversion!
 		#============================================================================
 		if self.mode!=3 and self.atmosphere.spatial_regularization:
-			raise ValueError("Can not perform spatial regularization in mode=1. Change to mode=3.")
+			raise ValueError(f"Can not perform spatial regularization in the mode={self.mode}. Change to mode=3.")
 
 		self.atmosphere.hydrostatic = False
 		if "temp" in self.atmosphere.nodes:
