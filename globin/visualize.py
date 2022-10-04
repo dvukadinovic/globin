@@ -33,7 +33,7 @@ pars_symbol = {"temp"  : "T",
 			   "chi"   : r"$\phi$",
 			   "nH"    : r"$n_\mathrm{H}^0$"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black", label=None, reference=None):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", label=None, reference=None):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
 
@@ -74,11 +74,11 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black"
 			ax.set_ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
 
 			if reference is not None:
-				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw, color="tab:red")
+				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw, color="black")
 				try:
 					x = reference.nodes[parameter]
 					y = reference.values[parameter][idx,idy] * fact[parameter]
-					ax.scatter(x, y, s=20, color="tab:red")
+					ax.scatter(x, y, s=20, color="black")
 				except:
 					pass
 			k_ += 1
