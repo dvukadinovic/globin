@@ -16,32 +16,26 @@ fact = {"temp"  : 1,
 		"nH"    : 1}
 
 unit = {"temp"  : "K",
-		"ne"    : "1/m3",
+		"ne"    : r"$1/m^3$",
 		"vz"    : "km/s",
 		"vmic"  : "km/s",
 		"mag"   : "G",
 		"gamma" : "deg",
 		"chi"   : "deg",
-		"nH"    : "1/m3"}
+		"nH"    : r"$1/m^3$"}
 
 pars_symbol = {"temp"  : "T",
+			   "ne"	   : r"$n_\mathrm{e}$",
 			   "vz"    : r"$v_\mathrm{LOS}$",
 			   "vmic"  : r"$v_\mathrm{mic}$",
 			   "mag"   : "B",
 			   "gamma" : r"$\gamma$",
-			   "chi"   : r"$\phi$"}
+			   "chi"   : r"$\phi$",
+			   "nH"    : r"$n_\mathrm{H}^0$"}
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black", label=None, transangles=False):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black", label=None, reference=None):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]
-	# if transangles:
-	# 	if "gamma" in atmos.nodes:
-			# cube[6] = np.arccos(cube[6])
-			# cube[6] = 2*np.arctan(cube[6])
-			# print(cube[6]*180/np.pi)
-		# if "chi" in atmos.nodes:
-			# cube[7] = 4*np.arctan(cube[7])
-			# cube[7] = np.arccos(cube[7])
 
 	n_plots = len(parameters)
 	if n_plots==1:
@@ -51,49 +45,45 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="black"
 		ncols = 2
 		nrows = int(np.ceil(n_plots/ncols))
 
-	# if globin.atmos_axs is not None:
-	# 	fig = plt.figure()
-	# 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
-	# 	fig.subplots_adjust(top=0.95, bottom=0.1, left=0.15, right=0.9)
-	# 	axs = [None]*nrows*ncols
-	# 	for idx in range(ncols):
-	# 		for idy in range(nrows):
-	# 			ida = idx * nrows + idy
-	# 			axs[ida] = gs.add_subplot(gs[idx,idy])
-	# 	globin.atmos_axs = axs
+	fig = plt.figure()
+	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
-	for k_ in range(n_plots):
-		parameter = parameters[k_]
-		parID = atmos.par_id[parameter]
+	k_ = 0
+	for i_ in range(nrows):
+		for j_ in range(ncols):
+			if k_+1>len(parameters):
+				continue
 
-		plt.subplot(nrows, ncols, k_+1)
+			parameter = parameters[k_]
+			parID = atmos.par_id[parameter]
 
-		try:
-			x = atmos.nodes[parameter]
-			# if parameter=="gamma":
-			# 	# y = 2*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
-			# 	y = np.arccos(atmos.values[parameter][idx,idy]) * fact[parameter]
-			# elif parameter=="chi":
-			# 	# y = 4*np.arctan(atmos.values[parameter][idx,idy]) * fact[parameter]
-			# 	y = np.arccos(atmos.values[parameter][idx,idy]) * fact[parameter]
-			# else:
-			y = atmos.values[parameter][idx,idy] * fact[parameter]
-			plt.scatter(x, y, s=20, color=color)
-		except:
-			# print(f"globin::visualize --> no nodes for parameter {parameter}")
-			pass
+			ax = fig.add_subplot(gs[i_,j_])
 
-		plt.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color, label=label)
-		if parameter=="ne" or parameter=="nH":
-			plt.yscale("log")
+			try:
+				x = atmos.nodes[parameter]
+				y = atmos.values[parameter][idx,idy] * fact[parameter]
+				ax.scatter(x, y, s=20, color=color)
+			except:
+				pass
 
-		plt.xlabel(r"log$\tau$")
-		plt.ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
-		ax = plt.gca()
-		# ax.set_xticklabels(ax.get_xticks())
-		# ax.set_yticklabels(ax.get_yticks())
-	if label is not None:
-		plt.legend()
+			ax.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color, label=label)
+			if parameter=="ne" or parameter=="nH":
+				ax.set_yscale("log")
+
+			ax.set_xlabel(r"log$\tau$")
+			ax.set_ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
+
+			if reference is not None:
+				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw, color="tab:red")
+				try:
+					x = reference.nodes[parameter]
+					y = reference.values[parameter][idx,idy] * fact[parameter]
+					ax.scatter(x, y, s=20, color="tab:red")
+				except:
+					pass
+			k_ += 1
+	
+	# ax.legend()
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
 	"""

@@ -181,6 +181,8 @@ class Inverter(InputData):
 			if self.instrumental_profile is not None:
 				spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
+			spec.add_noise(self.noise)
+
 			#--- save spectra
 			spec.save(self.output_spectra_path, self.wavelength_air)
 			
@@ -305,7 +307,6 @@ class Inverter(InputData):
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
 
-		start = time.time()
 		iter_start = datetime.now()
 
 		print(f"Observations: {obs.nx} x {obs.ny}")
@@ -327,7 +328,7 @@ class Inverter(InputData):
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
 				if self.verbose:
-					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2}\n")
+					print(f"[{t0:s}] Iteration (min/max): {np.min(itter)+1:2}/{np.max(itter)+1:2}\n")
 				else:
 					n = Natmos - np.sum(stop_flag)
 					dt = datetime.now() - iter_start
@@ -422,17 +423,18 @@ class Inverter(InputData):
 			if atmos.add_stray_light:
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
-						if self.stray_mode==1 or self.stray_type==2:
-							stray_factor = atmos.stray_light[idx,idy]
-						if self.stray_mode==3:
-							stray_factor = atmos.global_pars["stray"]
-						if self.stray_type=="hsra":
-							corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
-						if self.stray_type=="gray":
-							corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
-							corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
-							corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
-							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
+						if stop_flag[idx,idy]==1:
+							if self.stray_mode==1 or self.stray_type==2:
+								stray_factor = atmos.stray_light[idx,idy]
+							if self.stray_mode==3:
+								stray_factor = atmos.global_pars["stray"]
+							if self.stray_type=="hsra":
+								corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
+							if self.stray_type=="gray":
+								corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
+								corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
+								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
+								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
 			if self.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
@@ -491,10 +493,6 @@ class Inverter(InputData):
 				break
 
 		print()
-		t0 = datetime.now()
-		t0 = t0.isoformat(sep=' ', timespec='seconds')
-		end = time.time() - start
-		print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
 		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
