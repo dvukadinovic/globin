@@ -676,6 +676,7 @@ class Inverter(InputData):
 					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*atmos.n_local_pars)
 					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*atmos.n_local_pars)
 					deltaSP -= LT.dot(Gamma)
+					# print(LT.dot(Gamma)/deltaSP)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
@@ -684,6 +685,9 @@ class Inverter(InputData):
 			H = JglobalT.dot(Jglobal) + eye*LM_parameter
 			if atmos.spatial_regularization:
 				H += LTL
+			# plt.imshow(H.toarray(), origin="upper")
+			# plt.colorbar()
+			# plt.show()
 			proposed_steps = spsolve(H, deltaSP)
 
 			#--- save the old parameters
