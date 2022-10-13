@@ -342,7 +342,7 @@ class Inverter(InputData):
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
 				
-				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(weights=self.weights, Ndof=Ndof, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:
@@ -359,9 +359,10 @@ class Inverter(InputData):
 				#--- compute chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
+				diff /= noise_stokes
+				diff /= np.sqrt(Ndof)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
-				diff /= noise_stokes
 				chi2_old = np.sum(diff**2, axis=(2,3))
 
 				"""
@@ -442,14 +443,15 @@ class Inverter(InputData):
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
+			new_diff /= noise_stokes
+			new_diff /= np.sqrt(Ndof)
 			if self.wavs_weight is not None:
 					diff *= self.wavs_weight
-			new_diff /= noise_stokes
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
-			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy] / Ndof
+			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
 			LM_parameter[indx,indy] /= 10
 			itter[indx,indy] += 1
 			updated_pars[indx,indy] = 1
@@ -569,7 +571,6 @@ class Inverter(InputData):
 		if atmos.spatial_regularization:
 			reg_weight = self.spatial_regularization_weight
 			LT = atmos.get_regularization_der()
-			LT *= np.sqrt(Ndof)
 			LT *= np.sqrt(reg_weight)
 			LTL = LT.dot(LT.transpose())
 
@@ -619,10 +620,10 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, Ndof=Ndof, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
+
 				if atmos.spatial_regularization:
 					Gamma = atmos.get_regularization_gamma()
-					Gamma *= np.sqrt(Ndof)
 					Gamma *= np.sqrt(reg_weight)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
@@ -636,13 +637,16 @@ class Inverter(InputData):
 				#--- calculate chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
+				diff /= noise_stokes
+				diff /= np.sqrt(Ndof)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
-				diff /= noise_stokes
+				
 				chi2_old = np.sum(diff**2, axis=(2,3))
 				if atmos.spatial_regularization:
 					tmp = np.sum(Gamma**2, axis=-1)
 					chi2_old += tmp
+					print(tmp/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -671,18 +675,28 @@ class Inverter(InputData):
 				del aux
 
 				if atmos.spatial_regularization:
-					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*atmos.n_local_pars)
-					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*atmos.n_local_pars)
-					deltaSP -= LT.dot(Gamma)
-					# print(LT.dot(Gamma)/deltaSP)
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*Nlocalpar)
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*Nlocalpar)
+					tmp = atmos.scale_LT[:-Nglobalpar]
+					_L = LT[:-Nglobalpar].transpose().multiply(1/tmp)
+					_L = sp.hstack([_L,LT[-Nglobalpar:].transpose()])
+					_LT = _L.transpose()
+					deltaSP -= _LT.dot(Gamma)
+					# print(_LT.dot(Gamma)/deltaSP)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 
 			#--- invert Hessian matrix
-			H = JglobalT.dot(Jglobal) + eye*LM_parameter
+			H = JglobalT.dot(Jglobal)
 			if atmos.spatial_regularization:
+				LTL = _LT.dot(_LT.transpose())
 				H += LTL
+				# plt.imshow(LTL.toarray(), origin="upper")
+				# plt.colorbar()
+				# plt.show()
+			H.setdiag(H.diagonal(k=0) * (1 + LM_parameter), k=0)
+
 			# plt.imshow(H.toarray(), origin="upper")
 			# plt.colorbar()
 			# plt.show()
@@ -733,13 +747,14 @@ class Inverter(InputData):
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
+			new_diff /= noise_stokes
+			new_diff /= np.sqrt(Ndof)
 			if self.wavs_weight is not None:
 				new_diff *= self.wavs_weight
-			new_diff /= noise_stokes
+			
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 			if atmos.spatial_regularization:
 				Gamma = atmos.get_regularization_gamma()
-				Gamma *= np.sqrt(Ndof)
 				Gamma *= np.sqrt(reg_weight)
 				chi2_new += np.sum(Gamma**2, axis=-1)
 
@@ -754,7 +769,7 @@ class Inverter(InputData):
 				updated_parameters = False
 				num_failed += 1
 			else:
-				chi2[...,itter] = chi2_new / Ndof
+				chi2[...,itter] = chi2_new
 				LM_parameter /= 10
 				updated_parameters = True
 				itter += 1

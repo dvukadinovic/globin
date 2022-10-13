@@ -785,7 +785,7 @@ class Atmosphere(object):
 
 		return spec.I, spec.Q, spec.U, spec.V
 
-	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
+	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
 		Parameters:
 		-----------
@@ -812,6 +812,10 @@ class Atmosphere(object):
 		active_indx, active_indy = np.where(synthesize==1)
 
 		node_RF = np.zeros((spec.nx, spec.ny, Nw, 4))
+		if self.spatial_regularization:
+			self.scale_LT = np.zeros((self.nx*self.ny*self.n_local_pars + self.n_global_pars))
+			addition = np.arange(0, self.nx*self.ny*self.n_local_pars, self.n_local_pars)
+			shift = 0
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
@@ -853,6 +857,8 @@ class Atmosphere(object):
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
+				node_RF /= np.sqrt(Ndof)
+				
 				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
 				
 				# save parameter scales from previous iteration
@@ -863,7 +869,8 @@ class Atmosphere(object):
 				# (do not touch old ones)
 				# indx, indy = np.where(synthesize==1)
 				self.parameter_scale[parameter][active_indx,active_indy,nodeID] = scale[active_indx,active_indy]
-				
+				# self.parameter_scale[parameter][active_indx,active_indy,nodeID] = 1
+
 				#--- set RFs value
 				self.rf[active_indx,active_indy,free_par_ID] = np.einsum("ikl,i->ikl", node_RF[active_indx, active_indy], 1/self.parameter_scale[parameter][active_indx,active_indy,nodeID])
 				free_par_ID += 1
@@ -880,6 +887,16 @@ class Atmosphere(object):
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
 					self.build_from_nodes(synthesize)
+
+			# reshape parameter scale for the scaling of regularization Jacobian matrix
+			if self.spatial_regularization:
+				tmp = self.parameter_scale[parameter].reshape(self.nx*self.ny, len(nodes))
+				tmp = tmp.reshape(self.nx*self.ny*len(nodes))
+				inds = np.arange(len(nodes), dtype=np.int32) + shift
+				inds = np.repeat(inds[np.newaxis,:], self.nx*self.ny, axis=0)
+				inds = (inds.T + addition).T.flatten()
+				self.scale_LT[inds] = tmp
+				shift += len(nodes)
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -1046,6 +1063,13 @@ class Atmosphere(object):
 		rows, cols = np.array([], dtype=np.int32), np.array([], dtype=np.int32)
 		values = np.array([], dtype=np.float64)
 
+		norm = np.ones(npar)
+		low, up = 0, 0
+		for i_, parameter in enumerate(self.nodes):
+			low = up
+			up = low + len(self.nodes[parameter])
+			norm[low:up] = self.parameter_norm[parameter]
+
 		ida = 0
 		idp = np.arange(npar)
 		for idx in range(self.nx):
@@ -1060,7 +1084,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2
 					cols = np.append(cols, ind)
 					
-					values = np.append(values, np.ones(npar))
+					values = np.append(values, np.ones(npar)/norm)
 
 					# derivative in respect to neighbouring pixel (up)
 					tmp = (idx-1)*self.ny + idy
@@ -1070,7 +1094,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2
 					cols = np.append(cols, ind)
 
-					values = np.append(values, -1*np.ones(npar))
+					values = np.append(values, -1*np.ones(npar)/norm)
 				
 				# Gamma_1 contribution
 				if idy>0:
@@ -1080,7 +1104,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2 + 1
 					cols = np.append(cols, ind)
 					
-					values = np.append(values, np.ones(npar))
+					values = np.append(values, np.ones(npar)/norm)
 
 					# derivative in respect to neighbouring pixel (left)
 					tmp = idx*self.ny + idy-1
@@ -1090,7 +1114,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2 + 1
 					cols = np.append(cols, ind)
 
-					values = np.append(values, -1*np.ones(npar))
+					values = np.append(values, -1*np.ones(npar)/norm)
 
 		shape = (self.nx*self.ny*npar + self.n_global_pars, 
 						 self.nx*self.ny*npar*nreg)
