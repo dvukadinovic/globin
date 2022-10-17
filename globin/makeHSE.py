@@ -218,7 +218,7 @@ def solve_ne(temp, pg, pe, eps=1e-2):
 
 	return pe
 
-def makeHSE(wave, logt, temp):
+def makeHSE(wave, logt, temp, pg_top=None):
 	"""
 	Routine from D. F. Gray. 
 
@@ -235,8 +235,13 @@ def makeHSE(wave, logt, temp):
 	kappa = np.zeros(nz)
 
 	#--- get Pg and Pe for the top point of atmosphere
-	pg[0] = splev(np.log10(tau[0]), pg0_tck)
+	if pg_top is None:
+		pg[0] = splev(np.log10(tau[0]), pg0_tck)
+	else:
+		pg[0] = pg_top
 	pe[0] = 1
+
+	print("old -- pg = ", pg[0]/10)
 
 	dP = 1e10
 	niter_pg = 0
@@ -253,6 +258,8 @@ def makeHSE(wave, logt, temp):
 		if niter_pg==20:
 			print("Max iter in Pg loop @ top.")
 			break
+
+	print("old -- pg = ", pg[0]/10)
 
 	#--- iterate over atmosphere points for Pg, Pe and Kappa
 	for i_ in range(1,nz):

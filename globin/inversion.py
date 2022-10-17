@@ -181,7 +181,8 @@ class Inverter(InputData):
 			if self.instrumental_profile is not None:
 				spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
-			spec.add_noise(self.noise)
+			# if self.noise!=0:
+			# 	spec.add_noise(self.noise)
 
 			#--- save spectra
 			spec.save(self.output_spectra_path, self.wavelength_air)

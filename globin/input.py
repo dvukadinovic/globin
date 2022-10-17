@@ -390,6 +390,7 @@ class InputData(object):
 		self.observation = Observation(path_to_observations, obs_range=atm_range)
 		if self.interpolate_obs or (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
 			self.observation.interpolate(self.wavelength_air)
+		self.observation.spec /= self.observation.spec[0,0,0,0]
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 

@@ -128,6 +128,8 @@ class Atmosphere(object):
 		self.nreg = 0
 
 		self.hydrostatic = False
+		# gas pressure at the top (used for HSE computation from RH)
+		self.pg_top = 1 # [N/m2]
 
 		# self.atmosphere.RH = pyrh.RH()
 		# self.atmosphere.n_thread = self.n_thread
@@ -417,7 +419,9 @@ class Atmosphere(object):
 
 		idx, idy = arg
 		
-		ne, nH, nHtot, rho = self.RH.hse(0, self.data[idx, idy, 0], self.data[idx, idy, 1], self.data[idx, idy, 2],
+		ne, nH, nHtot, rho = self.RH.hse(0, self.pg_top,
+												 self.data[idx, idy, 0], self.data[idx, idy, 1], 
+												 self.data[idx, idy, 2],
 			                   self.data[idx, idy, 3], self.data[idx, idy, 4],
 			                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
 			                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
@@ -428,14 +432,17 @@ class Atmosphere(object):
 	def makeHSE_old(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
-				pg, pe, _, _ = makeHSE(5000, self.logtau, self.data[idx,idy,1])
+				pg, pe, _, _ = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
 
 				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
-		if np.abs(x_new[0]-ref_atm[0,0,0,0])/x_new[0]>1e-2 or \
-		   np.abs(x_new[-1]-ref_atm[0,0,0,-1])/x_new[-1]>1e-2:
+		new_top = np.round(x_new[0], decimals=2)
+		old_top = np.round(ref_atm[0,0,0,0], decimals=2)
+		new_bot = np.round(x_new[-1], decimals=2)
+		old_bot = np.round(ref_atm[0,0,0,-1], decimals=2)
+		if new_top<old_top or new_bot>old_bot:
 			print("--> Warning: atmosphere will be extrapolated")
 			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
