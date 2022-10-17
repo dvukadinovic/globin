@@ -1869,6 +1869,34 @@ def spinor2multi(atmos_data, do_HSE=False, nproc=1):
 def sir2multi(atmos_data):
 	pass
 
+def multi2sir(atmos, fpath):
+	from scipy.constants import k as kb
+
+	nx, ny, npar, nz = atmos.shape
+	new = np.zeros((nx, ny, 11, nz))
+	
+	for idx in range(atmos.nx):
+		for idy in range(atmos.ny):
+			new[idx,idy,0] = atmos.data[idx,idy,0] 			# log(tau) @ 500nm
+			new[idx,idy,1] = atmos.data[idx,idy,1] 			# T [K]
+			new[idx,idy,2] = atmos.data[idx,idy,2]*1e6 	# ne [1/m3]
+			new[idx,idy,2] *= kb * new[idx,idy,1] * 10	# ne [dyn/cm2]
+			new[idx,idy,3] = atmos.data[idx,idy,4]*1e5	# vmic [cm/s]
+			new[idx,idy,4] = atmos.data[idx,idy,5]			# B [G]
+			new[idx,idy,5] = atmos.data[idx,idy,3]*1e5	# vz [cm/s]
+			new[idx,idy,6] = atmos.data[idx,idy,6]			# gamma [rad]
+			new[idx,idy,6] *= 180/np.pi									# gamma [deg]
+			new[idx,idy,7] = atmos.data[idx,idy,7]			# gamma [rad]
+			new[idx,idy,7] *= 180/np.pi									# gamma [deg]
+
+
+			np.savetxt(f"{fpath}_x{idx+1}_y{idy+1}.mod", new[idx,idy,:,::-1].T, header=" 1.0  1.0  0.0", comments="", fmt="%5.4e")
+
+			# Column 9: Geometrical scale (km)
+			# Column 10: Gas presure (dyn/cm^2)
+			# Column 11: Gas density (gr/cm^3)
+			# new[idx,idy,8] = atmos.height[idx,idy]
+
 def multi2spinor(multi_atmosphere, fname=None):
 	from .makeHSE import Axmu
 
@@ -2027,6 +2055,7 @@ def read_multi(fpath):
 	nx, ny = 1, 1
 
 	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+	atmos.shape = (nx, ny, 14, nz)
 
 	for i_ in range(ndpth):
 		# read first part of the atmosphere
