@@ -22,7 +22,10 @@ from tqdm import tqdm, trange
 import multiprocessing as mp
 import scipy.sparse as sp
 
-import pyrh
+try:
+	import pyrh
+except:
+	raise ImportError("No module 'pyrh'.")
 
 # from .input import read_multi, read_spinor, read_inverted_atmosphere
 
@@ -157,6 +160,9 @@ class Atmosphere(object):
 
 		self.ids_tuple = [(0,0)]
 		self.n_thread = 1
+
+		# container for the RH
+		self.RH = pyrh.RH()
 
 		self.icont = None
 
@@ -410,7 +416,8 @@ class Atmosphere(object):
 		results = np.array(results)
 
 		self.data[indx,indy,2] = results[:,0,:]
-		self.data[indx,indy,8:] = results[:,1:,:]
+		self.data[indx,indy,8:] = results[:,1:7,:]
+		self.rho[indx,indy] = results[:,7,:]
 
 	def _makeHSE(self, arg):
 		fudge_num = 2
@@ -426,16 +433,17 @@ class Atmosphere(object):
 			                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
 			                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
 		
-		result = np.vstack((ne/1e6, nH/1e6))
+		result = np.vstack((ne/1e6, nH/1e6, rho/1e3))
 		return result
 
 	def makeHSE_old(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
-				pg, pe, _, _ = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
+				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
 
 				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
+				self.rho[idx,idy] = rho
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		new_top = np.round(x_new[0], decimals=2)
@@ -2091,5 +2099,26 @@ def read_spinor(fpath):
 
 	return atmos
 
-def read_sir():
-	pass
+def read_sir(fpath):
+	from scipy.constants import k as kb
+
+	data = np.loadtxt(fpath, skiprows=1).T
+	data = data[:,::-1]
+	npar, nz = data.shape
+
+	atmos = Atmosphere(nx=1, ny=1, nz=nz)
+
+	atmos.data[0,0,0] = data[0]			# log(tau) @ 500nm
+	atmos.logtau = data[0]
+	atmos.data[0,0,1] = data[1]			# T [K]
+	atmos.data[0,0,2] = data[2]  		# ne [dyn/cm2]
+	atmos.data[0,0,2] *= 1/10/kb/data[1]/1e6
+	atmos.data[0,0,3] = data[5]*1e5	# vz [km/s]
+	atmos.data[0,0,4] = data[3]*1e5 	# vmic [km/s]
+	atmos.data[0,0,5] = data[4]			# B [G]
+	atmos.data[0,0,6] = data[6] * np.pi/180 # gamma [rad]
+	atmos.data[0,0,7] = data[7] * np.pi/180 # theta [rad]
+
+	atmos.data[0,0,8:] = distribute_hydrogen(data[1], data[-2], data[2])
+
+	return atmos
