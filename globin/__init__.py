@@ -149,20 +149,4 @@ from scipy.constants import e as ELECTRON_CHARGE
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-
-# falc_logt = falc.data[0,0,0]
-# falc_ne = falc.data[0,0,2]
-
-# #--- flag for HSE computation (here defined when we do not read params.input)
-# hydrostatic = 1
-
-# #--- flag for normalizing spectra
-# norm = True
-
-# #--- axes for atmosphere plot (dummy idea?)
-# atmos_axs = None
-
-# #
-# atm_scale = "tau"
-
-# Icont = None
+falc = Atmosphere(f"{__path__}/data/falc_multi.atmos")
