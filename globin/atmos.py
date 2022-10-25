@@ -132,7 +132,7 @@ class Atmosphere(object):
 
 		self.hydrostatic = False
 		# gas pressure at the top (used for HSE computation from RH)
-		self.pg_top = 1 # [N/m2]
+		self.pg_top = None # [N/m2]
 
 		# self.atmosphere.RH = pyrh.RH()
 		# self.atmosphere.n_thread = self.n_thread
@@ -168,6 +168,7 @@ class Atmosphere(object):
 
 		self.add_stray_light = False
 		self.invert_stray = False
+		self.stray_mode = -1
 
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
@@ -445,6 +446,15 @@ class Atmosphere(object):
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 				self.rho[idx,idy] = rho
 
+	def _makeHSE_old(self, arg):
+		idx, idy = arg
+		pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
+
+		ne = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6 # [1/cm3]
+		nH = distribute_hydrogen(self.data[idx,idy,1], pg, pe) # [1/cm3]
+
+		return np.vstack((ne, nH, rho))
+
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		new_top = np.round(x_new[0], decimals=2)
 		old_top = np.round(ref_atm[0,0,0,0], decimals=2)
@@ -505,11 +515,24 @@ class Atmosphere(object):
 		primary.header["NY"] = self.ny
 		primary.header["NZ"] = self.nz
 
-		# primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity")
-		# if "vmac" in self.global_pars:
-		# 	primary.header["VMAC_FIT"] = ("TRUE", "flag for fitting macro velocity")
-		# else:
-		# 	primary.header["VMAC_FIT"] = ("FALSE", "flag for fitting macro velocity")
+		if self.add_stray_light:
+			primary.header["SL_TYPE"] = (self.stray_type, "stray light type")
+			primary.header["SL_MODE"] = (self.stray_mode, " -1 no inversion; 3 global inversion")
+			if self.invert_stray:
+				primary.header["SL_FIT"] = ("True", "flag for fitting stray factor")
+			else:
+				primary.header["SL_FIT"] = ("False", "flag for fitting stray factor")
+			if self.stray_mode==3:
+				if self.invert_stray:
+					primary.header["STRAY"] = (self.global_pars["stray"][0], "stray light factor")
+				else:
+					primary.header["STRAY"] = (self.stray_light[0,0,0], "stray light factor")
+
+		#primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity [km/s]")
+		if "vmac" in self.global_pars:
+			primary.header["VMAC_FIT"] = ("True", "flag for fitting macro velocity")
+		else:
+			primary.header["VMAC_FIT"] = ("False", "flag for fitting macro velocity")
 
 		# add keys from kwargs (as dict)
 		if kwargs:
@@ -519,9 +542,9 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 
 		for parameter in self.nodes:
-			matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
-			matrix[0] = self.nodes[parameter]
-			matrix[1] = self.values[parameter]
+			# matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
+			# matrix[0] = self.nodes[parameter]
+			# matrix[1] = self.values[parameter]
 
 			# if parameter=="gamma":
 				# matrix[1] = 2*np.arctan(matrix[1])
@@ -530,14 +553,18 @@ class Atmosphere(object):
 				# matrix[1] = 4*np.arctan(matrix[1])
 				# matrix[1] = np.arccos(matrix[1])
 
-			par_hdu = fits.ImageHDU(matrix)
+			par_hdu = fits.ImageHDU(self.values[parameter])
 			par_hdu.name = parameter
 
 			# par_hdu.header["unit"] = globin.parameter_unit[parameter]
 			par_hdu.header.comments["NAXIS1"] = "number of nodes"
 			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
-			par_hdu.header.comments["NAXIS4"] = "1 - node values | 2 - parameter values"
+			# par_hdu.header.comments["NAXIS4"] = "parameter values"
+
+			for idn in range(len(self.nodes[parameter])):
+				par_hdu.header[f"NODE{idn+1}"] = self.nodes[parameter][idn]
+#			par_hdu.header["NODES"] = (list(self.nodes[parameter]), "parameter nodes in logtau")
 
 			hdulist.append(par_hdu)
 
@@ -763,8 +790,11 @@ class Atmosphere(object):
 			if self.norm_level=="hsra":
 				spectra.spec /= self.icont
 			if self.norm_level==1:
-				spectra.spec /= spectra.spec[:,:,0,0]
-
+				Ic = spectra.spec[:,:,0,0]
+				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[2], axis=-1)
+				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[3], axis=-1)
+				spectra.spec /= Ic
+		
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
@@ -823,6 +853,9 @@ class Atmosphere(object):
 		# print("    Compute spectra...")
 		spec = self.compute_spectra(synthesize)
 		Nw = spec.nw
+
+		# plt.plot(spec.spec[0,0,:,0])
+		# plt.show()
 
 		active_indx, active_indy = np.where(synthesize==1)
 
@@ -931,6 +964,7 @@ class Atmosphere(object):
 					self.rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
 					self.rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
 					self.rf[:,:,free_par_ID] /= rf_noise_scale
+					self.rf[:,:,free_par_ID] /= np.sqrt(Ndof)
 					self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
 
 					self.parameter_scale[parameter] = np.sqrt(np.sum(self.rf[:,:,free_par_ID,:,:]**2))
@@ -946,6 +980,7 @@ class Atmosphere(object):
 						diff = -spec.spec
 					diff *= weights
 					diff /= rf_noise_scale
+					diff /= np.sqrt(Ndof)
 
 					scale = np.sqrt(np.sum(diff**2))
 					self.parameter_scale[parameter] = scale
@@ -968,6 +1003,7 @@ class Atmosphere(object):
 							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 							diff *= weights
 							diff /= rf_noise_scale
+							diff /= np.sqrt(Ndof)
 
 							if self.mode==2:
 								scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
@@ -994,8 +1030,8 @@ class Atmosphere(object):
 		#--- broaden the spectra
 		if not mean:
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
-			if self.vmac!=0:
-				kernel = spec.get_kernel(self.vmac, order=0)
+			# if self.vmac!=0:
+			# 	kernel = spec.get_kernel(self.vmac, order=0)
 				# self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
 
 		#--- add the stray light component:
@@ -1005,7 +1041,10 @@ class Atmosphere(object):
 					if self.stray_mode==1 or self.stray_mode==2:
 						stray_factor = self.stray_light[idx,idy]
 					if self.stray_mode==3:
-						stray_factor = self.global_pars["stray"]
+						if self.invert_stray:
+							stray_factor = self.global_pars["stray"]
+						else:
+							stray_factor = self.stray_light[idx,idy]
 					if self.stray_type=="hsra":
 						spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 					if self.stray_type=="gray":
@@ -1260,10 +1299,10 @@ def _compute_vmac_RF(args):
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844
 
-	ne = pe/10 / globin.K_BOLTZMAN/temp
+	ne = pe/10 / globin.K_BOLTZMAN/temp # [1/m3]
 	C1 = ne/2 * globin.PLANCK**3 / (2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN*temp)**(3/2)
 	
-	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6
+	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6 # [1/cm3]
 
 	pops = np.zeros((6, len(temp)))
 
@@ -1924,9 +1963,9 @@ def multi2spinor(multi_atmosphere, fname=None):
 			pg = pe + nHtot * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]
 			rho = nHtot * np.mean(Axmu)
 
-			spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
-			spinor_atmosphere[idx,idy,:,4] = pe*10 # [CGS unit]
-			spinor_atmosphere[idx,idy,:,6] = rho
+			# spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
+			# spinor_atmosphere[idx,idy,:,4] = pe*10 # [CGS unit]
+			# spinor_atmosphere[idx,idy,:,6] = rho
 
 			# nHtot = np.sum(multi_atmosphere[idx,idy,8:], axis=0)
 			# avg_mass = np.mean(Axmu)
@@ -1947,28 +1986,15 @@ def multi2spinor(multi_atmosphere, fname=None):
 	# spinor_atmosphere[:,:,:,10] = multi_atmosphere[:,:,6,:]
 	# spinor_atmosphere[:,:,:,11] = multi_atmosphere[:,:,7,:]
 
-	if fname:
+	if ".fits" in fname:
+		primary = fits.PrimaryHDU(spinor_atmosphere)
+		primary.header["LTTOP"] = min(spinor_atmosphere[0,0,:,0])
+		primary.header["LTINC"] = np.round(spinor_atmosphere[0,0,1,0] - spinor_atmosphere[0,0,0,0], decimals=2)
+		primary.header["KCWLR"] = 5000.00
+
+		primary.writeto(fname, overwrite=True)
+	else:
 		np.savetxt(fname, spinor_atmosphere[0,0], header=" {:2d}  1.0 ".format(nz))
-
-	# if fname:
-	# 	primary = fits.PrimaryHDU(spinor_atmosphere)
-	# 	primary.header["LTTOP"] = min(spinor_atmosphere[0,0,0])
-	# 	primary.header["LTBOT"] = max(spinor_atmosphere[0,0,0])
-	# 	primary.header["LTINC"] = np.round(spinor_atmosphere[0,0,0,1] - spinor_atmosphere[0,0,0,0], decimals=2)
-	# 	primary.header["LOGTAU"] = (1, "optical depth scale")
-	# 	primary.header["HEIGHT"] = (2, "height scale (cm)")
-	# 	primary.header["TEMP"] = (3, "temperature (K)")
-	# 	primary.header["PGAS"] = (4, "gass pressure (dyn/cm2)")
-	# 	primary.header["PEL"] = (5, "electron pressure (dyn/cm2)")
-	# 	primary.header["KAPPA"] = (6, "mass density (g/cm2)")
-	# 	primary.header["DENS"] = (7, "density (g/cm3)")
-	# 	primary.header["VMIC"] = (8, "micro-turbulent velocity (cm/s)")
-	# 	primary.header["VZ"] = (9, "vertical velocity (cm/s)")
-	# 	primary.header["MAG"] = (10, "magnetic field strength (G)")
-	# 	primary.header["GAMMA"] = (11, "magnetic field inclination (rad)")
-	# 	primary.header["CHI"] = (12, "magnetic field azimuth (rad)")
-
-	# 	primary.writeto(fname, overwrite=True)
 
 	return spinor_atmosphere
 
@@ -2010,19 +2036,19 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos.header = hdu_list[0].header
 
 	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
+		# if parameter=="stray":
+		# 	stray = hdu_list[0].header
 		try:
 			ind = hdu_list.index_of(parameter)
-			data = hdu_list[ind].data[:, xmin:xmax, ymin:ymax, :]
-			_, nx, ny, nnodes = data.shape
+			data = hdu_list[ind].data[xmin:xmax, ymin:ymax, :]
+			nx, ny, nnodes = data.shape
 
-			atmos.nodes[parameter] = data[0,0,0]
-			# angles are saved in radians, no need to convert them here
-			if parameter=="gamma":
-				atmos.values[parameter] = data[1]
-			elif parameter=="chi":
-				atmos.values[parameter] = data[1]
-			else:
-				atmos.values[parameter] = data[1]
+			atmos.nodes[parameter] = np.zeros(nnodes)
+			for idn in range(nnodes):
+				node = hdu_list[ind].header[f"NODE{idn+1}"]
+				atmos.nodes[parameter][idn] = node
+
+			atmos.values[parameter] = data
 			atmos.mask[parameter] = np.ones(len(atmos.nodes[parameter]))
 
 			atmos.parameter_scale[parameter] = np.ones((atmos.nx, atmos.ny, nnodes))
