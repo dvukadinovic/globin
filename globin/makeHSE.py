@@ -245,12 +245,12 @@ def makeHSE(wave, logt, temp, pg_top):
 
 	#--- get Pg and Pe for the top point of atmosphere
 	if pg_top is None:
-		if (tau[0]<logtau0[-1]) and (tau[0]>logtau0[0]):
-			pg[0] = splev(np.log10(tau[0]), pg0_tck)
-		elif tau[0]<logtau0[0]:
+		if (logt[0]<logtau0[-1]) and (logt[0]>logtau0[0]):
+			pg[0] = splev(logt[0], pg0_tck)
+		elif logt[0]<logtau0[0]:
 			pg[0] = pg0[0]
 	else:
-		pg[0] = pg_top
+		pg[0] = pg_top*10 # because we forward the SI unit, and here we use CGS units
 	pe[0] = pg[0]*1e-3
 
 	dP = 1e10

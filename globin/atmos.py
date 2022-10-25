@@ -440,7 +440,7 @@ class Atmosphere(object):
 	def makeHSE_old(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
-				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
+				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top)
 
 				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
@@ -1963,9 +1963,9 @@ def multi2spinor(multi_atmosphere, fname=None):
 			pg = pe + nHtot * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]
 			rho = nHtot * np.mean(Axmu)
 
-			# spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
-			# spinor_atmosphere[idx,idy,:,4] = pe*10 # [CGS unit]
-			# spinor_atmosphere[idx,idy,:,6] = rho
+			spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
+			spinor_atmosphere[idx,idy,:,4] = pe*10 # [CGS unit]
+			spinor_atmosphere[idx,idy,:,6] = rho
 
 			# nHtot = np.sum(multi_atmosphere[idx,idy,8:], axis=0)
 			# avg_mass = np.mean(Axmu)
@@ -1982,9 +1982,9 @@ def multi2spinor(multi_atmosphere, fname=None):
 	spinor_atmosphere[:,:,:,7] = multi_atmosphere[:,:,4,:]*1e5
 	spinor_atmosphere[:,:,:,8] = multi_atmosphere[:,:,3,:]*1e5
 	# No magnetic field
-	# spinor_atmosphere[:,:,:,9] = multi_atmosphere[:,:,5,:]
-	# spinor_atmosphere[:,:,:,10] = multi_atmosphere[:,:,6,:]
-	# spinor_atmosphere[:,:,:,11] = multi_atmosphere[:,:,7,:]
+	spinor_atmosphere[:,:,:,9] = multi_atmosphere[:,:,5,:]
+	spinor_atmosphere[:,:,:,10] = multi_atmosphere[:,:,6,:]
+	spinor_atmosphere[:,:,:,11] = multi_atmosphere[:,:,7,:]
 
 	if ".fits" in fname:
 		primary = fits.PrimaryHDU(spinor_atmosphere)
@@ -1994,7 +1994,7 @@ def multi2spinor(multi_atmosphere, fname=None):
 
 		primary.writeto(fname, overwrite=True)
 	else:
-		np.savetxt(fname, spinor_atmosphere[0,0], header=" {:2d}  1.0 ".format(nz))
+		np.savetxt(fname, spinor_atmosphere[0,0], header=" {:2d}  1.0 atmosphere".format(nz), fmt="%5.4e", comments="")
 
 	return spinor_atmosphere
 
