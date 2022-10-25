@@ -9,6 +9,7 @@ from astropy.io import fits
 import multiprocessing as mp
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
+from scipy.interpolate import splrep, splev
 
 from tqdm import tqdm, trange
 
@@ -71,6 +72,20 @@ class Inverter(InputData):
 			self.atmosphere.norm = self.norm
 			self.atmosphere.norm_level = self.norm_level
 			self.atmosphere.step = self.step
+
+			if self.atmosphere.pg_top is None:
+				# interpolate the value
+				logtau0 = np.array([-7.00, -5.91, -5.05, -4.06, -3.00])
+				pg0 = np.array([6.32E0,1.06E2,3.18E2,1.01E3,3.46E3])
+				pg0_tck = splrep(logtau0, pg0)
+				if (self.atmosphere.logtau[0]<logtau0[-1]) and (self.atmosphere.logtau[0]>logtau0[0]):
+					self.atmosphere.pg_top = splev(self.atmosphere.logtau[0], pg0_tck)
+				elif self.atmosphere.logtau[0]<logtau0[0]:
+					self.atmosphere.pg_top = pg0[0]
+				else:
+					self.atmosphere.pg_top = pg0[-1]
+
+				self.atmosphere.pg_top /= 10 # [N/m2]
 
 			# fudge data
 			if self.mode>=1:
@@ -288,8 +303,8 @@ class Inverter(InputData):
 
 		"""
 		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
-		parameters in one pixel in given iteration, but in the next one, we can. While 'stop_flag'
-		will always stay 0 after convergence and parameters will not change.
+		parameters in one pixel in given iteration, but in the next one, we can have successful. 
+		While 'stop_flag' will always stay 0 after convergence and parameters will not change.
 		"""
 
 		# indices of diagonal elements of Hessian matrix
@@ -329,7 +344,7 @@ class Inverter(InputData):
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
 				if self.verbose:
-					print(f"[{t0:s}] Iteration (min/max): {np.min(itter)+1:2}/{np.max(itter)+1:2}\n")
+					print(f"[{t0:s}] Iteration (min): {np.min(itter)+1:2}\n")
 				else:
 					n = Natmos - np.sum(stop_flag)
 					dt = datetime.now() - iter_start
@@ -390,7 +405,7 @@ class Inverter(InputData):
 				# and it does!
 
 			# hessian = (nx, ny, npar, npar)
-			H = copy.deepcopy(JTJ)
+			H = JTJ
 			# multiply with LM parameter
 			H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
 			# delta = (nx, ny, npar)
@@ -429,7 +444,10 @@ class Inverter(InputData):
 							if self.stray_mode==1 or self.stray_type==2:
 								stray_factor = atmos.stray_light[idx,idy]
 							if self.stray_mode==3:
-								stray_factor = atmos.global_pars["stray"]
+								if atmos.invert_stray:
+									stray_factor = atmos.global_pars["stray"]
+								else:
+									stray_factor = atmos.stray_light[idx,idy]
 							if self.stray_type=="hsra":
 								corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
 							if self.stray_type=="gray":
@@ -447,7 +465,7 @@ class Inverter(InputData):
 			new_diff /= noise_stokes
 			new_diff /= np.sqrt(Ndof)
 			if self.wavs_weight is not None:
-					diff *= self.wavs_weight
+				diff *= self.wavs_weight
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 
 			#--- if new chi2 is lower than the old chi2
@@ -512,7 +530,10 @@ class Inverter(InputData):
 					if self.stray_mode==1 or self.stray_mode==2:
 						stray_factor = atmos.stray_light[idx,idy]
 					if self.stray_mode==3:
-						stray_factor = atmos.global_pars["stray"]
+						if atmos.invert_stray:
+							stray_factor = atmos.global_pars["stray"]
+						else:
+							stray_factor = atmos.stray_light[idx,idy]
 					if self.stray_type=="hsra":
 						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
 					if self.stray_type=="gray":
@@ -600,7 +621,7 @@ class Inverter(InputData):
 		print(f"Number of degrees of freedom: {Ndof}\n")
 
 		iter_start = datetime.now()
-		
+
 		itter = 0
 		while itter<max_iter:
 			if self.debug:
@@ -647,7 +668,7 @@ class Inverter(InputData):
 				if atmos.spatial_regularization:
 					tmp = np.sum(Gamma**2, axis=-1)
 					chi2_old += tmp
-					print(tmp/chi2_old)
+					# print(tmp/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -662,7 +683,8 @@ class Inverter(InputData):
 				del tmp
 
 				# global Jacobian matrix
-				Jglobal = sp.hstack([Jl,Jg]).tocsr()
+				Jglobal = sp.hstack([Jl,Jg])
+				Jglobal = Jglobal.tocsr()
 				
 				# delete parts of Jacobian (to save some bits of memory)
 				del Jl
@@ -696,12 +718,20 @@ class Inverter(InputData):
 				# plt.imshow(LTL.toarray(), origin="upper")
 				# plt.colorbar()
 				# plt.show()
-			H.setdiag(H.diagonal(k=0) * (1 + LM_parameter), k=0)
+			diagonal = H.diagonal(k=0)
+			diagonal *= LM_parameter
+			diagonal = sp.diags(diagonal, offsets=0, format="csc")
+			H += diagonal
 
 			# plt.imshow(H.toarray(), origin="upper")
 			# plt.colorbar()
 			# plt.show()
-			proposed_steps = spsolve(H, deltaSP)
+			# proposed_steps = spsolve(H, deltaSP, use_umfpack=False)
+			proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, atol=1e-5)
+			if info>0:
+				sys.exit("Did not converge the solution of Ax=b.")
+			if info<0:
+				sys.exit("Could not solve the system Ax=b.")
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -732,7 +762,10 @@ class Inverter(InputData):
 						if self.stray_mode==1 or self.stray_mode==2:
 							stray_factor = atmos.stray_light[idx,idy]
 						if self.stray_mode==3:
-							stray_factor = atmos.global_pars["stray"]
+							if atmos.invert_stray:
+								stray_factor = atmos.global_pars["stray"]
+							else:
+								stray_factor = atmos.stray_light[idx,idy]
 						if self.stray_type=="hsra":
 							corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
 						if self.stray_type=="gray":
@@ -788,7 +821,7 @@ class Inverter(InputData):
 				break_flag = True
 
 			if updated_parameters:
-				print("  chi2 --> {:4.3e} | LM --> {:.1e}".format(np.sum(chi2[...,itter-1]), LM_parameter))
+				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2[...,itter-1]), np.log10(LM_parameter)))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
@@ -839,8 +872,11 @@ class Inverter(InputData):
 				for idy in range(atmos.ny):
 					if self.stray_mode==1 or self.stray_mode==2:
 						stray_factor = atmos.stray_light[idx,idy]
-					if self.stray_mode==3:
-						stray_factor = atmos.global_pars["stray"]
+					if self.stray_mode==3:	
+						if atmos.invert_stray:
+							stray_factor = atmos.global_pars["stray"]
+						else:
+							stray_factor = atmos.stray_light[idx,idy]
 					if self.stray_type=="hsra":
 						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
 					if self.stray_type=="gray":

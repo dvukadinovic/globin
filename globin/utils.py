@@ -7,6 +7,7 @@ import subprocess as sp
 import multiprocessing as mp
 import copy
 import pyrh
+from scipy.interpolate import splrep, splev
 
 from .makeHSE import makeHSE
 
@@ -21,12 +22,37 @@ import globin
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.input.read_node_atmosphere(node_atmosphere_path)
 
+#    logtau = globin.falc.logtau
+#    nHtot = np.sum(globin.falc.data[0,0,8:], axis=0) # [1/cm3]
+#    ne = globin.falc.data[0,0,2] # [1/cm3]
+#    temp = globin.falc.data[0,0,1] # [K]
+#    pg = (nHtot + ne)*1e6 * k_b * temp # [N/m2]
+#    tck = splrep(logtau, pg)
+
+    logtau0 = np.array([-7.00, -5.91, -5.05, -4.06, -3.00])
+    pg0 = np.array([6.32E0,1.06E2,3.18E2,1.01E3,3.46E3])
+    pg0_tck = splrep(logtau0, pg0)
+    if (atmos.logtau[0]<logtau0[-1]) and (atmos.logtau[0]>logtau0[0]):
+        atmos.pg_top = splev(atmos.logtau[0], pg0_tck)
+    elif atmos.logtau[0]<logtau0[0]:
+        atmos.pg_top = pg0[0]
+    else:
+        atmos.pg_top = pg0[-1]
+
+#    if atmos.logtau[0]<logtau[-1] and atmos.logtau[0]>logtau[0]:
+#        pg_top = splev(atmos.logtau[0], tck)
+#    elif atmos.logtau[0]<logtau[0]:
+#        pg_top = pg[0]
+#    else:
+#        pg_top = pg[-1]
+#    atmos.pg_top = pg_top
+
     # atmos.data = np.zeros((atmos.nx, atmos.ny, atmos.npar, atmos.nz), dtype=np.float64)
     # atmos.data[:,:,0,:] = atmos.logtau
     atmos.vmac = vmac
     # atmos.interpolate_atmosphere(atmos.logtau, globin.falc.data)
     atmos.build_from_nodes(np.ones((atmos.nx, atmos.ny)))
-    atmos.RH = pyrh.RH()
+#    atmos.RH = pyrh.RH()
     # for idx in range(atmos.nx):
     #     for idy in range(atmos.ny):
     #         pg, pe, _,_ = makeHSE(5000, atmos.logtau, atmos.data[idx,idy,1])

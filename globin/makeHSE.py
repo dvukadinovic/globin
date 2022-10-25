@@ -227,7 +227,7 @@ def solve_ne(temp, pg, pe, eps=1e-2):
 
 	return pe
 
-def makeHSE(wave, logt, temp, pg_top=None):
+def makeHSE(wave, logt, temp, pg_top):
 	"""
 	Routine from D. F. Gray. 
 
@@ -245,7 +245,10 @@ def makeHSE(wave, logt, temp, pg_top=None):
 
 	#--- get Pg and Pe for the top point of atmosphere
 	if pg_top is None:
-		pg[0] = splev(np.log10(tau[0]), pg0_tck)
+		if (tau[0]<logtau0[-1]) and (tau[0]>logtau0[0]):
+			pg[0] = splev(np.log10(tau[0]), pg0_tck)
+		elif tau[0]<logtau0[0]:
+			pg[0] = pg0[0]
 	else:
 		pg[0] = pg_top
 	pe[0] = pg[0]*1e-3
