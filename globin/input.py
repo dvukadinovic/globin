@@ -116,12 +116,12 @@ class InputData(object):
 				self.norm = True
 				self.norm_level = 1
 
-		# filling-factor for stray light correction (using HSRA spectrum)
+		# filling-factor for stray light correction
 		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, float)
 		if stray_factor>1:
 			raise ValueError("Stray light factor value above 1.")
-		if stray_factor<-1:
-			raise ValueError("Stray light factor value below -1.")
+		if stray_factor<0:
+			raise ValueError("Stray light factor value below 0.")
 
 		# flag for computing the mean spectrum
 		mean = _find_value_by_key("mean", self.parameters_input, "optional")
@@ -288,8 +288,8 @@ class InputData(object):
 			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
 
 			self.atmosphere.add_stray_light = True
-			eye = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-			self.atmosphere.stray_light = eye * np.abs(stray_factor)
+			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+			self.atmosphere.stray_light = ones * np.abs(stray_factor)
 			
 			if stray_factor<0:
 				self.atmosphere.invert_stray = True
@@ -298,14 +298,14 @@ class InputData(object):
 					self.atmosphere.n_local_pars += 1
 					self.atmosphere.nodes["stray"] = np.array([0])
 					self.atmosphere.values["stray"] = self.atmosphere.stray_light
-					self.atmosphere.parameter_scale["stray"] = eye
+					self.atmosphere.parameter_scale["stray"] = ones
 				elif self.stray_mode==3:
 					# stray light inversion in global mode
 					self.atmosphere.n_global_pars += 1
 					self.atmosphere.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
 					self.atmosphere.parameter_scale["stray"] = 1.0
 				else:
-					raise ValueError(f"Warning: Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
+					raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
@@ -390,7 +390,6 @@ class InputData(object):
 		self.observation = Observation(path_to_observations, obs_range=atm_range)
 		if self.interpolate_obs or (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
 			self.observation.interpolate(self.wavelength_air)
-		self.observation.spec /= self.observation.spec[0,0,0,0]
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
