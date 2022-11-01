@@ -1196,3 +1196,68 @@ def read_OF_data(fpath):
 	of_wave = write_wavs(of_wave, fname=None)
 
 	return of_num, of_wave, of_value
+
+class RF(object):
+	def __init__(self, fpath=None):
+		if fpath is not None:
+			self.read(fpath)
+
+	def read(self, fpath):
+		hdu = fits.open(fpath)
+
+		# print(repr(hdu[0].header))
+
+		self.rf = hdu[0].data
+		self.wavelength = hdu[1].data
+		self.logtau = hdu[2].data
+
+		self.nx = self.rf.shape[0]
+		self.ny = self.rf.shape[1]
+		self.nz = self.rf.shape[3]
+
+		npar = self.rf.shape[2]
+		self.pars = {}
+		nread = 0
+		i_ = 0
+		while nread < npar:
+			parameter = hdu[0].header[f"PAR{i_+1}"]
+			if parameter in ["loggf", "dlam"]:
+				idp_min = hdu[0].header["PARIDMIN"]-1
+				idp_max = hdu[0].header["PARIDMAX"]-1
+				idp = np.arange(idp_min, idp_max+1)
+				nread += len(idp)
+			else:
+				idp = hdu[0].header[f"PARID{i_+1}"] - 1
+				nread += 1
+			self.pars[parameter] = idp
+			i_ += 1
+
+	def norm(self):
+		for parameter in self.pars:
+			idp = self.pars[parameter]
+			if parameter in ["loggf", "dlam"]:
+				# norm = np.sqrt(np.sum(self.rf[:,:,idp]**2, axis=(4,5)))
+				continue
+			else:
+			# sum over wavelength and Stokes components and depth
+				norm = np.sqrt(np.sum(self.rf[:,:,idp]**2, axis=(2,3,4)))
+			# print(norm[0,0])
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					# self.rf[idx,idy,idp] = np.einsum("ijk,i->ijk", self.rf[idx,idy,idp], 1/norm[idx,idy])
+					self.rf[idx,idy,idp] /= norm[idx,idy]
+
+	def get_par_rf(self, parameter):
+		idp = self.pars[parameter]
+		return self.rf[:,:,idp]
+
+	def get_stokes_rf(self, stokes):
+		if stokes.lower()=="i":
+			ids = 0
+		if stokes.lower()=="q":
+			ids = 1
+		if stokes.lower()=="u":
+			ids = 2
+		if stokes.lower()=="v":
+			ids = 3
+		return self.rf[...,ids]

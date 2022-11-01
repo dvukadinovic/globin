@@ -59,7 +59,6 @@ def read_RLK_lines(fpath):
     
     RLK_lines = []
 
-
     for i_, line in enumerate(text_lines):
         # ignore blank lines in Kurucz line list file
         if len(line)<160:

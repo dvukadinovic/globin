@@ -281,42 +281,37 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-5, logtau_bot=1, dtau=0.5, Stokes="I", norm=True):
+def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, norm=False):
 	cmap = {"temp"  : "YlOrRd", 
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
 			"mag"   : "bwr", 
 			"gamma" : "bwr",
 			"chi"   : "bwr"}
-	cbar_label = {"temp"   : "T [K]", 
-				  "vmic"   : r"$v_\mathrm{mic}$",
-				  "vz"     : r"$v_z$ [km/s]", 
-				  "mag"    : "B [G]", 
-				  "gamma"  : r"$\gamma$", 
-				  "chi"    : r"$\chi$"}
+	cbar_label = {"temp"   : "Temperature", 
+				  "vmic"   : r"Micro-velocity",
+				  "vz"     : r"LOS velocity", 
+				  "mag"    : "Mag. field", 
+				  "gamma"  : r"Inclination", 
+				  "chi"    : r"Azimuth"}
 	stokesV = {"I" : 0, "Q" : 1, "U" : 2, "V" : 3}
 
-	if fpath is not None:
-		hdulist = fits.open(fpath)
-	else:
-		sys.exit("No RF file to open.")
-
-	logtau = hdulist["depths"].data
-	wavs = hdulist["wavelength"].data
+	wavs = _rf.wavelength
 	lam_min, lam_max = wavs[0], wavs[-1]
 	lam0 = (lam_max + lam_min)/2
 
-	ind_top = np.argmin(np.abs(logtau - logtau_top))
-	ind_bot = np.argmin(np.abs(logtau - logtau_bot))+1
+	ind_top = np.argmin(np.abs(_rf.logtau - logtau_top))
+	ind_bot = np.argmin(np.abs(_rf.logtau - logtau_bot))+1
 
 	# rf.shape = (nx, ny, 6, nz, nw, 4)
-	rf = hdulist["RF"].data[:,:,:, ind_top:ind_bot, :, :]
+	if norm:
+		_rf.norm()
+	rf = _rf.rf
 	nx, ny, npar, nz, nw, ns = rf.shape
-	logtau = logtau[ind_top:ind_bot]
+	logtau = _rf.logtau[ind_top:ind_bot]
+	dtau = _rf.logtau[1] - _rf.logtau[0]
 
-	pars = [hdulist["RF"].header[f"PAR{i_+1}"] for i_ in range(npar)]
-	parIDs = [hdulist["RF"].header[f"PARID{i_+1}"]-1 for i_ in range(npar)]
-	pars = dict(zip(pars, parIDs))
+	pars = _rf.pars
 
 	stokes_range = []
 	stokes_labels = []
@@ -327,21 +322,16 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-
 
 	NZ = int(np.int((logtau[-1] - logtau[0])) / dtau) + 1
 
-	nrows = len(params)
+	nrows = len(parameters)
 	ncols = len(stokes_range)
 	NW = 11
 	if ncols!=1:
 		NW = 5
 
-	xpos = np.linspace(0, nw, num=NW)
-	xvals = np.round(np.linspace(lam_min-lam0, lam_max-lam0, num=NW), decimals=2)
-	ypos = np.linspace(0, nz, num=NZ)
-	yvals = np.round(np.linspace(logtau[0], logtau[-1], num=NZ), decimals=2)
-	
-	fig = plt.figure(figsize=(12,10), dpi=150)
+	fig = plt.figure(figsize=(12,10), dpi=90)
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.35, hspace=0.5)
 
-	for i_, parameter in enumerate(params):
+	for i_, parameter in enumerate(parameters):
 		try:
 			idp = pars[parameter]
 		except:
@@ -362,14 +352,23 @@ def plot_rf(fpath=None, params=["temp", "mag", "vz"], idx=0, idy=0, logtau_top=-
 			if parameter=="temp":
 				if ids!=0:
 					par_cmap = "bwr"
-				else:
-					vmin = 0
-			im = ax.imshow(matrix, aspect="auto", cmap=par_cmap, vmin=vmin, vmax=vmax)
-			add_colorbar(fig, ax, im, label=cbar_label[parameter])
-			ax.set_xticks(xpos)
-			ax.set_xticklabels(xvals)
-			ax.set_yticks(ypos)
-			ax.set_yticklabels(yvals)
+				if norm and ids==0:
+					par_cmap = "bwr"
+			# 	else:
+			# 		vmin = 0
+			im = ax.imshow(matrix, aspect="auto", origin="upper",
+				cmap=par_cmap, vmin=vmin, vmax=vmax,
+				extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
+			if j_+1==ncols:
+				add_colorbar(fig, ax, im, label=cbar_label[parameter])
+			else:
+				add_colorbar(fig, ax, im)
+
+			if j_>0:
+				ax.set_yticklabels([])
+			if i_+1<nrows:
+				ax.set_xticklabels([])
+
 			ax.grid(b=True, which="major", axis="y", lw=0.5)
 
 	plt.show()

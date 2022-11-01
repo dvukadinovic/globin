@@ -310,7 +310,10 @@ class Atmosphere(object):
 		return new
 
 	def __str__(self):
-		return "<Atmosphere: fpath = {}, (nx,ny,npar,nz) = ({},{},{},{})>".format(self.fpath, self.nx, self.ny, self.npar, self.nz)
+		_str = "<globin.atmos.Atmosphere():\n"
+		_str += "  fpath = {}\n".format(self.fpath)
+		_str += "  (nx,ny,npar,nz) = ({},{},{},{})>".format(*self.shape)
+		return _str
 
 	def get_atmos(self, idx, idy):
 		# return atmosphere from cube with given indices 'idx' and 'idy'.
@@ -417,7 +420,9 @@ class Atmosphere(object):
 
 		return atmos.data[idx,idy]
 
-	def makeHSE(self, flag):
+	def makeHSE(self, flag=None):
+		if flag is None:
+			flag = np.ones((self.nx, self.ny))
 		indx, indy = np.where(flag==1)
 		args = zip(indx, indy)
 
@@ -446,6 +451,20 @@ class Atmosphere(object):
 		
 		result = np.vstack((ne/1e6, nH/1e6, rho/1e3))
 		return result
+
+	def get_pg_top(self):
+		N = (np.sum(globin.falc.data[0,0,8:], axis=0) + globin.falc.data[0,0,2]) * 1e6 # [cm3 --> m3]
+		pg = N * globin.K_BOLTZMAN * globin.falc.data[0,0,1]
+		tck = splrep(globin.falc.logtau, pg)
+		top = self.logtau[0]
+		if top<globin.falc.logtau[0]:
+			pg_top = pg[0]
+		elif top>=globin.falc.logtau[0] and top<=globin.falc.logtau[-1]:
+			pg_top = splev(self.logtau[0], tck)
+		else:
+			sys.exit("Top of atmosphere not in range of FAL C log_tau scale.")
+
+		self.pg_top = pg_top
 
 	def makeHSE_old(self):
 		for idx in range(self.nx):
@@ -780,7 +799,21 @@ class Atmosphere(object):
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
 
-	def compute_spectra(self, synthesize):
+	def compute_spectra(self, synthesize=None):
+		"""
+		Parameters:
+		-----------
+		synthesize : ndarray
+		  flag for computing the pixels spectrum. If synthesize[idx,idy]==1 we compute spectrum,
+		  otherwise, we ignore it (populate with nans/zeros).
+
+		Return:
+		-------
+		spectra : globin.Spectrum() object
+			structure containgin all the info regarding the spectrum.
+		"""
+		if synthesize is None:
+			synthesize = np.ones((self.nx, self.ny))
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
 		
@@ -1262,6 +1295,87 @@ class Atmosphere(object):
 			print(idp, delta, rmsd)
 		print("--------------------------------------")
 
+	def read_spectral_lines(self, fpath):
+		_, RLK_lines = globin.atoms.read_RLK_lines(fpath)
+
+		nlines = len(RLK_lines)
+
+		self.global_pars["loggf"] = np.zeros((self.nx, self.ny, nlines))
+		self.global_pars["dlam"] = np.zeros((self.nx, self.ny, nlines))
+		self.line_no["loggf"] = np.zeros(nlines, dtype=np.int32)
+		self.line_no["dlam"] = np.zeros(nlines, dtype=np.int32)
+
+		for idl in range(nlines):
+			self.global_pars["loggf"][...,idl] = RLK_lines[idl].loggf
+			self.line_no["loggf"][idl] = RLK_lines[idl].lineNo - 1 # we count from 0
+			self.global_pars["dlam"][...,idl] = 0
+			self.line_no["dlam"][idl] = RLK_lines[idl].lineNo - 1 # we count from 0
+
+	def set_wavelength(self, lmin=None, lmax=None, nwl=None, dlam=None, fpath=None, unit="A"):
+		"""
+		Create the wavelength vector in Angstroms. Transform the values to vacuume one for 
+		synthesis in RH.
+
+		If 'fpath' is provided, we first read the wavelengths from this file.
+
+		One of 'nwl' and 'dlam' must be provided to be able to compute the wavelength 
+		vector. Otherwise, an error is thrown.
+
+		Parameters:
+		-----------
+		lmin : float (optional)
+			lower limit of wavelength vector.
+		lmax : float (optional)
+			upper limit of wavelength vector.
+		nwl : float (optional)
+			number of wavelength points between 'lmin' and 'lmax'.
+		dlam : float (optional)
+			spacing in wavelength vector between 'lmin' and 'lamx'.
+		fpath : str (optinoal)
+			a path to a text file containing the wavelength vector. If it is 
+			provided, if has priority over manual specification of wavelength
+			vector.
+
+		Error:
+		------
+		If neighter of 'nwl' and 'dlam' is provided, an error is thrown.
+		"""
+
+		if fpath is not None:
+			self.wavelength = np.loadtxt(fpath)
+		else:
+			if nwl is not None:
+				self.wavelength = np.linspace(lmin, lmax, num=nwl)
+			elif dlam is not None:
+				self.wavelength = np.arange(lmin, lmax+dlam, dlam)
+			else:
+				sys.exit("globin.atmos.Atmosphere.set_wavelength():\n  Neighter the number of wavelenths or spacing has been provided.")
+
+		# transform values to nm and compute the wavelengths in vacuume
+		if unit=="A":
+			self.wavelength /= 10
+		self.wavelength_vacuum = globin.rh.write_wavs(self.wavelength, fname=None)
+
+	def add_magnetic_vector(self, B, gamma, chi):
+		"""
+		Add by hand a magnetic field vector to the atmosphere.
+
+		Parameters:
+		-----------
+		B : float or ndarray
+			magnetic field strength in G.
+		gamma : float or ndarray
+			magnetic field inclination in degrees.
+		chi : float or ndarray
+			magnetic field azimuth in degrees.
+		"""
+		gamma = np.deg2rad(gamma)
+		chi = np.deg2rad(chi)
+
+		self.data[:,:,5] = B
+		self.data[:,:,6] = gamma
+		self.data[:,:,7] = chi
+
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	nx, ny, npar, nw, ns = rf.shape
 
@@ -1399,303 +1513,55 @@ def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 		print("We have NaN in atomic structure!\n")
 		sys.exit()
 
-def extract_spectra_and_atmospheres(lista, Nx, Ny, Nz):
-	Nw = len(globin.wavelength)
-	spectra = globin.Spectrum(Nx, Ny, Nw)
-	spectra.noise = globin.noise
-	spectra.wavelength = globin.wavelength
-	spectra.lmin = globin.lmin
-	spectra.lmax = globin.lmax
-	spectra.step = globin.step
-
-	# atmospheres = copy.deepcopy(globin.atm)
-	atmospheres = globin.Atmosphere(nx=Nx, ny=Ny, nz=Nz)
-	atmospheres.height = np.zeros((Nx, Ny, Nz))
-	atmospheres.cmass = np.zeros((Nx, Ny, Nz))
-
-	# this will work only for LTE synthesis...?
-	# in NLTE we have an active wavelengths that can be
-	# on eaither side of 500nm. Smarter way needed for this...
-	if globin.lmin>500:
-		ind_min, ind_max = 1, None
-	if globin.lmax<500:
-		ind_min, ind_max = 0, -1
-
-	if globin.stokes_mode=="NO_STOKES":
-		chi_c_shape = list(lista[0]["rh_obj"].chi_c.shape)
-		chi_c_shape[0] -= 1 # we have one less wavelenght that we are not taking inot account (@500nm)
-		atmospheres.chi_c = np.zeros((Nx,Ny,*chi_c_shape))
-
-	for item in lista:
-		if item is not None:
-			rh_obj, idx, idy = item.values()
-
-			# ind_min = np.argmin(abs(rh_obj.wave - globin.lmin))
-			# ind_max = np.argmin(abs(rh_obj.wave - globin.lmax))+1
-
-			# print(globin.wavelength)
-			# print(rh_obj.wave)
-			# print(ind_min, ind_max)
-			# print(rh_obj.wave[ind_min:ind_max])
-
-			# Stokes vector
-			spectra.spec[idx,idy,:,0] = rh_obj.int[slice(ind_min,ind_max)]
-			# if there is magnetic field, read the Stokes components
-			if rh_obj.stokes:
-				spectra.spec[idx,idy,:,1] = rh_obj.ray_stokes_Q[ind_min:ind_max]
-				spectra.spec[idx,idy,:,2] = rh_obj.ray_stokes_U[ind_min:ind_max]
-				spectra.spec[idx,idy,:,3] = rh_obj.ray_stokes_V[ind_min:ind_max]
-
-			# Atmospheres
-			# Atmopshere read here is one projected to local reference frame (from rhf1d) and
-			# not from solveray!
-			atmospheres.data[idx,idy,0] = np.log10(rh_obj.geometry["tau500"])
-			atmospheres.data[idx,idy,1] = rh_obj.atmos["T"]
-			atmospheres.data[idx,idy,2] = rh_obj.atmos["n_elec"] / 1e6 	# [1/m3 --> 1/cm3]
-			atmospheres.data[idx,idy,3] = rh_obj.geometry["vz"] / 1e3  	# [m/s --> km/s]
-			atmospheres.data[idx,idy,4] = rh_obj.atmos["vturb"] / 1e3  	# [m/s --> km/s]
-			try:
-				# magnetic field should be reprojected when we do for mu!=1 (???)
-				atmospheres.data[idx,idy,5] = rh_obj.atmos["B"] * 1e4 # [T --> G]
-				atmospheres.data[idx,idy,6] = rh_obj.atmos["gamma_B"] #	[rad]
-				atmospheres.data[idx,idy,7] = rh_obj.atmos["chi_B"] 	# [rad]
-			except:
-				pass
-			atmospheres.height[idx,idy] = rh_obj.geometry["height"]
-			atmospheres.cmass[idx,idy] = rh_obj.geometry["cmass"]
-			if globin.stokes_mode=="NO_STOKES":
-				atmospheres.chi_c[idx,idy] = rh_obj.chi_c[ind_min:ind_max] + rh_obj.scatt[ind_min:ind_max]
-			for i_ in range(rh_obj.atmos['nhydr']):
-				atmospheres.data[idx,idy,8+i_] = rh_obj.atmos["nh"][:,i_] / 1e6 # [1/cm3 --> 1/m3]
-
-	# tau = globin.rh.get_tau(atmospheres.height[0,0], 1, atmospheres.chi_c[0,0,-1])
-	# tau = np.log10(tau)
-	
-	# plt.plot(atmospheres.height[0,0]/1e3, tau, label="average chi")
-	
-	# from scipy.integrate import simps
-
-	# tau = np.zeros(len(rh_obj.atmos["T"]))
-	# tau_local = np.zeros(len(rh_obj.atmos["T"]))
-	# for idz in range(1, len(tau)):
-	# 	tau[idz] = simps(-atmospheres.chi_c[0,0,-1,:idz], atmospheres.height[0,0,:idz])
-	# 	dh = atmospheres.height[0,0,idz-1] - atmospheres.height[0,0,idz]
-	# 	tau_local[idz] = tau_local[idz-1] + atmospheres.chi_c[0,0,-1,idz] * dh
-
-	# plt.plot(atmospheres.height[0,0]/1e3, np.log10(tau_local), label="local chi")
-	# plt.plot(atmospheres.height[0,0]/1e3, np.log10(tau), label="proper integral")
-
-	# plt.xlabel("Height [km]")
-	# plt.ylabel(r"$\log\tau$")
-
-	# plt.legend()
-	# plt.show()
-
-	# sys.exit()
-
-	spectra.wave = rh_obj.wave
-
-	return spectra, atmospheres
-
-def compute_spectra(atmos):
-	"""
-	Function which computes spectrum from input atmosphere. It will distribute
-	the calculation to number of threads given in 'init' and store the spectrum
-	in file 'spectra.fits'.
-
-	For each run we make log files which are stored in 'logs' directory.
-
-	Parameters:
-	---------------
-	init : Input object
-		Input class object. It must contain number of threads 'n_thread', list
-		of sliced atmospheres from cube 'atm_name_list' and name of the output
-		spectrum 'rh_spec_name' read from 'keyword.input' file. Rest are dimension
-		of the cube ('nx' and 'ny') which are initiated from reading atmosphere
-		file. Also, when reading input we set Pool object for multi thread
-		claculation of spectra.
-	atmos : Atmosphere object
-		Atmosphere object for which we compute spectra.
-	clean_dirs : bool (optional)
-		Flag which controls if we should delete wroking directories after
-		finishing the synthesis. Default value is False.
-
-	Returns:
-	---------------
-	spec_cube : ndarray
-		Spectral cube with dimensions (nx, ny, nlam, 5) which stores
-		the wavelength and Stokes vector for each pixel in atmosphere cube.
-	"""
-	if len(atmos.atm_name_list)==0:
-		print("Empty list of atmosphere names.\n")
-		globin.remove_dirs()
-		sys.exit()
-
-	if globin.of_mode:
-		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
-			args = [ [atm_name, atmos.line_lists_path[0], of_path] for atm_name, of_path in zip(atmos.atm_name_list, atmos.of_paths)]
-		elif globin.mode==2:
-			args = [ [atm_name, line_list_path, of_path] for atm_name, line_list_path, of_path in zip(atmos.atm_name_list, atmos.line_lists_path, atmos.of_paths)]
-	else:
-		if globin.mode<=0 or globin.mode==1 or globin.mode==3:
-			args = [ [atm_name, atmos.line_lists_path[0]] for atm_name in atmos.atm_name_list]
-		elif globin.mode==2:
-			args = [ [atm_name, line_list_path] for atm_name, line_list_path in zip(atmos.atm_name_list, atmos.line_lists_path)]
-	# else:
-	# 	print("--> Error in compute_spectra()")
-	# 	print("    We can not make a list of arguments for computing spectra.")
-	# 	globin.remove_dirs()
-	# 	sys.exit()
-
-	#--- make directory in which we will save logs of running RH
-	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
-		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
-	else:
-		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
-			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
-
-	#--- distribute the process to threads
-	rh_obj_list = globin.pool.map(func=globin.pool_synth, iterable=args)
-
-	#--- exit if all spectra returned from child process are None (failed synthesis)
-	kill = True
-	for item in rh_obj_list:
-		kill = kill and (item is None)
-		if not kill:
-			break
-	if kill:
-		print("--> Spectrum synthesis on all pixels have failed!\n")
-		# globin.remove_dirs()
-		sys.exit()
-
-	#--- extract data cubes of spectra and atmospheres from finished synthesis
-	spectra, atmospheres = extract_spectra_and_atmospheres(rh_obj_list, atmos.nx, atmos.ny, atmos.nz)
-	spectra.mean_spectrum()
-	spectra.norm()
-
-	return spectra, atmospheres
-
-def RH_compute_RF(atmos, par_flag, rh_spec_name, wavelength):
-	compute_spectra(atmos, rh_spec_name, wavelength)
-	
-	lmin, lmax = wavelength[0], wavelength[-1]
-
-	#--- arguments for 'pool_rf' function
-	args = [[name,rh_spec_name] for name in atmos.atm_name_list]
-
-	#--- make directory in which we will save logs of running 'rf_ray'
-	if not os.path.exists(f"{globin.cwd}/runs/{globin.wd}/logs"):
-		os.mkdir(f"{globin.cwd}/runs/{globin.wd}/logs")
-	else:
-		sp.run(f"rm {globin.cwd}/runs/{globin.wd}/logs/*",
-			shell=True, stdout=sp.DEVNULL, stderr=sp.STDOUT)
-
-	# rf.shape = (nx, ny, np=6, nz, nw, ns=4)
-	rf = np.zeros((atmos.nx, atmos.ny, 6, atmos.nz, len(wavelength), 4))
-
-	"""
-	Rewrite 'keyword.input' file to compute appropriate RFs for
-	parameters of inversion.
-	"""
-
-	keyword_path = f"runs/{globin.wd}/{globin.rh_input_name}"
-	for i_, par in enumerate(atmos.nodes):
-		if par_flag[i_]:
-			rfID = rf_id[par]
-			key = "RF_" + par.upper()
-			# broken now
-			globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "TRUE", keyword_path)
-			
-			pars = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
-			pars.remove(par)
-			for item in pars:
-				key = "RF_" + item.upper()
-				# broken
-				globin.keyword_input = globin.utils._set_keyword(globin.keyword_input, key, "FALSE", keyword_path)
-
-			rf_list = globin.pool.map(func=globin.pool_rf, iterable=args)
-
-			for item in rf_list:
-				if item is not None:
-					wave = item["wave"]
-					
-					#--- indices of min and max values for wavelength
-					ind_min = np.argmin(np.abs(wave-lmin))
-					ind_max = np.argmin(np.abs(wave-lmax))+1
-					
-					idx, idy = int(item["idx"]), int(item["idy"])
-					aux = item["rf"].reshape(6, atmos.nz, len(wave), 4)[:, :, ind_min:ind_max, :]
-					rf[idx,idy,rfID] = aux[rfID]
-
-			print("Done RF for ", par)
-
-	return rf
-
-def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_params=["vmac"], fpath=None):
-	if (local_params is None) and (global_params is None):
+def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=None):
+	if (local_pars is None) and (global_pars is None):
 		raise ValueError("None of atmospheric or atomic are given for RF computation.")
 
-	# set reference atmosphere
-	atmos = copy.deepcopy(globin.atm)
-	atmos.write_atmosphere()
-	atmos.line_lists_path = globin.atm.line_lists_path
-
-	atmos.line_no = globin.atm.line_no
-	atmos.global_pars = globin.atm.global_pars
-
-	#--- copy current atmosphere to new model atmosphere with +/- perturbation
-	model_plus = copy.deepcopy(atmos)
-	model_minus = copy.deepcopy(atmos)
 	dlogtau = atmos.logtau[1] - atmos.logtau[0]
 
-	if global_params is not None:
-		n_global = 0
-		for parameter in global_params:
+	if norm:
+		atmos.norm = True
+		atmos.norm_level = 1
+
+	# compute the total number of free parameters (have to sum atomic for each line)
+	n_global = 0
+	if global_pars is not None:
+		for parameter in global_pars:
 			n_global += atmos.line_no[parameter].size
-	else:
-		n_global = 0
-	if local_params is not None:
-		n_local = len(local_params)
-	else:
-		n_local = 0
+	
+	n_local = 0
+	if local_pars is not None:
+		n_local = len(local_pars)
+	
 	n_pars = n_local + n_global
 	
-	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(globin.wavelength), 4), dtype=np.float64)
+	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength), 4), dtype=np.float64)
 
 	i_ = -1
-	if local_params is not None:
-		for i_, parameter in tqdm(enumerate(local_params)):
-			print(parameter)
-			perturbation = globin.delta[parameter]
+	free_par_ID = 0
+	if local_pars is not None:
+		for idp, parameter in enumerate(local_pars):
+			perturbation = atmos.delta[parameter]
 			parID = atmos.par_id[parameter]
 
-			for zID in tqdm(range(atmos.nz)):
-				model_plus.data[:,:,parID,zID] += perturbation
-				model_plus.write_atmosphere()
-				spec_plus,_ = compute_spectra(model_plus)
-				if not globin.mean:
-					spec_plus.broaden_spectra(atmos.vmac)
+			for idz in tqdm(range(atmos.nz), desc=parameter):
+				atmos.data[:,:,parID,idz] += perturbation
+				spec_plus = atmos.compute_spectra()
 
-				model_minus.data[:,:,parID,zID] -= perturbation
-				model_minus.write_atmosphere()
-				spec_minus,_ = compute_spectra(model_minus)
-				if not globin.mean:
-					spec_minus.broaden_spectra(atmos.vmac)
-
+				atmos.data[:,:,parID,idz] -= 2*perturbation
+				spec_minus = atmos.compute_spectra()
+				
 				diff = spec_plus.spec - spec_minus.spec
-
-				rf[:,:,i_,zID,:,:] = diff / 2 / perturbation
+				rf[:,:,free_par_ID,idz] = diff / 2 / perturbation
 
 				# remove perturbation from data
-				model_plus.data[:,:,parID,zID] -= perturbation
-				model_minus.data[:,:,parID,zID] += perturbation
+				atmos.data[:,:,parID,idz] += perturbation
 
-	free_par_ID = i_+1
+			free_par_ID += 1
 
 	#--- loop through global parameters and calculate RFs
-	if global_params is not None:
-		for parameter in global_params:
-			print(parameter)
+	if global_pars is not None:
+		for parameter in global_pars:
 			if parameter=="vmac":
 				radius = int(4*kernel_sigma + 0.5)
 				x = np.arange(-radius, radius+1)
@@ -1716,77 +1582,35 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 							rf[idx,idy,free_par_ID,0,:,sID-1] = correlate1d(spec[idx,idy,:,sID], kernel)
 							rf[idx,idy,free_par_ID,0,:,sID-1] *= 1/atmos.vmac * globin.parameter_scale["vmac"]
 				free_par_ID += 1
-			elif parameter=="loggf" or parameter=="dlam":
-				perturbation = globin.delta[parameter]
+			elif parameter in ["loggf", "dlam"]:
+				perturbation = atmos.delta[parameter]
 
-				for idp in range(atmos.line_no[parameter].size):
-					line_no = atmos.line_no[parameter][idp]
-					values = copy.deepcopy(atmos.global_pars[parameter][:,:,idp])
+				for idp in tqdm(range(atmos.line_no[parameter].size), desc=parameter):
+					atmos.global_pars[parameter][...,idp] += perturbation
+					spec_plus = atmos.compute_spectra()
 
-					# positive perturbation
-					values += perturbation
-					# write atomic parameters in files
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								globin.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
-					
-					spec_plus,_ = compute_spectra(atmos)
-					if not globin.mean:
-						spec_plus.broaden_spectra(atmos.vmac)
-
-					# negative perturbation
-					values -= 2*perturbation
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								globin.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
-					
-					spec_minus,_ = compute_spectra(atmos)
-					if not globin.mean:
-						spec_minus.broaden_spectra(atmos.vmac)
+					atmos.global_pars[parameter][...,idp] -= 2*perturbation
+					spec_minus = atmos.compute_spectra()
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
-					# if globin.mode==2:
-					# 	scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
-					# elif globin.mode==3:
-					# 	scale = np.sqrt(np.sum(diff**2))
-					# globin.parameter_scale[parameter][...,idp] = scale
+					rf[:,:,free_par_ID] = diff
+					if atmos.mode==3:
+						rf[:,:,free_par_ID,:,:] = np.repeat(diff[:,:,np.newaxis,:,:], atmos.nz , axis=2)
 
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):
-								rf[idx,idy,free_par_ID] = diff[idx,idy] # / globin.parameter_scale[parameter][idx,idy,idp]
-						free_par_ID += 1
-					elif globin.mode==3:
-						rf[:,:,free_par_ID,:,:] = np.repeat(diff[:,:,np.newaxis,:,:], atmos.nz , axis=2) # / globin.parameter_scale[parameter][0,0,idp]
-						free_par_ID += 1
+					free_par_ID += 1
 					
-					# return perturbation back
-					values += perturbation
-					if globin.mode==2:
-						for idx in range(atmos.nx):
-							for idy in range(atmos.ny):	
-								globin.write_line_par(atmos.line_lists_path[idx*atmos.ny + idy],
-													values[idx,idy], line_no, parameter)
-					elif globin.mode==3:
-						globin.write_line_par(atmos.line_lists_path[0], values[0,0], line_no, parameter)
+					atmos.global_pars[parameter][...,idp] += perturbation
 
 			else:
 				print(f"Parameter {parameter} not yet Supported.\n")
 
+	# if we have provided the path, save the RFs
 	if fpath is not None:
 		primary = fits.PrimaryHDU(rf)
 		primary.name = "RF"
 
-		np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(globin.wavelength), 4), dtype=np.float64)
+		# np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(globin.wavelength), 4), dtype=np.float64)
 
 		primary.header.comments["NAXIS1"] = "stokes components"
 		primary.header.comments["NAXIS2"] = "number of wavelengths"
@@ -1795,24 +1619,28 @@ def compute_full_rf(local_params=["temp", "vz", "mag", "gamma", "chi"], global_p
 		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
 
-		primary.header["STOKESV"] = ("IQUV", "ordering of Stokes vector")
+		primary.header["STOKES"] = ("IQUV", "the Stokes vector order")
+
+		if norm:
+			primary.header["NORMED"] = ("TRUE", "flag for spectrum normalization")
 
 		i_ = 1
-		if local_params:
-			for par in local_params:
+		if local_pars:
+			for par in local_pars:
 				primary.header[f"PAR{i_}"] = (par, "parameter")
 				primary.header[f"PARID{i_}"] = (i_, "parameter ID")
 				i_ += 1
-		if global_params:
-			for par in global_params:
+		if global_pars:
+			for par in global_pars:
 				primary.header[f"PAR{i_}"] = (par, "parameter")
-				primary.header[f"PARID{i_}"] = (i_, "parameter ID")
-				i_ += 1
+				primary.header["PARIDMIN"] = (i_, "parameter ID min")
+				primary.header["PARIDMAX"] = (i_ + atmos.line_no[par].size -1, "parameter ID max")
+				i_ += atmos.line_no[par].size
 
 		hdulist = fits.HDUList([primary])
 
 		#--- wavelength list
-		par_hdu = fits.ImageHDU(globin.wavelength)
+		par_hdu = fits.ImageHDU(atmos.wavelength)
 		par_hdu.name = "wavelength"
 		par_hdu.header["UNIT"] = "Angstrom"
 		par_hdu.header.comments["NAXIS1"] = "wavelengths"
