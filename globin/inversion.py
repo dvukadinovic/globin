@@ -729,9 +729,9 @@ class Inverter(InputData):
 			# proposed_steps = spsolve(H, deltaSP, use_umfpack=False)
 			proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, atol=1e-5)
 			if info>0:
-				sys.exit("Did not converge the solution of Ax=b.")
+				sys.exit("Did not converge the solution of Ax=b.\n  Exiting now.\n")
 			if info<0:
-				sys.exit("Could not solve the system Ax=b.")
+				sys.exit("Could not solve the system Ax=b.\n  Exiting now.\n")
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -971,16 +971,16 @@ def _invert_Hessian(args):
 	Npar = delta.shape
 	one = np.ones(Npar)
 
-	det = np.linalg.det(hessian)
-	if det==0:
-		u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
-		vmax = svd_tolerance*np.max(eigen_vals)
-		inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
-		Gamma_inv = np.diag(inv_eigen_vals)
-		invHess = np.dot(u, np.dot(Gamma_inv, vh))
-		steps = np.dot(invHess, delta)
-	else:
-		steps = np.linalg.solve(hessian, delta)
+#	det = np.linalg.det(hessian)
+#	if det==0:
+	u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
+	vmax = svd_tolerance*np.max(eigen_vals)
+	inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
+	Gamma_inv = np.diag(inv_eigen_vals)
+	invHess = np.dot(u, np.dot(Gamma_inv, vh))
+	steps = np.dot(invHess, delta)
+#	else:
+#		steps = np.linalg.solve(hessian, delta)
 
 	return steps
 

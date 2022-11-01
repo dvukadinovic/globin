@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import copy
 import sys
 from scipy.ndimage import gaussian_filter
+from scipy.interpolate import splrep, splev
 
 def get_func3(a,b,c,d):
     return lambda t: (1-t)*(1-t)*(1-t)*a + 3*(1-t)*(1-t)*t*b + 3*(1-t)*t*t*c + t*t*t*d
@@ -110,19 +111,29 @@ def save_chi2(chi2, fpath="chi2.fits", xmin=0, xmax=None, ymin=0, ymax=None):
     hdulist = fits.HDUList([primary])
     hdulist.writeto(fpath, overwrite=True)
 
+def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
+    tck = splrep(xknot, yknot, k=degree)
+    y = splev(x, tck, der=0, ext=0)
+    n = yknot[0] - K0*xknot[0]
+    y[x<xknot[0]] = K0*x[x<xknot[0]] + n
+
+    return y
+
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
     x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])
     y = np.array([0.2, 0, 0.6, 0.55, 0.29, 0.21, 0.4])
-    xintp = np.linspace(x[0],x[-1], num=601)
+    xintp = np.linspace(x[0]*0.8,x[-1]*1.2, num=601)
 
     yintp = bezier_spline(x,y,xintp, degree=3)
 
     plt.plot(x,y, "ro", label="knots")
     plt.plot(xintp,yintp,"k-", label="Bezier-3")
 
-    yintp = bezier_spline(x,y,xintp, degree=2)
-    plt.plot(xintp, yintp,"k--", label="Bezier-2")
+    yintp = spline_interpolation(x[2:], y[2:], xintp, degree=3)
+
+    # yintp = bezier_spline(x,y,xintp, degree=2)
+    plt.plot(xintp, yintp,"k--", label="spline")
 
     plt.xlabel("x")
     plt.ylabel("y")

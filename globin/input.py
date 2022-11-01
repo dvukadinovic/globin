@@ -120,8 +120,8 @@ class InputData(object):
 		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, float)
 		if stray_factor>1:
 			raise ValueError("Stray light factor value above 1.")
-		if stray_factor<0:
-			raise ValueError("Stray light factor value below 0.")
+		#if stray_factor<0:
+		#	raise ValueError("Stray light factor value below 0.")
 
 		# flag for computing the mean spectrum
 		mean = _find_value_by_key("mean", self.parameters_input, "optional")
@@ -364,6 +364,7 @@ class InputData(object):
 	def read_inversion_base(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		# interpolation degree for Bezier polynomial
 		self.interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
+		interpolation_method = _find_value_by_key("interp_method", self.parameters_input, "default", "bezier", str)
 		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-4, float)
 
 		#--- default parameters
@@ -395,6 +396,7 @@ class InputData(object):
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
 		# 	logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
 		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny)# atm_range=atm_range)
+		self.atmosphere.interpolation_method = interpolation_method.lower()
 
 		#--- optional parameters
 		"""

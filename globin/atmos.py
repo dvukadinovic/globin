@@ -32,7 +32,7 @@ except:
 import globin
 from .mppools import pool_spinor2multi
 from .spec import Spectrum
-from .tools import bezier_spline
+from .tools import bezier_spline, spline_interpolation
 from .makeHSE import makeHSE
 
 # order of parameters RFs in output file from 'rf_ray'
@@ -72,7 +72,7 @@ class Atmosphere(object):
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
 									"mag"   : [1, 10000],						# [G]
-									"gamma" : [-np.pi, np.pi],			# [rad]
+									"gamma" : [-np.pi, 2*np.pi],			# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
 									"of"    : [0, 20],							#
 									"stray" : [0, 1],								#
@@ -148,6 +148,10 @@ class Atmosphere(object):
 		self.mask = {}
 
 		self.chi_c = None
+
+		self.mu = 1
+
+		self.interpolation_method = "bezier"
 		
 		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {"loggf" : np.array([], dtype=np.int32), "dlam" : np.array([], dtype=np.int32)}
@@ -402,7 +406,13 @@ class Atmosphere(object):
 					elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 						Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
-			y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+			if atmos.interpolation_method=="bezier":
+				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+			if atmos.interpolation_method=="spline":
+				y_new = spline_interpolation(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+				# plt.scatter(x, y, s=20)
+				# plt.plot(atmos.logtau, y_new)
+				# plt.show()
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]
