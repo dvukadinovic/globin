@@ -11,7 +11,7 @@ def get_func3(a,b,c,d):
 def get_func2(a,b,c):
     return lambda t: (1-t)*(1-t)*a + t*t*c + 2*t*(1-t)*b
 
-def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
+def bezier_spline(x, y, xintp, K0=None, Kn=None, degree=3, extrapolate=False):
     """
 
     Bezier spline interpolation based on paper by de la Cruz Rodirguez &
@@ -48,9 +48,13 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
 
     y_prim = [0]*n
     # derivative in first knot
-    y_prim[0] = K0
+    y_prim[0] = (y[1] - y[0])/(x[1] - x[0])
+    if K0 is not None:
+        y_prim[0] = K0
     # derivative in last knot
-    y_prim[-1] = Kn
+    y_prim[-1] = (y[-1] - y[-2])/(x[-1] - x[-2])
+    if Kn is not None:
+        y_prim[-1] = Kn
     
     # derivative in inner knots
     for i in range(1,n-1):
@@ -83,10 +87,18 @@ def bezier_spline(x, y, xintp, K0=0, Kn=0, degree=3):
             if (xintp[j]>=x[k]) and (xintp[j]<=x[k+1]):
                 u = (xintp[j] - x[k] ) / (x[k+1] - x[k])
                 yintp[j] = curves[k](u)
-        if xintp[j]<x[0]:
-            yintp[j] = y[0] + y_prim[0]*(xintp[j] - x[0])
-        if xintp[j]>=x[-1]:
-            yintp[j] = y[-1] + y_prim[-1]*(xintp[j] - x[-1])
+        # if xintp[j]<x[0]:
+        #     yintp[j] = y[0] + y_prim[0]*(xintp[j] - x[0])
+        # if xintp[j]>=x[-1]:
+        #     yintp[j] = y[-1] + y_prim[-1]*(xintp[j] - x[-1])
+    
+    if extrapolate:
+        yintp[xintp<x[0]] = y_prim[0]*(xintp[xintp<x[0]] - x[0]) + y[0]
+        yintp[xintp>x[-1]] = y_prim[-1]*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
+    else:
+        # constant extrapolation to to top/bottom of atmosphere
+        yintp[xintp<x[0]] = y[0]
+        yintp[xintp>x[-1]] = y[-1]
 
     return yintp
 
@@ -114,25 +126,37 @@ def save_chi2(chi2, fpath="chi2.fits", xmin=0, xmax=None, ymin=0, ymax=None):
 def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
     tck = splrep(xknot, yknot, k=degree)
     y = splev(x, tck, der=0, ext=0)
-    n = yknot[0] - K0*xknot[0]
-    y[x<xknot[0]] = K0*x[x<xknot[0]] + n
+    
+    k0 = splev(x[0], tck, der=1, ext=0)
+    k0p = (yknot[1] - yknot[0])/(xknot[1] - xknot[0])
+    print(k0, k0p)
+    n = yknot[0] - k0p*xknot[0]
+    y[x<xknot[0]] = k0p*x[x<xknot[0]] + n
+    
+    kn = splev(x[-1], tck, der=1)
+    knp = (yknot[-2] - yknot[-1])/(xknot[-2] - xknot[-1])
+    print(kn, knp)
+    n = yknot[-1] - knp*xknot[-1]
+    y[x>xknot[-1]] = knp*x[x>xknot[-1]] + n
 
     return y
 
 if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
-    x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])
-    y = np.array([0.2, 0, 0.6, 0.55, 0.29, 0.21, 0.4])
-    xintp = np.linspace(x[0]*0.8,x[-1]*1.2, num=601)
+    # x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])
+    # y = np.array([0.2, 0, 0.6, 0.55, 0.29, 0.21, 0.4])
+    x = np.random.random(5)
+    x.sort()
+    y = np.random.random(5)
+    xintp = np.linspace(x[0]-0.05,x[-1]+0.05, num=601)
 
-    yintp = bezier_spline(x,y,xintp, degree=3)
+    yintp = bezier_spline(x, y, xintp, degree=3)
 
-    plt.plot(x,y, "ro", label="knots")
-    plt.plot(xintp,yintp,"k-", label="Bezier-3")
+    plt.plot(x, y, "ro", label="knots")
+    plt.plot(xintp, yintp,"k-", label="Bezier-3")
 
-    yintp = spline_interpolation(x[2:], y[2:], xintp, degree=3)
+    yintp = spline_interpolation(x, y, xintp, degree=3)
 
-    # yintp = bezier_spline(x,y,xintp, degree=2)
     plt.plot(xintp, yintp,"k--", label="spline")
 
     plt.xlabel("x")
