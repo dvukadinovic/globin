@@ -733,7 +733,7 @@ def write_B(outfile, B, gamma_B, chi_B):
 Added by D. Vukadinovic - 23/03/2020
 """
 
-def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
+def write_wavs(wavs, fname='wavegrid', transform=True, air2vacuum_limit=199.9352):
     """
     Procedure for storing the wavelength grid points. Optionaly it can
     convert wavelenghts from vacuum to air.
@@ -749,7 +749,7 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
     wavs - numpy.ndarray of wavelenght grid [nm]
     fname - name of the output file
     transform - boolean flag for transformig wavelengths to air.
-    vacuum_limit - value from which to transform wavelenght
+    air2vacuum_limit - value from which to transform wavelenght
         (default value is 199.9352 = 200nm in vacuum)
 
     Return:
@@ -760,7 +760,7 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
         sigma_sq = (1.0e7/wavs)**2
         fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
 
-        ind = np.argmin(abs(wavs-vacuum_limit))
+        ind = np.argmin(abs(wavs-air2vacuum_limit))
         fact[:ind] = 1
 
         wavs = wavs*fact
@@ -776,3 +776,10 @@ def write_wavs(wavs, fname='wavegrid', transform=True, vacuum_limit=199.9352):
         out.close()
 
     return wavs
+
+def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
+    factor = np.ones_like(wavelength)
+    wave2 = 1/wavelength**2
+    factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2) * wave2
+
+    return wavelength/factor
