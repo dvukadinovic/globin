@@ -52,10 +52,7 @@ class InputData(object):
 			path to 'keyword.input' file for RH parameters
 		"""
 		path = os.path.dirname(__file__)
-		self.falc = Atmosphere(fpath=f"{path}/data/falc_multi.atmos", atm_type="multi")
-
-		# temperature interpolation
-		self.falc.temp_tck = splrep(self.falc.data[0,0,0],self.falc.data[0,0,1])
+		
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
 
@@ -146,14 +143,12 @@ class InputData(object):
 		self.lmin = _find_value_by_key("wave_min", self.parameters_input, "optional", conversion=float)
 		self.lmax = _find_value_by_key("wave_max", self.parameters_input, "optional", conversion=float)
 		self.step = _find_value_by_key("wave_step", self.parameters_input, "optional", conversion=float)
-		self.interpolate_obs = False
 		if (self.step is None) or (self.lmin is None) or (self.lmax is None):
 			wave_grid_path = _find_value_by_key("wave_grid", self.parameters_input, "required")
 			wavetable = np.loadtxt(wave_grid_path)
 			self.lmin = min(wavetable)
 			self.lmax = max(wavetable)
 			self.step = wavetable[1] - wavetable[0]
-			# self.interpolate_obs = True
 		else:
 			self.lmin /= 10
 			self.lmax /= 10
@@ -219,7 +214,8 @@ class InputData(object):
 			#--- determine number of local and global parameters
 			self.atmosphere.n_local_pars = 0
 			for parameter in self.atmosphere.nodes:
-				self.atmosphere.n_local_pars += len(self.atmosphere.nodes[parameter])
+				self.atmosphere.n_local_pars += np.sum(self.atmosphere.mask[parameter], dtype=np.int32)
+				# self.atmosphere.n_local_pars += len(self.atmosphere.nodes[parameter])
 
 			if (self.do_fudge):
 				self.atmosphere.n_local_pars += of_num
@@ -258,6 +254,7 @@ class InputData(object):
 			self.atmosphere.nodes["of"] = of_wave
 			self.atmosphere.values["of"] = of_value
 			self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
+			self.atmosphere.mask["of"] = np.ones(self.atmosphere.of_num)
 
 			# create arrays to be passed to RH for synthesis
 			self.atmosphere.of_scatter = self.of_scatter
@@ -299,6 +296,7 @@ class InputData(object):
 					self.atmosphere.nodes["stray"] = np.array([0])
 					self.atmosphere.values["stray"] = self.atmosphere.stray_light
 					self.atmosphere.parameter_scale["stray"] = ones
+					self.atmosphere.mask["stray"] = np.ones(1)
 				elif self.stray_mode==3:
 					# stray light inversion in global mode
 					self.atmosphere.n_global_pars += 1
@@ -389,8 +387,9 @@ class InputData(object):
 		#--- required parameters
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
 		self.observation = Observation(path_to_observations, obs_range=atm_range)
-		if self.interpolate_obs or (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
-			self.observation.interpolate(self.wavelength_air)
+		# we are only interpolating the synthetic spectrum, not the observations
+		# if (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
+		# 	self.observation.interpolate(self.wavelength_air)
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
@@ -542,19 +541,6 @@ class InputData(object):
 
 			self.atmosphere.global_pars["dlam"][:,:] = aux_values
 			self.atmosphere.line_no["dlam"][:] = aux_lineNo
-
-			# write these data into files
-
-			# make list of line lists paths (aka names)
-			# obj.atmosphere.line_lists_path = []
-			# for idx in range(globin.atm.nx):
-			# 	for idy in range(globin.atm.ny):
-			# 		fpath = f"runs/{globin.wd}/line_lists/rlk_list_x{idx}_y{idy}"
-			# 		globin.atm.line_lists_path.append(fpath)
-
-			# 		write_line_parameters(fpath,
-			# 							   globin.atm.global_pars["loggf"][idx,idy], globin.atm.line_no["loggf"],
-			# 							   globin.atm.global_pars["dlam"][idx,idy], globin.atm.line_no["dlam"])
 		else:
 			print("No atomic parameters to fit. You sure?\n")
 
@@ -596,11 +582,6 @@ class InputData(object):
 
 			self.atmosphere.global_pars["dlam"][0,0] = aux_values
 			self.atmosphere.line_no["dlam"][:] = aux_lineNo
-
-			# write down initial atomic lines values
-			# globin.write_line_parameters(obj.atmosphere.line_lists_path[0],
-			# 						   globin.atm.global_pars["loggf"][0,0], globin.atm.line_no["loggf"],
-			# 						   globin.atm.global_pars["dlam"][0,0], globin.atm.line_no["dlam"])
 		else:
 			print("No atomic parameters to fit. You sure?\n")
 
@@ -869,11 +850,8 @@ def read_node_atmosphere(fpath):
 	atmos.idy_meshgrid = idy.flatten()
 	atmos.ids_tuple = list(zip(atmos.idx_meshgrid, atmos.idy_meshgrid))
 
-	path = os.path.dirname(__file__)
-	falc = Atmosphere(fpath=f"{path}/data/falc_multi.atmos", atm_type="multi")
-
 	# temperature interpolation
-	atmos.temp_tck = splrep(falc.data[0,0,0], falc.data[0,0,1])
+	atmos.temp_tck = globin.temp_tck
 	atmos.interp_degree = 3
 	
 	# tck = splrep(falc.data[0,0,0], falc.data[0,0,2])
