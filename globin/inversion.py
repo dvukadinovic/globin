@@ -88,11 +88,12 @@ class Inverter(InputData):
 			# we do not want to have sparse synthetic spectrum from which we will scale up
 			# we want to have the same or higher number of wavelength points than there
 			# are in the observations.
-			if len(self.observation.wavelength)>len(self.wavelength_air):
-				msg = "  Specified wavelength grid has lower number of points than\n"
-				msg+= "  the observation's wavelength grid. Increase the number of\n"
-				msg+= "  wavelength points to improve the sampling.\n"
-				sys.exit(msg)
+			if self.mode>=1:
+				if len(self.observation.wavelength)>len(self.wavelength_air):
+					msg = "  Specified wavelength grid has lower number of points than\n"
+					msg+= "  the observation's wavelength grid. Increase the number of\n"
+					msg+= "  wavelength points to improve the sampling.\n"
+					sys.exit(msg)
 
 		else:
 			if rh_input_name is None:
@@ -106,13 +107,14 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n             --- Entering inversion mode ---\n")
+			print("\n{:{char}{align}{width}}\n".format("Entering inversion mode", char="-", align="^", width=globin.NCHAR))
 			start = time.time()
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
-					print("=====================================")
-					print(f"  Starting inversion cycle {cycle+1}")
-					print("=====================================\n")
+					print("="*globin.NCHAR)
+					print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=globin.NCHAR,))
+					print("="*globin.NCHAR)
+					print()
 
 				# if the cycle number is larger than the number of given max iterations
 				# take the last given number of max iterations
@@ -154,7 +156,7 @@ class Inverter(InputData):
 			return atmos, spec
 
 		elif self.mode==0:
-			print("\n --- Entering synthesis mode ---\n")
+			print("\n{:{char}{align}{width}}\n".format("Entering synthesis mode", char="-", align="^", width=globin.NCHAR))
 
 			atmos = self.atmosphere
 
@@ -201,9 +203,9 @@ class Inverter(InputData):
 
 			#--- save spectra
 			spec.save(self.output_spectra_path, spec.wavelength)
-			
-			print("  All done!")
-			print("-------------------------------------------------\n")
+
+			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
+			print("-"*globin.NCHAR)
 
 			return atmos, spec
 		else:
@@ -445,6 +447,7 @@ class Inverter(InputData):
 
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag)
+			
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
 			
@@ -760,6 +763,7 @@ class Inverter(InputData):
 			atmos.build_from_nodes(ones)
 			if atmos.hydrostatic:
 				atmos.makeHSE(ones)
+
 			corrected_spec = atmos.compute_spectra(ones)
 			
 			# broaden the corrected spectra by macro velocity

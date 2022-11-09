@@ -518,32 +518,35 @@ class Atmosphere(object):
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					# check if extrapolation at the top atmosphere point goes below the minimum
 					# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
-					# if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
+					if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
 					# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
-					if 1900>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (1900 - y[0]) / (atmos.logtau[0] - x[0])
+					# if 1900>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (1900 - y[0]) / (atmos.logtau[0] - x[0])
 				# bottom node slope for extrapolation based on temperature gradient from FAL C model
 				Kn = splev(x[-1], globin.temp_tck, der=1)
 				extrapolate = True
-				# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
-				# print(K0, Knp)
-			elif parameter in ["vz", "vmic", "mag", "gamma", "chi"]:
+			elif parameter in ["vz", "gamma", "chi"]:
+				extrapolate = True
+				if len(x)>=2:
+					K0 = (y[1]-y[0]) / (x[1]-x[0])
+					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+			elif parameter in ["vmic", "mag"]:
 				extrapolate = True
 				if len(x)>=2:
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 					# check if extrapolation at the top atmosphere point goes below the minimum
 					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-					# if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
+					if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
 					# elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					# 	K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
-					# # similar for the bottom for maximum/min values
+					# similar for the bottom for maximum/min values
 					# if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-					# elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					# 	Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					if self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if atmos.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=extrapolate)
@@ -984,7 +987,7 @@ class Atmosphere(object):
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[2], axis=-1)
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[3], axis=-1)
 				spectra.spec /= Ic
-		
+
 		return spectra
 
 	def _compute_spectra_sequential(self, args):

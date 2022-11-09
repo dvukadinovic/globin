@@ -323,10 +323,12 @@ def get_Icont(wavelength=500, mu=1.0):
 	try:
 		nw = len(wavelength)
 		hsrasp.wavelength_vacuum = wavelength
+		hsrasp.wavelength_air = np.asarray(wavelength)
+		hsrasp.wavelength_obs = np.asarray(wavelength)
 	except:
 		hsrasp.wavelength_vacuum = np.array([wavelength], dtype=np.float64)
-	hsrasp.wavelength_air = wavelength
-	hsrasp.wavelength_obs = wavelength
+		hsrasp.wavelength_air = np.asarray([wavelength])
+		hsrasp.wavelength_obs = np.asarray([wavelength])
 	nw = len(hsrasp.wavelength_vacuum)
 	
 	hsrasp.do_fudge = 0

@@ -142,3 +142,6 @@ from scipy.interpolate import splrep
 falc = Atmosphere(f"{__path__}/data/falc.dat", atm_type="spinor")
 temp_tck = splrep(falc.data[0,0,0], falc.data[0,0,1])
 pg_tck = splrep(falc.data[0,0,0], falc.pg[0,0])
+
+#--- print log character limit
+NCHAR = 80
