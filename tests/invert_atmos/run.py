@@ -2,19 +2,32 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import numpy as np
 import sys
+import copy
 
 import globin
 
-obs = globin.Observation("obs_norm.fits")
-# obs2 = globin.Observation("obs_stray_light.fits")
+obs = globin.Observation("obs_uniform.fits")
+#atm = globin.Atmosphere("atmos_uniform.fits")
 
-# plt.plot(obs.spec[0,0,:,0])
-# plt.plot(obs2.spec[0,0,:,0])
+#inv = globin.Atmosphere("runs/dummy/inverted_atmos_c1.fits")
 
+# print(inv.values["temp"][0,0])
+# print(atm.values["temp"][0,0])
+# print(inv.pg_top, atm.pg_top)
+
+# plt.plot(inv.data[0,0,2] - atm.data[0,0,2])
 # plt.show()
+
 # sys.exit()
 
-# atmos = globin.Atmosphere("atmos_HSE_pyrh.fits")
+# obs2 = globin.Observation("obs_uniform_norm_sl3p.fits")
+
+# for idx in range(obs.nx):
+# 	for idy in range(obs.ny):
+# 		globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength,
+# 			inv=obs2.spec[idx,idy])
+# 		plt.show()
+# sys.exit()
 
 # inv = globin.Atmosphere("runs/mode3_test/inverted_atmos.fits")
 # # inv_spec = globin.Observation("runs/mode3_test/inverted_spectra.fits")
@@ -33,35 +46,21 @@ obs = globin.Observation("obs_norm.fits")
 
 # sys.exit()
 
-inverter = globin.Inverter(verbose=True)
+inverter = globin.Inverter(verbose=False)
 inverter.read_input(run_name="dummy")
 inv_atmos, inv_spec = inverter.run()
 
-globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=inv_spec.spec[0,0])
-plt.show()
+for parameter in inv_atmos.nodes:
+	print(parameter)
+	if parameter in ["gamma", "chi"]:
+		print(inv_atmos.values[parameter] * 180/np.pi)
+	else:
+		print(inv_atmos.values[parameter])
+	print("-----")
 
-# inv_atmos.compare(atmos.data[0,0], idx=0, idy=0)
-# inv_atmos.compare(atmos.data[0,1], idx=0, idy=1)
-# inv_atmos.compare(atmos.data[0,2], idx=0, idy=2)
+# print(inv_atmos.global_pars)
 
-# plt.plot(inv_atmos.data[0,0,2])
-
-# plt.plot(inv_atmos.data[0,1,2])
-# # plt.plot(inv_atmos.data[0,1,2])
-# # plt.show()
-
-# plt.plot(inv_atmos.data[0,2,2])
-# # plt.plot(inv_atmos.data[0,2,2])
-
-# plt.yscale("log")
-# plt.show()
-
-# for idx in range(inv_atmos.nx):
-# 	for idy in range(inv_atmos.ny):
-# 		atmos.compare(inv_atmos.data[idx,idy], idx=idx, idy=idy)
-# 		print("-----=-----=-----")
-
-# for idx in range(inv_spec.nx):
-# 	for idy in range(inv_spec.ny):
-# 		globin.visualize.plot_spectra(inverter.observation.spec[idx,idy], inverter.observation.wavelength, inv=inv_spec.spec[idx,idy])
-# 		plt.show()
+for idx in range(inv_atmos.nx):
+	for idy in range(inv_atmos.ny):
+		globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv_spec.spec[idx,idy])
+		plt.show()

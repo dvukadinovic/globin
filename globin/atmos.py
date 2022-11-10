@@ -25,12 +25,9 @@ import scipy.sparse as sp
 try:
 	import pyrh
 except:
-	raise ImportError("No module 'pyrh'.")
-
-# from .input import read_multi, read_spinor, read_inverted_atmosphere
+	raise ImportError("No 'pyrh' module. Install it before using 'globin'")
 
 import globin
-from .mppools import pool_spinor2multi
 from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation
 from .makeHSE import makeHSE
@@ -71,8 +68,8 @@ class Atmosphere(object):
 	limit_values = {"temp"  : [2800, 10000], 				# [K]
 									"vz"    : [-10, 10],						# [km/s]
 									"vmic"  : [1e-3, 10],						# [km/s]
-									"mag"   : [1, 10000],						# [G]
-									"gamma" : [-np.pi, 2*np.pi],			# [rad]
+									"mag"   : [10, 10000],					# [G]
+									"gamma" : [-np.pi, 2*np.pi],		# [rad]
 									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
 									"of"    : [0, 20],							#
 									"stray" : [0, 1],								#
@@ -116,10 +113,6 @@ class Atmosphere(object):
 		self.fpath = fpath
 		self.type = atm_type
 
-		# list of fpath's to line lists (in mode=2)
-		self.line_lists_path = []
-		# list of fpath's to each atmosphere column
-		self.atm_name_list = []
 		# parameter scaling for inversino
 		self.parameter_scale = {}
 
@@ -134,10 +127,7 @@ class Atmosphere(object):
 		# gas pressure at the top (used for HSE computation from RH)
 		self.pg_top = None # [N/m2]
 
-		# self.atmosphere.RH = pyrh.RH()
-		# self.atmosphere.n_thread = self.n_thread
-		# self.atmosphere.temp_tck = self.falc.temp_tck
-		# self.atmosphere.interp_degree = self.interp_degree
+		self.interp_degree = 3
 
 		# nodes: each atmosphere has the same nodes for given parameter
 		self.nodes = {}
@@ -147,7 +137,11 @@ class Atmosphere(object):
 		# structure and ordering same as self.nodes
 		self.mask = {}
 
+		# mode of operation
+		# self.mode = 0
+
 		self.chi_c = None
+		self.pg = None
 
 		self.mu = 1
 
@@ -201,30 +195,19 @@ class Atmosphere(object):
 
 			if extension=="dat" or extension=="txt" or extension=="atmos":
 				if self.type=="spinor":
-					atmos = read_spinor(self.fpath)
+					self.read_spinor(self.fpath)
 				elif self.type=="multi":
-					atmos = read_multi(self.fpath)
-					print()
+					self.read_multi(self.fpath)
 			elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
-				atmos = read_inverted_atmosphere(self.fpath, atm_range)
+				self.read_cube(self.fpath, atm_range)
+				# self = read_inverted_atmosphere(self.fpath, atm_range)
 			else:
 				print("--> Error in atmos.Atmosphere()")
 				print(f"    Unsupported extension '{extension}' of atmosphere file.")
 				print("    Supported extensions are: .dat, .txt, .fit(s)")
 				sys.exit()
-			
-			self.shape = atmos.data.shape
-			self.nx, self.ny, self.npar, self.nz = self.shape
-			self.data = atmos.data
-			self.logtau = atmos.logtau
-			self.nodes = atmos.nodes
-			self.values = atmos.values
-			self.mask = atmos.mask
-			self.header = atmos.header
-			self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-			self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-			self.chi_c = atmos.chi_c
-			self.nHtot = np.sum(atmos.data[:,:,8:,:], axis=-2)
+
+			self.nHtot = np.sum(self.data[:,:,8:,:], axis=-2)
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 			self.idx_meshgrid = self.idx_meshgrid.flatten()
 			self.idy_meshgrid = self.idy_meshgrid.flatten()
@@ -236,6 +219,7 @@ class Atmosphere(object):
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
 				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				if nz is None:
 					self.data[:,:,0,:] = self.logtau
@@ -246,74 +230,214 @@ class Atmosphere(object):
 			else:
 				self.data = None
 
-	def __deepcopy__(self, memo):
-		new = Atmosphere()
-		new.data = copy.deepcopy(self.data)
-		new.logtau = copy.deepcopy(self.logtau)
-		new.nx = copy.deepcopy(self.nx)
-		new.ny = copy.deepcopy(self.ny)
-		new.npar = copy.deepcopy(self.npar)
-		new.nz = copy.deepcopy(self.nz)
-		new.atm_name_list = copy.deepcopy(self.atm_name_list)
-		new.nodes = copy.deepcopy(self.nodes)
-		new.values = copy.deepcopy(self.values)
-		new.mode = copy.deepcopy(self.mode)
-		new.norm = copy.deepcopy(self.norm)
-		if self.norm:
-			new.icont = copy.deepcopy(self.icont)
-		# if (globin.of_mode) and (globin.mode>=1):
-		try:
-			new.of_num = copy.deepcopy(self.of_num)
-			new.of_paths = copy.deepcopy(self.of_paths)
-		except:
-			pass
-		try:
-			new.do_fudge = copy.deepcopy(self.do_fudge)
-			new.fudge_lam = copy.deepcopy(self.fudge_lam)
-			new.fudge = copy.deepcopy(self.fudge)
-			new.of_scatter = copy.deepcopy(self.of_scatter)
-			new.wavelength_vacuum = copy.deepcopy(self.wavelength_vacuum)
-		except:
-			pass
-		try:
-			new.wavelength = copy.deepcopy(self.wavelength)
-		except:
-			pass
-		new.global_pars = copy.deepcopy(self.global_pars)
-		new.line_no = copy.deepcopy(self.line_no)
-		new.par_id = copy.deepcopy(self.par_id)
-		new.vmac = copy.deepcopy(self.vmac)
-		new.line_lists_path = copy.deepcopy(self.line_lists_path)
-		new.xmin = copy.deepcopy(self.xmin)
-		new.xmax = copy.deepcopy(self.xmax)
-		new.ymin = copy.deepcopy(self.ymin)
-		new.ymax = copy.deepcopy(self.ymax)
-		new.ids_tuple = copy.deepcopy(self.ids_tuple)
-		new.idx_meshgrid = copy.deepcopy(self.idx_meshgrid)
-		new.idy_meshgrid = copy.deepcopy(self.idy_meshgrid)
-		try:
-			new.RH = copy.deepcopy(self.RH)
-		except:
-			pass
-		try:
-			new.n_thread = copy.deepcopy(self.n_thread)
-			new.interp_degree = copy.deepcopy(self.interp_degree)
-			new.temp_tck = copy.deepcopy(self.temp_tck)
-		except:
-			pass
-		try:
-			new.n_local_pars = copy.deepcopy(self.n_local_pars)
-			new.n_global_pars = copy.deepcopy(self.n_global_pars)
-		except:
-			pass
-
-		return new
-
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
 		_str += "  fpath = {}\n".format(self.fpath)
 		_str += "  (nx,ny,npar,nz) = ({},{},{},{})>".format(*self.shape)
 		return _str
+
+	def read_multi(self, fpath):
+		"""
+		Read MULTI type atmosphere data.
+
+		Parameters:
+		-----------
+		fpath : str
+			path to the MULTI type atmosphere.
+		"""
+		lines = open(fpath, "r").readlines()
+
+		# remove commented lines
+		lines = [line.rstrip("\n") for line in lines if "*" not in line]
+
+		# get number of depth points
+		nz = int(lines[3].replace(" ", ""))
+
+		self.shape = (1, 1, 14, nz)
+		self.data = np.zeros(self.shape)
+		self.nx, self.ny, self.npar, self.nz = self.shape
+
+		for i_ in range(nz):
+			# read first part of the atmosphere
+			lista = list(filter(None,lines[4+i_].split(" ")))
+			self.data[0,0,0,i_], \
+			self.data[0,0,1,i_], \
+			self.data[0,0,2,i_], \
+			self.data[0,0,3,i_], \
+			self.data[0,0,4,i_] = [float(element) for element in lista]
+
+			# read H populations
+			lista = list(filter(None,lines[4+nz+i_].split(" ")))
+			self.data[0,0,8,i_], \
+			self.data[0,0,9,i_], \
+			self.data[0,0,10,i_], \
+			self.data[0,0,11,i_], \
+			self.data[0,0,12,i_], \
+			self.data[0,0,13,i_] = [float(element) for element in lista]
+
+		self.logtau = self.data[0,0,0]
+		self.logtau_top = self.logtau[0]
+		self.logtau_bot = self.logtau[-1]
+		self.logtau_step = self.logtau[1] - self.logtau[0]
+
+		self.pg = np.zeros((1,1,nz))
+		self.rho = np.zeros((1,1,nz))
+
+	def read_spinor(self, fpath):
+		"""
+		Read in the SPINOR type atmosphere.
+
+		Parameters:
+		-----------
+		fpath : str
+			path to the SPINOR type atmosphere.
+		"""
+		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+
+		_, nz = atmos_data.shape
+
+		self.shape = (1,1,14,nz)
+		self.data = np.zeros(self.shape)
+		self.nx, self.ny, self.npar, self.nz = self.shape
+
+		# log(tau)
+		self.data[0,0,0] = atmos_data[0]
+		self.logtau = atmos_data[0]
+		self.logtau_top = self.logtau[0]
+		self.logtau_bot = self.logtau[-1]
+		self.logtau_step = self.logtau[1] - self.logtau[0]
+		# Temperature [K]
+		self.data[0,0,1] = atmos_data[2]
+		# Electron density [1/cm3]
+		self.data[0,0,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
+		# Vertical velocity [cm/s] --> [km/s]
+		self.data[0,0,3] = atmos_data[9]/1e5
+		# Microturbulent velocitu [cm/s] --> [km/s]
+		self.data[0,0,4] = atmos_data[8]/1e5
+		# Magnetic field strength [G]
+		self.data[0,0,5] = atmos_data[7]
+		# Inclination [rad]
+		self.data[0,0,6] = atmos_data[-2]
+		# Azimuth [rad]
+		self.data[0,0,7] = atmos_data[-1]
+		# Hydrogen populations [1/cm3]
+		self.data[0,0,8:] = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+
+		# gas pressure at the top of the atmosphere (in SI units)
+		self.pg_top = atmos_data[3,0]/10
+
+		# container for the gas pressure
+		self.pg = np.zeros((1,1,nz))
+		self.pg[0,0] = atmos_data[3]
+
+		self.rho = np.zeros((1,1,nz))
+		self.rho[0,0] = atmos_data[6]
+
+	def read_sir(self, fpath):
+		"""
+		Read in the SIR type atmosphere.
+
+		Parameters:
+		-----------
+		fpath : str
+			path to the SIR atmosphere.
+		"""
+		data = np.loadtxt(fpath, skiprows=1).T
+		# we are reversing the order because SIR atmosphere starts from the bottom and
+		# here we assume that the top is the first point in the atmosphere
+		data = data[:,::-1]
+
+		_, nz = data.shape
+
+		self.shape = (1,1,14,nz)
+		self.data = np.zeros(self.shape)
+		self.nx, self.ny, self.npar, self.nz = self.shape
+
+		# log(tau) @ 500nm
+		self.data[0,0,0] = data[0]
+		self.logtau = data[0]
+		self.logtau_top = self.logtau[0]
+		self.logtau_bot = self.logtau[-1]
+		self.logtau_step = self.logtau[1] - self.logtau[0]
+		# temperature [K]
+		self.data[0,0,1] = data[1]
+		# electron concentration [1/cm3]
+		self.data[0,0,2] = data[2]/10/globin.K_BOLTZMAN/data[1]/1e6
+		# LOS velocity [km/2]
+		self.data[0,0,3] = data[5]*1e5
+		# vmic [km/s]
+		self.data[0,0,4] = data[3]*1e5
+		# B [G]
+		self.data[0,0,5] = data[4]
+		# gamma [rad]
+		self.data[0,0,6] = data[6] * np.pi/180
+		# theta [rad]
+		self.data[0,0,7] = data[7] * np.pi/180
+		# Hydrogen populations [1/cm3]
+		self.data[0,0,8:] = distribute_hydrogen(data[1], data[-2], data[2])
+
+		self.pg = np.zeros((1,1,nz))
+		self.pg[0,0] = data[-2]
+		self.rho = np.zeros((1,1,nz))
+		self.rho[0,0] = data[-3] # CHECK THIS! MAYBE IT IS HEIGHT and NOT DENSITY
+
+	def read_cube(self, fpath, atm_range):
+		"""
+		Read the cube atmosphere of MULTI type.
+		"""
+		try:
+			hdu_list = fits.open(fpath)
+		except:
+			print("--> Error in globin.atmos.read_cube()")
+			print(f"    Atmosphere file with path '{fpath}' does not exist.")
+			sys.exit()
+
+		xmin, xmax, ymin, ymax = atm_range
+
+		data = hdu_list[0].data[xmin:xmax, ymin:ymax]
+		
+		self.data = data.astype(np.float64, order="C", copy=True) # because of the pyrh module
+		self.nx, self.ny, self.npar, self.nz = self.data.shape
+		self.shape = self.data.shape
+		self.logtau = data[0,0,0]
+		self.logtau_top = self.logtau[0]
+		self.logtau_bot = self.logtau[-1]
+		self.logtau_step = self.logtau[1] - self.logtau[0]
+		self.header = hdu_list[0].header
+
+		self.pg = np.zeros((self.nx, self.ny, self.nz))
+		self.rho = np.zeros((self.nx, self.ny, self.nz))
+
+		try:
+			self.pg_top = hdu_list[0].header["PGTOP"]
+		except:
+			pass
+
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
+			# if parameter=="stray":
+			# 	stray = hdu_list[0].header
+			try:
+				ind = hdu_list.index_of(parameter)
+				data = hdu_list[ind].data[xmin:xmax, ymin:ymax, :]
+				nx, ny, nnodes = data.shape
+
+				self.nodes[parameter] = np.zeros(nnodes)
+				for idn in range(nnodes):
+					node = hdu_list[ind].header[f"NODE{idn+1}"]
+					self.nodes[parameter][idn] = node
+
+				self.values[parameter] = data
+				self.mask[parameter] = np.ones(len(self.nodes[parameter]))
+
+				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
+			except:
+				pass
+
+		try:
+			ind = hdu_list.index_of("Continuum_Opacity")
+			self.chi_c = hdu_list[ind].data
+		except:
+			self.chi_c = None
 
 	def get_atmos(self, idx, idy):
 		# return atmosphere from cube with given indices 'idx' and 'idy'.
@@ -329,7 +453,7 @@ class Atmosphere(object):
 		args = zip(atmos, globin.idx, globin.idy)
 		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
 
-	def build_from_nodes(self, flag, params=None):
+	def build_from_nodes(self, flag=None, params=None):
 		"""
 		Here we build our atmosphere from node values.
 
@@ -350,9 +474,12 @@ class Atmosphere(object):
 		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
 		STiC].
 		"""
+		if flag is None:
+			flag = np.ones((self.nx, self.ny))
 
 		atmos = [self]*(self.nx*self.ny)
-		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid)
+		params = [params]*(self.nx*self.ny)
+		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid, params)
 
 		with mp.Pool(self.n_thread) as pool:
 			results = pool.map(func=self._build_from_nodes, iterable=args)
@@ -367,17 +494,22 @@ class Atmosphere(object):
 		# 	self.data[idx,idy] = atm[idl].data[idx,idy]
 
 	def _build_from_nodes(self, args):
-		atmos, flag, idx, idy = args
+		atmos, flag, idx, idy, params = args
+
+		parameters = atmos.nodes
+		if params is not None:
+			parameters = [params]
 
 		if flag==0:
 			return atmos.data[idx,idy]
 
-		for parameter in atmos.nodes:
+		for parameter in parameters:
 			# skip over OF and stray light parameters
 			if parameter=="stray" or parameter=="of":
 				continue
 
 			# K0, Kn by default; True for vmic, mag, gamma and chi
+			# K0, Kn = None, None
 			K0, Kn = 0, 0
 
 			x = atmos.nodes[parameter]
@@ -390,10 +522,19 @@ class Atmosphere(object):
 					# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
 					if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
+					# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
+					# if 1900>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (1900 - y[0]) / (atmos.logtau[0] - x[0])
 				# bottom node slope for extrapolation based on temperature gradient from FAL C model
-				Kn = splev(x[-1], self.temp_tck, der=1)
-				# Kn = (y[-1] - y[-2]) / (x[-1] - x[-2])
-			elif (parameter=="gamma") or (parameter=="chi") or (parameter=="vz") or (parameter=="vmic") or (parameter=="mag"):
+				Kn = splev(x[-1], globin.temp_tck, der=1)
+				extrapolate = True
+			elif parameter in ["vz", "gamma", "chi"]:
+				extrapolate = True
+				if len(x)>=2:
+					K0 = (y[1]-y[0]) / (x[1]-x[0])
+					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+			elif parameter in ["vmic", "mag"]:
+				extrapolate = True
 				if len(x)>=2:
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
@@ -401,21 +542,18 @@ class Atmosphere(object):
 					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
 					if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
-					elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
+					# elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
 					# similar for the bottom for maximum/min values
-					if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-						Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-					elif self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+					# if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+					# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					if self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 						Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if atmos.interpolation_method=="bezier":
-				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=extrapolate)
 			if atmos.interpolation_method=="spline":
 				y_new = spline_interpolation(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
-				# plt.scatter(x, y, s=20)
-				# plt.plot(atmos.logtau, y_new)
-				# plt.show()
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]
@@ -434,6 +572,7 @@ class Atmosphere(object):
 		self.data[indx,indy,2] = results[:,0,:]
 		self.data[indx,indy,8:] = results[:,1:7,:]
 		self.rho[indx,indy] = results[:,7,:]
+		self.pg[indx,indy] = results[:,8,:]
 
 	def _makeHSE(self, arg):
 		fudge_num = 2
@@ -442,35 +581,42 @@ class Atmosphere(object):
 
 		idx, idy = arg
 		
-		ne, nH, nHtot, rho = self.RH.hse(0, self.pg_top,
-												 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-												 self.data[idx, idy, 2],
-			                   self.data[idx, idy, 3], self.data[idx, idy, 4],
-			                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
-			                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
+		ne, nH, nHtot, rho, pg = self.RH.hse(0, self.pg_top,
+														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
+														 self.data[idx, idy, 2],
+					                   self.data[idx, idy, 3], self.data[idx, idy, 4],
+					                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
+					                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
 		
-		result = np.vstack((ne/1e6, nH/1e6, rho/1e3))
+		result = np.vstack((ne/1e6, nH/1e6, rho/1e3, pg*10))
 		return result
 
 	def get_pg_top(self):
-		N = (np.sum(globin.falc.data[0,0,8:], axis=0) + globin.falc.data[0,0,2]) * 1e6 # [cm3 --> m3]
-		pg = N * globin.K_BOLTZMAN * globin.falc.data[0,0,1]
-		tck = splrep(globin.falc.logtau, pg)
 		top = self.logtau[0]
 		if top<globin.falc.logtau[0]:
 			pg_top = pg[0]
 		elif top>=globin.falc.logtau[0] and top<=globin.falc.logtau[-1]:
-			pg_top = splev(self.logtau[0], tck)
+			pg_top = splev(self.logtau[0], globin.pg_tck)
 		else:
 			sys.exit("Top of atmosphere not in range of FAL C log_tau scale.")
 
-		self.pg_top = pg_top
+		# convert to SI unit
+		self.pg_top = pg_top/10
+
+	def get_pg(self):
+		"""
+		Compute the gas pressure from total Hydrogen density and electron density.
+
+		Units dyn/cm2 (CGS).
+		"""
+		nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
+		ne = self.data[...,2,:] * 1e6 # [m3]
+		self.pg = (nH + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
 
 	def makeHSE_old(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top)
-
 				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
 				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
 				self.rho[idx,idy] = rho
@@ -505,6 +651,7 @@ class Atmosphere(object):
 
 		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
 		self.nHtot = np.zeros((self.nx, self.ny, self.nz))
+		self.pg = np.zeros((self.nx, self.ny, self.nz))
 		self.rho = np.zeros((self.nx, self.ny, self.nz))
 		self.data[:,:,0,:] = x_new
 		self.logtau = x_new
@@ -544,6 +691,9 @@ class Atmosphere(object):
 		primary.header["NY"] = self.ny
 		primary.header["NZ"] = self.nz
 
+		if self.pg_top is not None:
+			primary.header["PGTOP"] = (float(self.pg_top), "gas pressure at top (in SI units)")
+
 		if self.add_stray_light:
 			primary.header["SL_TYPE"] = (self.stray_type, "stray light type")
 			primary.header["SL_MODE"] = (self.stray_mode, " -1 no inversion; 3 global inversion")
@@ -571,17 +721,6 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 
 		for parameter in self.nodes:
-			# matrix = np.ones((2, self.nx, self.ny, len(self.nodes[parameter])))
-			# matrix[0] = self.nodes[parameter]
-			# matrix[1] = self.values[parameter]
-
-			# if parameter=="gamma":
-				# matrix[1] = 2*np.arctan(matrix[1])
-				# matrix[1] = np.arccos(matrix[1])
-			# if parameter=="chi":
-				# matrix[1] = 4*np.arctan(matrix[1])
-				# matrix[1] = np.arccos(matrix[1])
-
 			par_hdu = fits.ImageHDU(self.values[parameter])
 			par_hdu.name = parameter
 
@@ -593,7 +732,6 @@ class Atmosphere(object):
 
 			for idn in range(len(self.nodes[parameter])):
 				par_hdu.header[f"NODE{idn+1}"] = self.nodes[parameter][idn]
-#			par_hdu.header["NODES"] = (list(self.nodes[parameter]), "parameter nodes in logtau")
 
 			hdulist.append(par_hdu)
 
@@ -660,11 +798,19 @@ class Atmosphere(object):
 			low_ind, up_ind = 0, 0
 			
 			#--- update atmospheric parameters
+			idp = 0
 			for parameter in self.values:
-				low_ind = up_ind
-				up_ind += len(self.nodes[parameter])
-				step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-				self.values[parameter] += step
+				for idn in range(len(self.nodes[parameter])):
+					if self.mask[parameter][idn]==0:
+						continue
+				# low_ind = up_ind
+				# up_ind += len(self.nodes[parameter])
+				# step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
+				# self.values[parameter] += step
+				# step *= self.mask[parameter]
+					step = proposed_steps[...,idp] / self.parameter_scale[parameter][...,idn]
+					self.values[parameter][...,idn] += step
+					idp += 1
 
 			#--- update atomic parameters
 			for parameter in self.global_pars:
@@ -684,10 +830,14 @@ class Atmosphere(object):
 			local_pars = local_pars.reshape(self.nx, self.ny, NparLocal, order="C")
 
 			low_ind, up_ind = 0, 0
+			idp = 0
 			for parameter in self.values:
-				low_ind = up_ind
-				up_ind += len(self.nodes[parameter])
-				self.values[parameter] += local_pars[..., low_ind:up_ind] / self.parameter_scale[parameter]
+				for idn in range(len(self.nodes[parameter])):
+					if self.mask[parameter][idn]==0:
+						continue
+					step = local_pars[...,idp] / self.parameter_scale[parameter][...,idn]
+					self.values[parameter][...,idn] += step
+					idp += 1
 
 			#--- update global (atomic) parameters and macro-turbulent velocity
 			global_pars = proposed_steps[NparLocal*Natmos:]
@@ -717,6 +867,8 @@ class Atmosphere(object):
 				y = np.sin(self.values[parameter])
 				self.values[parameter] = np.arcsin(y)
 			else:
+				# if parameter=="vmic":
+				# 	self.values[parameter] = np.abs(self.values[parameter])
 				# check lower boundary condition
 				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
 				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
@@ -778,6 +930,16 @@ class Atmosphere(object):
 					tmp = median_filter(self.values[parameter][...,idn], size=size)
 					self.values[parameter][...,idn] = tmp
 
+		for parameter in self.global_pars:
+			if parameter=="loggf" and len(self.line_no["loggf"])>0:
+				size = self.line_no[parameter].size
+				nx, ny = 1, 1	
+				if self.mode==2:
+					nx = self.nx
+					ny = self.ny
+				# delta = 0.0413 --> 10% relative error in oscillator strength (f)
+				self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
+
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
 		diag = np.einsum("...kk->...k", invH)
@@ -798,6 +960,17 @@ class Atmosphere(object):
 			up += scale.size
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
+
+	def get_hsra_cont(self):
+		"""
+		Compute the HSRA continuum intensity. Use the wavelength vector
+		specified in the atmosphere (not the HSRA one).
+		"""
+		if self.norm and self.norm_level=="hsra":
+			hsra = Atmosphere(f"{__path__}/data/hsrasp.dat", atm_type="spinor")
+			hsra.wavelength_air = self.wavelength_obs
+			spec = hsra.compute_spectra()
+			self.icont = spec.spec[0,0,0,0]
 
 	def compute_spectra(self, synthesize=None):
 		"""
@@ -825,8 +998,8 @@ class Atmosphere(object):
 		spectra_list = spectra_list.reshape(natm, ns, nw, order="C")
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
-		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_vacuum), nz=self.nz)
-		spectra.wavelength = self.wavelength_vacuum
+		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
+		spectra.wavelength = self.wavelength_obs
 		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
@@ -837,11 +1010,10 @@ class Atmosphere(object):
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[2], axis=-1)
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[3], axis=-1)
 				spectra.spec /= Ic
-		
+
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
-		# start = time.time()
 		idx, idy = args
 
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
@@ -868,9 +1040,27 @@ class Atmosphere(object):
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
-		
-		# print(f"Finished [{idx},{idy}] in ", time.time() - start)
 
+		# interpolate the output spectrum to an observation wavelength 
+		# grid because conversion air --> vacuum --> air has a significant
+		# difference which hinders the vz inversion (~ 0.13 km/s for 
+		# Hinode line par).
+
+		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
+			tck = splrep(self.wavelength_air, spec.I)
+			StokesI = splev(self.wavelength_obs, tck, ext=3)
+			tck = splrep(self.wavelength_air, spec.Q)
+			StokesQ = splev(self.wavelength_obs, tck, ext=1)
+			tck = splrep(self.wavelength_air, spec.U)
+			StokesU = splev(self.wavelength_obs, tck, ext=1)
+			tck = splrep(self.wavelength_air, spec.V)
+			StokesV = splev(self.wavelength_obs, tck, ext=1)
+
+			return StokesI, StokesQ, StokesU, StokesV
+
+		# when we are computing only the continuum intensity from HSRA for
+		# spectrum normalization or in synthesis mode 
+		# (wavelength_air == wavelength_obs)
 		return spec.I, spec.Q, spec.U, spec.V
 
 	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
@@ -889,16 +1079,15 @@ class Atmosphere(object):
 		old_rf : ndarray
 		"""
 		self.build_from_nodes(synthesize)
-		# print("  Get parameter RF...")
 		if self.hydrostatic:
-			# print("    Set the atmosphere in HSE...")
 			self.makeHSE(synthesize)
-		# print("    Compute spectra...")
-		spec = self.compute_spectra(synthesize)
-		Nw = spec.nw
-
-		# plt.plot(spec.spec[0,0,:,0])
+		# globin.visualize.plot_atmosphere(self, ["temp", "vz", "vmic", "mag", "gamma", "chi"])
 		# plt.show()
+		spec = self.compute_spectra(synthesize)
+		# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
+		# plt.show()
+		# sys.exit()
+		Nw = len(self.wavelength_obs)
 
 		active_indx, active_indy = np.where(synthesize==1)
 
@@ -916,7 +1105,9 @@ class Atmosphere(object):
 			perturbation = self.delta[parameter]
 
 			# for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
-			for nodeID in range(len(nodes)):				
+			for nodeID in range(len(nodes)):
+				if self.mask[parameter][nodeID]==0:
+					continue			
 				#--- positive perturbation
 				self.values[parameter][:,:,nodeID] += perturbation
 				if parameter=="of":
@@ -924,9 +1115,9 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					pass
 				else:
-					self.build_from_nodes(synthesize)
+					self.build_from_nodes(synthesize, params=parameter)
 				spectra_plus = self.compute_spectra(synthesize)
-				
+
 				#--- negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma" or parameter=="chi":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
@@ -940,11 +1131,11 @@ class Atmosphere(object):
 					if parameter=="of":	
 						self.make_OF_table(self.wavelength_vacuum)
 					else:
-						self.build_from_nodes(synthesize)
+						self.build_from_nodes(synthesize, params=parameter)
 					spectra_minus = self.compute_spectra(synthesize)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
-				
+
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
@@ -977,7 +1168,7 @@ class Atmosphere(object):
 						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
-					self.build_from_nodes(synthesize)
+					self.build_from_nodes(synthesize, params=parameter)
 
 			# reshape parameter scale for the scaling of regularization Jacobian matrix
 			if self.spatial_regularization:
@@ -1099,7 +1290,13 @@ class Atmosphere(object):
 		#--- add instrumental broadening
 		if instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			# self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+			self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+
+		# for idp in range(3):
+		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
+		# plt.legend()
+		# plt.show()
+		# sys.exit()
 
 		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 
@@ -1292,7 +1489,7 @@ class Atmosphere(object):
 			delta = diff / np.abs(self.data[idx,idy,idp])
 			delta = np.sum(delta) / self.nz
 			rmsd = np.sqrt(np.sum(diff**2) / self.nz)
-			print(idp, delta, rmsd)
+			print("{:2d}  {:4.3e}  {:4.3e}".format(idp, delta, rmsd))
 		print("--------------------------------------")
 
 	def read_spectral_lines(self, fpath):
@@ -1428,10 +1625,10 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	
 	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6 # [1/cm3]
 
-	pops = np.zeros((6, len(temp)))
+	pops = np.zeros((6, *temp.shape))
 
-	suma = np.ones(len(temp))
-	fact = np.ones((6, len(temp)))
+	suma = np.ones(temp.shape)
+	fact = np.ones((6, *temp.shape))
 	for lvl in range(1,6):
 		e_lvl = Ej*(1-1/(lvl+1)**2)
 		g = 2*(lvl+1)**2
@@ -1755,8 +1952,6 @@ def sir2multi(atmos_data):
 	pass
 
 def multi2sir(atmos, fpath):
-	from scipy.constants import k as kb
-
 	nx, ny, npar, nz = atmos.shape
 	new = np.zeros((nx, ny, 11, nz))
 	
@@ -1765,7 +1960,7 @@ def multi2sir(atmos, fpath):
 			new[idx,idy,0] = atmos.data[idx,idy,0] 			# log(tau) @ 500nm
 			new[idx,idy,1] = atmos.data[idx,idy,1] 			# T [K]
 			new[idx,idy,2] = atmos.data[idx,idy,2]*1e6 	# ne [1/m3]
-			new[idx,idy,2] *= kb * new[idx,idy,1] * 10	# ne [dyn/cm2]
+			new[idx,idy,2] *= globin.K_BOLTZMAN * new[idx,idy,1] * 10	# ne [dyn/cm2]
 			new[idx,idy,3] = atmos.data[idx,idy,4]*1e5	# vmic [cm/s]
 			new[idx,idy,4] = atmos.data[idx,idy,5]			# B [G]
 			new[idx,idy,5] = atmos.data[idx,idy,3]*1e5	# vz [cm/s]
@@ -1774,6 +1969,8 @@ def multi2sir(atmos, fpath):
 			new[idx,idy,7] = atmos.data[idx,idy,7]			# gamma [rad]
 			new[idx,idy,7] *= 180/np.pi									# gamma [deg]
 
+			new[idx,idy,9] = atmos.pg[idx,idy]
+			new[idx,idy,10] = atmos.rho[idx,idy]
 
 			np.savetxt(f"{fpath}_x{idx+1}_y{idy+1}.mod", new[idx,idy,:,::-1].T, header=" 1.0  1.0  0.0", comments="", fmt="%5.4e")
 
@@ -1846,7 +2043,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	Parameters:
 	-----------
 	fpath : string
-		file path to inverted atmosphere. It should be .fits file.
+		path to the inverted atmosphere. It must be fits file.
 	atm_range : list
 		list containing [xmin,xmax,ymin,ymax] that define part of the
 		cube to be read.
@@ -1873,6 +2070,11 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	atmos.logtau = data[0,0,0]
 	atmos.header = hdu_list[0].header
 
+	try:
+		atmos.pg_top = hdu_list[0].header["PGTOP"]
+	except:
+		pass
+
 	for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
 		# if parameter=="stray":
 		# 	stray = hdu_list[0].header
@@ -1898,91 +2100,5 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 		atmos.chi_c = hdu_list[ind].data
 	except:
 		atmos.chi_c = None
-
-	return atmos
-
-def read_multi(fpath):
-	"""
-	Read MULTI type atmosphere data and store it in
-	Atmosphere() object.
-
-	Parameter:
-	----------
-	fpath : string
-		path to the MULTI type atmosphere.
-
-	Return:
-	-------
-	atmos : globin.atmos.Atmosphere() object
-	"""
-	lines = open(fpath, "r").readlines()
-
-	# remove commented lines
-	lines = [line.rstrip("\n") for line in lines if "*" not in line]
-
-	# get number of depth points
-	ndpth = int(lines[3].replace(" ", ""))
-
-	nz = ndpth
-	nx, ny = 1, 1
-
-	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
-	atmos.shape = (nx, ny, 14, nz)
-
-	for i_ in range(ndpth):
-		# read first part of the atmosphere
-		lista = list(filter(None,lines[4+i_].split(" ")))
-		atmos.data[0,0,0,i_], \
-		atmos.data[0,0,1,i_], \
-		atmos.data[0,0,2,i_], \
-		atmos.data[0,0,3,i_], \
-		atmos.data[0,0,4,i_] = [float(element) for element in lista]
-
-		# read H populations
-		lista = list(filter(None,lines[4+ndpth+i_].split(" ")))
-		atmos.data[0,0,8,i_], \
-		atmos.data[0,0,9,i_], \
-		atmos.data[0,0,10,i_], \
-		atmos.data[0,0,11,i_], \
-		atmos.data[0,0,12,i_], \
-		atmos.data[0,0,13,i_] = [float(element) for element in lista]
-
-	atmos.logtau = atmos.data[0,0,0]
-
-	return atmos
-
-def read_spinor(fpath):
-	atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
-	# nz = atmos_data.shape[1]
-	
-	# atmos = globin.Atmosphere(nx=1, ny=1, nz=nz)
-	# atmos.logtau = atmos_data[0]
-	# atmos.data = atmos_data
-	
-	atmos = convert_atmosphere(atmos_data[0], atmos_data, "spinor")
-
-	return atmos
-
-def read_sir(fpath):
-	from scipy.constants import k as kb
-
-	data = np.loadtxt(fpath, skiprows=1).T
-	data = data[:,::-1]
-	npar, nz = data.shape
-
-	atmos = Atmosphere(nx=1, ny=1, nz=nz)
-
-	atmos.data[0,0,0] = data[0]			# log(tau) @ 500nm
-	atmos.logtau = data[0]
-	atmos.data[0,0,1] = data[1]			# T [K]
-	atmos.data[0,0,2] = data[2]  		# ne [dyn/cm2]
-	atmos.data[0,0,2] *= 1/10/kb/data[1]/1e6
-	atmos.data[0,0,3] = data[5]*1e5	# vz [km/s]
-	atmos.data[0,0,4] = data[3]*1e5 	# vmic [km/s]
-	atmos.data[0,0,5] = data[4]			# B [G]
-	atmos.data[0,0,6] = data[6] * np.pi/180 # gamma [rad]
-	atmos.data[0,0,7] = data[7] * np.pi/180 # theta [rad]
-
-	atmos.data[0,0,8:] = distribute_hydrogen(data[1], data[-2], data[2])
 
 	return atmos

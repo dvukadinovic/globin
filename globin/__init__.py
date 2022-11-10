@@ -70,16 +70,6 @@ __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visua
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
-#--- moduse operandi
-# 0 --> synthesis
-# 1 --> regular (pixle-by-pixel) inversion
-# 2 --> PSF inversion (not implemented yet)
-# 3 --> global inversion
-# mode = None
-
-#--- interpolation degree
-interp_degree = 3
-
 abundance = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
             		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
             		  5.12, 6.36, 3.1, 4.99, 4.0, 5.67, 5.39, 7.44, 4.92,
@@ -149,4 +139,9 @@ from scipy.constants import e as ELECTRON_CHARGE
 from scipy.interpolate import splrep
 
 #--- FAL C model (ref.): reference model if not given otherwise
-falc = Atmosphere(f"{__path__}/data/falc_multi.atmos")
+falc = Atmosphere(f"{__path__}/data/falc.dat", atm_type="spinor")
+temp_tck = splrep(falc.data[0,0,0], falc.data[0,0,1])
+pg_tck = splrep(falc.data[0,0,0], falc.pg[0,0])
+
+#--- print log character limit
+NCHAR = 80

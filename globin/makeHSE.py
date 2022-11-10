@@ -227,7 +227,7 @@ def solve_ne(temp, pg, pe, eps=1e-2):
 
 	return pe
 
-def makeHSE(wave, logt, temp, pg_top):
+def makeHSE(wave, logt, temp, pg_top=None):
 	"""
 	Routine from D. F. Gray. 
 
@@ -250,7 +250,7 @@ def makeHSE(wave, logt, temp, pg_top):
 		elif logt[0]<logtau0[0]:
 			pg[0] = pg0[0]
 	else:
-		pg[0] = pg_top*10 # because we forward the SI unit, and here we use CGS units
+		pg[0] = pg_top
 	pe[0] = pg[0]*1e-3
 
 	dP = 1e10

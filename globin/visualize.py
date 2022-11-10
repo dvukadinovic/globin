@@ -33,6 +33,13 @@ pars_symbol = {"temp"  : "T",
 			   "chi"   : r"$\phi$",
 			   "nH"    : r"$n_\mathrm{H}^0$"}
 
+def show():
+	"""
+	Just to show up the plot from 'plot_atmosphere' and/or
+	'plot_spectra' withouth the need to import matplotlib.
+	"""
+	plt.show()
+
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", label=None, reference=None):
 	logtau = atmos.data[idx,idy,0]
 	cube = atmos.data[idx,idy]

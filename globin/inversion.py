@@ -17,9 +17,8 @@ import pyrh
 
 from .spec import get_Icont, Spectrum
 from .container import Globin
-from .input import InputData
+from .input import InputData, Chi2
 from .visualize import plot_spectra
-from .tools import save_chi2
 
 import globin
 
@@ -64,7 +63,6 @@ class Inverter(InputData):
 			# initialize RH class (cythonized)
 			self.atmosphere.RH = pyrh.RH()
 			self.atmosphere.n_thread = self.n_thread
-			self.atmosphere.temp_tck = self.falc.temp_tck
 			self.atmosphere.mode = self.mode
 			if self.atmosphere.add_stray_light:
 				self.atmosphere.stray_mode = self.stray_mode
@@ -74,25 +72,27 @@ class Inverter(InputData):
 			self.atmosphere.step = self.step
 
 			if self.atmosphere.pg_top is None:
-				# interpolate the value
-				logtau0 = np.array([-7.00, -5.91, -5.05, -4.06, -3.00])
-				pg0 = np.array([6.32E0,1.06E2,3.18E2,1.01E3,3.46E3])
-				pg0_tck = splrep(logtau0, pg0)
-				if (self.atmosphere.logtau[0]<logtau0[-1]) and (self.atmosphere.logtau[0]>logtau0[0]):
-					self.atmosphere.pg_top = splev(self.atmosphere.logtau[0], pg0_tck)
-				elif self.atmosphere.logtau[0]<logtau0[0]:
-					self.atmosphere.pg_top = pg0[0]
-				else:
-					self.atmosphere.pg_top = pg0[-1]
-
-				self.atmosphere.pg_top /= 10 # [N/m2]
+				self.atmosphere.get_pg_top()
 
 			# fudge data
 			if self.mode>=1:
 				self.atmosphere.interp_degree = self.interp_degree
+				self.atmosphere.wavelength_obs = self.observation.wavelength
+			elif self.mode==0:
+				self.atmosphere.wavelength_obs = self.wavelength_air
 			
+			self.atmosphere.wavelength_air = self.wavelength_air
 			self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
-			# self.atmosphere.wavelength = self.wavelength
+
+			# we do not want to have sparse synthetic spectrum from which we will scale up
+			# we want to have the same or higher number of wavelength points than there
+			# are in the observations.
+			if self.mode>=1:
+				if len(self.observation.wavelength)>len(self.wavelength_air):
+					msg = "  Specified wavelength grid has lower number of points than\n"
+					msg+= "  the observation's wavelength grid. Increase the number of\n"
+					msg+= "  wavelength points to improve the sampling.\n"
+					sys.exit(msg)
 
 		else:
 			if rh_input_name is None:
@@ -106,13 +106,14 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n             --- Entering inversion mode ---\n")
+			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
 			start = time.time()
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
-					print("=====================================")
-					print(f"  Starting inversion cycle {cycle+1}")
-					print("=====================================\n")
+					print("="*globin.NCHAR)
+					print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=globin.NCHAR,))
+					print("="*globin.NCHAR)
+					print()
 
 				# if the cycle number is larger than the number of given max iterations
 				# take the last given number of max iterations
@@ -154,7 +155,7 @@ class Inverter(InputData):
 			return atmos, spec
 
 		elif self.mode==0:
-			print("\n --- Entering synthesis mode ---\n")
+			print("\n{:{char}{align}{width}}\n".format("Entering synthesis mode", char="-", align="^", width=globin.NCHAR))
 
 			atmos = self.atmosphere
 
@@ -167,7 +168,7 @@ class Inverter(InputData):
 					wavelength = self.wavelength_air[0]
 					print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 					icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
-				nw = len(atmos.wavelength_vacuum)
+				nw = len(atmos.wavelength_air)
 				atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 				atmos.hsra_spec = spec
 				if self.norm:
@@ -200,10 +201,10 @@ class Inverter(InputData):
 			# 	spec.add_noise(self.noise)
 
 			#--- save spectra
-			spec.save(self.output_spectra_path, self.wavelength_air)
-			
-			print("  All done!")
-			print("-------------------------------------------------\n")
+			spec.save(self.output_spectra_path, spec.wavelength)
+
+			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
+			print("-"*globin.NCHAR)
 
 			return atmos, spec
 		else:
@@ -226,7 +227,8 @@ class Inverter(InputData):
 	def _estimate_noise_level(self, nx, ny, nw):
 		# print("  Get the noise estimate...")
 		if self.noise==0:
-			noise = 1e-4
+			# noise = 1e-4
+			return np.ones((nx, ny, nw, 4))
 		else:
 			noise = self.noise
 		
@@ -271,7 +273,9 @@ class Inverter(InputData):
 				wavelength = obs.wavelength[0]
 				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
-			nw = len(atmos.wavelength_vacuum)
+			nw = len(atmos.wavelength_obs)
+			# HSRA continuum from SPINOR
+			# icont = 3.9949157e-08
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec
 			if self.norm:
@@ -282,10 +286,10 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
-		Nw = len(self.wavelength_air)
+		Nw = len(atmos.wavelength_obs)
 		Npar = self._get_Npar()
 		Natmos = atmos.nx*atmos.ny
-		Ndof = np.count_nonzero(self.weights) * Nw - Npar
+		Ndof = np.count_nonzero(self.weights)*Nw - Npar
 
 		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * marq_lambda
 		if self.debug:
@@ -315,13 +319,18 @@ class Inverter(InputData):
 
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((atmos.nx, atmos.ny, max_iter), dtype=np.float64)
+		chi2 = Chi2(nx=atmos.nx, ny=atmos.ny, niter=max_iter)
+		chi2.mode = self.mode
+		chi2.Nlolcal_par = Npar
+		chi2.Nglobal_par = 0
+		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 
-		# rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
+
+		proposed_steps = np.zeros((atmos.nx, atmos.ny, Npar))
 
 		iter_start = datetime.now()
 
@@ -413,6 +422,13 @@ class Inverter(InputData):
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, Npar, atmos.nx, atmos.ny, self.n_thread)
+			
+			# proposed_steps = np.linalg.solve(H, delta)
+			
+			# invH = np.linalg.pinv(H, rcond=self.svd_tolerance, hermitian=True)
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		proposed_steps[idx,idy] = np.dot(invH[idx,idy], delta[idx,idy])
 
 			#--- save old parameters (atmospheric and atomic)
 			old_atmos_parameters = copy.deepcopy(atmos.values)
@@ -434,6 +450,7 @@ class Inverter(InputData):
 
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag)
+			
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
 			
@@ -470,7 +487,7 @@ class Inverter(InputData):
 
 			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
-			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
+			chi2.chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
 			LM_parameter[indx,indy] /= 10
 			itter[indx,indy] += 1
 			updated_pars[indx,indy] = 1
@@ -504,7 +521,7 @@ class Inverter(InputData):
 				print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
-			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
+			stop_flag, itter, updated_pars = chi2_convergence(chi2.chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
 
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
@@ -566,13 +583,13 @@ class Inverter(InputData):
 				wavelength = obs.wavelength[0]
 				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
 				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
-			nw = len(atmos.wavelength_vacuum)
+			nw = len(atmos.wavelength_obs)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec
 			if self.norm:
 				atmos.hsra_spec /= icont
 
-		Nw = len(self.wavelength_air)
+		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
 		Npar = self._get_Npar()
 		Natmos = atmos.nx * atmos.ny
@@ -584,7 +601,12 @@ class Inverter(InputData):
 		#--- estimate of Stokes noise
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
+		chi2.mode = self.mode
+		chi2.Nlolcal_par = Nlocalpar
+		chi2.Nglobal_par = Nglobalpar
+		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		LM_parameter = marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((max_iter), dtype=np.float64)
@@ -749,6 +771,7 @@ class Inverter(InputData):
 			atmos.build_from_nodes(ones)
 			if atmos.hydrostatic:
 				atmos.makeHSE(ones)
+
 			corrected_spec = atmos.compute_spectra(ones)
 			
 			# broaden the corrected spectra by macro velocity
@@ -803,7 +826,7 @@ class Inverter(InputData):
 				updated_parameters = False
 				num_failed += 1
 			else:
-				chi2[...,itter] = chi2_new
+				chi2.chi2[...,itter] = chi2_new
 				LM_parameter /= 10
 				updated_parameters = True
 				itter += 1
@@ -821,7 +844,7 @@ class Inverter(InputData):
 				break_flag = True
 
 			if updated_parameters:
-				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2[...,itter-1]), np.log10(LM_parameter)))
+				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2.chi2[...,itter-1]), np.log10(LM_parameter)))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
@@ -835,17 +858,17 @@ class Inverter(InputData):
 			if (itter)>=2 and updated_parameters:
 				# need to get -2 and -1 because we already rised itter by 1
 				# when chi2 was updated
-				new_chi2 = np.sum(chi2[...,itter-1])
-				old_chi2 = np.sum(chi2[...,itter-2])
+				new_chi2 = np.sum(chi2.chi2[...,itter-1])
+				old_chi2 = np.sum(chi2.chi2[...,itter-2])
 				relative_change = np.abs(new_chi2/old_chi2 - 1)
 				if relative_change<self.chi2_tolerance:
-					print("chi2 relative change is smaller than given value.\n")
+					print("\nchi2 relative change is smaller than given value.\n")
 					break_flag = True
 				elif new_chi2<1:
-					print("chi2 smaller than 1\n")
+					print("\nchi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
-					print("Maximum number of iteratinos reached.\n")
+					print("\nMaximum number of iteratinos reached.\n")
 					break_flag = True
 				else:
 					pass
@@ -947,8 +970,8 @@ class Inverter(InputData):
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos_c{cycle}.fits")
 		if self.mode==2 or self.mode==3:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms_c{cycle}.fits")
-		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", self.wavelength_air)
-		save_chi2(chi2, f"{output_path}/chi2_c{cycle}.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
+		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
+		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, Npar, nx, ny, n_thread=1):
 	indx, indy = np.where(stop_flag==1)
@@ -971,16 +994,19 @@ def _invert_Hessian(args):
 	Npar = delta.shape
 	one = np.ones(Npar)
 
-#	det = np.linalg.det(hessian)
-#	if det==0:
-	u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
-	vmax = svd_tolerance*np.max(eigen_vals)
-	inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
-	Gamma_inv = np.diag(inv_eigen_vals)
-	invHess = np.dot(u, np.dot(Gamma_inv, vh))
-	steps = np.dot(invHess, delta)
-#	else:
-#		steps = np.linalg.solve(hessian, delta)
+	invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
+	steps = np.dot(invH, delta)
+
+	# det = np.linalg.det(hessian)
+	# if det==0:
+	# u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
+	# vmax = svd_tolerance*np.max(eigen_vals)
+	# inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
+	# Gamma_inv = np.diag(inv_eigen_vals)
+	# invHess = np.dot(u, np.dot(Gamma_inv, vh))
+	# steps = np.dot(invHess, delta)
+	# else:
+	# 	steps = np.linalg.solve(hessian, delta)
 
 	return steps
 
@@ -995,7 +1021,6 @@ def chi2_convergence(chi2, itter, stop_flag, updated_pars, n_thread, max_iter, c
 
 	with mp.Pool(n_thread) as pool:
 		results = pool.map(func=_chi2_convergence, iterable=args)
-
 
 	results = np.array(results)
 	stop_flag = results[...,0].reshape(nx, ny)
