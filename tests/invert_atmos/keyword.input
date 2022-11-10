@@ -118,7 +118,7 @@
 # Set HYDROGEN_LTE = TRUE if hydrogen in the background has to be
 # treated with LTE populations (KEYWORD_DEFAULT). Default is FALSE
 
-#  HYDROGEN_LTE = TRUE
+  HYDROGEN_LTE = TRUE
 #  HYDROSTATIC = FALSE
 
 # Data file for background opacity fudge to compensate for missing
@@ -182,7 +182,7 @@
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-  STOKES_INPUT = ./FALC_82_500G_45.B
+#  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
