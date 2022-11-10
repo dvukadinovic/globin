@@ -1239,3 +1239,83 @@ class RF(object):
 		if stokes.lower()=="v":
 			ids = 3
 		return self.rf[...,ids]
+
+class Chi2(object):
+	def __init__(self, fpath=None, nx=None, ny=None, niter=None):
+		if fpath is not None:
+			self.read(fpath)
+		elif (nx is not None) and (ny is not None) and (niter is not None):
+			self.chi2 = np.zeros((nx, ny, niter), dtype=np.float64)
+			self.nx, self.ny, self.niter = nx, ny, niter
+
+		self.mode = -1
+		self.Nlocal_par = -1
+		self.Nglobal_par = -1
+		self.Nw = -1
+
+	def read(self, fpath):
+		hdu = fits.open(fpath)[0]
+		header = hdu.header
+		self.chi2 = hdu.data
+
+		try:
+			self.mode = header["MODE"]
+			self.Nlocal_par = header["NLOCALP"]
+			self.Nglobal_par = header["NGLOBALP"]
+			self.Nw = header["NW"]
+		except:
+			# for the older outputs
+			self.nx, self.ny,_ = self.chi2.shape
+			self.chi2, _ = self.get_final_chi2()
+
+		self.nx, self.ny = self.chi2.shape
+
+	def get_final_chi2(self):
+		last_iter = np.zeros((self.nx, self.ny))
+		best_chi2 = np.zeros((self.nx, self.ny))
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				inds_non_zero = np.nonzero(self.chi2[idx,idy])[0]
+				last_iter[idx,idy] = inds_non_zero[-1]
+				best_chi2[idx,idy] = self.chi2[idx,idy,inds_non_zero[-1]]
+
+		return best_chi2, last_iter
+
+	def per_pixel(self, best_chi2, copy=False):
+		if self.mode==1 or self.mode==2:
+			return best_chi2
+
+		Natm = self.nx*self.ny
+		if self.mode==3:
+			Ndof = self.Nw*Natm - self.Nlocal_par*Natm - self.Nglobal_par
+
+		best_chi2 *= Ndof
+		best_chi2 /= (self.Nw - self.Nlocal_par - self.Nglobal_par)
+
+		if copy:
+			self.chi2 = best_chi2
+		else:
+			return best_chi2
+
+	def save(self, fpath="chi2.fits"):
+		best_chi2, last_iter = self.get_final_chi2()
+		best_chi2 = self.per_pixel(best_chi2)
+
+		primary = fits.PrimaryHDU(best_chi2)
+		hdulist = fits.HDUList([primary])
+
+		primary.name = "best_chi2"
+		primary.header["NX"] = (self.nx, "number of x atmospheres")
+		primary.header["NY"] = (self.ny, "number of y atmospheres")
+		primary.header["MODE"] = (self.mode, "inversion mode")
+		primary.header["NLOCALP"] = (self.Nlocal_par, "num. of local parameters")
+		primary.header["NGLOBALP"] = (self.Nlocal_par, "num. of global parameters")
+		primary.header["NW"] = (self.Nw, "number of wavelenghts (for full Stokes")
+
+		# contianer for last iteration number for each pixel
+		iter_hdu = fits.ImageHDU(last_iter)
+		iter_hdu.name = "iteration_num"
+		hdulist.append(iter_hdu)
+
+		# save
+		hdulist.writeto(fpath, overwrite=True)

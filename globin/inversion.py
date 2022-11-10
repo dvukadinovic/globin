@@ -17,9 +17,8 @@ import pyrh
 
 from .spec import get_Icont, Spectrum
 from .container import Globin
-from .input import InputData
+from .input import InputData, Chi2
 from .visualize import plot_spectra
-from .tools import save_chi2
 
 import globin
 
@@ -107,7 +106,7 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n{:{char}{align}{width}}\n".format("Entering inversion mode", char="-", align="^", width=globin.NCHAR))
+			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
 			start = time.time()
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
@@ -290,7 +289,7 @@ class Inverter(InputData):
 		Nw = len(atmos.wavelength_obs)
 		Npar = self._get_Npar()
 		Natmos = atmos.nx*atmos.ny
-		Ndof = np.count_nonzero(self.weights) * Nw - Npar
+		Ndof = np.count_nonzero(self.weights)*Nw - Npar
 
 		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * marq_lambda
 		if self.debug:
@@ -320,7 +319,11 @@ class Inverter(InputData):
 
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((atmos.nx, atmos.ny, max_iter), dtype=np.float64)
+		chi2 = Chi2(nx=atmos.nx, ny=atmos.ny, niter=max_iter)
+		chi2.mode = self.mode
+		chi2.Nlolcal_par = Npar
+		chi2.Nglobal_par = 0
+		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
@@ -484,7 +487,7 @@ class Inverter(InputData):
 
 			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
-			chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
+			chi2.chi2[indx,indy,itter[indx,indy]] = chi2_new[indx,indy]
 			LM_parameter[indx,indy] /= 10
 			itter[indx,indy] += 1
 			updated_pars[indx,indy] = 1
@@ -518,7 +521,7 @@ class Inverter(InputData):
 				print(LM_parameter[idx,idy])
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
-			stop_flag, itter, updated_pars = chi2_convergence(chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
+			stop_flag, itter, updated_pars = chi2_convergence(chi2.chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
 
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
@@ -598,7 +601,12 @@ class Inverter(InputData):
 		#--- estimate of Stokes noise
 		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
 
-		chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
+		chi2.mode = self.mode
+		chi2.Nlolcal_par = Nlocalpar
+		chi2.Nglobal_par = Nglobalpar
+		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		LM_parameter = marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((max_iter), dtype=np.float64)
@@ -818,7 +826,7 @@ class Inverter(InputData):
 				updated_parameters = False
 				num_failed += 1
 			else:
-				chi2[...,itter] = chi2_new
+				chi2.chi2[...,itter] = chi2_new
 				LM_parameter /= 10
 				updated_parameters = True
 				itter += 1
@@ -836,7 +844,7 @@ class Inverter(InputData):
 				break_flag = True
 
 			if updated_parameters:
-				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2[...,itter-1]), np.log10(LM_parameter)))
+				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2.chi2[...,itter-1]), np.log10(LM_parameter)))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
@@ -850,17 +858,17 @@ class Inverter(InputData):
 			if (itter)>=2 and updated_parameters:
 				# need to get -2 and -1 because we already rised itter by 1
 				# when chi2 was updated
-				new_chi2 = np.sum(chi2[...,itter-1])
-				old_chi2 = np.sum(chi2[...,itter-2])
+				new_chi2 = np.sum(chi2.chi2[...,itter-1])
+				old_chi2 = np.sum(chi2.chi2[...,itter-2])
 				relative_change = np.abs(new_chi2/old_chi2 - 1)
 				if relative_change<self.chi2_tolerance:
-					print("chi2 relative change is smaller than given value.\n")
+					print("\nchi2 relative change is smaller than given value.\n")
 					break_flag = True
 				elif new_chi2<1:
-					print("chi2 smaller than 1\n")
+					print("\nchi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
-					print("Maximum number of iteratinos reached.\n")
+					print("\nMaximum number of iteratinos reached.\n")
 					break_flag = True
 				else:
 					pass
@@ -963,7 +971,7 @@ class Inverter(InputData):
 		if self.mode==2 or self.mode==3:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms_c{cycle}.fits")
 		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
-		save_chi2(chi2, f"{output_path}/chi2_c{cycle}.fits", obs.xmin, obs.xmax, obs.ymin, obs.ymax)
+		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, Npar, nx, ny, n_thread=1):
 	indx, indy = np.where(stop_flag==1)
