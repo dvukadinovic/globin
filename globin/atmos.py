@@ -28,7 +28,6 @@ except:
 	raise ImportError("No 'pyrh' module. Install it before using 'globin'")
 
 import globin
-from .mppools import pool_spinor2multi
 from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation
 from .makeHSE import makeHSE
@@ -137,6 +136,9 @@ class Atmosphere(object):
 		# node mask: we can specify only which nodes to invert (mask==1)
 		# structure and ordering same as self.nodes
 		self.mask = {}
+
+		# mode of operation
+		# self.mode = 0
 
 		self.chi_c = None
 		self.pg = None
@@ -928,6 +930,16 @@ class Atmosphere(object):
 					tmp = median_filter(self.values[parameter][...,idn], size=size)
 					self.values[parameter][...,idn] = tmp
 
+		for parameter in self.global_pars:
+			if parameter=="loggf" and len(self.line_no["loggf"])>0:
+				size = self.line_no[parameter].size
+				nx, ny = 1, 1	
+				if self.mode==2:
+					nx = self.nx
+					ny = self.ny
+				# delta = 0.0413 --> 10% relative error in oscillator strength (f)
+				self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
+
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
 		diag = np.einsum("...kk->...k", invH)
@@ -948,6 +960,17 @@ class Atmosphere(object):
 			up += scale.size
 			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 			low = up
+
+	def get_hsra_cont(self):
+		"""
+		Compute the HSRA continuum intensity. Use the wavelength vector
+		specified in the atmosphere (not the HSRA one).
+		"""
+		if self.norm and self.norm_level=="hsra":
+			hsra = Atmosphere(f"{__path__}/data/hsrasp.dat", atm_type="spinor")
+			hsra.wavelength_air = self.wavelength_obs
+			spec = hsra.compute_spectra()
+			self.icont = spec.spec[0,0,0,0]
 
 	def compute_spectra(self, synthesize=None):
 		"""
@@ -1034,10 +1057,11 @@ class Atmosphere(object):
 			StokesV = splev(self.wavelength_obs, tck, ext=1)
 
 			return StokesI, StokesQ, StokesU, StokesV
-		else:
-			# when we are computing only the continuum intensity from HSRA for
-			# spectrum normalization
-			return spec.I, spec.Q, spec.U, spec.V
+
+		# when we are computing only the continuum intensity from HSRA for
+		# spectrum normalization or in synthesis mode 
+		# (wavelength_air == wavelength_obs)
+		return spec.I, spec.Q, spec.U, spec.V
 
 	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
