@@ -155,7 +155,7 @@ class Inverter(InputData):
 			return atmos, spec
 
 		elif self.mode==0:
-			print("\n{:{char}{align}{width}}\n".format("Entering synthesis mode", char="-", align="^", width=globin.NCHAR))
+			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
 
 			atmos = self.atmosphere
 
@@ -268,14 +268,11 @@ class Inverter(InputData):
 		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
 			if atmos.add_stray_light:
 				print(f"Get the HSRA continuum intensity and spectrum...\n")
-				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
+				icont, spec = get_Icont(wavelength=atmos.wavelength_air, mu=atmos.mu)
 			else:
-				wavelength = obs.wavelength[0]
-				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
-				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
+				print(f"Get the HSRA continuum intensity @ {obs.wavelength[0]}...\n")
+				icont, spec = get_Icont(wavelength=obs.wavelength[0], mu=atmos.mu)
 			nw = len(atmos.wavelength_obs)
-			# HSRA continuum from SPINOR
-			# icont = 3.9949157e-08
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec
 			if self.norm:
@@ -523,6 +520,8 @@ class Inverter(InputData):
 			#--- check the convergence only for pixels whose iteration number is larger than 2
 			stop_flag, itter, updated_pars = chi2_convergence(chi2.chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
 
+			print("  chi2 --> {:4.3e}".format(np.sum(chi2.chi2[...,itter-1])))
+
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
 
@@ -580,9 +579,8 @@ class Inverter(InputData):
 				print(f"Get the HSRA continuum intensity and spectrum...\n")
 				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
 			else:
-				wavelength = obs.wavelength[0]
-				print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
-				icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
+				print(f"Get the HSRA continuum intensity @ {obs.wavelength[0]}...\n")
+				icont, spec = get_Icont(wavelength=obs.wavelength[0], mu=atmos.mu)
 			nw = len(atmos.wavelength_obs)
 			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
 			atmos.hsra_spec = spec

@@ -322,19 +322,17 @@ def get_Icont(wavelength=500, mu=1.0):
 
 	try:
 		nw = len(wavelength)
-		hsrasp.wavelength_vacuum = wavelength
 		hsrasp.wavelength_air = np.asarray(wavelength)
 		hsrasp.wavelength_obs = np.asarray(wavelength)
+		hsrasp.wavelength_vacuum = globin.rh.write_wavs(wavelength, fname=None)
 	except:
-		hsrasp.wavelength_vacuum = np.array([wavelength], dtype=np.float64)
 		hsrasp.wavelength_air = np.asarray([wavelength])
 		hsrasp.wavelength_obs = np.asarray([wavelength])
+		hsrasp.wavelength_vacuum = globin.rh.write_wavs(np.array([wavelength], dtype=np.float64), fname=None)
 	nw = len(hsrasp.wavelength_vacuum)
 	
-	hsrasp.do_fudge = 0
-
 	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
-	spec = hsrasp.compute_spectra(np.ones((1,1)))
+	spec = hsrasp.compute_spectra()
 	icont = spec.spec[0,0,0,0]
 	
 	return icont, spec.spec[0,0]
