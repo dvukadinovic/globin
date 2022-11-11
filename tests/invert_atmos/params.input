@@ -5,9 +5,9 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 1
+n_thread = 6
 interp_deree = 3
-mode = 3
+mode = 1
 ncycle = 1
 debug = False
 
@@ -31,7 +31,7 @@ spectrum = obs_uniform.fits
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/dummy/inverted_atmos.fits
 
-spatial_regularization_weight = 1e3
+#spatial_regularization_weight = 1e3
 
 nodes_temp = -2.2, -1.6, -0.9, 0
 nodes_temp_values = 4400, 5500, 6600, 7800

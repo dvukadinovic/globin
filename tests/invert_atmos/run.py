@@ -46,9 +46,10 @@ obs = globin.Observation("obs_uniform.fits")
 
 # sys.exit()
 
-inverter = globin.Inverter(verbose=False)
+inverter = globin.Inverter(verbose=True)
 inverter.read_input(run_name="dummy")
 inv_atmos, inv_spec = inverter.run()
+sys.exit()
 
 for parameter in inv_atmos.nodes:
 	print(parameter)
