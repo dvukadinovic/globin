@@ -969,6 +969,7 @@ class Atmosphere(object):
 		if self.norm and self.norm_level=="hsra":
 			hsra = Atmosphere(f"{__path__}/data/hsrasp.dat", atm_type="spinor")
 			hsra.wavelength_air = self.wavelength_obs
+			hsra.mu = self.mu
 			spec = hsra.compute_spectra()
 			self.icont = spec.spec[0,0,0,0]
 
