@@ -110,7 +110,6 @@ class Atmosphere(object):
 										"stray" : 0.1}			#
 
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
-		self.fpath = fpath
 		self.type = atm_type
 
 		# parameter scaling for inversino
@@ -190,23 +189,16 @@ class Atmosphere(object):
 			pass
 
 		# if we provide path to atmosphere, read in data
-		if self.fpath is not None:
-			# extension = self.fpath.split(".")[-1]
+		if fpath is not None:
 			if atm_type=="spinor":
-				self.read_spinor(self.fpath)
+				self.read_spinor(fpath)
 			elif atm_type=="sir":
-				self.read_sir(self.fpath)
+				self.read_sir(fpath)
 			elif atm_type=="multi":
-				self.read_multi(self.fpath)
-
-			# if extension=="dat" or extension=="txt" or extension=="atmos":
-			# 	if self.type=="spinor":
-			# 		self.read_spinor(self.fpath)
-			# 	elif self.type=="multi":
-			# 		self.read_multi(self.fpath)
-			# elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
-			# 	self.read_cube(self.fpath, atm_range)
-			# 	# self = read_inverted_atmosphere(self.fpath, atm_range)
+				if "fits" in fpath:
+					self.read_multi_cube(fpath)
+				else:
+					self.read_multi(fpath)
 			else:
 				raise ValueError(f"  Unsupported atmosphere type {atm_type}.")
 
@@ -235,7 +227,7 @@ class Atmosphere(object):
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
-		_str += "  fpath = {}\n".format(self.fpath)
+		_str += "  fpath = {}\n".format(fpath)
 		_str += "  (nx,ny,npar,nz) = ({},{},{},{})>".format(*self.shape)
 		return _str
 
@@ -395,9 +387,17 @@ class Atmosphere(object):
 		self.rho = np.zeros((1,1,nz))
 		self.rho[0,0] = data[-3] # CHECK THIS! MAYBE IT IS HEIGHT and NOT DENSITY
 
-	def read_cube(self, fpath, atm_range):
+	def read_multi_cube(self, fpath, atm_range=[0,None,0,None]):
 		"""
-		Read the cube atmosphere of MULTI type.
+		Read the cube atmosphere of MULTI type in fits format.
+
+		Parameters:
+		-----------
+		fpath : string
+			path to the atmosphere in fits format.
+		atm_range : list, optional
+			list containing [xmin, xmax, ymin, ymax] defining the patch from the cube
+			to be read into the memory.
 		"""
 		try:
 			hdu_list = fits.open(fpath)
@@ -419,6 +419,9 @@ class Atmosphere(object):
 		self.logtau_step = self.logtau[1] - self.logtau[0]
 		self.header = hdu_list[0].header
 
+		if self.npar!=14:
+			raise ValueError(f"MULTI atmosphere is not compatible with globin. It has {self.npar} parameters instead of 14.")
+
 		self.pg = np.zeros((self.nx, self.ny, self.nz))
 		self.rho = np.zeros((self.nx, self.ny, self.nz))
 
@@ -427,6 +430,7 @@ class Atmosphere(object):
 		except:
 			pass
 
+		# check for the parameters from inversion for each parameter
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
 			# if parameter=="stray":
 			# 	stray = hdu_list[0].header
@@ -453,19 +457,37 @@ class Atmosphere(object):
 		except:
 			self.chi_c = None
 
-	def get_atmos(self, idx, idy):
-		# return atmosphere from cube with given indices 'idx' and 'idy'.
-		try:
-			return self.data[idx,idy]
-		except:
-			print(f"Error: Atmosphere index notation does not match")
-			print(f"       it's dimension. No atmosphere (x,y) = ({idx},{idy})\n")
-			sys.exit()
+	@property
+	def T(self):
+		return self.data[:,:,1]
 
-	def write_atmosphere(self):
-		atmos = [self]*(self.nx*self.ny)
-		args = zip(atmos, globin.idx, globin.idy)
-		globin.pool.map(func=globin.pool_write_atmosphere, iterable=args)
+	@property
+	def vz(self):
+		return self.data[:,:,3]
+
+	@property
+	def vmic(self):
+		return self.data[:,:,4]
+
+	@property
+	def B(self):
+		return self.data[:,:,5]
+
+	@property
+	def gamma(self):
+		return self.data[:,:,6]
+
+	@property
+	def phi(self):
+		return self.data[:,:,7]
+
+	@property
+	def ne(self):
+		return self.data[:,:,2]
+
+	@property
+	def nH(self):
+		return self.data[:,:,8:]
 
 	def build_from_nodes(self, flag=None, params=None):
 		"""
