@@ -191,21 +191,24 @@ class Atmosphere(object):
 
 		# if we provide path to atmosphere, read in data
 		if self.fpath is not None:
-			extension = self.fpath.split(".")[-1]
+			# extension = self.fpath.split(".")[-1]
+			if atm_type=="spinor":
+				self.read_spinor(self.fpath)
+			elif atm_type=="sir":
+				self.read_sir(self.fpath)
+			elif atm_type=="multi":
+				self.read_multi(self.fpath)
 
-			if extension=="dat" or extension=="txt" or extension=="atmos":
-				if self.type=="spinor":
-					self.read_spinor(self.fpath)
-				elif self.type=="multi":
-					self.read_multi(self.fpath)
-			elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
-				self.read_cube(self.fpath, atm_range)
-				# self = read_inverted_atmosphere(self.fpath, atm_range)
+			# if extension=="dat" or extension=="txt" or extension=="atmos":
+			# 	if self.type=="spinor":
+			# 		self.read_spinor(self.fpath)
+			# 	elif self.type=="multi":
+			# 		self.read_multi(self.fpath)
+			# elif (extension=="fits") or (extension=="fit") and (self.type=="multi"):
+			# 	self.read_cube(self.fpath, atm_range)
+			# 	# self = read_inverted_atmosphere(self.fpath, atm_range)
 			else:
-				print("--> Error in atmos.Atmosphere()")
-				print(f"    Unsupported extension '{extension}' of atmosphere file.")
-				print("    Supported extensions are: .dat, .txt, .fit(s)")
-				sys.exit()
+				raise ValueError(f"  Unsupported atmosphere type {atm_type}.")
 
 			self.nHtot = np.sum(self.data[:,:,8:,:], axis=-2)
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
@@ -285,53 +288,64 @@ class Atmosphere(object):
 
 	def read_spinor(self, fpath):
 		"""
-		Read in the SPINOR type atmosphere.
+		Read in the SPINOR type atmosphere (fits or txt format).
 
 		Parameters:
 		-----------
 		fpath : str
 			path to the SPINOR type atmosphere.
 		"""
-		atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+		if "fits" in fpath:
+			hdu = fits.open(fpath)
+			atmos_data = hdu[0].data
+			ndim = atmos_data.ndim
+			_, self.nx, self.ny, self.nz = atmos_data.shape
+		else:
+			atmos_data = np.loadtxt(fpath, skiprows=1, dtype=np.float64).T
+			ndim = atmos_data.ndim
+			_, self.nz = atmos_data.shape
+			self.nx, self.ny = 1, 1
+			atmos_data = np.repeat(atmos_data[:, np.newaxis, :], self.ny, axis=1)
+			atmos_data = np.repeat(atmos_data[:, np.newaxis, :, :], self.nx, axis=1)
 
-		_, nz = atmos_data.shape
-
-		self.shape = (1,1,14,nz)
+		self.shape = (self.nx, self.ny, 14, self.nz)
 		self.data = np.zeros(self.shape)
-		self.nx, self.ny, self.npar, self.nz = self.shape
 
 		# log(tau)
-		self.data[0,0,0] = atmos_data[0]
-		self.logtau = atmos_data[0]
+		self.data[:,:,0] = atmos_data[0]
+		self.logtau = atmos_data[0,0,0]
 		self.logtau_top = self.logtau[0]
 		self.logtau_bot = self.logtau[-1]
 		self.logtau_step = self.logtau[1] - self.logtau[0]
 		# Temperature [K]
-		self.data[0,0,1] = atmos_data[2]
+		self.data[:,:,1] = atmos_data[2]
 		# Electron density [1/cm3]
-		self.data[0,0,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
+		self.data[:,:,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
 		# Vertical velocity [cm/s] --> [km/s]
-		self.data[0,0,3] = atmos_data[9]/1e5
+		self.data[:,:,3] = atmos_data[9]/1e5
 		# Microturbulent velocitu [cm/s] --> [km/s]
-		self.data[0,0,4] = atmos_data[8]/1e5
+		self.data[:,:,4] = atmos_data[8]/1e5
 		# Magnetic field strength [G]
-		self.data[0,0,5] = atmos_data[7]
+		self.data[:,:,5] = atmos_data[7]
 		# Inclination [rad]
-		self.data[0,0,6] = atmos_data[-2]
+		self.data[:,:,6] = atmos_data[-2]
 		# Azimuth [rad]
-		self.data[0,0,7] = atmos_data[-1]
+		self.data[:,:,7] = atmos_data[-1]
 		# Hydrogen populations [1/cm3]
-		self.data[0,0,8:] = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+		nH = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+		for idl in range(6):
+			self.data[:,:,8+idl] = nH[idl]
 
 		# gas pressure at the top of the atmosphere (in SI units)
-		self.pg_top = atmos_data[3,0]/10
+		self.pg_top = atmos_data[3,0,0,0]/10
 
-		# container for the gas pressure
-		self.pg = np.zeros((1,1,nz))
-		self.pg[0,0] = atmos_data[3]
+		# container for the gas pressure [dyn/cm2]
+		self.pg = np.zeros((self.nx, self.ny, self.nz))
+		self.pg = atmos_data[3]
 
-		self.rho = np.zeros((1,1,nz))
-		self.rho[0,0] = atmos_data[6]
+		# container for the density [g/cm3]
+		self.rho = np.zeros((self.nx, self.ny, self.nz))
+		self.rho = atmos_data[6]
 
 	def read_sir(self, fpath):
 		"""
@@ -1894,7 +1908,7 @@ def convert_atmosphere(logtau, atmos_data, atm_type):
 
 	return atmos
 
-def spinor2multi(atmos_data, do_HSE=False, nproc=1):
+def spinor2multi(atmos_data):
 	"""
 	Routine for converting 'atmos_data' from SPINOR to MULTI type.
 
@@ -1903,49 +1917,40 @@ def spinor2multi(atmos_data, do_HSE=False, nproc=1):
 	atmos_data : ndarray
 		atmosphere data to be converted. Can have dimensions of (npar, nz) or
 		(nx, ny, npar, nz).
-	do_HSE : bool (optional)
-		flag which defines if we are seting H pops from temperature of input atmosphere.
-		Otherwise, we use Pe and Pg from input atmosphere (default).
-	nproc : int (optional)
-		number of proceses to be used for conversion. Default is 1.
 
 	Return:
 	-------
 	atmos : globin.atmos.Atmosphere()
 	"""
-	dim = atmos_data.ndim
-	if dim==2:
-		_, nz = atmos_data.shape
-		nx, ny = 1, 1
-		idx, idy = [0], [0]
-		atmos_data = [atmos_data]
-	elif dim==4:
-		nx, ny, _, nz = atmos_data.shape
-		idx, idy = np.meshgrid(np.arange(nx), np.arange(ny))
-		idx = idx.flatten()
-		idy = idy.flatten()
-		atmos_data = [atmos_data[IDx,IDy] for IDx,IDy in zip(idx,idy)]
-	else:
-		print("--> Error: unknown number of dimensions for atmosphere")
-		print("    to be converted from SPINOR to MULTI format.\n")
-		sys.exit()
-
-	args = zip([do_HSE]*(nx*ny), atmos_data)
-
-	print("Converting atmosphere...")
-	try:
-		items = globin.pool.map(func=globin.pool_spinor2multi, iterable=args)
-	except:
-		import multiprocessing as mp
-		with mp.Pool(nproc) as pool:
-			items = pool.map(func=pool_spinor2multi, iterable=args)
-	print("Done!")
+	###
+	### DEBUG THIS
+	###
+	npar, nx, ny, nz = atmos_data.shape
 
 	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
-	for i_, in_data in enumerate(items):
-		IDx, IDy = idx[i_], idy[i_]
-		atmos.data[IDx,IDy] = in_data
-	atmos.logtau = atmos.data[0,0,0]
+
+	# logtau
+	atmos.data[:,:,0] = atmos_data[0]
+	atmos.logtau = atmos_data[0,0,0]
+	atmos.logtau_top = atmos.logtau[0]
+	atmos.logtau_bot = atmos.logtau[-1]
+	atmos.logtau_step = atmos.logtau[1] - atmos.logtau[0]
+	# temperature [K]
+	atmos.data[:,:,1] = atmos_data[2]
+	# electron density [1/cm3]
+	amtos.data[:,:,2] = atmos_data[4]/10/globin.K_BOLTZMAN/atmos_data[2] / 1e6
+	# LOS velocity [km/s]
+	atmos_data[:,:,3] = atmos_data[9]/1e5
+	# micro-turbulent velocity [km/s]
+	atmos_data[:,:,4] = atmos_data[8]/1e5
+	# magnetic field strength [G]
+	atmos_data[:,:,5] = atmos_data[7]
+	# magnetic field inclination [rad]
+	atmos.data[:,:,6] = atmos_data[-2]# * np.pi/180
+	# magnetic field zazimuth [rad]
+	atmos.data[:,:,7] = atmos_data[-1]# * np.pi/180
+	# hydrogen density [1/cm3]
+	atmos.data[:,:,8] = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
 
 	return atmos
 
