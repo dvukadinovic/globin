@@ -111,6 +111,7 @@ class Atmosphere(object):
 
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.type = atm_type
+		self.fpath = fpath
 
 		# parameter scaling for inversino
 		self.parameter_scale = {}
@@ -121,6 +122,9 @@ class Atmosphere(object):
 		#   -- depth regularization counts as 1
 		#   -- spatial regularization counts as 2 (in x and y directions each)
 		self.nreg = 0
+
+		# current working directory -- appended to paths sent to RH (keyword, atmos, molecules, kurucz)
+		self.cwd = "."
 
 		self.hydrostatic = False
 		# gas pressure at the top (used for HSE computation from RH)
@@ -191,12 +195,12 @@ class Atmosphere(object):
 		# if we provide path to atmosphere, read in data
 		if fpath is not None:
 			if atm_type=="spinor":
-				self.read_spinor(fpath)
+				self.read_spinor(fpath, atm_range)
 			elif atm_type=="sir":
 				self.read_sir(fpath)
 			elif atm_type=="multi":
 				if "fits" in fpath:
-					self.read_multi_cube(fpath)
+					self.read_multi_cube(fpath, atm_range)
 				else:
 					self.read_multi(fpath)
 			else:
@@ -227,7 +231,7 @@ class Atmosphere(object):
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
-		_str += "  fpath = {}\n".format(fpath)
+		_str += "  fpath = {}\n".format(self.fpath)
 		_str += "  (nx,ny,npar,nz) = ({},{},{},{})>".format(*self.shape)
 		return _str
 
@@ -278,7 +282,7 @@ class Atmosphere(object):
 		self.pg = np.zeros((1,1,nz))
 		self.rho = np.zeros((1,1,nz))
 
-	def read_spinor(self, fpath):
+	def read_spinor(self, fpath, atm_range=[0,None,0,None]):
 		"""
 		Read in the SPINOR type atmosphere (fits or txt format).
 
@@ -289,7 +293,8 @@ class Atmosphere(object):
 		"""
 		if "fits" in fpath:
 			hdu = fits.open(fpath)
-			atmos_data = hdu[0].data
+			xmin, xmax, ymin, ymax = atm_range
+			atmos_data = hdu[0].data[:, xmin:xmax, ymin:ymax]
 			ndim = atmos_data.ndim
 			_, self.nx, self.ny, self.nz = atmos_data.shape
 		else:
@@ -617,7 +622,7 @@ class Atmosphere(object):
 
 		idx, idy = arg
 		
-		ne, nH, nHtot, rho, pg = self.RH.hse(0, self.pg_top,
+		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 0, self.pg_top,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 														 self.data[idx, idy, 2],
 					                   self.data[idx, idy, 3], self.data[idx, idy, 4],
@@ -1058,7 +1063,7 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-			spec = self.RH.compute1d(self.mu, 0, self.data[idx, idy, 0], 
+			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx, idy, 0], 
 									self.data[idx, idy, 1], 
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
@@ -1068,7 +1073,7 @@ class Atmosphere(object):
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			spec = self.RH.compute1d(self.mu, 0, self.data[idx, idy, 0], 
+			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx, idy, 0], 
 									self.data[idx, idy, 1], 
 								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
 								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 

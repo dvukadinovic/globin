@@ -61,7 +61,6 @@ class Inverter(InputData):
 			self.read_input_files(globin_input_name, rh_input_name)
 
 			# initialize RH class (cythonized)
-			self.atmosphere.RH = pyrh.RH()
 			self.atmosphere.n_thread = self.n_thread
 			self.atmosphere.mode = self.mode
 			if self.atmosphere.add_stray_light:
@@ -152,7 +151,7 @@ class Inverter(InputData):
 			end = time.time() - start
 			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
-			return atmos, spec
+			return atmos, spec, chi2
 
 		elif self.mode==0:
 			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
@@ -197,8 +196,9 @@ class Inverter(InputData):
 			if self.instrumental_profile is not None:
 				spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
-			# if self.noise!=0:
-			# 	spec.add_noise(self.noise)
+			#--- add noise
+			if self.noise!=0:
+				spec.add_noise(self.noise)
 
 			#--- save spectra
 			spec.save(self.output_spectra_path, spec.wavelength)
@@ -615,6 +615,7 @@ class Inverter(InputData):
 			LT = atmos.get_regularization_der()
 			LT *= np.sqrt(reg_weight)
 			LTL = LT.dot(LT.transpose())
+			chi2.regularization_weight = reg_weight
 
 		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
@@ -632,6 +633,10 @@ class Inverter(InputData):
 
 		# if proposed steps gave better fit; used to skip computing RFs otherwise
 		updated_parameters = True
+
+		# proposed parameter steps; previous iteration values are used as
+		# a starting solution for the current iteration
+		proposed_steps = None
 
 		# number of times we failed to adjust parameters (rise in Marquardt parameter)
 		num_failed = 0
@@ -686,8 +691,8 @@ class Inverter(InputData):
 				
 				chi2_old = np.sum(diff**2, axis=(2,3))
 				if atmos.spatial_regularization:
-					tmp = np.sum(Gamma**2, axis=-1)
-					chi2_old += tmp
+					chi2_reg = np.sum(Gamma**2, axis=-1)
+					chi2_old += chi2_reg
 					# print(tmp/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
@@ -747,11 +752,13 @@ class Inverter(InputData):
 			# plt.colorbar()
 			# plt.show()
 			# proposed_steps = spsolve(H, deltaSP, use_umfpack=False)
-			proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, atol=1e-5)
+			proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, x0=None, atol=None)
 			if info>0:
-				sys.exit("Did not converge the solution of Ax=b.\n  Exiting now.\n")
+				print("[Warning] Did not converge the solution of Ax=b.")
+				# return atmos, spec, chi2
 			if info<0:
-				sys.exit("Could not solve the system Ax=b.\n  Exiting now.\n")
+				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
+				return atmos, spec, chi2
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -811,7 +818,8 @@ class Inverter(InputData):
 			if atmos.spatial_regularization:
 				Gamma = atmos.get_regularization_gamma()
 				Gamma *= np.sqrt(reg_weight)
-				chi2_new += np.sum(Gamma**2, axis=-1)
+				chi2_reg = np.sum(Gamma**2, axis=-1)
+				chi2_new += chi2_reg
 
 			#--- check if chi2 is improved
 			if np.sum(chi2_new) > np.sum(chi2_old):
@@ -825,6 +833,8 @@ class Inverter(InputData):
 				num_failed += 1
 			else:
 				chi2.chi2[...,itter] = chi2_new
+				if atmos.spatial_regularization:
+					chi2.regularization = chi2_reg
 				LM_parameter /= 10
 				updated_parameters = True
 				itter += 1
@@ -848,7 +858,8 @@ class Inverter(InputData):
 			if updated_parameters and self.verbose:
 				pretty_print_parameters(atmos, ones, atmos.mode)
 				print(LM_parameter)
-				print("\n--------------------------------------------------\n")
+				print("-"*globin.NCHAR, "\n")
+
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
@@ -970,6 +981,27 @@ class Inverter(InputData):
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms_c{cycle}.fits")
 		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
 		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
+
+	def estimate_regularization_weight(self, alpha_min, alpha_max, num=11):
+		reg_weight = np.logspace(alpha_min, alpha_max, num=num)
+		init_atmos_values = self.atmosphere.values
+		if self.mode==2 or self.mode==3:
+			init_global_values = self.atmosphere.global_pars
+
+		total_chi2 = np.zeros(num)
+		regul_chi2 = np.zeros(num)
+
+		for i_, alpha in enumerate(reg_weight):
+			print("\n{:{char}{align}{width}}".format(f" Round {i_+1}/{num} ", char="*", align="^", width=globin.NCHAR))
+			self.spatial_regularization_weight = alpha
+			self.atmosphere.values = copy.deepcopy(init_atmos_values)
+			if self.mode==2 or self.mode==3:
+				self.atmosphere.global_pars = copy.deepcopy(init_global_values)
+			_, _, chi2 = self.run()
+			regul_chi2[i_] = np.sum(chi2.regularization)
+			total_chi2[i_] = np.sum(chi2.get_final_chi2()[0])
+
+		return reg_weight, total_chi2, regul_chi2
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, Npar, nx, ny, n_thread=1):
 	indx, indy = np.where(stop_flag==1)

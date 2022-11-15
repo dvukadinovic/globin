@@ -33,7 +33,7 @@ from .inversion import Inverter
 
 from .atmos import Atmosphere
 
-# from .input import \
+from .input import Chi2
 # 	read_input, read_node_atmosphere, \
 # 	write_line_parameters, write_line_par, \
 # 	read_inverted_atmosphere, \
@@ -55,7 +55,7 @@ from .spec import \
 # from .tools import \
 # 	save_chi2, bezier_spline
 
-# from .visualize import \
+from .visualize import show
 # 	plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 
 # from .utils import \

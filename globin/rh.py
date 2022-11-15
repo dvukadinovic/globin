@@ -777,6 +777,15 @@ def write_wavs(wavs, fname='wavegrid', transform=True, air2vacuum_limit=199.9352
 
     return wavs
 
+def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
+    sigma_sq = (1.0e7/wavelength)**2
+    fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
+
+    ind = np.argmin(abs(wavelength-air2vacuum_limit))
+    fact[wavelength<air2vacuum_limit] = 1
+
+    return wavelength*fact
+
 def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
     factor = np.ones_like(wavelength)
     wave2 = 1/wavelength**2

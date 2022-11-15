@@ -51,7 +51,9 @@ class InputData(object):
 		rh_input_name : str
 			path to 'keyword.input' file for RH parameters
 		"""
-		path = os.path.dirname(__file__)
+		# path = os.path.dirname(__file__)
+		# path = os.getcwd()
+		self.cwd = f"./runs/{self.run_name}"
 		
 		self.globin_input_name = globin_input_name
 		self.rh_input_name = rh_input_name
@@ -62,11 +64,12 @@ class InputData(object):
 			os.mkdir("runs")
 
 		# make directory for specified run with provided 'run_name'
-		if not os.path.exists(f"runs/{self.run_name}"):
-			os.mkdir(f"runs/{self.run_name}")
+		if not os.path.exists(self.cwd):
+			os.mkdir(self.cwd)
+
 
 		# copy all RH input files into run_name directory
-		sp.run(f"cp *.input runs/{self.run_name}",
+		sp.run(f"cp *.input {self.cwd}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 
 		#--- get parameters from RH input file
@@ -333,6 +336,8 @@ class InputData(object):
 
 			aux = resample(self.instrumental_profile, N)
 			self.instrumental_profile = aux / np.sum(aux)
+
+		self.atmosphere.cwd = self.cwd
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
@@ -1252,6 +1257,11 @@ class Chi2(object):
 		self.Nlocal_par = -1
 		self.Nglobal_par = -1
 		self.Nw = -1
+
+		# regularization weight
+		self.regularization_weight = 0
+		# value of regularization functional
+		self.regularization = 0
 
 	def read(self, fpath):
 		hdu = fits.open(fpath)[0]

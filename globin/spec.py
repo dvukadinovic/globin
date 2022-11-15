@@ -53,7 +53,7 @@ class Spectrum(object):
 	def add_noise(self, noise):
 		self.noise = noise
 
-		self.mean = np.nanmean(np.max(self.spec[...,0], axis=2))
+		self.mean = np.mean(self.spec[...,0,0])
 		wavs_dependent_factor = 1 # np.sqrt(self.spec[...,0] / self.mean)
 		
 		gauss_noise = np.random.normal(0, self.noise, size=(self.nx, self.ny, self.nw, 4))
