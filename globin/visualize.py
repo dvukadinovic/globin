@@ -92,7 +92,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 	
 	# ax.legend()
 
-def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False):
+def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False, relative=True):
 	"""
 	Plot spectra.
 
@@ -112,6 +112,12 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 	lmax = np.max(wavelength)
 	lam0 = (lmax + lmin) / 2
 	dlam = (lmax - lam0) * 10
+	lmin *= 10
+	lmax *= 10
+	if not relative:
+		lam0 = 0
+	else:
+		lmin, lmax = -dlam, dlam
 
 	fact = 1
 	if norm:
@@ -154,33 +160,29 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 			axI.set_ylabel(r"Stokes I/I$_\mathrm{c}$")
 		else:
 			axI.set_ylabel(r"Intensity [W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
-		axI.set_xlim([-dlam, dlam])
-		# axI.set_xticklabels(axI.get_xticks())
-		# axI.set_yticklabels(axI.get_yticks())
+		axI.set_xlim([lmin, lmax])
 
 		#--- Stokes Q
 		axQ.plot((wavelength - lam0)*10, obs[:,1]*fact, lw=lw, color=color)
 		axQ.set_ylabel(r"Stokes Q/I$_\mathrm{c}$ [\%]")
-		axQ.set_xlim([-dlam, dlam])
-		# axQ.set_xticklabels(axQ.get_xticks())
-		# axQ.set_yticklabels(axQ.get_yticks())
+		axI.set_xlim([lmin, lmax])
 		
 		#--- Stokes U
 		axU.plot((wavelength - lam0)*10, obs[:,2]*fact, lw=lw, color=color)
-		axU.set_xlim([-dlam, dlam])
+		axI.set_xlim([lmin, lmax])
 		axU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			axU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [\%]")
-		# axU.set_xticklabels(axU.get_xticks())
-		# axU.set_yticklabels(axU.get_yticks())
-
+		
 		#--- Stokes V
 		axV.plot((wavelength - lam0)*10, obs[:,3]*fact, lw=lw, color=color)
-		axV.set_xlim([-dlam, dlam])
+		axI.set_xlim([lmin, lmax])
 		axV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			axV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [\%]")
-		# axV.set_xticklabels(axV.get_xticks())
-		# axV.set_yticklabels(axV.get_yticks())
-
+		
 		return axI, axQ, axU, axV
 	else:
 		if axes is None:
@@ -214,6 +216,8 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax1_SI.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		ax1_SI.plot((wavelength - lam0)*10, difference, color="k", lw=1.5)
 		ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			ax1_SI.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SI.set_ylabel(r"$\Delta I$")
 		ax1_SI.set_xlim([-dlam, dlam])
 
@@ -230,6 +234,8 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax1_SQ.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		ax1_SQ.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
 		ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			ax1_SQ.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SQ.set_ylabel(r"$\Delta Q$")
 		ax1_SQ.set_xlim([-dlam, dlam])
 
@@ -247,6 +253,8 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax1_SU.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		ax1_SU.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
 		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			ax1_SU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SU.set_ylabel(r"$\Delta U$")
 		ax1_SU.set_xlim([-dlam, dlam])
 		
@@ -263,6 +271,8 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		ax1_SV.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		ax1_SV.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
 		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		if not relative:
+			ax1_SV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SV.set_ylabel(r"$\Delta V$")
 		ax1_SV.set_xlim([-dlam, dlam])
 

@@ -49,7 +49,7 @@ class Atmosphere(object):
 	after velocity we have magnetic field strength, inclination and azimuth. Last
 	6 parameters are Hydrogen number density for first six levels.
 
-	We distinguish different type of 'Atmopshere' bsaed on input mode. For .fits
+	We distinguish different type of 'Atmopshere' based on the input mode. For .fits
 	file we call it 'cube' while for rest we call it 'single'.
 
 	"""
@@ -1040,9 +1040,13 @@ class Atmosphere(object):
 		spectra_list = spectra_list.reshape(natm, ns, nw, order="C")
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
-		spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
-		spectra.wavelength = self.wavelength_obs
-		spectra.spec[indx,indy] = spectra_list
+		_, nw, _ = spectra_list.shape
+
+		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
+		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
+		# spectra.wavelength = self.wavelength_obs
+		spectra.wavelength = spectra_list[0,:,-1]
+		spectra.spec[indx,indy] = spectra_list[...,:-1]
 
 		if self.norm:
 			if self.norm_level=="hsra":
@@ -1098,12 +1102,12 @@ class Atmosphere(object):
 			tck = splrep(self.wavelength_air, spec.V)
 			StokesV = splev(self.wavelength_obs, tck, ext=1)
 
-			return StokesI, StokesQ, StokesU, StokesV
+			return StokesI, StokesQ, StokesU, StokesV, spec.lam
 
 		# when we are computing only the continuum intensity from HSRA for
 		# spectrum normalization or in synthesis mode 
 		# (wavelength_air == wavelength_obs)
-		return spec.I, spec.Q, spec.U, spec.V
+		return spec.I, spec.Q, spec.U, spec.V, spec.lam
 
 	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
