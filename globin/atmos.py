@@ -929,8 +929,8 @@ class Atmosphere(object):
 					vmin = self.limit_values[parameter].min[0]
 					if self.limit_values[parameter].vmin_dim!=1:
 						vmin = self.limit_values[parameter].min[idn]
-						indx, indy = np.where(self.values[parameter][...,idn]<vmin)
-						self.values[parameter][indx,indy,idn] = vmin
+					indx, indy = np.where(self.values[parameter][...,idn]<vmin)
+					self.values[parameter][indx,indy,idn] = vmin
 
 					# check upper boundary condition
 					vmax = self.limit_values[parameter].max[0]
