@@ -32,13 +32,26 @@ from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation
 from .makeHSE import makeHSE
 
-# order of parameters RFs in output file from 'rf_ray'
-rf_id = {"temp"  : 0,
-		 		 "vz"    : 1,
-		 		 "vmic"  : 2,
-		 		 "mag"   : 3,
-		 		 "gamma" : 4,
-		 		 "chi"   : 5}
+class MinMax(object):
+	"""
+	Container for minimum and maximum values of a parameter.
+	"""
+	def __init__(self, vmin=None, vmax=None):
+		self.vmin = np.asarray([vmin])
+		self.vmax = np.asarray([vmax])
+		self.vmin_dim = len(self.vmin)
+		self.vmax_dim = len(self.vmax)
+
+	@property
+	def min(self):
+		return self.vmin
+
+	@property
+	def max(self):
+		return self.vmax
+
+	def __str__(self):
+		return "<vmin: {}, vmax: {}>".format(self.vmin, self.vmax)
 
 class Atmosphere(object):
 	"""
@@ -65,15 +78,18 @@ class Atmosphere(object):
 					  "nH"     : 8}
 
 	#--- limit values for atmospheric parameters
-	limit_values = {"temp"  : [2800, 10000], 				# [K]
-									"vz"    : [-10, 10],						# [km/s]
-									"vmic"  : [1e-3, 10],						# [km/s]
-									"mag"   : [10, 10000],					# [G]
-									"gamma" : [-np.pi, 2*np.pi],		# [rad]
-									"chi"   : [-2*np.pi, 2*np.pi],  # [rad]
-									"of"    : [0, 20],							#
-									"stray" : [0, 1],								#
-									"vmac"  : [0, 5]}								# [km/s]
+	limit_values = {"temp"  : MinMax(3000, 10000), 				# [K]
+									"vz"    : MinMax(-10, 10),						# [km/s]
+									"vmic"  : MinMax(1e-3, 10),						# [km/s]
+									"mag"   : MinMax(10, 10000),					# [G]
+									"gamma" : MinMax(-np.pi, 2*np.pi),		# [rad]
+									"chi"   : MinMax(-2*np.pi, 2*np.pi),	# [rad]
+									"of"    : [0, 20],												#
+									"stray" : [0, 1],													#
+									"vmac"  : [0, 5]}													# [km/s]
+
+	#--- lowest temperature in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
+	Tmin = 2800
 
 	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
 	delta = {"temp"  : 1,			# [K]
@@ -561,8 +577,8 @@ class Atmosphere(object):
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					# check if extrapolation at the top atmosphere point goes below the minimum
 					# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
-					if self.limit_values["temp"][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (self.limit_values["temp"][0] - y[0]) / (atmos.logtau[0] - x[0])
+					if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 					# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
 					# if 1900>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					# 	K0 = (1900 - y[0]) / (atmos.logtau[0] - x[0])
@@ -581,15 +597,15 @@ class Atmosphere(object):
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 					# check if extrapolation at the top atmosphere point goes below the minimum
 					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-					if self.limit_values[parameter][0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (self.limit_values[parameter][0] - y[0]) / (atmos.logtau[0] - x[0])
+					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
 					# elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					# 	K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
 					# similar for the bottom for maximum/min values
 					# if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
-					if self.limit_values[parameter][0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-						Kn = (self.limit_values[parameter][0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if atmos.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=extrapolate)
@@ -908,15 +924,20 @@ class Atmosphere(object):
 				y = np.sin(self.values[parameter])
 				self.values[parameter] = np.arcsin(y)
 			else:
-				# if parameter=="vmic":
-				# 	self.values[parameter] = np.abs(self.values[parameter])
-				# check lower boundary condition
-				indx, indy, indz = np.where(self.values[parameter]<self.limit_values[parameter][0])
-				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][0]
+				for idn in range(len(self.nodes[parameter])):
+					# check lower boundary condition
+					vmin = self.limit_values[parameter].min[0]
+					if self.limit_values[parameter].vmin_dim!=1:
+						vmin = self.limit_values[parameter].min[idn]
+						indx, indy = np.where(self.values[parameter][...,idn]<vmin)
+						self.values[parameter][indx,indy,idn] = vmin
 
-				# check upper boundary condition
-				indx, indy, indz = np.where(self.values[parameter]>self.limit_values[parameter][1])
-				self.values[parameter][indx,indy,indz] = self.limit_values[parameter][1]
+					# check upper boundary condition
+					vmax = self.limit_values[parameter].max[0]
+					if self.limit_values[parameter].vmax_dim!=1:
+						vmax = self.limit_values[parameter].max[idn]
+					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+					self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
 			if parameter=="vmac" or parameter=="stray":

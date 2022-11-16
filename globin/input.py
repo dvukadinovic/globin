@@ -592,8 +592,8 @@ class InputData(object):
 
 	def read_node_parameters(self, parameter, text):
 		"""
-		For a given parameter read from input file the node positions, the values,
-		the parameter mask (optional) and the regularization type(s).
+		For a given parameter read from the input file the node positions, the values,
+		the parameter mask (optional), the regularization type(s) and the limits for each node.
 
 		Parameters:
 		---------------
@@ -607,6 +607,8 @@ class InputData(object):
 		nodes = _find_value_by_key(f"nodes_{parameter}", text, "optional")
 		values = _find_value_by_key(f"nodes_{parameter}_values", text, "optional")
 		mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
+		min_limits = _find_value_by_key(f"nodes_{parameter}_vmin", text, "optional")
+		max_limits = _find_value_by_key(f"nodes_{parameter}_vmax", text, "optional")
 		
 		# # get all regularization types for a given parameter
 		# reg_types = _find_value_by_key(f"{parameter}_regularize", text, "optional")
@@ -622,13 +624,14 @@ class InputData(object):
 		# 			atmosphere.nreg += 1
 		
 		if (nodes is not None) and (values is not None):
-			atmosphere.nodes[parameter] = [float(item) for item in nodes.split(",")]
+			atmosphere.nodes[parameter] = np.array([float(item) for item in nodes.split(",")])
+			nnodes = len(atmosphere.nodes[parameter])
 			
-			values = [float(item) for item in values.split(",")]
+			values = np.array([float(item) for item in values.split(",")])
 			if len(values)!=len(atmosphere.nodes[parameter]):
-				sys.exit(f"Number of nodes and values for {parameter} are not the same!")
+				raise ValueError(f"Number of nodes and values for {parameter} are not the same.")
 
-			matrix = np.zeros((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])), dtype=np.float64)
+			matrix = np.zeros((atmosphere.nx, atmosphere.ny, nnodes), dtype=np.float64)
 			matrix[:,:] = copy.deepcopy(values)
 			if parameter=="gamma":
 				matrix *= np.pi/180
@@ -639,12 +642,32 @@ class InputData(object):
 			else:
 				atmosphere.values[parameter] = matrix
 			
+			# assign the mask values
 			if mask is None:
-				atmosphere.mask[parameter] = np.ones(len(atmosphere.nodes[parameter]))
+				atmosphere.mask[parameter] = np.ones(nnodes)
 			else:
 				mask = [float(item) for item in mask.split(",")]
 				atmosphere.mask[parameter] = np.array(mask)
 
+			# assign the lower limit values for each node
+			if min_limits is not None:
+				vmin = np.array([float(item) for item in min_limits.split(",")])
+				atmosphere.limit_values[parameter].vmin = vmin
+				atmosphere.limit_values[parameter].vmin_dim = len(vmin)
+
+				if len(vmin)!=1 and len(vmin)!=nnodes:
+					raise ValueError(f"Incompatible number of minimum limits for {parameter} and given number of nodes.")
+
+			# assign the upper limit values for each node
+			if max_limits is not None:
+				vmax = np.array([float(item) for item in max_limits.split(",")])
+				atmosphere.limit_values[parameter].vmax = vmax
+				atmosphere.limit_values[parameter].vmax_dim = len(vmax)
+
+				if len(vmax)!=1 and len(vmax)!=nnodes:
+						raise ValueError(f"Incompatible number of maximum limits for {parameter} and given number of nodes.")
+
+			# set the parameter scale
 			atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
 
 #--- pattern search with regular expressions
