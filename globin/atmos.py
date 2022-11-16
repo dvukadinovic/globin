@@ -1061,8 +1061,6 @@ class Atmosphere(object):
 		spectra_list = spectra_list.reshape(natm, ns, nw, order="C")
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
-		_, nw, _ = spectra_list.shape
-
 		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
 		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
 		# spectra.wavelength = self.wavelength_obs
@@ -1115,20 +1113,24 @@ class Atmosphere(object):
 
 		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
 			tck = splrep(self.wavelength_air, spec.I)
-			StokesI = splev(self.wavelength_obs, tck, ext=3)
+			spec.I = splev(self.wavelength_obs, tck, ext=3)
 			tck = splrep(self.wavelength_air, spec.Q)
-			StokesQ = splev(self.wavelength_obs, tck, ext=1)
+			spec.Q = splev(self.wavelength_obs, tck, ext=1)
 			tck = splrep(self.wavelength_air, spec.U)
-			StokesU = splev(self.wavelength_obs, tck, ext=1)
+			spec.U = splev(self.wavelength_obs, tck, ext=1)
 			tck = splrep(self.wavelength_air, spec.V)
-			StokesV = splev(self.wavelength_obs, tck, ext=1)
+			spec.V = splev(self.wavelength_obs, tck, ext=1)
 
-			return StokesI, StokesQ, StokesU, StokesV, spec.lam
+			spec.lam = self.wavelength_obs
+
+			# return StokesI, StokesQ, StokesU, StokesV, spec.lam
 
 		# when we are computing only the continuum intensity from HSRA for
 		# spectrum normalization or in synthesis mode 
 		# (wavelength_air == wavelength_obs)
-		return spec.I, spec.Q, spec.U, spec.V, spec.lam
+		
+		# return spec.I, spec.Q, spec.U, spec.V, spec.lam
+		return np.vstack((spec.I, spec.Q, spec.U, spec.V, spec.lam))
 
 	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
