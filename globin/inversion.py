@@ -1008,7 +1008,7 @@ class Inverter(InputData):
 			atm, _, chi2 = self.run()
 			regul_chi2[i_] = np.sum(chi2.regularization)
 			total_chi2[i_] = np.sum(chi2.get_final_chi2()[0])
-			print(atm.values["temp"])
+			# print(atm.values["temp"])
 
 		if fpath:
 			np.savetxt(fpath, np.vstack((reg_weight, total_chi2, regul_chi2)).T, fmt="%5.4e", header=" alpha  tot_chi2  reg_chi2")
