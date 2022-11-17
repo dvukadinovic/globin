@@ -605,6 +605,7 @@ class Inverter(InputData):
 		chi2.Nlolcal_par = Nlocalpar
 		chi2.Nglobal_par = Nglobalpar
 		chi2.Nw = np.count_nonzero(self.weights)*Nw
+		
 		LM_parameter = marq_lambda
 		if self.debug:
 			LM_debug = np.zeros((max_iter), dtype=np.float64)
@@ -677,9 +678,10 @@ class Inverter(InputData):
 				# plt.show()
 
 				if self.debug:
-					for idx in range(atmos.nx):
-						for idy in range(atmos.ny):
-							self.rf_debug[idx,idy,itter] = rf[idx,idy]
+					# for idx in range(atmos.nx):
+					# 	for idy in range(atmos.ny):
+					# 		self.rf_debug[idx,idy,itter] = rf[idx,idy]
+					self.rf_debug[:,:,itter] = rf
 
 				#--- calculate chi2
 				diff = obs.spec - spec.spec
@@ -693,7 +695,7 @@ class Inverter(InputData):
 				if atmos.spatial_regularization:
 					chi2_reg = np.sum(Gamma**2, axis=-1)
 					chi2_old += chi2_reg
-					# print(tmp/chi2_old)
+					# print(chi2_reg/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
@@ -715,32 +717,38 @@ class Inverter(InputData):
 				del Jl
 				del Jg
 
-				#--- 
+				#---
 				JglobalT = Jglobal.transpose()
+
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
+				aux = aux.reshape(Natmos, 4*Nw, order="C")
 				aux = aux.reshape(4*Nw*Natmos, order="C")
+
 				deltaSP = JglobalT.dot(aux)
 				del aux
 
 				if atmos.spatial_regularization:
-					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*Nlocalpar)
-					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*Nlocalpar)
-					tmp = atmos.scale_LT[:-Nglobalpar]
-					_L = LT[:-Nglobalpar].transpose().multiply(1/tmp)
-					_L = sp.hstack([_L,LT[-Nglobalpar:].transpose()])
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*Nlocalpar, order="C")
+					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*Nlocalpar, order="C")
+
+					tmp = atmos.scale_LT[:atmos.nx*atmos.ny*Nlocalpar]
+					_L = LT[:atmos.nx*atmos.ny*Nlocalpar].transpose().multiply(1/tmp)
+					if Nglobalpar>0:
+						_L = sp.hstack([_L,LT[-Nglobalpar:].transpose()])
 					_LT = _L.transpose()
 					deltaSP -= _LT.dot(Gamma)
 					# print(_LT.dot(Gamma)/deltaSP)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
+				# [17.11.2022.] This statement still holds also for regularization terms.
 
 			#--- invert Hessian matrix
 			H = JglobalT.dot(Jglobal)
 			if atmos.spatial_regularization:
 				LTL = _LT.dot(_LT.transpose())
 				H += LTL
-				# plt.imshow(LTL.toarray(), origin="upper")
+				# plt.imshow(H.toarray(), origin="upper")
 				# plt.colorbar()
 				# plt.show()
 			diagonal = H.diagonal(k=0)
@@ -982,7 +990,7 @@ class Inverter(InputData):
 		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
 		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
 
-	def estimate_regularization_weight(self, alpha_min, alpha_max, num=11):
+	def estimate_regularization_weight(self, alpha_min, alpha_max, num=11, fpath=None):
 		reg_weight = np.logspace(alpha_min, alpha_max, num=num)
 		init_atmos_values = self.atmosphere.values
 		if self.mode==2 or self.mode==3:
@@ -997,9 +1005,13 @@ class Inverter(InputData):
 			self.atmosphere.values = copy.deepcopy(init_atmos_values)
 			if self.mode==2 or self.mode==3:
 				self.atmosphere.global_pars = copy.deepcopy(init_global_values)
-			_, _, chi2 = self.run()
+			atm, _, chi2 = self.run()
 			regul_chi2[i_] = np.sum(chi2.regularization)
 			total_chi2[i_] = np.sum(chi2.get_final_chi2()[0])
+			print(atm.values["temp"])
+
+		if fpath:
+			np.savetxt(fpath, np.vstack((reg_weight, total_chi2, regul_chi2)).T, fmt="%5.4e", header=" alpha  tot_chi2  reg_chi2")
 
 		return reg_weight, total_chi2, regul_chi2
 

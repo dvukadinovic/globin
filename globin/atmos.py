@@ -1150,12 +1150,7 @@ class Atmosphere(object):
 		self.build_from_nodes(synthesize)
 		if self.hydrostatic:
 			self.makeHSE(synthesize)
-		# globin.visualize.plot_atmosphere(self, ["temp", "vz", "vmic", "mag", "gamma", "chi"])
-		# plt.show()
 		spec = self.compute_spectra(synthesize)
-		# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
-		# plt.show()
-		# sys.exit()
 		Nw = len(self.wavelength_obs)
 
 		active_indx, active_indy = np.where(synthesize==1)
@@ -1240,6 +1235,7 @@ class Atmosphere(object):
 					self.build_from_nodes(synthesize, params=parameter)
 
 			# reshape parameter scale for the scaling of regularization Jacobian matrix
+			# [dear viewer: do not think too much about it, it works! I checked it.]
 			if self.spatial_regularization:
 				tmp = self.parameter_scale[parameter].reshape(self.nx*self.ny, len(nodes))
 				tmp = tmp.reshape(self.nx*self.ny*len(nodes))
@@ -1330,6 +1326,16 @@ class Atmosphere(object):
 							
 							self.global_pars[parameter][...,idp] += perturbation
 
+						# We do not need this for atomic parameters, right?
+						# # reshape parameter scale for the scaling of regularization Jacobian matrix
+						# # [dear viewer: do not think too much about it, it works! I checked it.]
+						# if self.spatial_regularization:
+						# 	tmp = self.parameter_scale[parameter][0,0]
+						# 	low = self.nx*self.ny*self.n_local_pars + shift
+						# 	up = low + self.line_no[parameter].size
+						# 	self.scale_LT[low:up] = tmp
+						# 	shift += self.line_no[parameter].size
+
 		#--- broaden the spectra
 		if not mean:
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
@@ -1372,10 +1378,6 @@ class Atmosphere(object):
 		return spec
 
 	def get_regularization_gamma(self):
-		# number of regularization functions (per parameter; not per node)
-		# if self.nreg==0:
-		# 	return None
-
 		"""
 		Gamma matrix containing the regularization function values for each pixel.
 		We already summed the contributions from each atmospheric parameter.
@@ -1387,20 +1389,20 @@ class Atmosphere(object):
 		nreg = 2
 
 		#--- get regularization function values
-		gamma = np.zeros((self.nx, self.ny, nreg, npar))
+		gamma = np.zeros((self.nx, self.ny, nreg*npar))
 		
 		idp = 0
 		for parameter in self.nodes:
 			for idn in range(len(self.nodes[parameter])):
 				# p@x - p@x-1 (difference to the upper pixel)
-				gamma[1:,:,0,idp] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
-				gamma[1:,:,0,idp] /= self.parameter_norm[parameter]
+				gamma[1:,:, 2*idp] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
+				gamma[1:,:, 2*idp] /= self.parameter_norm[parameter]
 				# p@y - p@y-1 (difference to the left pixel)
-				gamma[:,1:,1,idp] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
-				gamma[:,1:,1,idp] /= self.parameter_norm[parameter]
+				gamma[:,1:, 2*idp+1] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
+				gamma[:,1:, 2*idp+1] /= self.parameter_norm[parameter]
 				idp += 1
 
-		return gamma.reshape(self.nx, self.ny, nreg*npar, order="F")
+		return gamma
 
 	def get_regularization_der(self):
 		"""
@@ -1484,10 +1486,10 @@ class Atmosphere(object):
 		LT = sp.csr_matrix((values, (rows, cols)), shape=shape, dtype=np.float64)
 		
 		# LTL = LT.dot(LT.transpose())
-
 		# plt.imshow(LTL.toarray().T, origin="upper", cmap="bwr")
 		# plt.colorbar()
 		# plt.show()
+		# sys.exit()
 
 		return LT
 
