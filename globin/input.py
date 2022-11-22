@@ -481,6 +481,10 @@ class InputData(object):
 			for parameter in init_atmosphere.regularization_weight:
 				self.atmosphere.regularization_weight[parameter] = init_atmosphere.regularization_weight[parameter]
 
+			# copt depth-dependent regularization weight and type
+			self.atmosphere.dd_regularization_function = init_atmosphere.dd_regularization_function
+			self.atmosphere.dd_regularization_weight = init_atmosphere.dd_regularization_weight
+
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
 				print("--> Error in input.read_inverted_atmosphere()")
 				print("    initial atmosphere does not have same dimensions")
@@ -516,10 +520,10 @@ class InputData(object):
 				self.atmosphere.regularization_weight[parameter] *= self.atmosphere.spatial_regularization_weight
 
 		#--- if we are doing a spatial regularization, we MUST go into mode 3 inversion!
-		# if self.mode!=3 and self.atmosphere.spatial_regularization:
-		# 	raise ValueError(f"Cannot perform spatial regularization in the mode={self.mode}. Change to mode=3.")
+		if self.mode!=3 and self.atmosphere.spatial_regularization:
+			raise ValueError(f"Cannot perform spatial regularization in the mode={self.mode}. Change to mode=3.")
 
-		# [18.11.2022] Depreciated?
+		# [18.11.2022] Depreciated? Not yet...
 		self.atmosphere.hydrostatic = False
 		if "temp" in self.atmosphere.nodes:
 			self.atmosphere.hydrostatic = True
@@ -632,19 +636,9 @@ class InputData(object):
 		max_limits = _find_value_by_key(f"nodes_{parameter}_vmax", text, "optional")
 		# relative weighting for spatial regularization
 		reg_weight = _find_value_by_key(f"nodes_{parameter}_reg_weight", text, "optional", conversion=float)
-		
-		# # get all regularization types for a given parameter
-		# reg_types = _find_value_by_key(f"{parameter}_regularize", text, "optional")
-		# if reg_types is not None:
-		# 	reg_types = list(filter(None,reg_types.rstrip("\n").split(",")))
-		# 	atmosphere.regularization[parameter] = reg_types
-		# 	for rtype in reg_types:
-		# 		if rtype=="spatial":
-		# 			# we regularize in x and y directions
-		# 			atmosphere.nreg += 2
-		# 		if rtype=="depth":
-		# 			# we regularize only in depth
-		# 			atmosphere.nreg += 1
+		# weighting for the depth-dependent regularization
+		# considered to be a tuple of weight and type (take a look at the header of Atmosphere() object)
+		dd_reg_weight = _find_value_by_key(f"nodes_{parameter}_dd_reg", text, "optional")
 		
 		if (nodes is not None) and (values is not None):
 			atmosphere.nodes[parameter] = np.array([float(item) for item in nodes.split(",")])
@@ -698,6 +692,22 @@ class InputData(object):
 			# assign the relative regularization weight for each parameter
 			if reg_weight is not None:
 				atmosphere.regularization_weight[parameter] = reg_weight
+
+			# assign the depth-dependent regularization weight and type
+			if dd_reg_weight is not None:
+				values = [item for item in dd_reg_weight.split(",")]
+				if len(values)!=2:
+					print(f"[Warning] Wrong number of parameters for the depth-dependent regularization for {parameter}.")
+					print(f"  It has to consist of two number specifying weight and type.")
+				else:
+					atmosphere.dd_regularization_weight[parameter] = float(values[0])
+					atmosphere.dd_regularization_function[parameter] = int(values[1])
+					if int(values[1])==0:
+						print(f"[Warning] Depth-dependent regularization for {parameter} is turned-off. Type is set to 0.")
+					if int(values[1])<0 or int(values[1])>4:
+						print(f"[Warning] Depth-dependent regularization for {parameter} if of wrong type.")
+						print(f"  It should be between 0 and 4 (int). We will turn it off now.")
+						atmosphere.dd_regularization_function[parameter] = 0
 
 			# set the parameter scale
 			atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))

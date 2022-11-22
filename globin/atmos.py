@@ -143,6 +143,20 @@ class Atmosphere(object):
 													 		"gamma" : 1,
 													 		"chi"   : 1}
 
+	#--- depth-dependent regularization functions
+	# 0 -- no regularization
+	# 1 -- penalize large deviations: (pi - pj)
+	# 2 -- penalize oscillations (changes in the gradient) 
+	#			 (A*p_i+1  + B*p_i + C*p_i-1)
+	# 3 -- penalize diff. from a constant value: pi - const
+	# 4 -- penalize diff. from a mean values: pi - np.mean(pi)
+	dd_regularization_function = {"temp"  : 0,
+																"vz"    : 0,
+																"vmic"  : 0,
+																"mag"   : 0,
+																"gamma" : 0,
+																"chi"   : 0}
+
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.type = atm_type
 		self.fpath = fpath
@@ -505,6 +519,14 @@ class Atmosphere(object):
 				reg_weight = self.header[f"{parameter}W"]
 				self.regularization_weight[parameter] = reg_weight *self.spatial_regularization_weight
 
+		#--- check for the depth-dependent reglarization weight and type
+		for parameter in self.dd_regularization_function:
+			try:
+				self.dd_regularization_function[parameter] = self.header[f"{parameter}DDF"]
+				self.dd_regularization_weight[parameter] = self.header[f"{parameter}DDW"]
+			except:
+				pass
+
 		try:
 			ind = hdu_list.index_of("Continuum_Opacity")
 			self.chi_c = hdu_list[ind].data
@@ -787,6 +809,12 @@ class Atmosphere(object):
 			for parameter in self.regularization_weight:
 				weight = self.regularization_weight[parameter] / self.spatial_regularization_weight
 				primary.header[f"{parameter}W"] = (weight, "relative spatial reg. weight")
+
+		# save depth-dependent regularization
+		for parameter in self.dd_regularization_function:
+			if self.dd_regularization_function[parameter]!=0:
+				primary.header[f"{parameter}DDF"] = (self.dd_regularization_function[parameter], "depth-dependent regularization type")
+				primary.header[f"{parameter}DDW"] = (self.dd_regularization_weight[parameter], "depth-dependent regularization weight")
 
 		# save the gass pressure at the top of the atmosphere
 		if self.pg_top is not None:
@@ -1490,6 +1518,9 @@ class Atmosphere(object):
 
 		return LT
 
+	def get_dd_regularization(self):
+		pass
+
 	def make_OF_table(self, wavelength_vacuum):
 		if wavelength_vacuum[0]<=210:
 			print("  Sorry, but OF is not properly implemented for wavelengths")
@@ -2165,6 +2196,14 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 		for parameter in atmos.nodes:
 			reg_weight = atmos.header[f"{parameter}W"]
 			atmos.regularization_weight[parameter] = reg_weight
+
+	#--- check for the depth-dependent reglarization weight and type
+	for parameter in atmos.dd_regularization_function:
+		try:
+			atmos.dd_regularization_function[parameter] = atmos.header[f"{parameter}DDF"]
+			atmos.dd_regularization_weight[parameter] = atmos.header[f"{parameter}DDW"]
+		except:
+			pass
 
 	#--- check for the existance of continuum opacity
 	try:
