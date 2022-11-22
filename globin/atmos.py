@@ -158,6 +158,7 @@ class Atmosphere(object):
 		self.nreg = 0
 
 		self.spatial_regularization = False
+		self.spatial_regularization_weight = 0
 
 		# current working directory -- appended to paths sent to RH (keyword, atmos, molecules, kurucz)
 		self.cwd = "."
@@ -2163,7 +2164,7 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 	if atmos.spatial_regularization:
 		for parameter in atmos.nodes:
 			reg_weight = atmos.header[f"{parameter}W"]
-			atmos.regularization_weight[parameter] = reg_weight *atmos.spatial_regularization_weight
+			atmos.regularization_weight[parameter] = reg_weight
 
 	#--- check for the existance of continuum opacity
 	try:

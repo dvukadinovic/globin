@@ -475,6 +475,12 @@ class InputData(object):
 			self.atmosphere.values = init_atmosphere.values
 			self.atmosphere.mask = init_atmosphere.mask
 			self.atmosphere.parameter_scale = init_atmosphere.parameter_scale
+			# copy regularization weights and flag
+			self.atmosphere.spatial_regularization = init_atmosphere.spatial_regularization
+			self.atmosphere.spatial_regularization_weight = init_atmosphere.spatial_regularization_weight
+			for parameter in init_atmosphere.regularization_weight:
+				self.atmosphere.regularization_weight[parameter] = init_atmosphere.regularization_weight[parameter]
+
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
 				print("--> Error in input.read_inverted_atmosphere()")
 				print("    initial atmosphere does not have same dimensions")
@@ -489,29 +495,29 @@ class InputData(object):
 
 		# check for spatial regularization of atmospheric parameters
 		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
-		self.atmosphere.spatial_regularization = False
 		if tmp is not None:
 			self.atmosphere.spatial_regularization = True
-			self.spatial_regularization_weight = float(tmp)
+			self.atmosphere.spatial_regularization_weight = float(tmp)
 
-			# if self.spatial_regularization_weight>0.1:
-			# 	print("[Warning] Spatial regularization weight larger than 0.1!")
+			if self.spatial_regularization_weight>10:
+				print("[Warning] Spatial regularization weight larger than 10!")
 
 			# if self.spatial_regularization_weight<1e-6:
 			# 	print("[Info] Spatial regularization weight smaller than 1e-6. We will turn off the spatial regularization.")
 			# 	self.atmosphere.spatial_regularization = False
 
-			if self.spatial_regularization_weight==0:
+			if self.atmosphere.spatial_regularization_weight==0:
 				print("[Info] Spatial regularization weight is 0. We will turn off the spatial regularization.")
 				self.atmosphere.spatial_regularization = False
 
-			#--- calculate the regularization weights for each parameter based on a given global value and relative weighting
+		#--- calculate the regularization weights for each parameter based on a given global value and relative weighting
+		if self.atmosphere.spatial_regularization:
 			for parameter in self.atmosphere.nodes:
-				self.atmosphere.regularization_weight[parameter] *= self.spatial_regularization_weight
+				self.atmosphere.regularization_weight[parameter] *= self.atmosphere.spatial_regularization_weight
 
 		#--- if we are doing a spatial regularization, we MUST go into mode 3 inversion!
-		if self.mode!=3 and self.atmosphere.spatial_regularization:
-			raise ValueError(f"Cannot perform spatial regularization in the mode={self.mode}. Change to mode=3.")
+		# if self.mode!=3 and self.atmosphere.spatial_regularization:
+		# 	raise ValueError(f"Cannot perform spatial regularization in the mode={self.mode}. Change to mode=3.")
 
 		# [18.11.2022] Depreciated?
 		self.atmosphere.hydrostatic = False

@@ -632,7 +632,7 @@ class Inverter(InputData):
 		#--- the regularization function Jacobian (only spatial)
 		if atmos.spatial_regularization:
 			# start = time.time()
-			reg_weight = self.spatial_regularization_weight
+			reg_weight = atmos.spatial_regularization_weight
 			LT = atmos.get_regularization_der()
 			LTL = LT.dot(LT.transpose())
 			chi2.regularization_weight = reg_weight
@@ -1049,7 +1049,7 @@ class Inverter(InputData):
 
 	def estimate_regularization_weight(self, alpha_min, alpha_max, num=11, fpath=None):
 		# reset the original relative weighting for each parameter
-		original_weight = self.spatial_regularization_weight
+		original_weight = self.atmosphere.spatial_regularization_weight
 		for parameter in self.atmosphere.nodes:
 			self.atmosphere.regularization_weight[parameter] /= original_weight
 
