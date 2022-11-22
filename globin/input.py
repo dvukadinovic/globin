@@ -227,7 +227,7 @@ class InputData(object):
 			for parameter in self.atmosphere.global_pars:
 				self.atmosphere.n_global_pars += self.atmosphere.global_pars[parameter].shape[-1]
 		else:
-			print("  Negative mode not supported. Soon to be RF calculation.")
+			print("[Error] Negative mode not supported. Soon to be RF calculation.")
 			sys.exit()
 
 		# add angle for which we need to compute spectrum to atmosphere
@@ -243,7 +243,7 @@ class InputData(object):
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
-			print(f"  Warning: reduced the number of threads to {self.n_thread}.")
+			print(f"[Warning] Reduced the number of threads to {self.n_thread}.")
 
 		#--- set OF data in atmosphere
 		if self.do_fudge:
@@ -337,6 +337,7 @@ class InputData(object):
 			aux = resample(self.instrumental_profile, N)
 			self.instrumental_profile = aux / np.sum(aux)
 
+		# current working directory (path that is appended to RH input files before submitting to synthesis)
 		self.atmosphere.cwd = self.cwd
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
@@ -493,12 +494,26 @@ class InputData(object):
 			self.atmosphere.spatial_regularization = True
 			self.spatial_regularization_weight = float(tmp)
 
-		#============================================================================
-		# if we are doing a spatial regularization, we MUST go into mode 3 inversion!
-		#============================================================================
-		if self.mode!=3 and self.atmosphere.spatial_regularization:
-			raise ValueError(f"Can not perform spatial regularization in the mode={self.mode}. Change to mode=3.")
+			# if self.spatial_regularization_weight>0.1:
+			# 	print("[Warning] Spatial regularization weight larger than 0.1!")
 
+			# if self.spatial_regularization_weight<1e-6:
+			# 	print("[Info] Spatial regularization weight smaller than 1e-6. We will turn off the spatial regularization.")
+			# 	self.atmosphere.spatial_regularization = False
+
+			if self.spatial_regularization_weight==0:
+				print("[Info] Spatial regularization weight is 0. We will turn off the spatial regularization.")
+				self.atmosphere.spatial_regularization = False
+
+			#--- calculate the regularization weights for each parameter based on a given global value and relative weighting
+			for parameter in self.atmosphere.nodes:
+				self.atmosphere.regularization_weight[parameter] *= self.spatial_regularization_weight
+
+		#--- if we are doing a spatial regularization, we MUST go into mode 3 inversion!
+		if self.mode!=3 and self.atmosphere.spatial_regularization:
+			raise ValueError(f"Cannot perform spatial regularization in the mode={self.mode}. Change to mode=3.")
+
+		# [18.11.2022] Depreciated?
 		self.atmosphere.hydrostatic = False
 		if "temp" in self.atmosphere.nodes:
 			self.atmosphere.hydrostatic = True
@@ -609,6 +624,8 @@ class InputData(object):
 		mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
 		min_limits = _find_value_by_key(f"nodes_{parameter}_vmin", text, "optional")
 		max_limits = _find_value_by_key(f"nodes_{parameter}_vmax", text, "optional")
+		# relative weighting for spatial regularization
+		reg_weight = _find_value_by_key(f"nodes_{parameter}_reg_weight", text, "optional", conversion=float)
 		
 		# # get all regularization types for a given parameter
 		# reg_types = _find_value_by_key(f"{parameter}_regularize", text, "optional")
@@ -632,6 +649,11 @@ class InputData(object):
 				raise ValueError(f"Number of nodes and values for {parameter} are not the same.")
 
 			matrix = np.zeros((atmosphere.nx, atmosphere.ny, nnodes), dtype=np.float64)
+			# in 1D computation, one of the angles to obtain the J is 60deg, and with the gamma=60 gives
+			# nan/inf in projection of B.
+			for i_,val in enumerate(values):
+				if val==60:
+					values[i_] += 1
 			matrix[:,:] = copy.deepcopy(values)
 			if parameter=="gamma":
 				matrix *= np.pi/180
@@ -666,6 +688,10 @@ class InputData(object):
 
 				if len(vmax)!=1 and len(vmax)!=nnodes:
 						raise ValueError(f"Incompatible number of maximum limits for {parameter} and given number of nodes.")
+
+			# assign the relative regularization weight for each parameter
+			if reg_weight is not None:
+				atmosphere.regularization_weight[parameter] = reg_weight
 
 			# set the parameter scale
 			atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))

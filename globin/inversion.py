@@ -22,6 +22,20 @@ from .visualize import plot_spectra
 
 import globin
 
+def add_colorbar(fig, ax, im, label=None):
+    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
+    axins = inset_axes(ax,
+                       width="5%",
+                       height="100%",
+                       loc="lower left",
+                       bbox_to_anchor=(1.02, 0., 1, 1),
+                       bbox_transform=ax.transAxes,
+                       borderpad=0)
+    cbar = fig.colorbar(im, cax=axins)
+    # cbar.ax.set_yticklabels(cbar.ax.get_yticks(), fontsize="medium")
+    if label is not None:
+        cbar.set_label(label)
+
 def pretty_print_parameters(atmos, conv_flag, mode):
 	for parameter in atmos.values:
 		print(parameter)
@@ -225,7 +239,6 @@ class Inverter(InputData):
 		return Npar
 
 	def _estimate_noise_level(self, nx, ny, nw):
-		# print("  Get the noise estimate...")
 		if self.noise==0:
 			# noise = 1e-4
 			return np.ones((nx, ny, nw, 4))
@@ -364,7 +377,10 @@ class Inverter(InputData):
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
 				
-				spec = atmos.compute_rfs(weights=self.weights, Ndof=Ndof, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
+
+				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength, obs.spec[0,0])
+				# globin.show()
 
 				# copy old RF into new for new itteration inversion
 				if total!=atmos.nx*atmos.ny:
@@ -382,10 +398,11 @@ class Inverter(InputData):
 				diff = obs.spec - spec.spec
 				diff *= self.weights
 				diff /= noise_stokes
-				diff /= np.sqrt(Ndof)
+				diff *= np.sqrt(2)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
 				chi2_old = np.sum(diff**2, axis=(2,3))
+				chi2_old /= Ndof
 
 				"""
 				Gymnastics with indices for solving LM equations for
@@ -412,20 +429,21 @@ class Inverter(InputData):
 
 			# hessian = (nx, ny, npar, npar)
 			H = JTJ
+
+			# get scaling
+			H_scale, delta_scale = normalize_hessian(H, atmos, mode=1)
+
+			H *= H_scale
+
 			# multiply with LM parameter
 			H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
+			
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
+			delta *= delta_scale
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, Npar, atmos.nx, atmos.ny, self.n_thread)
-			
-			# proposed_steps = np.linalg.solve(H, delta)
-			
-			# invH = np.linalg.pinv(H, rcond=self.svd_tolerance, hermitian=True)
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		proposed_steps[idx,idy] = np.dot(invH[idx,idy], delta[idx,idy])
 
 			#--- save old parameters (atmospheric and atomic)
 			old_atmos_parameters = copy.deepcopy(atmos.values)
@@ -477,10 +495,11 @@ class Inverter(InputData):
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
-			new_diff /= np.sqrt(Ndof)
+			new_diff *= np.sqrt(2)
 			if self.wavs_weight is not None:
 				diff *= self.wavs_weight
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
+			chi2_new /= Ndof
 
 			#--- if new chi2 is lower than the old chi2
 			indx, indy = np.where(chi2_new<chi2_old)
@@ -612,11 +631,12 @@ class Inverter(InputData):
 
 		#--- the regularization function Jacobian (only spatial)
 		if atmos.spatial_regularization:
+			# start = time.time()
 			reg_weight = self.spatial_regularization_weight
 			LT = atmos.get_regularization_der()
-			LT *= np.sqrt(reg_weight)
 			LTL = LT.dot(LT.transpose())
 			chi2.regularization_weight = reg_weight
+			# print("Reg = ", time.time() - start)
 
 		# in mode==3 we always have to compute spectrum for every pixel
 		ones = np.ones((atmos.nx, atmos.ny))
@@ -643,7 +663,8 @@ class Inverter(InputData):
 		num_failed = 0
 
 		print(f"Observations: {obs.nx} x {obs.ny}")
-		print(f"Number of parameters: {Npar}")
+		print(f"Number of parameters/px: {Npar}")
+		print(f"  local/global: {Nlocalpar}/{Nglobalpar}")
 		print(f"Number of degrees of freedom: {Ndof}\n")
 
 		iter_start = datetime.now()
@@ -668,11 +689,11 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, Ndof=Ndof, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
 
 				if atmos.spatial_regularization:
 					Gamma = atmos.get_regularization_gamma()
-					Gamma *= np.sqrt(reg_weight)
+					# Gamma *= np.sqrt(reg_weight)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
 				# plt.show()
@@ -687,11 +708,13 @@ class Inverter(InputData):
 				diff = obs.spec - spec.spec
 				diff *= self.weights
 				diff /= noise_stokes
-				diff /= np.sqrt(Ndof)
+				diff *= np.sqrt(2)
+				# diff /= np.sqrt(Ndof)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
 				
 				chi2_old = np.sum(diff**2, axis=(2,3))
+				chi2_old /= Ndof
 				if atmos.spatial_regularization:
 					chi2_reg = np.sum(Gamma**2, axis=-1)
 					chi2_old += chi2_reg
@@ -731,42 +754,75 @@ class Inverter(InputData):
 					Gamma = Gamma.reshape(atmos.nx*atmos.ny, 2*Nlocalpar, order="C")
 					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*Nlocalpar, order="C")
 
-					tmp = atmos.scale_LT[:atmos.nx*atmos.ny*Nlocalpar]
-					_L = LT[:atmos.nx*atmos.ny*Nlocalpar].transpose().multiply(1/tmp)
-					if Nglobalpar>0:
-						_L = sp.hstack([_L,LT[-Nglobalpar:].transpose()])
-					_LT = _L.transpose()
-					deltaSP -= _LT.dot(Gamma)
-					# print(_LT.dot(Gamma)/deltaSP)
+					deltaSP -= LT.dot(Gamma)
+					# print(LT.dot(Gamma)/deltaSP)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
 				# [17.11.2022.] This statement still holds also for regularization terms.
 
 			#--- invert Hessian matrix
+
+			# fig = plt.figure()
+			# gs = fig.add_gridspec(nrows=1, ncols=2)
+			# ax1 = fig.add_subplot(gs[0,0])
+			# ax2 = fig.add_subplot(gs[0,1])
+
 			H = JglobalT.dot(Jglobal)
 			if atmos.spatial_regularization:
-				LTL = _LT.dot(_LT.transpose())
 				H += LTL
-				# plt.imshow(H.toarray(), origin="upper")
-				# plt.colorbar()
+				Hdiag = H.diagonal(k=0)
+				LTLdiag = LTL.diagonal(k=0)
+			
+				eta = LTLdiag/Hdiag
+
+				# plt.plot(eta[:Nlocalpar])
 				# plt.show()
+				# print(eta[:Nlocalpar])
+				# sys.exit()
+
+			# get the scaling for H, deltaSP and parameters
+			sp_scales, scales = normalize_hessian(H, atmos, mode=3)
+
+			H = H.multiply(sp_scales)
+			RHS = deltaSP/scales
+
+			# add Marquardt parameter
 			diagonal = H.diagonal(k=0)
 			diagonal *= LM_parameter
 			diagonal = sp.diags(diagonal, offsets=0, format="csc")
 			H += diagonal
 
-			# plt.imshow(H.toarray(), origin="upper")
-			# plt.colorbar()
+			# ax1.set_title("Hessian")
+			# im = ax1.imshow(H.toarray(), origin="upper")
+			# add_colorbar(fig, ax1, im)
+
+			# if atmos.spatial_regularization:
+			# 	tmp = LTL.multiply(sp_scales)
+			# 	# tmp = LTL
+			# 	ax2.set_title("LTL")
+			# 	im = ax2.imshow(tmp.toarray(), origin="upper")
+			# 	add_colorbar(fig, ax2, im)
+
 			# plt.show()
-			# proposed_steps = spsolve(H, deltaSP, use_umfpack=False)
-			proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, x0=None, atol=None)
+			# plt.close()
+
+			start = time.time()
+			# proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, M=sp.block_diag(H.diagonal(k=0)))
+			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
-				print("[Warning] Did not converge the solution of Ax=b.")
-				# return atmos, spec, chi2
+				print(f"[Warning] Did not converge the solution of Ax=b.")
 			if info<0:
 				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
 				return atmos, spec, chi2
+			# residual = deltaSP - H.dot(proposed_steps)
+			# rel_err = residual/proposed_steps
+			# residual = np.sqrt(np.sum(residual**2))
+			# rel_err = np.sqrt(np.sum(rel_err)**2)
+			# print(f"[Info] Residual = {residual}.")
+			# print(f"[Info] Relative error = {rel_err}")
+			end = time.time() - start
+			# print(f"[Info] Convergence time {end}s.")
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -818,14 +874,15 @@ class Inverter(InputData):
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
 			new_diff /= noise_stokes
-			new_diff /= np.sqrt(Ndof)
+			new_diff *= np.sqrt(2)
 			if self.wavs_weight is not None:
 				new_diff *= self.wavs_weight
 			
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
+			chi2_new /= Ndof
 			if atmos.spatial_regularization:
 				Gamma = atmos.get_regularization_gamma()
-				Gamma *= np.sqrt(reg_weight)
+				# Gamma *= np.sqrt(reg_weight)
 				chi2_reg = np.sum(Gamma**2, axis=-1)
 				chi2_new += chi2_reg
 
@@ -991,6 +1048,13 @@ class Inverter(InputData):
 		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
 
 	def estimate_regularization_weight(self, alpha_min, alpha_max, num=11, fpath=None):
+		# reset the original relative weighting for each parameter
+		original_weight = self.spatial_regularization_weight
+		for parameter in self.atmosphere.nodes:
+			self.atmosphere.regularization_weight[parameter] /= original_weight
+
+		relative_weights = copy.deepcopy(self.atmosphere.regularization_weight)
+
 		reg_weight = np.logspace(alpha_min, alpha_max, num=num)
 		init_atmos_values = self.atmosphere.values
 		if self.mode==2 or self.mode==3:
@@ -1001,7 +1065,11 @@ class Inverter(InputData):
 
 		for i_, alpha in enumerate(reg_weight):
 			print("\n{:{char}{align}{width}}".format(f" Round {i_+1}/{num} ", char="*", align="^", width=globin.NCHAR))
-			self.spatial_regularization_weight = alpha
+
+			# recompute the regularization weights for each parameter
+			for parameter in self.atmosphere.nodes:
+				self.atmosphere.regularization_weight[parameter] = relative_weights[parameter] * alpha
+
 			self.atmosphere.values = copy.deepcopy(init_atmos_values)
 			if self.mode==2 or self.mode==3:
 				self.atmosphere.global_pars = copy.deepcopy(init_global_values)
@@ -1101,6 +1169,154 @@ def _chi2_convergence(args):
 
 	# if we still have not converged
 	return 1, itter, updated_pars
+
+def normalize_hessian(H, atmos, mode):
+	"""
+	Normalize Hessian matrix so that diagonal elements are =1.
+
+	Recompute the paramters scale so that we can reconstruct proper values.
+
+	Parameters:
+	-----------
+	Hessian : ndarray or scipy.sparse.matrix
+		Hessian matrix (squared). It is assumed to be sparse matrix, but it 
+		should work with dense matrices also.
+	atmos : globin.atmos.Atmosphere()
+		atmosphere structure containing the nodes and values of inversion 
+		parameters as well as scaling for each parameter node.
+	mode : int
+		inversion mode. Defines the structure of the output.
+	
+	Returns:
+	--------
+	sp_scale : scipy.sparse.matrix
+		sparse matrix containing the values with which we need to multiply 
+		Hessian matrix in order to get 1s on a diagonal.
+	scale : ndarray
+		array containing the scale for each parameter that is needed to divide the
+		RHS of LM equation.
+	"""
+	if mode==1:
+		Npar = atmos.n_local_pars
+
+		RHS_scales = np.zeros((atmos.nx, atmos.ny, Npar))
+		H_scales = np.zeros((atmos.ny, atmos.ny, Npar, Npar))
+		
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				diagonal = np.diagonal(H[idx,idy], offset=0)
+				scales = np.sqrt(diagonal)
+
+				l, u = 0, 0
+				for parameter in atmos.nodes:
+					l, u = u, u + len(atmos.nodes[parameter])
+					atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u]
+					atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
+
+				scales = 1/scales
+				RHS_scales[idx,idy] = scales
+				H_scales[idx,idy] = np.outer(scales, scales)
+
+		return H_scales, RHS_scales
+
+	if mode==2:
+		raise ValueError("Not implemented yet.")
+
+	if mode==3:
+		Nlocalpar = atmos.n_local_pars
+		Nglobalpar = atmos.n_global_pars
+		Natmos = atmos.nx*atmos.ny
+
+		# get scales (as sqrt of Hessian diagonal elements)
+		diagonal = H.diagonal(k=0)
+		scales = np.sqrt(diagonal)
+
+		# create the indices of sub-jacobian matrix
+		X, Y = np.meshgrid(np.arange(Nlocalpar), np.arange(Nlocalpar), indexing="ij")
+
+		# get the local (atmospheric) parameters scale values
+		shift = 0
+		for parameter in atmos.nodes:
+			nnodes = len(atmos.nodes[parameter])
+			for idn in range(nnodes):
+				ind = np.arange(0, Natmos*Nlocalpar, Nlocalpar) + shift
+				atmos.parameter_scale[parameter][:,:,idn] = scales[ind].reshape(atmos.nx, atmos.ny, order="F")
+				shift += 1
+			# parameter scale must be multiplied by the normalization value in order to retrieve 
+			# the proposed step in unit of a parameter. We scaled the Regularization function and
+			# the RF with this normalization value.
+			atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+
+		# get the global (atomic) parameters scale values
+		start = Natmos*Nlocalpar
+		for parameter in atmos.global_pars:
+			N = len(atmos.line_no[parameter])
+			if N==0:
+				continue
+
+			for idl in range(N):
+				ind = start + idl
+				atmos.parameter_scale[parameter][...,idl] = scales[ind]
+
+			atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+
+			start += N
+
+		# create the sparse matrix of scales for each parameter combination for every atmosphere
+		l, u = 0, 0
+		ida = 0
+		rows = np.array([], dtype=np.int32)
+		cols = np.array([], dtype=np.int32)
+		values = np.array([])
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				l = u
+				u += Nlocalpar
+				division = np.outer(scales[l:u], scales[l:u])
+				rows = np.append(rows, X.ravel() + ida*Nlocalpar)
+				cols = np.append(cols, Y.ravel() + ida*Nlocalpar)
+				values = np.append(values, 1/division.ravel())
+				ida += 1
+
+		start = Natmos*Nlocalpar
+		Ng = 0
+		for parameter in atmos.global_pars:
+			N = len(atmos.line_no[parameter])
+			if N==0:
+				continue
+
+			for idl in range(N):
+				scale = scales[start + idl]
+				val = scales[:start+idl+1] * scale
+				# vertical part of Hessian
+				values = np.append(values, 1/val)
+				# horizontal part of Hessian
+				# we exclude the last point because it is already present
+				values = np.append(values, 1/val[:-1])
+
+				# indices for vertical part of Hessian
+				row = np.arange(start + idl+1)
+				rows = np.append(rows, row)
+
+				col = np.ones(start + idl+1) * (start + idl)
+				cols = np.append(cols, col)
+
+				# indices for horizontal part of Hessian
+				# (we exclude last point because it would be doubled)
+				rows = np.append(rows, col[:-1])
+				cols = np.append(cols, row[:-1])
+
+			start += N
+			
+		sp_scale = sp.csr_matrix((values, (rows, cols)), shape=H.shape, dtype=np.float64)
+
+		# H = H.multiply(sp_scale)
+		# plt.imshow(H.toarray(), origin="upper")
+		# plt.colorbar()
+		# plt.show()
+		# sys.exit()
+
+		return sp_scale, scales
 
 def invert_mcmc(init, save_output, verbose):
 	obs = init.obs

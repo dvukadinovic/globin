@@ -84,17 +84,17 @@ class Atmosphere(object):
 									"mag"   : MinMax(10, 10000),					# [G]
 									"gamma" : MinMax(-np.pi, 2*np.pi),		# [rad]
 									"chi"   : MinMax(-2*np.pi, 2*np.pi),	# [rad]
-									"of"    : [0, 20],												#
-									"stray" : [0, 1],													#
-									"vmac"  : [0, 5]}													# [km/s]
+									"of"    : [0, 20],										#
+									"stray" : [0, 1],											#
+									"vmac"  : [0, 5]}											# [km/s]
 
 	#--- lowest temperature in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
 	Tmin = 2800
 
-	#--- parameter perturbations for calculating RFs (must be the same as in rf_ray.c)
+	#--- parameter perturbations for calculating RFs
 	delta = {"temp"  : 1,			# [K]
-					 "vz"    : 1/1e3,	# [m/s --> km/s]
-					 "vmic"  : 1/1e3,	# [m/s --> km/s]
+					 "vz"    : 1e-3,	# [km/s]
+					 "vmic"  : 1e-3,	# [km/s]
 					 "mag"   : 1,			# [G]
 					 "gamma" : 0.01,	# [rad]
 					 "chi"   : 0.01,	# [rad]
@@ -120,10 +120,28 @@ class Atmosphere(object):
 										"vz" 	  : 6,				# [km/s]
 										"vmic"  : 6,				# [km/s]
 										"mag"   : 1000,			# [G]
-										"gamma" : np.pi/3,	# [rad]
-										"chi"   : np.pi/3,	# [rad]
+										"gamma" : np.pi,		# [rad]
+										"chi"   : np.pi,		# [rad]
 										"of"    : 2,				#
-										"stray" : 0.1}			#
+										"stray" : 0.1,
+										"dlam"  : 10,				# [mA]
+										"loggf" : -1.0}			#
+
+	#--- relative weighting for spatial regularization for each parameter
+	regularization_weight = {"temp"  : 1,
+													 "vz"    : 1,
+													 "vmic"  : 1,
+													 "mag"   : 1,
+													 "gamma" : 1,
+													 "chi"   : 1}
+
+	#--- weighting for depth-dependen regularization of parameters
+	dd_regularization_weight = {"temp"  : 1,
+													 		"vz"    : 1,
+													 		"vmic"  : 1,
+													 		"mag"   : 1,
+													 		"gamma" : 1,
+													 		"chi"   : 1}
 
 	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.type = atm_type
@@ -138,6 +156,8 @@ class Atmosphere(object):
 		#   -- depth regularization counts as 1
 		#   -- spatial regularization counts as 2 (in x and y directions each)
 		self.nreg = 0
+
+		self.spatial_regularization = False
 
 		# current working directory -- appended to paths sent to RH (keyword, atmos, molecules, kurucz)
 		self.cwd = "."
@@ -472,6 +492,18 @@ class Atmosphere(object):
 			except:
 				pass
 
+		#--- check for the spatial regularization weighting
+		try:
+			self.spatial_regularization_weight = self.header["REGW"]
+			self.spatial_regularization = True
+		except:
+			pass
+
+		if self.spatial_regularization:
+			for parameter in self.nodes:
+				reg_weight = self.header[f"{parameter}W"]
+				self.regularization_weight[parameter] = reg_weight *self.spatial_regularization_weight
+
 		try:
 			ind = hdu_list.index_of("Continuum_Opacity")
 			self.chi_c = hdu_list[ind].data
@@ -748,9 +780,18 @@ class Atmosphere(object):
 		primary.header["NY"] = self.ny
 		primary.header["NZ"] = self.nz
 
+		# save spatial regularization weights
+		if self.spatial_regularization:
+			primary.header["REGW"] = (self.spatial_regularization_weight, "regularization weight")
+			for parameter in self.regularization_weight:
+				weight = self.regularization_weight[parameter] / self.spatial_regularization_weight
+				primary.header[f"{parameter}W"] = (weight, "relative spatial reg. weight")
+
+		# save the gass pressure at the top of the atmosphere
 		if self.pg_top is not None:
 			primary.header["PGTOP"] = (float(self.pg_top), "gas pressure at top (in SI units)")
 
+		# save the stray light factor and mode of application
 		if self.add_stray_light:
 			primary.header["SL_TYPE"] = (self.stray_type, "stray light type")
 			primary.header["SL_MODE"] = (self.stray_mode, " -1 no inversion; 3 global inversion")
@@ -777,6 +818,7 @@ class Atmosphere(object):
 
 		hdulist = fits.HDUList([primary])
 
+		# make separate HDU for each parameter (node values only)
 		for parameter in self.nodes:
 			par_hdu = fits.ImageHDU(self.values[parameter])
 			par_hdu.name = parameter
@@ -785,13 +827,15 @@ class Atmosphere(object):
 			par_hdu.header.comments["NAXIS1"] = "number of nodes"
 			par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
-			# par_hdu.header.comments["NAXIS4"] = "parameter values"
 
+			# write down the node positions
 			for idn in range(len(self.nodes[parameter])):
 				par_hdu.header[f"NODE{idn+1}"] = self.nodes[parameter][idn]
 
 			hdulist.append(par_hdu)
 
+		# save the continuum opacity (if we have it computed)
+		# [22.11.2022.] Obsolete? Maybe we will need it later...
 		if self.chi_c is not None:
 			par_hdu = fits.ImageHDU(self.chi_c)
 			par_hdu.name = "Continuum_Opacity"
@@ -1132,7 +1176,7 @@ class Atmosphere(object):
 		# return spec.I, spec.Q, spec.U, spec.V, spec.lam
 		return np.vstack((spec.I, spec.Q, spec.U, spec.V, spec.lam))
 
-	def compute_rfs(self, rf_noise_scale, Ndof, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
 		"""
 		Parameters:
 		-----------
@@ -1203,22 +1247,10 @@ class Atmosphere(object):
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
-				node_RF /= np.sqrt(Ndof)
+				node_RF *= np.sqrt(2)
 				
-				scale = np.sqrt(np.sum(node_RF**2, axis=(2,3)))
-				
-				# save parameter scales from previous iteration
-				indx, indy = np.where(scale==0)
-				scale[indx,indy] = self.parameter_scale[parameter][indx,indy,nodeID]
-
-				# recompute the scales for only those pixels for which we computed spectra
-				# (do not touch old ones)
-				# indx, indy = np.where(synthesize==1)
-				self.parameter_scale[parameter][active_indx,active_indy,nodeID] = scale[active_indx,active_indy]
-				# self.parameter_scale[parameter][active_indx,active_indy,nodeID] = 1
-
 				#--- set RFs value
-				self.rf[active_indx,active_indy,free_par_ID] = np.einsum("ikl,i->ikl", node_RF[active_indx, active_indy], 1/self.parameter_scale[parameter][active_indx,active_indy,nodeID])
+				self.rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
 				free_par_ID += 1
 
 				#--- return back perturbations (node way)
@@ -1233,17 +1265,6 @@ class Atmosphere(object):
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
 					self.build_from_nodes(synthesize, params=parameter)
-
-			# reshape parameter scale for the scaling of regularization Jacobian matrix
-			# [dear viewer: do not think too much about it, it works! I checked it.]
-			if self.spatial_regularization:
-				tmp = self.parameter_scale[parameter].reshape(self.nx*self.ny, len(nodes))
-				tmp = tmp.reshape(self.nx*self.ny*len(nodes))
-				inds = np.arange(len(nodes), dtype=np.int32) + shift
-				inds = np.repeat(inds[np.newaxis,:], self.nx*self.ny, axis=0)
-				inds = (inds.T + addition).T.flatten()
-				self.scale_LT[inds] = tmp
-				shift += len(nodes)
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -1263,11 +1284,10 @@ class Atmosphere(object):
 					self.rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
 					self.rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
 					self.rf[:,:,free_par_ID] /= rf_noise_scale
-					self.rf[:,:,free_par_ID] /= np.sqrt(Ndof)
+					self.rf[:,:,free_par_ID] *= np.sqrt(2)
 					self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
 
-					self.parameter_scale[parameter] = np.sqrt(np.sum(self.rf[:,:,free_par_ID,:,:]**2))
-					self.rf[:,:,free_par_ID,:,:] /= self.parameter_scale[parameter]
+					self.rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
 
 					skip_par = free_par_ID
 					free_par_ID += 1
@@ -1279,12 +1299,9 @@ class Atmosphere(object):
 						diff = -spec.spec
 					diff *= weights
 					diff /= rf_noise_scale
-					diff /= np.sqrt(Ndof)
+					diff *= np.sqrt(2)
 
-					scale = np.sqrt(np.sum(diff**2))
-					self.parameter_scale[parameter] = scale
-
-					self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter]
+					self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 					free_par_ID += 1
 
 				elif parameter=="loggf" or parameter=="dlam":
@@ -1292,7 +1309,6 @@ class Atmosphere(object):
 						perturbation = self.delta[parameter]
 
 						for idp in range(self.line_no[parameter].size):
-							# model_plus.global_pars[parameter][...,idp] += perturbation
 							self.global_pars[parameter][...,idp] += perturbation
 							spec_plus = self.compute_spectra(synthesize)
 
@@ -1302,46 +1318,19 @@ class Atmosphere(object):
 							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 							diff *= weights
 							diff /= rf_noise_scale
-							diff /= np.sqrt(Ndof)
+							diff *= np.sqrt(2)
 
-							if self.mode==2:
-								scale = np.sqrt(np.sum(diff**2, axis=(2,3)))
-								for idx in range(self.nx):
-									for idy in range(self.ny):
-										if not np.isnan(np.sum(scale[idx,idy])):
-											self.parameter_scale[parameter][idx,idy,idp] = scale[idx,idy]
-										else:
-											self.parameter_scale[parameter][idx,idy,idp] = 1
-							elif self.mode==3:
-								scale = np.sqrt(np.sum(diff**2))
-								self.parameter_scale[parameter][...,idp] = scale
-
-							if self.mode==2:
-								for idx in range(self.nx):
-									for idy in range(self.ny):
-										self.rf[idx,idy,free_par_ID] = diff[idx,idy] / self.parameter_scale[parameter][idx,idy,idp]
-							elif self.mode==3:
-								self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_scale[parameter][0,0,idp]
+							self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 							free_par_ID += 1
 							
 							self.global_pars[parameter][...,idp] += perturbation
 
-						# We do not need this for atomic parameters, right?
-						# # reshape parameter scale for the scaling of regularization Jacobian matrix
-						# # [dear viewer: do not think too much about it, it works! I checked it.]
-						# if self.spatial_regularization:
-						# 	tmp = self.parameter_scale[parameter][0,0]
-						# 	low = self.nx*self.ny*self.n_local_pars + shift
-						# 	up = low + self.line_no[parameter].size
-						# 	self.scale_LT[low:up] = tmp
-						# 	shift += self.line_no[parameter].size
-
 		#--- broaden the spectra
 		if not mean:
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
-			# if self.vmac!=0:
-			# 	kernel = spec.get_kernel(self.vmac, order=0)
-				# self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
+			if self.vmac!=0:
+				kernel = spec.get_kernel(self.vmac, order=0)
+				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
 
 		#--- add the stray light component:
 		if self.add_stray_light:
@@ -1367,7 +1356,7 @@ class Atmosphere(object):
 			spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 			self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
 
-		# for idp in range(3):
+		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
 		# plt.legend()
 		# plt.show()
@@ -1397,9 +1386,11 @@ class Atmosphere(object):
 				# p@x - p@x-1 (difference to the upper pixel)
 				gamma[1:,:, 2*idp] = self.values[parameter][1:,:,idn] - self.values[parameter][:-1,:,idn]
 				gamma[1:,:, 2*idp] /= self.parameter_norm[parameter]
+				gamma[1:,:, 2*idp] *= np.sqrt(self.regularization_weight[parameter])
 				# p@y - p@y-1 (difference to the left pixel)
 				gamma[:,1:, 2*idp+1] = self.values[parameter][:,1:,idn] - self.values[parameter][:,:-1,idn]
 				gamma[:,1:, 2*idp+1] /= self.parameter_norm[parameter]
+				gamma[:,1:, 2*idp+1] *= np.sqrt(self.regularization_weight[parameter])
 				idp += 1
 
 		return gamma
@@ -1429,11 +1420,15 @@ class Atmosphere(object):
 		values = np.array([], dtype=np.float64)
 
 		norm = np.ones(npar)
+		weight = np.ones(npar)
 		low, up = 0, 0
 		for i_, parameter in enumerate(self.nodes):
 			low = up
 			up = low + len(self.nodes[parameter])
 			norm[low:up] = self.parameter_norm[parameter]
+			weight[low:up] = np.sqrt(self.regularization_weight[parameter])
+
+		# norm /= weight
 
 		ida = 0
 		idp = np.arange(npar)
@@ -1449,7 +1444,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2
 					cols = np.append(cols, ind)
 					
-					values = np.append(values, np.ones(npar)/norm)
+					values = np.append(values, np.ones(npar)/norm * weight)
 
 					# derivative in respect to neighbouring pixel (up)
 					tmp = (idx-1)*self.ny + idy
@@ -1459,7 +1454,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2
 					cols = np.append(cols, ind)
 
-					values = np.append(values, -1*np.ones(npar)/norm)
+					values = np.append(values, -1*np.ones(npar)/norm * weight)
 				
 				# Gamma_1 contribution
 				if idy>0:
@@ -1469,7 +1464,7 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2 + 1
 					cols = np.append(cols, ind)
 					
-					values = np.append(values, np.ones(npar)/norm)
+					values = np.append(values, np.ones(npar)/norm * weight)
 
 					# derivative in respect to neighbouring pixel (left)
 					tmp = idx*self.ny + idy-1
@@ -1479,10 +1474,11 @@ class Atmosphere(object):
 					ind = ida*npar*nreg + idp*2 + 1
 					cols = np.append(cols, ind)
 
-					values = np.append(values, -1*np.ones(npar)/norm)
+					values = np.append(values, -1*np.ones(npar)/norm * weight)
 
 		shape = (self.nx*self.ny*npar + self.n_global_pars, 
 						 self.nx*self.ny*npar*nreg)
+
 		LT = sp.csr_matrix((values, (rows, cols)), shape=shape, dtype=np.float64)
 		
 		# LTL = LT.dot(LT.transpose())
@@ -2157,6 +2153,19 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 		except:
 			pass
 
+	#--- check for the spatial regularization weighting
+	try:
+		atmos.spatial_regularization_weight = atmos.header["REGW"]
+		atmos.spatial_regularization = True
+	except:
+		pass
+
+	if atmos.spatial_regularization:
+		for parameter in atmos.nodes:
+			reg_weight = atmos.header[f"{parameter}W"]
+			atmos.regularization_weight[parameter] = reg_weight *atmos.spatial_regularization_weight
+
+	#--- check for the existance of continuum opacity
 	try:
 		ind = hdu_list.index_of("Continuum_Opacity")
 		atmos.chi_c = hdu_list[ind].data
