@@ -94,13 +94,12 @@ class InputData(object):
 
 		# key used to make debug files/checks during synthesis/inversion
 		debug = _find_value_by_key("debug", self.parameters_input, "optional")
+		self.debug = False
 		if debug is not None:
 			if debug.lower()=="true":
 				self.debug = True
 			elif debug.lower()=="false":
 				self.debug = False
-		else:
-			self.debug = False
 
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
@@ -369,7 +368,7 @@ class InputData(object):
 		# interpolation degree for Bezier polynomial
 		self.interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
 		interpolation_method = _find_value_by_key("interp_method", self.parameters_input, "default", "bezier", str)
-		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-4, float)
+		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-8, float)
 
 		#--- default parameters
 		marq_lambda = _find_value_by_key("marq_lambda", self.parameters_input, "default", 1e-2, str)
@@ -1205,8 +1204,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 			#--- check for the bounds in magnetic field strength
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					if mag[idx,idy] > atmos.limit_values["mag"][1]:
-						mag[idx,idy] = atmos.limit_values["mag"][1]
+					if mag[idx,idy] > atmos.limit_values["mag"].max:
+						mag[idx,idy] = atmos.limit_values["mag"].max
 			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 		# if "chi" in atmos.nodes:
 		# 	# atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)

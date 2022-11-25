@@ -651,8 +651,8 @@ class Atmosphere(object):
 					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
 					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
-					# elif self.limit_values[parameter][1]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (self.limit_values[parameter][1] - y[0]) / (atmos.logtau[0] - x[0])
+					elif self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
 					# similar for the bottom for maximum/min values
 					# if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])

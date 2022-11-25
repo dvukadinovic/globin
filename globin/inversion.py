@@ -168,7 +168,8 @@ class Inverter(InputData):
 			return atmos, spec, chi2
 
 		elif self.mode==0:
-			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
+			if self.verbose:	
+				print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
 
 			atmos = self.atmosphere
 
@@ -217,10 +218,11 @@ class Inverter(InputData):
 			#--- save spectra
 			spec.save(self.output_spectra_path, spec.wavelength)
 
-			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
-			print("-"*globin.NCHAR)
+			if self.verbose:
+				print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
+				print("-"*globin.NCHAR)
 
-			return atmos, spec
+			return atmos, spec, None
 		else:
 			print("\n[Error] Unrecognized mode of operation. Check input parameters.\n")
 			sys.exit()
@@ -444,6 +446,15 @@ class Inverter(InputData):
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 			delta *= delta_scale
+
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					for ids in range(4):
+						flag = np.isnan(spec.spec[idx,idy,:,ids])
+						if any(flag):
+							globin.visualize.plot_atmosphere(atmos, parameters=["temp", "mag", "vz", "vmic", "gamma", "chi", "ne", "nH"],
+								idx=idx, idy=idy)
+							globin.show()
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, Npar, atmos.nx, atmos.ny, self.n_thread)
@@ -1107,6 +1118,8 @@ def _invert_Hessian(args):
 	Npar = delta.shape
 	one = np.ones(Npar)
 
+	# steps = np.linalg.solve(hessian, delta)
+
 	invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
 	steps = np.dot(invH, delta)
 
@@ -1203,7 +1216,7 @@ def normalize_hessian(H, atmos, mode):
 		Npar = atmos.n_local_pars
 
 		RHS_scales = np.zeros((atmos.nx, atmos.ny, Npar))
-		H_scales = np.zeros((atmos.ny, atmos.ny, Npar, Npar))
+		H_scales = np.zeros((atmos.nx, atmos.ny, Npar, Npar))
 		
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
