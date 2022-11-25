@@ -708,6 +708,8 @@ class InputData(object):
 						print(f"[Warning] Depth-dependent regularization for {parameter} if of wrong type.")
 						print(f"  It should be between 0 and 4 (int). We will turn it off now.")
 						atmosphere.dd_regularization_function[parameter] = 0
+					if float(values[0])==0:
+						print(f"[Warning] Depth-dependent regularization for {parameter} has 0 weight. We will turn-off the regularization.")
 
 			# set the parameter scale
 			atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
@@ -1263,6 +1265,14 @@ class RF(object):
 		self.ny = self.rf.shape[1]
 		self.nz = self.rf.shape[3]
 
+		norm = hdu[0].header["NORMED"]
+		if norm.lower()=="true":
+			self.normed_spec = True
+		elif norm.lower()=="false":
+			self.normed_spec = False
+		else:
+			self.normed_spec = None
+
 		npar = self.rf.shape[2]
 		self.pars = {}
 		nread = 0
@@ -1294,6 +1304,30 @@ class RF(object):
 				for idy in range(self.ny):
 					# self.rf[idx,idy,idp] = np.einsum("ijk,i->ijk", self.rf[idx,idy,idp], 1/norm[idx,idy])
 					self.rf[idx,idy,idp] /= norm[idx,idy]
+
+	@property	
+	def T(self):
+		return self.get_par_rf("temp")
+
+	@property	
+	def B(self):
+		return self.get_par_rf("mag")
+
+	@property	
+	def vz(self):
+		return self.get_par_rf("vz")
+
+	@property	
+	def vmic(self):
+		return self.get_par_rf("vmic")
+
+	@property	
+	def theta(self):
+		return self.get_par_rf("gamma")
+
+	@property	
+	def phi(self):
+		return self.get_par_rf("chi")
 
 	def get_par_rf(self, parameter):
 		idp = self.pars[parameter]

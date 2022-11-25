@@ -197,7 +197,7 @@ class Atmosphere(object):
 		self.chi_c = None
 		self.pg = None
 
-		self.mu = 1
+		self.mu = 1.0
 
 		self.interpolation_method = "bezier"
 		
@@ -271,6 +271,7 @@ class Atmosphere(object):
 				self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.fudge = np.zeros((self.nx, self.ny, 3, len(self.fudge_lam)), dtype=np.float64)
 				if nz is None:
 					self.data[:,:,0,:] = self.logtau
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
@@ -635,18 +636,14 @@ class Atmosphere(object):
 					if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 					# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
-					# if 1900>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (1900 - y[0]) / (atmos.logtau[0] - x[0])
 				# bottom node slope for extrapolation based on temperature gradient from FAL C model
 				Kn = splev(x[-1], globin.temp_tck, der=1)
-				extrapolate = True
+				# Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
 			elif parameter in ["vz", "gamma", "chi"]:
-				extrapolate = True
 				if len(x)>=2:
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 			elif parameter in ["vmic", "mag"]:
-				extrapolate = True
 				if len(x)>=2:
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
@@ -663,7 +660,7 @@ class Atmosphere(object):
 						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if atmos.interpolation_method=="bezier":
-				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=extrapolate)
+				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=True)
 			if atmos.interpolation_method=="spline":
 				y_new = spline_interpolation(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
@@ -1102,8 +1099,10 @@ class Atmosphere(object):
 		specified in the atmosphere (not the HSRA one).
 		"""
 		if self.norm and self.norm_level=="hsra":
-			hsra = Atmosphere(f"{__path__}/data/hsrasp.dat", atm_type="spinor")
-			hsra.wavelength_air = self.wavelength_obs
+			hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+			hsra.wavelength_air = self.wavelength_obs[:1]
+			hsra.wavelength_obs = self.wavelength_obs[:1]
+			hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
 			hsra.mu = self.mu
 			spec = hsra.compute_spectra()
 			self.icont = spec.spec[0,0,0,0]
@@ -1185,13 +1184,13 @@ class Atmosphere(object):
 		# Hinode line par).
 
 		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
-			tck = splrep(self.wavelength_air, spec.I)
+			tck = splrep(spec.lam, spec.I)
 			spec.I = splev(self.wavelength_obs, tck, ext=3)
-			tck = splrep(self.wavelength_air, spec.Q)
+			tck = splrep(spec.lam, spec.Q)
 			spec.Q = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(self.wavelength_air, spec.U)
+			tck = splrep(spec.lam, spec.U)
 			spec.U = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(self.wavelength_air, spec.V)
+			tck = splrep(spec.lam, spec.V)
 			spec.V = splev(self.wavelength_obs, tck, ext=1)
 
 			spec.lam = self.wavelength_obs
@@ -1519,7 +1518,28 @@ class Atmosphere(object):
 		return LT
 
 	def get_dd_regularization(self):
-		pass
+		Nlocalpar = self.n_local_pars
+
+		L = np.zeros((self.nx, self.ny, Nlocalpar, Nlocalpar))
+
+		for parameter in self.dd_regularization_function:
+			function = self.dd_regularization_function[parameter]
+			if function==0:
+				continue
+
+			weight = self.dd_regularization_weight[parameter]
+			if weight==0:
+				continue
+
+			nnodes = len(self.nodes[parameter])
+
+			if function==1:
+				_L = np.diag(np.ones(nnodes))
+				tmp = np.diag(-1*np.ones(nnodes-1), k=-1)
+				_L += tmp
+				_L /= self.parameter_norm[parameter]
+				_L *= np.sqrt(self.dd_regularization_weight[parameter])
+				print(_L)
 
 	def make_OF_table(self, wavelength_vacuum):
 		if wavelength_vacuum[0]<=210:
@@ -1634,23 +1654,25 @@ class Atmosphere(object):
 
 		Error:
 		------
-		If neighter of 'nwl' and 'dlam' is provided, an error is thrown.
+		If neighter of 'nwl' and 'dlam' is provided when no fpath, an error is thrown.
 		"""
 
 		if fpath is not None:
-			self.wavelength = np.loadtxt(fpath)
+			self.wavelength_air = np.loadtxt(fpath)
 		else:
 			if nwl is not None:
-				self.wavelength = np.linspace(lmin, lmax, num=nwl)
+				self.wavelength_air = np.linspace(lmin, lmax, num=nwl)
 			elif dlam is not None:
-				self.wavelength = np.arange(lmin, lmax+dlam, dlam)
+				self.wavelength_air = np.arange(lmin, lmax+dlam, dlam)
 			else:
 				sys.exit("globin.atmos.Atmosphere.set_wavelength():\n  Neighter the number of wavelenths or spacing has been provided.")
 
 		# transform values to nm and compute the wavelengths in vacuume
 		if unit=="A":
-			self.wavelength /= 10
-		self.wavelength_vacuum = globin.rh.write_wavs(self.wavelength, fname=None)
+			self.wavelength_air /= 10
+
+		self.wavelength_obs = self.wavelength_air
+		self.wavelength_vacuum = globin.rh.air_to_vacuum(self.wavelength_air)
 
 	def add_magnetic_vector(self, B, gamma, chi):
 		"""
@@ -1720,8 +1742,9 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844
 
 	ne = pe/10 / globin.K_BOLTZMAN/temp # [1/m3]
-	C1 = ne/2 * globin.PLANCK**3 / (2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN*temp)**(3/2)
-	
+	CC = 2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN
+	C1 = ne/2 * (globin.PLANCK / (CC*temp)**(1/2))**3
+
 	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6 # [1/cm3]
 
 	pops = np.zeros((6, *temp.shape))
@@ -1831,7 +1854,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 	
 	n_pars = n_local + n_global
 	
-	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength), 4), dtype=np.float64)
+	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
 
 	i_ = -1
 	free_par_ID = 0
@@ -1919,6 +1942,8 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 		if norm:
 			primary.header["NORMED"] = ("TRUE", "flag for spectrum normalization")
+		else:
+			primary.header["NORMED"] = ("FALSE", "flag for spectrum normalization")
 
 		i_ = 1
 		if local_pars:
@@ -1936,7 +1961,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 		hdulist = fits.HDUList([primary])
 
 		#--- wavelength list
-		par_hdu = fits.ImageHDU(atmos.wavelength)
+		par_hdu = fits.ImageHDU(atmos.wavelength_air)
 		par_hdu.name = "wavelength"
 		par_hdu.header["UNIT"] = "Angstrom"
 		par_hdu.header.comments["NAXIS1"] = "wavelengths"
@@ -1994,7 +2019,9 @@ def convert_atmosphere(logtau, atmos_data, atm_type):
 
 def spinor2multi(atmos_data):
 	"""
-	Routine for converting 'atmos_data' from SPINOR to MULTI type.
+	Routine for converting SPINOR inverted atmosphere to MULTI type.
+	WARNING: the order of parameters in inverted and input SPINOR type atmosphere
+	are not the same! Indexing here is only valid for inverted atmosphere.
 
 	Parameters:
 	-----------
@@ -2022,19 +2049,21 @@ def spinor2multi(atmos_data):
 	# temperature [K]
 	atmos.data[:,:,1] = atmos_data[2]
 	# electron density [1/cm3]
-	amtos.data[:,:,2] = atmos_data[4]/10/globin.K_BOLTZMAN/atmos_data[2] / 1e6
+	atmos.data[:,:,2] = atmos_data[4]/10/globin.K_BOLTZMAN/atmos_data[2] / 1e6
 	# LOS velocity [km/s]
-	atmos_data[:,:,3] = atmos_data[9]/1e5
+	atmos.data[:,:,3] = atmos_data[8]/1e5*(-1)
 	# micro-turbulent velocity [km/s]
-	atmos_data[:,:,4] = atmos_data[8]/1e5
+	atmos.data[:,:,4] = atmos_data[7]/1e5
 	# magnetic field strength [G]
-	atmos_data[:,:,5] = atmos_data[7]
+	atmos.data[:,:,5] = atmos_data[9]
 	# magnetic field inclination [rad]
-	atmos.data[:,:,6] = atmos_data[-2]# * np.pi/180
+	atmos.data[:,:,6] = atmos_data[-2] * np.pi/180
 	# magnetic field zazimuth [rad]
-	atmos.data[:,:,7] = atmos_data[-1]# * np.pi/180
+	atmos.data[:,:,7] = atmos_data[-1] * np.pi/180
 	# hydrogen density [1/cm3]
-	atmos.data[:,:,8] = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+	tmp = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
+	for idp in range(6):
+		atmos.data[:,:,8+idp] = tmp[idp]
 
 	return atmos
 

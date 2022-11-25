@@ -299,12 +299,13 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.close()
 
 def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, norm=False):
-	cmap = {"temp"  : "YlOrRd", 
+	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
 			"mag"   : "bwr", 
 			"gamma" : "bwr",
-			"chi"   : "bwr"}
+			"chi"   : "bwr",
+			"loggf" : "plasma"}
 	cbar_label = {"temp"   : "Temperature", 
 				  "vmic"   : r"Micro-velocity",
 				  "vz"     : r"LOS velocity", 
@@ -312,6 +313,9 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 				  "gamma"  : r"Inclination", 
 				  "chi"    : r"Azimuth"}
 	stokesV = {"I" : 0, "Q" : 1, "U" : 2, "V" : 3}
+
+	if not _rf.normed_spec:
+		cmap["temp"] = "YlOrRd"
 
 	wavs = _rf.wavelength
 	lam_min, lam_max = wavs[0], wavs[-1]

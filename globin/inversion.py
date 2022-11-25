@@ -342,6 +342,9 @@ class Inverter(InputData):
 
 		proposed_steps = np.zeros((atmos.nx, atmos.ny, Npar))
 
+		# atmos.get_dd_regularization()
+		# sys.exit()
+
 		iter_start = datetime.now()
 
 		print(f"Observations: {obs.nx} x {obs.ny}")

@@ -19,6 +19,9 @@ m_e *= 1e3
 
 import globin
 
+def convert_spinor_inversion(fpath):
+    pass
+
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.input.read_node_atmosphere(node_atmosphere_path)
 
