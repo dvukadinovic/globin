@@ -90,6 +90,7 @@ class Atmosphere(object):
 
 	#--- lowest temperature in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
 	Tmin = 2800
+	Tmax = 10000
 
 	#--- parameter perturbations for calculating RFs
 	delta = {"temp"  : 1,			# [K]
@@ -636,6 +637,8 @@ class Atmosphere(object):
 					if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 					# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
+					if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 				# bottom node slope for extrapolation based on temperature gradient from FAL C model
 				Kn = splev(x[-1], globin.temp_tck, der=1)
 				# Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
