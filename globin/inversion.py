@@ -550,10 +550,11 @@ class Inverter(InputData):
 				idx, idy = np.where(stop_flag==1)
 				print(LM_parameter[idx,idy])
 
+			best_chi2,_ = chi2.get_final_chi2()
+			print("  chi2 --> {:4.3e}".format(np.sum(best_chi2)/Natmos))
+
 			#--- check the convergence only for pixels whose iteration number is larger than 2
 			stop_flag, itter, updated_pars = chi2_convergence(chi2.chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
-
-			print("  chi2 --> {:4.3e}".format(np.sum(chi2.chi2[...,itter-1])))
 
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
