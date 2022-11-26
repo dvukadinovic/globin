@@ -662,7 +662,16 @@ class Atmosphere(object):
 			if atmos.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=True)
 			if atmos.interpolation_method=="spline":
-				y_new = spline_interpolation(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+				x_ = np.array([atmos.logtau[0], *x, atmos.logtau[-1]])
+				
+				n0 = y[0] - K0*x[0]
+				y0 = K0*x_[0] + n0
+				
+				nn = y[-1] - Kn*x[-1]
+				yn = Kn*x_[-1] + nn
+				y_ = np.array([y0, *y, yn])
+				
+				y_new = spline_interpolation(x_, y_, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]

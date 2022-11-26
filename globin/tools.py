@@ -103,20 +103,28 @@ def bezier_spline(x, y, xintp, K0=None, Kn=None, degree=3, extrapolate=False):
     return yintp
 
 def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
+    """
+    Spline interpolation of node values.
+
+    In the xknot and yknot, we added edges (top and bottom of the atmosphere)
+    in order to get the correct smooth extrapolation.
+    """
+
+    # in a single node case, we return constant value
+    if len(xknot)==3:
+        return np.ones(len(x), dtype=np.float64) * yknot[1]
+
+    if len(xknot)-3<degree:
+        degree = 2
+
     tck = splrep(xknot, yknot, k=degree)
     y = splev(x, tck, der=0, ext=0)
+
+    n = yknot[1] - K0*xknot[1]
+    y[x<xknot[1]] = K0*x[x<xknot[1]] + n
     
-    k0 = splev(x[0], tck, der=1, ext=0)
-    k0p = (yknot[1] - yknot[0])/(xknot[1] - xknot[0])
-    print(k0, k0p)
-    n = yknot[0] - k0p*xknot[0]
-    y[x<xknot[0]] = k0p*x[x<xknot[0]] + n
-    
-    kn = splev(x[-1], tck, der=1)
-    knp = (yknot[-2] - yknot[-1])/(xknot[-2] - xknot[-1])
-    print(kn, knp)
-    n = yknot[-1] - knp*xknot[-1]
-    y[x>xknot[-1]] = knp*x[x>xknot[-1]] + n
+    n = yknot[-2] - Kn*xknot[-2]
+    y[x>xknot[-2]] = Kn*x[x>xknot[-2]] + n
 
     return y
 
