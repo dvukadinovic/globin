@@ -81,7 +81,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			ax.set_ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
 
 			if reference is not None:
-				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw, color="black")
+				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color="black")
 				try:
 					x = reference.nodes[parameter]
 					y = reference.values[parameter][idx,idy] * fact[parameter]
