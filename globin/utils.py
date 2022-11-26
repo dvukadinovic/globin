@@ -47,9 +47,10 @@ def convert_spinor_inversion(fpath):
     try:
         hdu = fits.open(f"{fpath}/inverted_atmos_maptau.1.fits")[0]
         _header = hdu.header
-        spinor = hdu.data[:,:-1,:,:]
-        spinor_logtau = np.linspace(_header["LTTOP"], _header["LTBOT"], num=spinor.shape[1])
-        tmp = np.zeros((12, *spinor.shape[1:]))
+        spinor = hdu.data#[:,:-1,:,:]
+        npar, nz, nx, ny = spinor.shape
+        spinor_logtau = np.linspace(_header["LTTOP"], _header["LTBOT"], num=nz)
+        tmp = np.zeros((12, nz, nx, ny))
         tmp[0,:,0,0] = spinor_logtau
         tmp[1:,:,:,:] = spinor
         tmp = np.swapaxes(tmp, 1, 2)
@@ -67,8 +68,9 @@ def convert_spinor_inversion(fpath):
         ltbot = 1
         ltinc = par_data[par_header["LTINC"]-1,0,0]
         nz = (ltbot - lttop)/ltinc + 1
-        nz = int(nz) + 1 # dunno why are there +1 more than it should be...
+        # nz = int(nz) + 1 # dunno why are there +1 more than it should be...
         atm = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
+        atm.logtau = np.linspace(lttop, ltbot, num=nz)
     
     # get the nodes for each parameter
     max_nodes = len(par_header["LGTRF*"])
