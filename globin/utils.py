@@ -20,7 +20,87 @@ m_e *= 1e3
 import globin
 
 def convert_spinor_inversion(fpath):
-    pass
+    parameter_relay = {"TEMPE" : "temp",
+                       "VELOS" : "vz",
+                       "VMICI" : "vmic",
+                       "BFIEL" : "mag",
+                       "GAMMA" : "gamma",
+                       "AZIMU" : "chi"}
+    #--- inverted profiles
+    inv_spinor = fits.open(f"{fpath}/inverted_profs.1.fits")[0]
+    wlref = inv_spinor.header["WLREF"]
+    wlmin, wlmax = inv_spinor.header["WLMIN"], inv_spinor.header["WLMAX"]
+    nwl = inv_spinor.header["NWL"]
+    inv_spinor_lam = np.linspace(wlref+wlmin, wlref+wlmax, num=nwl)
+
+    #--- observations seen by SPINOR (they are same as globin ones; have checked)
+    # spinor_obs = fits.open(f"{fpath}/inverted_obs.1.fits")[0].data
+    # spinor_lam_obs = fits.open(f"{fpath}/inverted_lam.1.fits")[0].data[0,0]
+    # spinor_lam_obs += wlref
+
+    #--- inverted atmosphere (node values)
+    hdu = fits.open(f"{fpath}/inverted_atmos.fits")[0]
+    par_header = hdu.header
+    par_data = hdu.data
+
+    read_atmos = False
+    try:
+        hdu = fits.open(f"{fpath}/inverted_atmos_maptau.1.fits")[0]
+        _header = hdu.header
+        spinor = hdu.data[:,:-1,:,:]
+        spinor_logtau = np.linspace(_header["LTTOP"], _header["LTBOT"], num=spinor.shape[1])
+        tmp = np.zeros((12, *spinor.shape[1:]))
+        tmp[0,:,0,0] = spinor_logtau
+        tmp[1:,:,:,:] = spinor
+        tmp = np.swapaxes(tmp, 1, 2)
+        tmp = np.swapaxes(tmp, 2, 3)
+        atm = globin.atmos.spinor2multi(tmp)
+        read_atmos = True
+    except:
+        pass
+
+    nx, ny, ns, nw = inv_spinor.data.shape
+
+    # create Atmosphere() structure if we have not done the conversion
+    if not read_atmos:
+        lttop = par_data[par_header["LTTOP"]-1,0,0]
+        ltbot = 1
+        ltinc = par_data[par_header["LTINC"]-1,0,0]
+        nz = (ltbot - lttop)/ltinc + 1
+        nz = int(nz) + 1 # dunno why are there +1 more than it should be...
+        atm = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
+    
+    # get the nodes for each parameter
+    max_nodes = len(par_header["LGTRF*"])
+    start = par_header["LGTRF"]-1
+    nodes = par_data[start:start+max_nodes,0,0]
+
+    # add the node values into the atmosphere structure
+    for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
+        ind = par_header[f"{parameter}*"]
+        nnodes = len(ind)
+        start = ind[0] - 1
+        if nnodes==1:
+            atm.nodes[parameter_relay[parameter]] = np.array([0])
+        else:
+            atm.nodes[parameter_relay[parameter]] = nodes
+
+        fact = 1
+        if parameter=="VELOS":
+            fact = -1
+        if parameter in ["GAMMA", "AZIMU"]:
+            fact = np.pi/180
+        
+        atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
+        for idn in range(nnodes):
+            atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
+
+    # create the Spectrum() structure
+    spec = globin.Spectrum(nx=nx, ny=ny)
+    spec.spec = np.swapaxes(inv_spinor.data, 2, 3)
+    spec.wavelength = inv_spinor_lam/10
+
+    return atm, spec
 
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.input.read_node_atmosphere(node_atmosphere_path)

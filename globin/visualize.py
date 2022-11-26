@@ -41,7 +41,7 @@ def show():
 	plt.show()
 
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", label=None, reference=None):
-	logtau = atmos.data[idx,idy,0]
+	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
 
 	n_plots = len(parameters)
@@ -122,11 +122,11 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 	fact = 1
 	if norm:
 		fact = 100
-		coeff = (obs[0,0] - obs[-1,0]) / (wavelength[0] - wavelength[-1])
-		n = obs[0,0] - coeff * wavelength[0]
-		Icont = coeff * wavelength + n
-		for ids in range(4):
-			obs[:,ids] /= Icont
+		# coeff = (obs[0,0] - obs[-1,0]) / (wavelength[0] - wavelength[-1])
+		# n = obs[0,0] - coeff * wavelength[0]
+		# Icont = coeff * wavelength + n
+		# for ids in range(4):
+		# 	obs[:,ids] /= Icont
 
 	if title:
 		fig.suptitle(title)

@@ -2039,6 +2039,7 @@ def spinor2multi(atmos_data):
 	npar, nx, ny, nz = atmos_data.shape
 
 	atmos = Atmosphere(nx=nx, ny=ny, nz=nz)
+	atmos.shape = atmos.data.shape
 
 	# logtau
 	atmos.data[:,:,0] = atmos_data[0]
