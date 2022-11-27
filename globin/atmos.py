@@ -1,13 +1,3 @@
-"""
-Contributors:
-  Dusan Vukadinovic (DV)
-
-17/09/2020 : started writing the code (readme file, structuring)
-12/10/2020 : wrote down reading of atmos in .fits format and sent
-			 calculation to different process
-15/11/2020 : rewriten class Atmosphere
-"""
-
 import subprocess as sp
 from astropy.io import fits
 import numpy as np
@@ -65,6 +55,8 @@ class Atmosphere(object):
 	We distinguish different type of 'Atmopshere' based on the input mode. For .fits
 	file we call it 'cube' while for rest we call it 'single'.
 
+	The class is now able to hande direct conversion from SPINOR cube/single and
+	SIR single type atmospheres to MULTI type adopted for 'globin'.
 	"""
 	# index of parameters in self.data ndarray
 	par_id = {"logtau" : 0,
@@ -88,7 +80,7 @@ class Atmosphere(object):
 									"stray" : [0, 1],											#
 									"vmac"  : [0, 5]}											# [km/s]
 
-	#--- lowest temperature in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
+	#--- temperature limits in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
 	Tmin = 2800
 	Tmax = 10000
 
@@ -105,18 +97,22 @@ class Atmosphere(object):
 					 "stray" : 0}			# no perturbations (done analytically)
 
 	#--- full names of parameters (for FITS header)
-	parameter_name = {"temp"   : "Temperature",
-									  "ne"     : "Electron density",
-									  "vz"     : "Vertical velocity",
-									  "vmic"   : "Microturbulent velocity",
-									  "vmac"   : "Macroturbulent velocity",
-									  "mag"    : "Magnetic field strength",
-									  "gamma"  : "Inclination",
-									  "chi"    : "Azimuth",
-									  "of"     : "Opacity fudge",
-									  "nH"     : "Hydrogen density"}
+	# parameter_name = {"temp"   : "Temperature",
+	# 								  "ne"     : "Electron density",
+	# 								  "vz"     : "Vertical velocity",
+	# 								  "vmic"   : "Microturbulent velocity",
+	# 								  "vmac"   : "Macroturbulent velocity",
+	# 								  "mag"    : "Magnetic field strength",
+	# 								  "gamma"  : "Inclination",
+	# 								  "chi"    : "Azimuth",
+	# 								  "of"     : "Opacity fudge",
+	# 								  "nH"     : "Hydrogen density"}
 
-	#--- normalization values for atmospheric parameters (used in regularization)
+	#--- normalization values for atmospheric parameters
+	#    use them to scale RFs first and regularization functions
+	#    RFs are later scaled together with regularization 
+	#    contributions to have 1s on the Hessian diagonal (before
+	#    adding the Marquardt parameter).
 	parameter_norm = {"temp"  : 5000,			# [K]
 										"vz" 	  : 6,				# [km/s]
 										"vmic"  : 6,				# [km/s]
@@ -158,35 +154,37 @@ class Atmosphere(object):
 																"gamma" : 0,
 																"chi"   : 0}
 
-	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
+	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], 
+			nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.type = atm_type
 		self.fpath = fpath
 
-		# parameter scaling for inversino
+		# parameter scaling for inversion
 		self.parameter_scale = {}
 
-		# container for regularization types for atmospheric parameters
-		self.regularization = {}
-		# number of regularization functions per parameter (not per node):
-		#   -- depth regularization counts as 1
-		#   -- spatial regularization counts as 2 (in x and y directions each)
-		self.nreg = 0
-
+		# flag and weight for spatial regularization
+		# the weight is multiplying individual weights for each parameter
 		self.spatial_regularization = False
 		self.spatial_regularization_weight = 0
 
-		# current working directory -- appended to paths sent to RH (keyword, atmos, molecules, kurucz)
+		# current working directory is appended to paths sent to RH
+		# (keyword, atmos, molecules, kurucz)
 		self.cwd = "."
 
+		# flag for HSE computation; if temperature is to be inverted, this is
+		# switched to 'True'
 		self.hydrostatic = False
+
 		# gas pressure at the top (used for HSE computation from RH)
 		self.pg_top = None # [N/m2]
 
+		# interpolation degree and method for building atmosphere from node values
 		self.interp_degree = 3
+		self.interpolation_method = "bezier"
 
 		# nodes: each atmosphere has the same nodes for given parameter
 		self.nodes = {}
-		# parameters in nodes: shape = (nx, ny, nnodes)
+		# parameters values in nodes: shape = (nx, ny, nnodes)
 		self.values = {}
 		# node mask: we can specify only which nodes to invert (mask==1)
 		# structure and ordering same as self.nodes
@@ -198,53 +196,57 @@ class Atmosphere(object):
 		self.chi_c = None
 		self.pg = None
 
+		# cos(theta) for which we are computing the spectrum
 		self.mu = 1.0
-
-		self.interpolation_method = "bezier"
 		
 		# line number in list of lines for which we are inverting atomic data
-		self.line_no = {"loggf" : np.array([], dtype=np.int32), "dlam" : np.array([], dtype=np.int32)}
+		self.line_no = {"loggf" : np.array([], dtype=np.int32), 
+										"dlam"  : np.array([], dtype=np.int32)}
 		# global parameters: each is given in a list size equal to number of parameters
-		self.global_pars = {"loggf" : np.array([]), "dlam" : np.array([])}
+		self.global_pars = {"loggf" : np.array([]), 
+												"dlam"  : np.array([])}
 
+		# fudge parameters: H-, scatt, metals for each wavelength
 		self.do_fudge = 0
 		self.fudge_lam = np.linspace(400, 500, num=3)
 		self.of_scatter = 1
 
-		self.ids_tuple = [(0,0)]
+		# number of threads to be used for parallel execution of different functions
 		self.n_thread = 1
 
-		# container for the RH
+		# container for the RH() class
 		self.RH = pyrh.RH()
 
+		# continuum intensity
 		self.icont = None
+		# flag for normalizing the spectrum		
+		self.norm = False
+		# flag for normalization type
+		self.norm_level = None
 
+		# stray-light contamination parameters
 		self.add_stray_light = False
 		self.invert_stray = False
 		self.stray_mode = -1
 
+		# slices dimension from inputed cube
 		self.xmin = atm_range[0]
 		self.xmax = atm_range[1]
 		self.ymin = atm_range[2]
 		self.ymax = atm_range[3]
 
-		self.norm = False
-
+		# atmosphere dimensions
 		self.nx = nx
 		self.ny = ny
+		self.nz = nz
 		self.npar = 14
-		if nz is None:
+		
+		# allocate logtau scale and nz
+		if self.nz is None:
 			self.logtau = np.arange(logtau_top, logtau_bot+logtau_step, logtau_step)
 			self.nz = len(self.logtau)
-		else:
-			self.nz = nz
 
-		try:
-			self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-		except:
-			pass
-
-		# if we provide path to atmosphere, read in data
+		# read in the atmosphere if the fpath has been provided
 		if fpath is not None:
 			if atm_type=="spinor":
 				self.read_spinor(fpath, atm_range)
@@ -256,15 +258,16 @@ class Atmosphere(object):
 				else:
 					self.read_multi(fpath)
 			else:
-				raise ValueError(f"  Unsupported atmosphere type {atm_type}.")
+				raise ValueError(f"  Unsupported atmosphere type '{atm_type}'.")
 
-			self.nHtot = np.sum(self.data[:,:,8:,:], axis=-2)
+			self.nHtot = np.sum(self.data[:,:,8:,:], axis=2)
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 			self.idx_meshgrid = self.idx_meshgrid.flatten()
 			self.idy_meshgrid = self.idy_meshgrid.flatten()
-			self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
+			# self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
 			self.fudge = np.ones((self.nx, self.ny, 3, 3))
 		else:
+			self.data = None
 			self.header = None
 			if (self.nx is not None) and (self.ny is not None) and (self.nz is not None):
 				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
@@ -273,14 +276,12 @@ class Atmosphere(object):
 				self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.fudge = np.zeros((self.nx, self.ny, 3, len(self.fudge_lam)), dtype=np.float64)
-				if nz is None:
-					self.data[:,:,0,:] = self.logtau
+				# if nz is None:
+				# 	self.data[:,:,0,:] = self.logtau
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 				self.idx_meshgrid = self.idx_meshgrid.flatten()
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
-				self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
-			else:
-				self.data = None
+				# self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
@@ -290,7 +291,7 @@ class Atmosphere(object):
 
 	def read_multi(self, fpath):
 		"""
-		Read MULTI type atmosphere data.
+		Read 1D MULTI type atmosphere data.
 
 		Parameters:
 		-----------
@@ -337,7 +338,7 @@ class Atmosphere(object):
 
 	def read_spinor(self, fpath, atm_range=[0,None,0,None]):
 		"""
-		Read in the SPINOR type atmosphere (fits or txt format).
+		Read in the SPINOR type atmosphere (fits, 3D, or text, 1D, format).
 
 		Parameters:
 		-----------
@@ -399,7 +400,7 @@ class Atmosphere(object):
 
 	def read_sir(self, fpath):
 		"""
-		Read in the SIR type atmosphere.
+		Read in the 1D SIR type atmosphere.
 
 		Parameters:
 		-----------
@@ -447,7 +448,7 @@ class Atmosphere(object):
 
 	def read_multi_cube(self, fpath, atm_range=[0,None,0,None]):
 		"""
-		Read the cube atmosphere of MULTI type in fits format.
+		Read the 3D atmosphere of MULTI type in fits format.
 
 		Parameters:
 		-----------
@@ -521,7 +522,7 @@ class Atmosphere(object):
 				reg_weight = self.header[f"{parameter}W"]
 				self.regularization_weight[parameter] = reg_weight *self.spatial_regularization_weight
 
-		#--- check for the depth-dependent reglarization weight and type
+		#--- check for the depth-dependent reglarization weights and types
 		for parameter in self.dd_regularization_function:
 			try:
 				self.dd_regularization_function[parameter] = self.header[f"{parameter}DDF"]
@@ -529,6 +530,7 @@ class Atmosphere(object):
 			except:
 				pass
 
+		#--- check for continuum opacity values
 		try:
 			ind = hdu_list.index_of("Continuum_Opacity")
 			self.chi_c = hdu_list[ind].data
@@ -569,24 +571,47 @@ class Atmosphere(object):
 
 	def build_from_nodes(self, flag=None, params=None):
 		"""
-		Here we build our atmosphere from node values.
+		Construct the atmosphere from node values for given parameters.
 
-		We assume polynomial interpolation of quantities for given degree (given by
-		the number of nodes and limited by 3rd degree). Velocity and magnetic field
-		vectors are interpolated independantly of any other parameter. Extrapolation
-		of these parameters to upper and lower boundary of atmosphere are taken as
-		constant from highest / lowest node in atmosphere.
+		It interpolates eighter using Bezier 3rd/2nd degree polynomial or using
+		the spline interpolation of 3rd/2nd degree without tensions. Bezier
+		interpolation is implemented from de la Cruz Rodriguez & Piskunov(2013)
+		[implemented in the STiC code].
 
-		Temeperature extrapolation in deeper atmosphere is assumed to have same
-		slope as in FAL C model (read when loading a package), and to upper boundary
-		it is extrapolated constantly as from highest node. From assumed temperature
-		and initial run (from which we have continuum opacity) we are solving HE for
-		electron and gas pressure iterativly. Few iterations should be enough (we
-		stop when change in electron density is retrieved with given accuracy).
+		Extrapolation to top/bottom of the atmosphere is assumed to be linear in
+		all parameters.
 
-		Idea around this is based on Milic & van Noort (2018) [SNAPI code] and for
-		interpolation look at de la Cruz Rodriguez & Piskunov (2013) [implemented in
-		STiC].
+		Temperature: 
+			Extrapolation to the bottom assumes the slope that is
+			identical	to the temeprature gradient in FAL C atmosphere model at the
+			depth of the deepest node in the atmosphere. Extrapolation to the top is
+			limited by self.Tmin and self.Tmax. Minimum check is there to limit the
+			temprature going below certain value where RH is unable to compute the
+			spectrum (partition functions or collisional coefficients are not
+			define). Maximum check is currently there to limit strong gradients
+			during inversion. For NLTE inversions it should be removed afterwards.
+			Idea around this is based on Milic & van Noort (2018) [SNAPI code].
+
+		vz, vmic, mag, gamma, chi: 
+			Extrapolation to the top and the bottoms has
+			the gradient that is defined by the consecutive nodes at the highest and
+			lowest position in the atmosphere. We only check the extrapolation
+			limits for the 'vmic' and 'mag'. RH can accept negative values for
+			magnetic field, but it assumes that it is reversed polarity. Here, we
+			control the polarity with 'gamma' parameter, and therefore the
+			interpolation will artificially change the polarity, which we do not
+			want to.
+
+		Parameters:
+		-----------
+		flag : ndarray, optional
+			flag for building the atmosphere (==1) or not (==0) for each pixel. 
+			It has dimension of (self.nx, self.ny). Default is None (interpolate
+			all pixels).
+		params : str, optional
+			parameter which we want to interpolate. If it is None, we assume that 
+			all parameters need to be interpolated. Default is None.
+		
 		"""
 		if flag is None:
 			flag = np.ones((self.nx, self.ny))
@@ -601,13 +626,10 @@ class Atmosphere(object):
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
 
-		# # we need to assign built atmosphere structure to self atmosphere
-		# # otherwise self.data would be only 0's.
-		# for idl in range(self.nx*self.ny):
-		# 	idx, idy = self.idx_meshgrid[idl], self.idy_meshgrid[idl]
-		# 	self.data[idx,idy] = atm[idl].data[idx,idy]
-
 	def _build_from_nodes(self, args):
+		"""
+		Parallelized call from self.build_from_nodes() function.
+		"""
 		atmos, flag, idx, idy, params = args
 
 		parameters = atmos.nodes
@@ -675,11 +697,25 @@ class Atmosphere(object):
 				y_ = np.array([y0, *y, yn])
 				
 				y_new = spline_interpolation(x_, y_, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
+			
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]
 
 	def makeHSE(self, flag=None):
+		"""
+		For given atmosphere structure (logtau and temperature) compute electron
+		and hydrogen populations assuming hydrostatic equilibrium, LTE and ideal
+		gas equation of state.
+
+		Parameters:
+		-----------
+		flag : ndarray, optional
+			flag for computing the populations (==1) or not (==0) for each pixel. 
+			It has dimension of (self.nx, self.ny). Default is None (compute HSE in
+			all pixels).
+
+		"""
 		if flag is None:
 			flag = np.ones((self.nx, self.ny))
 		indx, indy = np.where(flag==1)
@@ -696,6 +732,9 @@ class Atmosphere(object):
 		self.pg[indx,indy] = results[:,8,:]
 
 	def _makeHSE(self, arg):
+		"""
+		Parallelized call from makeHSE() function.
+		"""
 		fudge_num = 2
 		fudge_lam = np.linspace(401.5, 401.7, num=fudge_num, dtype=np.float64)
 		fudge = np.ones((3, fudge_num), dtype=np.float64)
@@ -713,9 +752,20 @@ class Atmosphere(object):
 		return result
 
 	def get_pg_top(self):
+		"""
+
+		Estimate the gas pressure at the top of the atmosphere from the gas
+		pressure in FAL C atmosphere and the self.logtau_top of the atmosphere.
+
+		If the top of the atmosphere is above the FAL C top, take the gas pressure
+		at the top of FAL C. Otherwise, interpolate.
+
+		The gas pressure at the top is stored in SI units.
+
+		"""
 		top = self.logtau[0]
 		if top<globin.falc.logtau[0]:
-			pg_top = pg[0]
+			pg_top = globin.falc.pg[0]
 		elif top>=globin.falc.logtau[0] and top<=globin.falc.logtau[-1]:
 			pg_top = splev(self.logtau[0], globin.pg_tck)
 		else:
@@ -726,7 +776,7 @@ class Atmosphere(object):
 
 	def get_pg(self):
 		"""
-		Compute the gas pressure from total Hydrogen density and electron density.
+		Compute the gas pressure from total hydrogen density and electron density.
 
 		Units dyn/cm2 (CGS).
 		"""
@@ -735,6 +785,10 @@ class Atmosphere(object):
 		self.pg = (nH + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
 
 	def makeHSE_old(self):
+		"""
+		Old routine for HSE which is an implementation from Gray 2005. Used to
+		verify the RH's HSE routine. I am keepeing it for any case now.
+		"""
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top)
@@ -743,6 +797,9 @@ class Atmosphere(object):
 				self.rho[idx,idy] = rho
 
 	def _makeHSE_old(self, arg):
+		"""
+		Made for parallelized call to Gray's HSE routine.
+		"""
 		idx, idy = arg
 		pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
 
@@ -752,6 +809,29 @@ class Atmosphere(object):
 		return np.vstack((ne, nH, rho))
 
 	def interpolate_atmosphere(self, x_new, ref_atm):
+		"""
+		
+		Interpolate the structure of reference atmosphere into the new atmosphere.
+		Used in inversions to make sure that our atmosphere has all the
+		parameters it needs to compute the spectrum. It is most usefull when
+		doing test with MHD atmospheres so that we can invert only one of the
+		parameters while the rest has the same values as in the cube.
+
+		Parameters:
+		-----------
+		x_new : array
+			optical depth scale on which we want to interpolate the 'ref_atm'.
+		ref_atm : ndarray
+			reference atmosphere in the format (nx, ny, npar, nz) of MULTI type.
+
+		Errors:
+		-------
+		If the top of the new atmosphere is higher than the reference atmosphere,
+		we will have to extrapolate. In order to stop that, the function will
+		throw an error and ask the user to change the top of the new atmosphere
+		or to change the reference atmosphere that goes higher, if needed.
+		
+		"""
 		new_top = np.round(x_new[0], decimals=2)
 		old_top = np.round(ref_atm[0,0,0,0], decimals=2)
 		new_bot = np.round(x_new[-1], decimals=2)
@@ -770,10 +850,10 @@ class Atmosphere(object):
 		ref_atm_nx, ref_atm_ny, _, _ = ref_atm.shape
 		oneD = (ref_atm_nx*ref_atm_ny==1)
 
-		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz))
-		self.nHtot = np.zeros((self.nx, self.ny, self.nz))
-		self.pg = np.zeros((self.nx, self.ny, self.nz))
-		self.rho = np.zeros((self.nx, self.ny, self.nz))
+		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+		self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+		self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+		self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
 		self.data[:,:,0,:] = x_new
 		self.logtau = x_new
 
@@ -791,6 +871,25 @@ class Atmosphere(object):
 					self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 				
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
+		"""
+		Save the atmosphere to a fits file with all the parameters.
+
+		Primary header is reserved for the full atmosphere of shape (nx, ny, npar,
+		nz). The following headers contain the values for each atmosphere
+		parameter (if we have used the atmosphere in inversion mode). 
+
+		Primary header also contains the values that are parameter independent
+		(spatial regularization weight), gas pressure at the top,
+		macro-turbulent velocity, as well as weights for each parameter and its
+		function for regularization.
+
+		Parameters:
+		-----------
+		fpath : str, optional
+			file name for the atmosphere to be saved. Default value is 'inverted_atmos.fits'.
+		kwargs : dict, optional
+			additional values that we want to save into the atmosphere.
+		"""
 		primary = fits.PrimaryHDU(self.data, do_not_scale_image_data=True)
 		primary.name = "Atmosphere"
 
@@ -897,6 +996,18 @@ class Atmosphere(object):
 		hdulist.writeto(fpath, overwrite=True)
 
 	def save_atomic_parameters(self, fpath="inverted_atoms.fits", kwargs=None):
+		"""
+		Save the global parameters (vmac, stray-light, log(gf) and dlam) into fits
+		file.
+
+		Parameters:
+		-----------
+		fpath : str, optional
+			name of the fits file to which we are saving atomic parameters. Default 
+			value is 'inverted_atoms.fits'.
+		kwargs : dict, optional
+			additional values that we want to save in header.
+		"""
 		pars = list(self.global_pars.keys())
 
 		primary = fits.PrimaryHDU()
@@ -933,6 +1044,17 @@ class Atmosphere(object):
 		hdulist.writeto(fpath, overwrite=True)
 
 	def update_parameters(self, proposed_steps):
+		"""
+		Change the inversion parameters (local and global) based on the given steps.
+
+		Parameters:
+		-----------
+		proposed_steps : ndarray
+			step for each parameter in inversion. In case of mode=1 and mode=2 
+			inversions it has a shape (self.nx, self.ny, num_of_parameters). 
+			In case of mode=3 inversion, its shape is 
+			(self.nx * self.ny * n_local_parameters + n_global_parameters).
+		"""
 		if self.mode==1 or self.mode==2:
 			low_ind, up_ind = 0, 0
 			
@@ -996,6 +1118,16 @@ class Atmosphere(object):
 						self.global_pars[parameter] += step
 
 	def check_parameter_bounds(self, mode):
+		"""
+
+		After updating the inversion parameters, check if they are inside the
+		defined bounds. If they are not, set the values to the closess boundary
+		(min/max value).
+
+		Magnetic field angles are boundless and are always wrapped. The
+		inclination is wrapped in [0,180] degrees while the azimuth is wrapped in
+		[-90, 90] degrees interval.
+		"""
 		for parameter in self.values:
 			# inclination is wrapped around [0, 180] interval
 			if parameter=="gamma":
@@ -1047,6 +1179,15 @@ class Atmosphere(object):
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
 	def smooth_parameters(self, cycle, num=5, std=2.5):
+		"""
+
+		Run Gaussian kernel on 'num' x 'num' pixels with stadard deviation
+		of 'std'. This is done after every inversion cycle, except on the last
+		one. The inversion parameters are saved before smoothing is done.
+
+		If the inversion patch is smaller than 'num' x 'num', we just apply
+		median_filter() to each inversion parameter.
+		"""
 		if self.nx>=num and self.ny>=num:
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
@@ -1074,15 +1215,15 @@ class Atmosphere(object):
 					tmp = median_filter(self.values[parameter][...,idn], size=size)
 					self.values[parameter][...,idn] = tmp
 
-		for parameter in self.global_pars:
-			if parameter=="loggf" and len(self.line_no["loggf"])>0:
-				size = self.line_no[parameter].size
-				nx, ny = 1, 1	
-				if self.mode==2:
-					nx = self.nx
-					ny = self.ny
-				# delta = 0.0413 --> 10% relative error in oscillator strength (f)
-				self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
+		# for parameter in self.global_pars:
+		# 	if parameter=="loggf" and len(self.line_no["loggf"])>0:
+		# 		size = self.line_no[parameter].size
+		# 		nx, ny = 1, 1	
+		# 		if self.mode==2:
+		# 			nx = self.nx
+		# 			ny = self.ny
+		# 		# delta = 0.0413 --> 10% relative error in oscillator strength (f)
+		# 		self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
