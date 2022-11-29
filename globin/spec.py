@@ -228,6 +228,19 @@ class Spectrum(object):
 	def read(self, fpath):
 		return
 
+	def interpolate(self, wavs):
+		self.nw = len(wavs)
+		spectra = np.zeros((self.nx, self.ny, self.nw, 4))
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				for ids in range(4):
+					tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
+					spectra[idx,idy,:,ids] = splev(wavs, tck)
+
+		self.spec = spectra
+		self.wavelength = wavs
+
 class Observation(Spectrum):
 	"""
 	Class object for storing observations.
@@ -287,18 +300,8 @@ class Observation(Spectrum):
 
 		self.shape = self.spec.shape
 
-	def interpolate(self, wavs):
-		self.nw = len(wavs)
-		spectra = np.zeros((self.nx, self.ny, self.nw, 4))
-
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for ids in range(4):
-					tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
-					spectra[idx,idy,:,ids] = splev(wavs, tck)
-
-		self.spec = spectra
-		self.wavelength = wavs
+	# def interpolate(self, wavs):
+	# 	Spectrum.interpolate(wavs)
 
 	def norm(self):
 		Spectrum.norm(self)
