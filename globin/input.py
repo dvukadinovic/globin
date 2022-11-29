@@ -1344,7 +1344,7 @@ class RF(object):
 		return self.rf[...,ids]
 
 class Chi2(object):
-	def __init__(self, fpath=None, nx=None, ny=None, niter=None):
+	def __init__(self, fpath=None, nx=None, ny=None, niter=None, chi2=None):
 		if fpath is not None:
 			self.read(fpath)
 		elif (nx is not None) and (ny is not None) and (niter is not None):
@@ -1360,6 +1360,9 @@ class Chi2(object):
 		self.regularization_weight = 0
 		# value of regularization functional
 		self.regularization = 0
+
+		if chi2 is not None:
+			self.chi2 = chi2
 
 	def read(self, fpath):
 		hdu = fits.open(fpath)[0]

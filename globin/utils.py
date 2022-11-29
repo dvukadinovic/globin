@@ -43,6 +43,9 @@ def convert_spinor_inversion(fpath):
     par_header = hdu.header
     par_data = hdu.data
 
+    # get the chi2 values
+    chi2 = globin.input.Chi2(chi2=par_data[-1])
+
     read_atmos = False
     try:
         hdu = fits.open(f"{fpath}/inverted_atmos_maptau.1.fits")[0]
@@ -81,6 +84,8 @@ def convert_spinor_inversion(fpath):
     for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
         ind = par_header[f"{parameter}*"]
         nnodes = len(ind)
+        if nnodes==0:
+            continue
         start = ind[0] - 1
         if nnodes==1:
             atm.nodes[parameter_relay[parameter]] = np.array([0])
@@ -98,11 +103,15 @@ def convert_spinor_inversion(fpath):
             atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
 
     # create the Spectrum() structure
-    spec = globin.Spectrum(nx=nx, ny=ny)
-    spec.spec = np.swapaxes(inv_spinor.data, 2, 3)
+    spec = globin.Spectrum(nx=nx, ny=ny, nw=nw)
+    # inv_spinor = np.swapaxes(inv_spinor.data, 2, 3)
+    spec.spec[...,0] = inv_spinor.data[:,:,0,:]
+    spec.spec[...,1] = inv_spinor.data[:,:,2,:]
+    spec.spec[...,2] = inv_spinor.data[:,:,3,:]
+    spec.spec[...,3] = inv_spinor.data[:,:,1,:]
     spec.wavelength = inv_spinor_lam/10
 
-    return atm, spec
+    return atm, spec, chi2
 
 def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0, output_atmos_path=None):
     atmos = globin.input.read_node_atmosphere(node_atmosphere_path)
