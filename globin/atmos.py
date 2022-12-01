@@ -692,6 +692,11 @@ class Atmosphere(object):
 				n0 = y[0] - K0*x[0]
 				y0 = K0*x_[0] + n0
 				
+				# when using spline, determine the Kn based on the nodes values and
+				# not on the FALC temperature gradient at this point
+				Kn = 0
+				if len(x)>=2:
+					Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
 				nn = y[-1] - Kn*x[-1]
 				yn = Kn*x_[-1] + nn
 				y_ = np.array([y0, *y, yn])
@@ -1248,17 +1253,35 @@ class Atmosphere(object):
 
 	def get_hsra_cont(self):
 		"""
-		Compute the HSRA continuum intensity. Use the wavelength vector
-		specified in the atmosphere (not the HSRA one).
+		Compute the HSRA spectrum for input wavelength grid.
+
+		If we have to normalize spectra by HSRA continuum, allocate the value for the
+		Icont and retrieve the HSRA spectrum that is normalized.
+
+		Returnes:
+		---------
+		icont : float
+			continuum intensity by which the spectrum should be normalized. If the 
+			'self.norm' is False we return 1 and do not allocate self.icont.
+		spec : globin.spec.Spectrum()
+			HSRA full Stokes spectrum. If the 'self.norm' is True, the returned 
+			spectrum is normalized to the local continuum point (@ first wavelength).
 		"""
+		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+		hsra.wavelength_air = self.wavelength_obs
+		hsra.wavelength_obs = self.wavelength_obs
+		hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
+		hsra.mu = self.mu
+		# just to be sure that we are not normalizing...
+		hsra.norm = False
+		self.hsra_spec = hsra.compute_spectra()
+		self.icont = self.hsra_spec.spec[0,0,0,0]
 		if self.norm and self.norm_level=="hsra":
-			hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
-			hsra.wavelength_air = self.wavelength_obs[:1]
-			hsra.wavelength_obs = self.wavelength_obs[:1]
-			hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
-			hsra.mu = self.mu
-			spec = hsra.compute_spectra()
-			self.icont = spec.spec[0,0,0,0]
+			self.hsra_spec.spec /= self.icont
+
+			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_obs[0]))
+
+		return self.icont, self.hsra_spec
 
 	def compute_spectra(self, synthesize=None):
 		"""
@@ -1846,6 +1869,25 @@ class Atmosphere(object):
 		self.data[:,:,5] = B
 		self.data[:,:,6] = gamma
 		self.data[:,:,7] = chi
+
+	def set_node_values(self, nodes):
+		"""
+		If the atmosphere does not have the nodes/values, we set them based on
+		stratified values (self.data) at given nodes position.
+
+		Parameters:
+		-----------
+		nodes : dict
+			dictionary containing the node positions for each parameter that
+			we want.
+		"""
+		for parameter in nodes:
+			self.nodes[parameter] = nodes[parameter]
+			nnodes = len(nodes[parameter])
+			self.values[parameter] = np.zeros((self.nx, self.ny, nnodes))
+			for idn in range(nnodes):
+				idz = np.argmin(np.abs(self.logtau - nodes[parameter][idn]))
+				self.values[parameter][...,idn] = self.data[...,self.par_id[parameter],idz]
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	nx, ny, npar, nw, ns = rf.shape

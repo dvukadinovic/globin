@@ -173,20 +173,9 @@ class Inverter(InputData):
 
 			atmos = self.atmosphere
 
-			#--- get the Icont from HSRA atmosphere
-			if (self.norm and atmos.icont is None) or atmos.add_stray_light:
-				if atmos.add_stray_light:
-					print(f"Get the HSRA continuum intensity and spectrum...\n")
-					icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
-				else:
-					wavelength = self.wavelength_air[0]
-					print(f"Get the HSRA continuum intensity @ {wavelength}...\n")
-					icont, spec = get_Icont(wavelength=wavelength, mu=atmos.mu)
-				nw = len(atmos.wavelength_air)
-				atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
-				atmos.hsra_spec = spec
-				if self.norm:
-					atmos.hsra_spec /= icont
+			if atmos.add_stray_light or atmos.norm_level=="hsra":
+				print("[Info] Computing the HSRA spectrum...\n")
+				atmos.get_hsra_cont()
 
 			ones = np.ones((atmos.nx, atmos.ny))
 			spec = atmos.compute_spectra(ones)
@@ -200,7 +189,7 @@ class Inverter(InputData):
 					for idy in range(atmos.ny):
 						stray_factor = atmos.stray_light[idx,idy]
 						if self.stray_type=="hsra":
-							spec.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+							spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
 						if self.stray_type=="gray":
 							spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
 							spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
@@ -224,8 +213,7 @@ class Inverter(InputData):
 
 			return atmos, spec, None
 		else:
-			print("\n[Error] Unrecognized mode of operation. Check input parameters.\n")
-			sys.exit()
+			raise ValueError(f"Unrecognized mode={self.mode} of operation. Check input parameters.")
 
 	def _get_Npar(self):
 		# this is the number of local parameters only (we are doing pxl-by-pxl)
@@ -280,18 +268,9 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
-			if atmos.add_stray_light:
-				print(f"Get the HSRA continuum intensity and spectrum...\n")
-				icont, spec = get_Icont(wavelength=atmos.wavelength_air, mu=atmos.mu)
-			else:
-				print(f"Get the HSRA continuum intensity @ {obs.wavelength[0]}...\n")
-				icont, spec = get_Icont(wavelength=obs.wavelength[0], mu=atmos.mu)
-			nw = len(atmos.wavelength_obs)
-			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
-			atmos.hsra_spec = spec
-			if self.norm:
-				atmos.hsra_spec /= icont
+		if atmos.add_stray_light or atmos.norm_level=="hsra":
+			print("[Info] Computing the HSRA spectrum...\n")
+			atmos.get_hsra_cont()
 
 		if self.verbose:
 			print("Initial parameters:\n")
@@ -608,18 +587,9 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
 			print()
 
-		if (self.norm and atmos.icont is None) or atmos.add_stray_light:
-			if atmos.add_stray_light:
-				print(f"Get the HSRA continuum intensity and spectrum...\n")
-				icont, spec = get_Icont(wavelength=atmos.wavelength_vacuum, mu=atmos.mu)
-			else:
-				print(f"Get the HSRA continuum intensity @ {obs.wavelength[0]}...\n")
-				icont, spec = get_Icont(wavelength=obs.wavelength[0], mu=atmos.mu)
-			nw = len(atmos.wavelength_obs)
-			atmos.icont = np.ones((atmos.nx, atmos.ny, nw, 4)) * icont
-			atmos.hsra_spec = spec
-			if self.norm:
-				atmos.hsra_spec /= icont
+		if atmos.add_stray_light or atmos.norm_level=="hsra":
+			print("[Info] Computing the HSRA spectrum...\n")
+			atmos.get_hsra_cont()
 
 		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
