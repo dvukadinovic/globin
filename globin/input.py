@@ -390,11 +390,12 @@ class InputData(object):
 		vmac = _find_value_by_key("vmac", self.parameters_input, "default", default_val=0, conversion=float)
 
 		#--- required parameters
+		obs_fmt = _find_value_by_key("obs_format", self.parameters_input, "default", "globin", str)
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
-		self.observation = Observation(path_to_observations, obs_range=atm_range)
-		# we are only interpolating the synthetic spectrum, not the observations
-		# if (not np.array_equal(self.observation.wavelength, self.wavelength_air)):
-		# 	self.observation.interpolate(self.wavelength_air)
+		self.observation = Observation(path_to_observations, obs_range=atm_range, spec_type=obs_fmt)
+		# icont = _find_value_by_key("icont", self.parameters_input, "default", 1, float)
+		# self.observation.spec /= icont
+		# self.observation.icont = icont
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
@@ -965,7 +966,7 @@ def read_node_atmosphere(fpath):
 
 	return atmos
 
-def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
+def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	"""
 	We use Centre-of-Gravity method to initialize line-of-sight velocity and
 	line-of-sight magnetic field strength.
@@ -1002,19 +1003,8 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 					inds[idx,idy] = np.argmin(x[idx,idy])
 		return inds
 
-	obs = copy.deepcopy(obs_in)
 	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
-
-	if norm:
-		icont = obs.spec[:,:,0,0]
-		obs.spec = np.einsum("ijkl,ij->ijkl", obs.spec, 1/icont)
-		# if atmos.norm:
-		# 	obs_in.norm()
-		# else:
-		# 	atmos.norm = True
-		# 	obs_in.norm()
-		# 	atmos.norm = False
 
 	lines = open(fpath).readlines()
 	lines = [line.rstrip("\n") for line in lines if (len(line.rstrip("\n"))>0) and ("#" not in line)]
@@ -1043,17 +1033,17 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				geff = 1/2*gs + 1/4*gd*_d
 			Geff = geff**2 - delta
 		else:
-			print("  Error: input.initialize_atmos_pars():")
+			print("[Error] input.initialize_atmos_pars():")
 			print("  Wrong number of parameters for initializing")
-			print("  the vertical velocity and magnetic field vector.")
+			print("  the LOS velocity and magnetic field vector.")
 			sys.exit()
 
-		line_dlam /= 1e4
+		line_dlam /= 1e4 # [mA --> nm]
 		lmin = lam0 - line_dlam
 		lmax = lam0 + line_dlam
 
 		ind_min = np.argmin(np.abs(wavs - lmin))
-		ind_max = np.argmin(np.abs(wavs - lmax))
+		ind_max = np.argmin(np.abs(wavs - lmax))+1
 
 		# x = obs.wavelength[ind_min:ind_max]
 		# si = obs.spec[0,5,ind_min:ind_max,0]
@@ -1071,7 +1061,7 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 		# plt.show()
 		# sys.exit()
 
-		inds = find_line_positions(obs.spec[:,:,ind_min:ind_max,0])
+		inds = find_line_positions(obs.I[...,ind_min:ind_max])
 		dd = int(line_dlam // dlam)
 		ind_min += inds - dd
 		ind_max = ind_min + 2*dd
@@ -1088,30 +1078,16 @@ def initialize_atmos_pars(atmos, obs_in, fpath, norm=True):
 				mmax = ind_max[idx,idy]
 				if mmin!=np.nan and mmax!=np.nan:
 					x[idx,idy] = obs.wavelength[mmin:mmax]
-					si[idx,idy] = obs.spec[idx,idy,mmin:mmax,0]
-					sq[idx,idy] = obs.spec[idx,idy,mmin:mmax,1]
-					su[idx,idy] = obs.spec[idx,idy,mmin:mmax,2]
-					sv[idx,idy] = obs.spec[idx,idy,mmin:mmax,3]
+					si[idx,idy] = obs.I[idx,idy,mmin:mmax]
+					sq[idx,idy] = obs.Q[idx,idy,mmin:mmax]
+					su[idx,idy] = obs.U[idx,idy,mmin:mmax]
+					sv[idx,idy] = obs.V[idx,idy,mmin:mmax]
 				else:
 					x[idx,idy] = np.nan
 					si[idx,idy] = np.nan
 					sq[idx,idy] = np.nan
 					su[idx,idy] = np.nan
 					sv[idx,idy] = np.nan
-					# print(idx,idy)
-					# print(mmin, mmax)
-					
-					# sys.exit()
-
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-		# 		lin_pol = np.sqrt(sq[idx,idy]**2 + su[idx,idy]**2)
-		# 		plt.plot(x[idx,idy]-lam0, lin_pol)
-		# 		# plt.plot(obs.wavelength, obs.spec[idx,idy,:,3])
-		# 		# plt.axvline(obs.wavelength[ind_min[idx,idy]], color="black")
-		# 		# plt.axvline(obs.wavelength[ind_max[idx,idy]], color="black")
-		# 		plt.show()
-		# sys.exit()
 
 		#--- v_LOS initialization (CoG)
 		if "vz" in atmos.nodes:

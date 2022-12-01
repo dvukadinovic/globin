@@ -19,7 +19,7 @@ m_e *= 1e3
 
 import globin
 
-def convert_spinor_inversion(fpath):
+def convert_spinor_inversion(fpath, get_obs=False):
     parameter_relay = {"TEMPE" : "temp",
                        "VELOS" : "vz",
                        "VMICI" : "vmic",
@@ -110,6 +110,17 @@ def convert_spinor_inversion(fpath):
     spec.spec[...,2] = inv_spinor.data[:,:,3,:]
     spec.spec[...,3] = inv_spinor.data[:,:,1,:]
     spec.wavelength = inv_spinor_lam/10
+
+    if get_obs:
+        data = fits.open(f"{fpath}/inverted_obs.1.fits")[0].data
+        nw = data.shape[-1]
+        obs = globin.Spectrum(nx=nx, ny=ny, nw=nw)
+        obs.spec[...,0] = data[:,:,0]
+        obs.spec[...,1] = data[:,:,2]
+        obs.spec[...,2] = data[:,:,3]
+        obs.spec[...,3] = data[:,:,1]
+
+        return atm, spec, chi2, obs
 
     return atm, spec, chi2
 

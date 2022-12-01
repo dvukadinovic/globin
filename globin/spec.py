@@ -14,8 +14,7 @@ class Spectrum(object):
 	class.
 	"""
 	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None, nz=None):
-		if fpath:
-			self.read(fpath)
+		self.icont = None
 
 		self.nx = nx
 		self.ny = ny
@@ -25,6 +24,10 @@ class Spectrum(object):
 		# storage for full wavelength list from RH (used for full RF calculation)
 		self.wave = wave
 		self.wavelength = wave
+
+		if fpath:
+			self.read(fpath)
+
 		if spec is not None:
 			self.spec = spec
 			shape = self.spec.shape
@@ -41,6 +44,30 @@ class Spectrum(object):
 
 		self.xmin, self.xmax = 0, None
 		self.ymin, self.ymax = 0, None
+
+	@property
+	def I(self):
+		return self.spec[...,0]
+
+	@property
+	def Q(self):
+		return self.spec[...,1]
+
+	@property
+	def U(self):
+		return self.spec[...,2]
+
+	@property
+	def V(self):
+		return self.spec[...,3]
+
+	@property
+	def LinP(self):
+		return np.sqrt(self.Q**2 + self.U**2)
+
+	@property
+	def TotalP(self):		
+		return np.sqrt(self.Q**2 + self.U**2 + self.V**2)
 
 	def list_spectra(self):
 		for idx in range(self.nx):
@@ -269,6 +296,8 @@ class Observation(Spectrum):
 				self.read_fits(fpath, obs_range)
 			if spec_type=="spinor":
 				self.read_spinor(fpath, obs_range)
+			if spec_type=="hinode":
+				self.read_hinode(fpath, obs_range)
 
 	def read_fits(self, fpath, obs_range):
 		hdu = fits.open(fpath)[0]
@@ -300,8 +329,37 @@ class Observation(Spectrum):
 
 		self.shape = self.spec.shape
 
-	# def interpolate(self, wavs):
-	# 	Spectrum.interpolate(wavs)
+	def read_hinode(self, fpath, obs_range):
+		hdu = fits.open(fpath)
+
+		if len(hdu)!=3:
+			raise IndexError("Header list contains less than 3 extensions (including primary).")
+
+		self.header = hdu[0].header
+
+		xmin, xmax, ymin, ymax = obs_range
+
+		self.icont = float(hdu[2].header["IC_HSRA"])
+		
+		# we assume that wavelength is same for every pixel in observation
+		self.wavelength = hdu[1].data/10 # [A --> nm]
+		data = np.array(hdu[0].data[xmin:xmax,ymin:ymax], dtype=np.float64)
+		
+		# idx, idy = 120, 52
+		# plt.plot(data[idx,idy,0]/self.icont)
+		# plt.axhline(y=hdu[2].data[idx,idy]/self.icont)
+		# plt.show()
+		
+		nx, ny, ns, nw = data.shape
+		self.spec = np.zeros((nx, ny, nw, ns))
+		self.spec[...,0] = data[...,0,:]
+		self.spec[...,1] = data[...,1,:]
+		self.spec[...,2] = data[...,2,:]
+		self.spec[...,3] = data[...,3,:]
+		self.spec /= self.icont
+		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
+		self.nw = len(self.wavelength)
+		self.shape = self.spec.shape
 
 	def norm(self):
 		Spectrum.norm(self)
