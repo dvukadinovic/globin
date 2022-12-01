@@ -662,8 +662,10 @@ class Atmosphere(object):
 					if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
 						K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 				# bottom node slope for extrapolation based on temperature gradient from FAL C model
-				Kn = splev(x[-1], globin.temp_tck, der=1)
-				# Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
+				if self.interpolation_method=="bezier":	
+					Kn = splev(x[-1], globin.temp_tck, der=1)
+				if self.interpolation_method=="spline":
+					Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
 			elif parameter in ["vz", "gamma", "chi"]:
 				if len(x)>=2:
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
@@ -694,9 +696,6 @@ class Atmosphere(object):
 				
 				# when using spline, determine the Kn based on the nodes values and
 				# not on the FALC temperature gradient at this point
-				Kn = 0
-				if len(x)>=2:
-					Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
 				nn = y[-1] - Kn*x[-1]
 				yn = Kn*x_[-1] + nn
 				y_ = np.array([y0, *y, yn])
