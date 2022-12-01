@@ -52,7 +52,8 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 		ncols = 2
 		nrows = int(np.ceil(n_plots/ncols))
 
-	fig = plt.figure()
+	width, height = 3, 2 + 2/3
+	fig = plt.figure(figsize=(width*ncols, height*nrows))
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
 	k_ = 0
@@ -90,9 +91,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 					pass
 			k_ += 1
 	
+	fig.tight_layout()
 	# ax.legend()
 
-def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, color="tab:blue", lw=1, title=None, subtitles_flag=False, relative=True):
+def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, 
+	color="tab:blue", lw=1, title=None, subtitles_flag=False, relative=True, 
+	labels=None):
 	"""
 	Plot spectra.
 
@@ -108,6 +112,9 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 	title : string (optional)
 		Figure title.
 	"""
+	colors = ["tab:red", "tab:orange", "tab:green"]
+	Ncolors = len(colors)
+
 	lmin = np.min(wavelength)
 	lmax = np.max(wavelength)
 	lam0 = (lmax + lmin) / 2
@@ -187,7 +194,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 	else:
 		if axes is None:
 			fig = plt.figure(figsize=(9,9))
-			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.2)
+			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.15)
 			gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 			ax0_SI = fig.add_subplot(gsSI[0,0])
 			ax1_SI = fig.add_subplot((gsSI[1,0]))
@@ -203,55 +210,81 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		else:
 			ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV = axes	
 		
+		is_list = type(inv)==list
+		if is_list:
+			Ninv = len(inv)
+		else:
+			Ninv = 1
+			inv = [inv]
+
+		set_labels = False
+		if labels is not None:
+			set_labels = True
+		else:
+			labels = [None]*Ninv
+
 		#--- Stokes I
 		# ax0_SI.set_title("Stokes I")
-		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2)
-		ax0_SI.plot((wavelength - lam0)*10, inv[:,0], color="tab:red", lw=1.5)
+		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2, label="Observation")
+		for idn in range(Ninv):
+			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[idn%Ncolors], lw=1.5, label=labels[idn])
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SI.set_ylabel(r"Stokes $I$")
 		ax0_SI.set_xlim([-dlam, dlam])
 
-		difference = obs[:,0] - inv[:,0]
-		# difference /= obs[:,0] / 100
+		# plot legend
+		if Ninv<=3:
+			legend_ncols = Ninv+1
+		else:
+			legend_ncols = 3
+		ax0_SI.legend(loc="lower left", 
+					  bbox_to_anchor=(0, 1.01, 1, 0.2),
+					  ncol=legend_ncols, 
+					  fontsize="x-small", 
+					  frameon=True)
+
 		ax1_SI.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		ax1_SI.plot((wavelength - lam0)*10, difference, color="k", lw=1.5)
-		ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
-		if not relative:
-			ax1_SI.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		for idn in range(Ninv):
+			difference = obs[:,0] - inv[idn][:,0]
+			ax1_SI.plot((wavelength - lam0)*10, difference, color=colors[idn%Ncolors], lw=1.5)
+		# ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		# if not relative:
+		# 	ax1_SI.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SI.set_ylabel(r"$\Delta I$")
 		ax1_SI.set_xlim([-dlam, dlam])
 
 		#--- Stokes Q
 		# ax0_SQ.set_title("Stokes Q")
 		ax0_SQ.plot((wavelength - lam0)*10, obs[:,1]*100, "k-", markersize=2)
-		ax0_SQ.plot((wavelength - lam0)*10, inv[:,1]*100, color="tab:red", lw=1.5)
+		for idn in range(Ninv):	
+			ax0_SQ.plot((wavelength - lam0)*10, inv[idn][:,1]*100, color=colors[idn%Ncolors], lw=1.5)
 		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SQ.set_ylabel(r"Stokes $Q/I_c$ [\%]")
 		ax0_SQ.set_xlim([-dlam, dlam])
 
-		difference = obs[:,1] - inv[:,1]
-		# difference /= obs[:,1] / 100
 		ax1_SQ.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		ax1_SQ.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
-		ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
-		if not relative:
-			ax1_SQ.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		for idn in range(Ninv):
+			difference = obs[:,1] - inv[idn][:,1]
+			ax1_SQ.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
+		# ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
+		# if not relative:
+		# 	ax1_SQ.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SQ.set_ylabel(r"$\Delta Q$")
 		ax1_SQ.set_xlim([-dlam, dlam])
 
 		#--- Stokes U
 		# ax0_SU.set_title("Stokes U")
 		ax0_SU.plot((wavelength - lam0)*10, obs[:,2]*100, "k-", markersize=2)
-		ax0_SU.plot((wavelength - lam0)*10, inv[:,2]*100, color="tab:red", lw=1.5)
+		for idn in range(Ninv):	
+			ax0_SU.plot((wavelength - lam0)*10, inv[idn][:,2]*100, color=colors[idn%Ncolors], lw=1.5)
 		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SU.set_ylabel(r"Stokes $U/I_c$ [\%]")
 		ax0_SU.set_xlim([-dlam, dlam])
 
-		difference = obs[:,2] - inv[:,2]
-		# difference /= obs[:,2] / 100
-
 		ax1_SU.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		ax1_SU.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
+		for idn in range(Ninv):
+			difference = obs[:,2] - inv[idn][:,2]
+			ax1_SU.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
 		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
 			ax1_SU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
@@ -261,15 +294,16 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, c
 		#--- Stokes V
 		# ax0_SV.set_title("Stokes V")
 		ax0_SV.plot((wavelength - lam0)*10, obs[:,3]*100, "k-", markersize=2)
-		ax0_SV.plot((wavelength - lam0)*10, inv[:,3]*100, color="tab:red", lw=1.5)
+		for idn in range(Ninv):	
+			ax0_SV.plot((wavelength - lam0)*10, inv[idn][:,3]*100, color=colors[idn%Ncolors], lw=1.5)
 		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SV.set_ylabel(r"Stokes $V/I_c$ [\%]")
 		ax0_SV.set_xlim([-dlam, dlam])
 
-		difference = obs[:,3] - inv[:,3]
-		# difference /= obs[ :, 3] / 100
 		ax1_SV.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		ax1_SV.plot((wavelength - lam0)*10, difference*100, color="k", lw=1.5)
+		for idn in range(Ninv):	
+			difference = obs[:,3] - inv[idn][:,3]
+			ax1_SV.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
 		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
 			ax1_SV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
