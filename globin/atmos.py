@@ -699,11 +699,12 @@ class Atmosphere(object):
 				if atmos.interpolation_method=="bezier":	
 					# bottom node slope for extrapolation based on temperature gradient from FAL C model
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					Kn = splev(x[-1], globin.temp_tck, der=1)
 				if atmos.interpolation_method=="spline":
 					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
 					x, y = add_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
-					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
+					K0, _ = get_K0_Kn(x, y, tension=atmos.spline_tension)
+
+				Kn = splev(x[-1], globin.temp_tck, der=1)
 				
 				# check if extrapolation at the top atmosphere point goes below the minimum
 				# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
