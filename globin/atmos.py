@@ -19,7 +19,7 @@ except:
 
 import globin
 from .spec import Spectrum
-from .tools import bezier_spline, spline_interpolation, get_K0_Kn, spinor_like_spline
+from .tools import bezier_spline, spline_interpolation, get_K0_Kn
 from .makeHSE import makeHSE
 
 class MinMax(object):
@@ -635,24 +635,35 @@ class Atmosphere(object):
 		"""
 		Parallelized call from self.build_from_nodes() function.
 		"""
-		def add_top_as_node(top, x, y, ymin, ymax):
+		def add_node(new_node, x, y, ymin, ymax, where="beginning"):
 			"""
-			Add the top of the atmosphere as a node by linear extrapolation
+			Add the 'new_node' point to the atmosphere as a node by linear extrapolation
 			to the top.
 
 			Before adding the value, check if it is in the boundaries.
+
+			Key 'where' regulates where we add this node: at the top ('beginning') or
+			at the bottom ('end').
 			"""
-			K0 = (y[1]-y[0])/(x[1]-x[0])
-			n = y[0] - K0*x[0]
-			y0 = K0*top + n
+			if where=="beginning":
+				K0 = (y[1]-y[0])/(x[1]-x[0])
+				n = y[0] - K0*x[0]
+			if where=="end":
+				K0 = (y[-1]-y[-2])/(x[-1]-x[-2])
+				n = y[-1] - K0*x[-1]
+			y0 = K0*new_node + n
 			if ymin is not None:
 				if y0<ymin:
 					y0 = ymin
 			if ymax is not None:
 				if y0>ymax:
 					y0 = ymax
-			y = np.append(y0, y)
-			x = np.append(top, x)
+			if where=="beginning"
+				y = np.append(y0, y)
+				x = np.append(new_node, x)
+			if where=="end":
+				y = np.append(y, y0)
+				x = np.append(x, new_node)
 
 			return x, y
 
@@ -698,24 +709,21 @@ class Atmosphere(object):
 				if atmos.interpolation_method=="bezier":	
 					Kn = splev(x[-1], globin.temp_tck, der=1)
 				if atmos.interpolation_method=="spline":
-					Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
-				if atmos.interpolation_method=="spinor":
-					# add top of the atmosphere as a node (ask SPPINOR devs why it...)
-					x, y = add_top_as_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
-					K0, Kn = get_K0_Kn(x, y, tension=0)#atmos.spline_tension)
+				# 	Kn = (y[-2] - y[-1])/(x[-2] - x[-1])
+				# if atmos.interpolation_method=="spinor":
+					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
+					x, y = add_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
+					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
 
 			elif parameter in ["vz", "gamma", "chi"]:
-				if atmos.interpolation_method=="spinor":
-					x, y = add_top_as_node(self.logtau[0], x, y, None, None)
-					K0, Kn = get_K0_Kn(x, y, tension=0)#atmos.spline_tension)
-				else:
+				if atmos.interpolation_method=="bezier":
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+				if atmos.interpolation_method=="spline":
+					x, y = add_node(self.logtau[0], x, y, None, None)
+					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
 			elif parameter in ["vmic", "mag"]:
-				if atmos.interpolation_method=="spinor":
-					x, y = add_top_as_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
-					K0, Kn = get_K0_Kn(x, y, tension=0)#atmos.spline_tension)
-				else:
+				if atmos.interpolation_method=="bezier":
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
 					# check if extrapolation at the top atmosphere point goes below the minimum
@@ -729,24 +737,27 @@ class Atmosphere(object):
 					# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
 					if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				if atmos.interpolation_method=="spline":
+					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
+					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
 
 			if atmos.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=True)
+			# if atmos.interpolation_method=="spline":
+			# 	x_ = np.array([atmos.logtau[0], *x, atmos.logtau[-1]])
+				
+			# 	n0 = y[0] - K0*x[0]
+			# 	y0 = K0*x_[0] + n0
+				
+			# 	# when using spline, determine the Kn based on the nodes values and
+			# 	# not on the FALC temperature gradient at this point
+			# 	nn = y[-1] - Kn*x[-1]
+			# 	yn = Kn*x_[-1] + nn
+			# 	y_ = np.array([y0, *y, yn])
+				
+			# 	y_new = spline_interpolation(x_, y_, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
 			if atmos.interpolation_method=="spline":
-				x_ = np.array([atmos.logtau[0], *x, atmos.logtau[-1]])
-				
-				n0 = y[0] - K0*x[0]
-				y0 = K0*x_[0] + n0
-				
-				# when using spline, determine the Kn based on the nodes values and
-				# not on the FALC temperature gradient at this point
-				nn = y[-1] - Kn*x[-1]
-				yn = Kn*x_[-1] + nn
-				y_ = np.array([y0, *y, yn])
-				
-				y_new = spline_interpolation(x_, y_, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree)
-			if atmos.interpolation_method=="spinor":
-				y_new = spinor_like_spline(x, y, atmos.logtau, tension=atmos.spline_tension, K0=K0, Kn=Kn)
+				y_new = spline_interpolation(x, y, atmos.logtau, tension=atmos.spline_tension, K0=K0, Kn=Kn)
 
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 

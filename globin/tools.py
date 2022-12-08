@@ -102,48 +102,46 @@ def bezier_spline(x, y, xintp, K0=None, Kn=None, degree=3, extrapolate=False):
 
     return yintp
 
-def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
-    """
-    Spline interpolation of node values.
+# def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
+#     """
+#     Spline interpolation of node values.
 
-    In the xknot and yknot, we added edges (top and bottom of the atmosphere)
-    in order to get the correct smooth extrapolation.
-    """
+#     In the xknot and yknot, we added edges (top and bottom of the atmosphere)
+#     in order to get the correct smooth extrapolation.
+#     """
 
-    # in a single node case, we return constant value
-    if len(xknot)==3:
-        return np.ones(len(x), dtype=np.float64) * yknot[1]
+#     # in a single node case, we return constant value
+#     if len(xknot)==3:
+#         return np.ones(len(x), dtype=np.float64) * yknot[1]
 
-    if len(xknot)-3<degree:
-        degree = 2
+#     if len(xknot)-3<degree:
+#         degree = 2
 
-    tck = splrep(xknot, yknot, k=degree)
-    y = splev(x, tck, der=0, ext=0)
+#     tck = splrep(xknot, yknot, k=degree)
+#     y = splev(x, tck, der=0, ext=0)
 
-    n = yknot[1] - K0*xknot[1]
-    y[x<xknot[1]] = K0*x[x<xknot[1]] + n
+#     n = yknot[1] - K0*xknot[1]
+#     y[x<xknot[1]] = K0*x[x<xknot[1]] + n
     
-    n = yknot[-2] - Kn*xknot[-2]
-    y[x>xknot[-2]] = Kn*x[x>xknot[-2]] + n
+#     n = yknot[-2] - Kn*xknot[-2]
+#     y[x>xknot[-2]] = Kn*x[x>xknot[-2]] + n
 
-    return y
+#     return y
 
 def get_K0_Kn(x, y, tension=0):
-    def get_Cs(DEL1, DEL2):
+    def get_Cs(DEL1, DEL2, tension):
         """
         DEL1 = x[1] - x[0]
         DEL2 = x[2] - x[0]
         """
-        # DEL = DEL2-DEL1
-
         COSHM1 = np.cosh(tension*DEL1) - 1
         COSHM2 = np.cosh(tension*DEL2) - 1
 
         DELP = tension/2*(DEL2+DEL1)
         DELM = tension/2*(DEL2-DEL1)
 
-        SINHMP = np.sinh(DELP)/(DELP-1)
-        SINHMM = np.sinh(DELM)/(DELM-1)
+        SINHMP = np.sinh(DELP)/DELP - 1
+        SINHMM = np.sinh(DELM)/DELM -  1
 
         DENOM = COSHM1*(DEL2-DEL1) - 2*DEL1*DELP*DELM*(1+SINHMP)*(1+SINHMM)
 
@@ -188,17 +186,17 @@ def get_K0_Kn(x, y, tension=0):
 
     DEL1 = x[1]-x[0]
     DEL2 = x[2]-x[0]
-    C1, C2, C3 = get_Cs(DEL1, DEL2)
+    C1, C2, C3 = get_Cs(DEL1, DEL2, tension)
     K0 = C1*y[0] + C2*y[1] + C3*y[2]
 
     DEL1 = x[-1]-x[-2]
     DEL2 = x[-1]-x[-3]
-    C1, C2, C3 = get_Cs(-DEL1, -DEL2)
+    C1, C2, C3 = get_Cs(-DEL1, -DEL2, tension)
     Kn = C1*y[-1] + C2*y[-2] + C3*y[-3]
 
     return K0, Kn
 
-def spinor_like_spline(x, y, xintp, tension=0, K0=0, Kn=0):
+def spline_interpolation(x, y, xintp, tension=0, K0=0, Kn=0):
     def get_ABCD(x1, x2, x):
             A = (x2 - x)/(x2 - x1)
             B = 1-A#(x - x1)/(x2 - x1)
@@ -262,7 +260,12 @@ def spinor_like_spline(x, y, xintp, tension=0, K0=0, Kn=0):
         yintp[xintp<x[0]] = K0*(xintp[xintp<x[0]] - x[0]) + y[0]
 
         # bottom extrapolation
-        yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
+        ind = np.argmin(np.abs(xintp-x[-1]))-1
+        Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
+        n = yintp[ind] - Kn*xintp[ind]
+        yintp[ind:] = Kn*xintp[ind:] + n
+        
+        # yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
 
         return yintp
 
@@ -285,8 +288,8 @@ def spinor_like_spline(x, y, xintp, tension=0, K0=0, Kn=0):
     Y[-1] = Kn - (y[-1]-y[-2])/(x[-1]-x[-2])
 
     # get the second derivatives in nodes
+    # these are acctually y''/tension^2
     Der = np.linalg.inv(X).dot(Y)
-    # Der *= tension*tension
 
     # interpolate
     M = len(xintp)
@@ -304,7 +307,12 @@ def spinor_like_spline(x, y, xintp, tension=0, K0=0, Kn=0):
     yintp[xintp<x[0]] = K0*(xintp[xintp<x[0]] - x[0]) + y[0]
 
     # bottom extrapolation
-    yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
+    ind = np.argmin(np.abs(xintp-x[-1]))-1
+    Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
+    n = yintp[ind] - Kn*xintp[ind]
+    yintp[ind:] = Kn*xintp[ind:] + n
+
+    # yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
 
     return yintp
 
@@ -323,23 +331,18 @@ if __name__=="__main__":
 
     xintp = np.linspace(x[0]-0.2,x[-1]+0.2, num=201)
 
-    # tension = 50
-    # K0, Kn = get_K0_Kn(x, y, tension=tension)
-    # yintp = spinor_like_spline(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
-    # plt.plot(xintp, yintp, label="Cubic spline (s!=0)")
-
     tension = 5
-    K0, Kn = get_K0_Kn(x, y)
-    yintp = spinor_like_spline(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
-    plt.plot(xintp, yintp, label="Cubic spline (s!=0)")
+    K0, Kn = get_K0_Kn(x, y, tension=tension)
+    yintp_ = spline_interpolation(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
+    plt.plot(xintp, yintp_, label="Cubic spline (s!=0)")
+
+    tension = 0
+    K0, Kn = get_K0_Kn(x, y, tension=tension)
+    yintp_ = spline_interpolation(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
+    plt.plot(xintp, yintp_, label="Cubic spline (s=0)")
 
     yintp = bezier_spline(x, y, xintp, K0=K0, Kn=Kn, degree=3, extrapolate=True)
-    plt.plot(xintp, yintp, label="Cubic Bezier")
-
-    from scipy.interpolate import CubicSpline
-    cs = CubicSpline(x, y, bc_type=((1,K0),(1,Kn)))
-
-    plt.plot(xintp, cs(xintp), label="Cubic spline scipy")
+    plt.plot(xintp, yintp, label="Cubic Bezier")   
     
     plt.legend()
 

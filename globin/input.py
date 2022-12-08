@@ -368,7 +368,8 @@ class InputData(object):
 		# interpolation degree for Bezier polynomial
 		self.interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
 		interpolation_method = _find_value_by_key("interp_method", self.parameters_input, "default", "bezier", str)
-		spline_tension = _find_value_by_key("spline_tension", self.parameters_input, "default", 0, float)
+		if interpolation_method.lower()=="spline":
+			spline_tension = _find_value_by_key("spline_tension", self.parameters_input, "default", 0, float)
 		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-8, float)
 
 		#--- default parameters
@@ -403,7 +404,8 @@ class InputData(object):
 		# 	logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
 		self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny)# atm_range=atm_range)
 		self.atmosphere.interpolation_method = interpolation_method.lower()
-		self.atmosphere.spline_tension = spline_tension
+		if self.atmosphere.interpolation_method=="spline":
+			self.atmosphere.spline_tension = spline_tension
 
 		#--- optional parameters
 		"""
