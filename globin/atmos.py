@@ -658,7 +658,7 @@ class Atmosphere(object):
 			if ymax is not None:
 				if y0>ymax:
 					y0 = ymax
-			if where=="beginning"
+			if where=="beginning":
 				y = np.append(y0, y)
 				x = np.append(new_node, x)
 			if where=="end":
