@@ -205,7 +205,8 @@ class Inverter(InputData):
 				spec.add_noise(self.noise)
 
 			#--- save spectra
-			spec.save(self.output_spectra_path, spec.wavelength)
+			if self.save_output:
+				spec.save(self.output_spectra_path, spec.wavelength)
 
 			if self.verbose:
 				print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))

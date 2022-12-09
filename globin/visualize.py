@@ -426,8 +426,6 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 
 			ax.grid(b=True, which="major", axis="y", lw=0.5)
 
-	plt.show()
-
 def add_colorbar(fig, ax, im, label=None):
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 	axins = inset_axes(ax,
