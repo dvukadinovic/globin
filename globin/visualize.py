@@ -40,7 +40,10 @@ def show():
 	"""
 	plt.show()
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", label=None, reference=None):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", labels=None, reference=None):
+	colors = ["tab:red", "tab:orange", "tab:green"]
+	Ncolors = len(colors)
+
 	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
 
@@ -56,6 +59,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 	fig = plt.figure(figsize=(width*ncols, height*nrows))
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
+	Nref = len(reference)
+	if Nref<=3:
+		legend_ncols = Nref+1
+	else:
+		legend_ncols = 3
+
 	k_ = 0
 	for i_ in range(nrows):
 		for j_ in range(ncols):
@@ -70,11 +79,11 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			try:
 				x = atmos.nodes[parameter]
 				y = atmos.values[parameter][idx,idy] * fact[parameter]
-				ax.scatter(x, y, s=20, color=color)
+				ax.scatter(x, y, s=20, color=colors[0])
 			except:
 				pass
 
-			ax.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=color, label=label)
+			ax.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
 			if parameter=="ne" or parameter=="nH":
 				ax.set_yscale("log")
 
@@ -82,17 +91,26 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			ax.set_ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
 
 			if reference is not None:
-				ax.plot(reference.logtau, reference.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color="black")
-				try:
-					x = reference.nodes[parameter]
-					y = reference.values[parameter][idx,idy] * fact[parameter]
-					ax.scatter(x, y, s=20, color="black")
-				except:
-					pass
+				for idr, ref in enumerate(reference):
+					ax.plot(ref.logtau, ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
+					try:
+						x = ref.nodes[parameter]
+						y = ref.values[parameter][idx,idy] * fact[parameter]
+						ax.scatter(x, y, s=20, color=colors[(idr+1)%Ncolors])
+					except:
+						pass
+
+			# set legend
+			if i_+j_==0:
+				ax.legend(loc="lower left", 
+						  bbox_to_anchor=(0, 1.01, 1, 0.2),
+						  ncol=legend_ncols, 
+						  fontsize="x-small", 
+						  frameon=True)
+
 			k_ += 1
 	
 	fig.tight_layout()
-	# ax.legend()
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, 
 	color="tab:blue", lw=1, title=None, subtitles_flag=False, relative=True, 
