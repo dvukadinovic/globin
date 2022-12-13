@@ -101,6 +101,7 @@ class InputData(object):
 			elif debug.lower()=="false":
 				self.debug = False
 
+		# self.pyrh_path = _find_value_by_key("pyrh_path", self.parameters_input, "required")
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 		norm = _find_value_by_key("norm", self.parameters_input, "optional")
@@ -111,9 +112,14 @@ class InputData(object):
 			if norm=="hsra" or norm=="true":
 				self.norm = True
 				self.norm_level = "hsra"
-			if norm=="1":
+			elif norm=="1":
 				self.norm = True
 				self.norm_level = 1
+			elif norm=="false":
+				pass
+			else:
+				self.norm = True
+				self.norm_level = float(norm)
 
 		# filling-factor for stray light correction
 		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, float)
@@ -328,13 +334,30 @@ class InputData(object):
 
 		#--- resample and normalize the instrumental profile to specified wavelength grid
 		if self.instrumental_profile is not None:
-			dx = self.instrumental_wave[1] - self.instrumental_wave[0] # [A]
-			M = len(self.instrumental_wave)
-			dxp = self.step * 10 # [A]
-			N = int(dx/dxp * M)
+			fun = interp1d(self.instrumental_wave, self.instrumental_profile, fill_value=0)
+			N = (self.instrumental_wave.max() - self.instrumental_wave.min()) / (dlam)
+			M = np.ceil(N)//2
+			M = int(M)
+			xnew = np.linspace(0, (M-1)*dlam, num=M)
+			aux = np.linspace(-(M-1)*dlam, -dlam, num=M-1)
+			xnew = np.append(aux, xnew)
+			aux = fun(xnew)
+			self.instrumental_profile = aux/np.sum(aux)
 
-			aux = resample(self.instrumental_profile, N)
-			self.instrumental_profile = aux / np.sum(aux)
+			# from scipy.signal import convolve, fftconvolve
+
+			# plt.plot(self.observation.spec[0,0,:,0], label="original")
+			# _obs = np.convolve(self.observation.spec[0,0,:,0], self.instrumental_profile, mode="same")
+			# plt.plot(_obs, label="intp conv")
+			# _obs = convolve(self.observation.spec[0,0,:,0], self.instrumental_profile, mode="full")
+			# plt.plot(_obs, label="FFT conv")
+			# plt.legend()
+			# plt.show()
+
+			# plt.plot(self.instrumental_wave, self.instrumental_profile)#/np.sum(self.instrumental_profile))
+			# plt.plot(xnew, aux)#/np.sum(aux))
+
+			self.atmosphere.instrumental_profile = self.instrumental_profile
 
 		# current working directory (path that is appended to RH input files before submitting to synthesis)
 		self.atmosphere.cwd = self.cwd

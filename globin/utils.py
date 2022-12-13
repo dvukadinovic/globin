@@ -145,6 +145,13 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
 
     return atmos
 
+def extend(array, N):
+    ones = np.ones(N)
+    array = np.append(ones*array[0], array)
+    array = np.append(array, ones*array[-1])
+
+    return array
+
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))
 

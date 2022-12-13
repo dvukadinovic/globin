@@ -20,6 +20,7 @@ except:
 import globin
 from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation, get_K0_Kn
+from .utils import extend
 from .makeHSE import makeHSE
 
 class MinMax(object):
@@ -230,6 +231,9 @@ class Atmosphere(object):
 		self.add_stray_light = False
 		self.invert_stray = False
 		self.stray_mode = -1
+
+		# instrumental profile
+		self.instrumental_profile = None
 
 		# slices dimension from inputed cube
 		self.xmin = atm_range[0]
@@ -790,15 +794,37 @@ class Atmosphere(object):
 
 		idx, idy = arg
 		
-		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 0, self.pg_top,
+		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 0,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-														 self.data[idx, idy, 2],
-					                   self.data[idx, idy, 3], self.data[idx, idy, 4],
-					                   self.data[idx, idy, 5]/1e4, self.data[idx, idy, 6], self.data[idx, idy, 7],
-					                   self.data[idx, idy, 8:], self.nHtot[idx,idy], 0, fudge_lam, fudge)
+														 self.pg_top, 0, fudge_lam, fudge)
 		
 		result = np.vstack((ne/1e6, nH/1e6, rho/1e3, pg*10))
 		return result
+
+	def compute_tau(self, flag=None):
+		if flag is None:
+			flag = np.ones((self.nx, self.ny))
+		indx, indy = np.where(flag==1)
+		args = zip(indx, indy)
+
+		with mp.Pool(self.n_thread) as pool:
+			results = pool.map(func=self._compute_tau, iterable=args)
+
+		# results = np.array(results)
+
+		# self.data[indx,indy,2] = results[:,0,:]
+		# self.data[indx,indy,8:] = results[:,1:7,:]
+		# self.rho[indx,indy] = results[:,7,:]
+		# self.pg[indx,indy] = results[:,8,:]
+
+	def _compute_tau(self, args):
+		idx, idy = args
+
+		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 2,
+														 self.height[idx,idy], self.data[idx,idy,1], 
+														 self.pg_top, 0, self.fudge_lam, self.fudge)
+
+		return ne
 
 	def get_pg_top(self):
 		"""
@@ -1362,11 +1388,13 @@ class Atmosphere(object):
 		if self.norm:
 			if self.norm_level=="hsra":
 				spectra.spec /= self.icont
-			if self.norm_level==1:
+			elif self.norm_level==1:
 				Ic = spectra.spec[:,:,0,0]
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[2], axis=-1)
 				Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[3], axis=-1)
 				spectra.spec /= Ic
+			else:
+				spectra.spec /= self.norm_level
 
 		return spectra
 
@@ -1378,31 +1406,48 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx, idy, 0], 
-									self.data[idx, idy, 1], 
-								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
-								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
-								  self.data[idx, idy, 6], self.data[idx, idy, 7],
-								  self.data[idx, idy, 8:], self.wavelength_vacuum,
+			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
+									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx, idy, 0], 
-									self.data[idx, idy, 1], 
-								  self.data[idx, idy, 2], self.data[idx, idy, 3], 
-								  self.data[idx, idy, 4], self.data[idx, idy, 5]/1e4, 
-								  self.data[idx, idy, 6], self.data[idx, idy, 7],
-								  self.data[idx, idy, 8:], self.wavelength_vacuum,
+			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
+									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
+		
+		# convolve with the instrumental profile
+		if self.instrumental_profile is not None:
+			# from scipy.integrate import simpson
+
+			# indmin = np.argmin(np.abs(spec.lam - 630.10))
+			# indmax = np.argmin(np.abs(spec.lam - 630.20))+1
+			# eqw = simpson(1-spec.I[indmin:indmax], spec.lam[indmin:indmax])
+			# print(eqw)
+
+			N = len(self.instrumental_profile)
+			# extend Stokes vector with the boundaries before convolution
+			# (this is necessary to remove the obscure boundary problems with convolution)
+			spec.I = extend(spec.I, N)
+			spec.Q = extend(spec.Q, N)
+			spec.U = extend(spec.U, N)
+			spec.V = extend(spec.V, N)
+
+
+			spec.I = np.convolve(spec.I, self.instrumental_profile, mode="same")[N:-N]
+			spec.Q = np.convolve(spec.Q, self.instrumental_profile, mode="same")[N:-N]
+			spec.U = np.convolve(spec.U, self.instrumental_profile, mode="same")[N:-N]
+			spec.V = np.convolve(spec.V, self.instrumental_profile, mode="same")[N:-N]
+
+			# eqw = simpson(1-spec.I[indmin:indmax], spec.lam[indmin:indmax])
+			# print(eqw)
 
 		# interpolate the output spectrum to an observation wavelength 
 		# grid because conversion air --> vacuum --> air has a significant
 		# difference which hinders the vz inversion (~ 0.13 km/s for 
 		# Hinode line par).
-
 		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
 			tck = splrep(spec.lam, spec.I)
 			spec.I = splev(self.wavelength_obs, tck, ext=3)
@@ -1600,9 +1645,9 @@ class Atmosphere(object):
 						spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
-		if instrumental_profile is not None:
-			spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+		# if instrumental_profile is not None:
+		# 	spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+		# 	self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
