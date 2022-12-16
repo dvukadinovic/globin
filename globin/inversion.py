@@ -364,7 +364,7 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
 
-				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength, obs.spec[0,0])
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["Inverted"])
 				# globin.show()
 
 				# copy old RF into new for new itteration inversion
@@ -482,8 +482,8 @@ class Inverter(InputData):
 								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
 								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
-			if self.instrumental_profile is not None:
-				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+			#if self.instrumental_profile is not None:
+			#	corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -571,8 +571,8 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
-		if self.instrumental_profile is not None:
-			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+		#if self.instrumental_profile is not None:
+		#	inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 
@@ -853,8 +853,8 @@ class Inverter(InputData):
 							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 
 			# convolve profiles with instrumental profile
-			if self.instrumental_profile is not None:
-				corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			#if self.instrumental_profile is not None:
+			#	corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -968,8 +968,8 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
 		
-		if self.instrumental_profile is not None:
-			inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+		#if self.instrumental_profile is not None:
+		#	inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 

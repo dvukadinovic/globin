@@ -19,8 +19,8 @@ except:
 
 import globin
 from .spec import Spectrum
-from .tools import bezier_spline, spline_interpolation, get_K0_Kn
-from .utils import extend
+from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_point
+from .utils import extend, Planck
 from .makeHSE import makeHSE
 
 class MinMax(object):
@@ -673,7 +673,7 @@ class Atmosphere(object):
 
 		atmos, flag, idx, idy, params = args
 
-		parameters = atmos.nodes
+		parameters = self.nodes
 		if params is not None:
 			parameters = [params]
 
@@ -689,8 +689,8 @@ class Atmosphere(object):
 			# K0, Kn = None, None
 			K0, Kn = 0, 0
 
-			x = atmos.nodes[parameter]
-			y = atmos.values[parameter][idx,idy]
+			x = self.nodes[parameter]
+			y = self.values[parameter][idx,idy]
 
 			# if we have a single node
 			if len(x)==1:
@@ -700,13 +700,13 @@ class Atmosphere(object):
 
 			# for 2+ number of nodes
 			if parameter=="temp":
-				if atmos.interpolation_method=="bezier":	
+				if self.interpolation_method=="bezier":	
 					# bottom node slope for extrapolation based on temperature gradient from FAL C model
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
-				if atmos.interpolation_method=="spline":
+				if self.interpolation_method=="spline":
 					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
 					x, y = add_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
-					K0, _ = get_K0_Kn(x, y, tension=atmos.spline_tension)
+					K0, _ = get_K0_Kn(x, y, tension=self.spline_tension)
 
 				Kn = splev(x[-1], globin.temp_tck, der=1)
 				
@@ -719,20 +719,20 @@ class Atmosphere(object):
 					K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 				
 			elif parameter in ["gamma", "chi"]:
-				if atmos.interpolation_method=="bezier":
+				if self.interpolation_method=="bezier":
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-				if atmos.interpolation_method=="spline":
+				if self.interpolation_method=="spline":
 					x, y = add_node(self.logtau[0], x, y, None, None)
-					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
+					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 			
 			elif parameter in ["vz", "mag", "vmic"]:
-				if atmos.interpolation_method=="bezier":
+				if self.interpolation_method=="bezier":
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-				if atmos.interpolation_method=="spline":
+				if self.interpolation_method=="spline":
 					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
-					K0, Kn = get_K0_Kn(x, y, tension=atmos.spline_tension)
+					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
 				# check if extrapolation at the top atmosphere point goes below the minimum
 				# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
@@ -746,10 +746,21 @@ class Atmosphere(object):
 				if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
-			if atmos.interpolation_method=="bezier":
-				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=atmos.interp_degree, extrapolate=True)
-			if atmos.interpolation_method=="spline":
-				y_new = spline_interpolation(x, y, atmos.logtau, tension=atmos.spline_tension, K0=K0, Kn=Kn)
+			if self.interpolation_method=="bezier":
+				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=self.interp_degree, extrapolate=True)
+			if self.interpolation_method=="spline":
+				y_new = spline_interpolation(x, y, atmos.logtau, tension=self.spline_tension, K0=K0, Kn=Kn)
+
+			# it the LOS velocity switches the sign, we re-extrapolate it so that it does not (SPINOR style, hatcha!)
+			if parameter=="vz":
+				sign = y_new[-1]*y[-1]
+				if sign<0:
+					ind = np.argmin(np.abs(self.logtau-x[-1]))
+					for idz in range(ind, self.nz):
+						if y[-1]>0:
+							y_new[idz] = np.min([y_new[idz], y[-1]/2])
+						if y[-1]<0:
+							y_new[idz] = np.max([y_new[idz], y[-1]/2])
 
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
@@ -788,15 +799,15 @@ class Atmosphere(object):
 		"""
 		Parallelized call from makeHSE() function.
 		"""
-		fudge_num = 2
-		fudge_lam = np.linspace(401.5, 401.7, num=fudge_num, dtype=np.float64)
-		fudge = np.ones((3, fudge_num), dtype=np.float64)
+		# fudge_num = 2
+		# fudge_lam = np.linspace(401.5, 401.7, num=fudge_num, dtype=np.float64)
+		# fudge = np.ones((3, fudge_num), dtype=np.float64)
 
 		idx, idy = arg
 		
 		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 0,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-														 self.pg_top, 0, fudge_lam, fudge)
+														 self.pg_top, 0, self.fudge_lam, self.fudge[idx,idy])
 		
 		result = np.vstack((ne/1e6, nH/1e6, rho/1e3, pg*10))
 		return result
@@ -1135,15 +1146,10 @@ class Atmosphere(object):
 			
 			#--- update atmospheric parameters
 			idp = 0
-			for parameter in self.values:
+			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
 					if self.mask[parameter][idn]==0:
 						continue
-				# low_ind = up_ind
-				# up_ind += len(self.nodes[parameter])
-				# step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-				# self.values[parameter] += step
-				# step *= self.mask[parameter]
 					step = proposed_steps[...,idp] / self.parameter_scale[parameter][...,idn]
 					self.values[parameter][...,idn] += step
 					idp += 1
@@ -1167,7 +1173,7 @@ class Atmosphere(object):
 
 			low_ind, up_ind = 0, 0
 			idp = 0
-			for parameter in self.values:
+			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
 					if self.mask[parameter][idn]==0:
 						continue
@@ -1352,6 +1358,42 @@ class Atmosphere(object):
 			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_obs[0]))
 
 		return self.icont, self.hsra_spec
+
+	def get_hsra_cont_Bezier(self):
+		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+		hsra.mu = self.mu
+
+		wlref = self.wavelength_vacuum[0]
+		tau = hsra.get_tau(wlref)
+
+		wlref = self.wavelength_obs[0]
+		B = Planck(wlref, hsra.data[0,0,1])
+		C = get_control_point(tau, B, K0=None, Kn=None, degree=2)
+
+		StokesI = np.zeros(hsra.nz)
+		Kn = (B[-1]-B[-2])/(tau[-1]-tau[-2])
+		StokesI[-1] = B[-1] + Kn
+
+		for idz in range(hsra.nz-2,-1,-1):
+			dt = tau[idz+1] - tau[idz]
+			alpha = 2 + dt**2 - 2*dt - 2*np.exp(-dt)
+			alpha /= dt**2
+			beta = 2 - (2 + 2*dt+dt**2)*np.exp(-dt)
+			beta /= dt**2
+			gamma = 2*dt - 4 + (2*dt + 4)*np.exp(-dt)
+			gamma /= dt**2
+
+			StokesI[idz] = StokesI[idz+1]*np.exp(-dt) + alpha*B[idz] + beta*B[idz+1] + gamma*C[idz]
+
+		# nu = globin.LIGHT_SPEED/wlref/1e-9
+		# StokesI *= globin.LIGHT_SPEED/nu**2
+
+		print(StokesI[0])
+
+	def get_tau(self, wlref):
+		tau_wlref = self.RH.get_tau(self.cwd, self.mu, 0, self.data[0,0], np.array([wlref]))
+
+		return tau_wlref
 
 	def compute_spectra(self, synthesize=None):
 		"""

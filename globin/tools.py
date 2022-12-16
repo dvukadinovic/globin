@@ -11,6 +11,41 @@ def get_func3(a,b,c,d):
 def get_func2(a,b,c):
     return lambda t: (1-t)*(1-t)*a + t*t*c + 2*t*(1-t)*b
 
+def get_control_point(x, y, K0=0, Kn=0, degree=2):
+    n = len(x)
+
+    y_prim = [0]*n
+    # derivative in first knot
+    y_prim[0] = (y[1] - y[0])/(x[1] - x[0])
+    if K0 is not None:
+        y_prim[0] = K0
+    # derivative in last knot
+    y_prim[-1] = (y[-1] - y[-2])/(x[-1] - x[-2])
+    if Kn is not None:
+        y_prim[-1] = Kn
+    
+    # derivative in inner knots
+    for i in range(1,n-1):
+        dx_0 = x[i+1] - x[i]
+        dx_1 = x[i] - x[i-1]
+        alpha = (1 + dx_0 / (dx_0 + dx_1))/3
+        d_0 = (y[i+1] - y[i]) / dx_0
+        d_1 = (y[i] - y[i-1]) / dx_1
+        if d_0*d_1>0:
+            eta = alpha*d_0 + (1-alpha)*d_1
+            y_prim[i] = d_0*d_1 / eta
+
+    # construct curves for each segment
+    C = [0]*(n-1)
+    for i in range(n-1):
+        dx_0 = x[i+1] - x[i]
+        if degree==2:
+            c0 = y[i] + dx_0/2 * y_prim[i]
+            c1 = y[i+1] - dx_0/2 * y_prim[i+1]
+            C[i] = (c0 + c1)/2
+
+    return C
+
 def bezier_spline(x, y, xintp, K0=None, Kn=None, degree=3, extrapolate=False):
     """
 
@@ -101,32 +136,6 @@ def bezier_spline(x, y, xintp, K0=None, Kn=None, degree=3, extrapolate=False):
         yintp[xintp>x[-1]] = y[-1]
 
     return yintp
-
-# def spline_interpolation(xknot, yknot, x, K0=0, Kn=0, degree=3):
-#     """
-#     Spline interpolation of node values.
-
-#     In the xknot and yknot, we added edges (top and bottom of the atmosphere)
-#     in order to get the correct smooth extrapolation.
-#     """
-
-#     # in a single node case, we return constant value
-#     if len(xknot)==3:
-#         return np.ones(len(x), dtype=np.float64) * yknot[1]
-
-#     if len(xknot)-3<degree:
-#         degree = 2
-
-#     tck = splrep(xknot, yknot, k=degree)
-#     y = splev(x, tck, der=0, ext=0)
-
-#     n = yknot[1] - K0*xknot[1]
-#     y[x<xknot[1]] = K0*x[x<xknot[1]] + n
-    
-#     n = yknot[-2] - Kn*xknot[-2]
-#     y[x>xknot[-2]] = Kn*x[x>xknot[-2]] + n
-
-#     return y
 
 def get_K0_Kn(x, y, tension=0):
     def get_Cs(DEL1, DEL2, tension):
@@ -260,12 +269,12 @@ def spline_interpolation(x, y, xintp, tension=0, K0=0, Kn=0):
         yintp[xintp<x[0]] = K0*(xintp[xintp<x[0]] - x[0]) + y[0]
 
         # bottom extrapolation
-        ind = np.argmin(np.abs(xintp-x[-1]))-1
-        Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
-        n = yintp[ind] - Kn*xintp[ind]
-        yintp[ind:] = Kn*xintp[ind:] + n
+        # ind = np.argmin(np.abs(xintp-x[-1]))-1
+        # Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
+        # n = yintp[ind] - Kn*xintp[ind]
+        # yintp[ind:] = Kn*xintp[ind:] + n
         
-        # yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
+        yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
 
         return yintp
 
@@ -307,12 +316,12 @@ def spline_interpolation(x, y, xintp, tension=0, K0=0, Kn=0):
     yintp[xintp<x[0]] = K0*(xintp[xintp<x[0]] - x[0]) + y[0]
 
     # bottom extrapolation
-    ind = np.argmin(np.abs(xintp-x[-1]))-1
-    Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
-    n = yintp[ind] - Kn*xintp[ind]
-    yintp[ind:] = Kn*xintp[ind:] + n
+    # ind = np.argmin(np.abs(xintp-x[-1]))-1
+    # Kn = (yintp[ind]-yintp[ind-1])/(xintp[ind]-xintp[ind-1])
+    # n = yintp[ind] - Kn*xintp[ind]
+    # yintp[ind:] = Kn*xintp[ind:] + n
 
-    # yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
+    yintp[xintp>x[-1]] = Kn*(xintp[xintp>x[-1]] - x[-1]) + y[-1]
 
     return yintp
 

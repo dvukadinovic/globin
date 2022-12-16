@@ -152,6 +152,13 @@ def extend(array, N):
 
     return array
 
+def Planck(wave, T):
+    wave *= 1e-9 # [nm --> m]
+    C1 = 2*globin.PLANCK*globin.LIGHT_SPEED/(wave**3)
+    C2 = globin.PLANCK*globin.LIGHT_SPEED/(wave*globin.K_BOLTZMAN*T)
+
+    return C1 / (np.exp(C2) - 1)
+
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))
 
