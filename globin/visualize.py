@@ -59,11 +59,22 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 	fig = plt.figure(figsize=(width*ncols, height*nrows))
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
-	Nref = len(reference)
+	is_list = type(reference)==list
+	if is_list:
+		Nref = len(reference)
+	else:
+		Nref = 1
+		reference = [reference]
+
 	if Nref<=3:
 		legend_ncols = Nref+1
 	else:
 		legend_ncols = 3
+
+	if labels is None:
+		labels = ["inverted"]
+		for idr in range(Nref):
+			labels.append(f"ref{idr+1}")
 
 	k_ = 0
 	for i_ in range(nrows):
