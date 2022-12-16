@@ -335,6 +335,7 @@ class InputData(object):
 		#--- resample and normalize the instrumental profile to specified wavelength grid
 		if self.instrumental_profile is not None:
 			fun = interp1d(self.instrumental_wave, self.instrumental_profile, fill_value=0)
+			dlam = self.step*10
 			N = (self.instrumental_wave.max() - self.instrumental_wave.min()) / (dlam)
 			M = np.ceil(N)//2
 			M = int(M)
@@ -343,19 +344,6 @@ class InputData(object):
 			xnew = np.append(aux, xnew)
 			aux = fun(xnew)
 			self.instrumental_profile = aux/np.sum(aux)
-
-			# from scipy.signal import convolve, fftconvolve
-
-			# plt.plot(self.observation.spec[0,0,:,0], label="original")
-			# _obs = np.convolve(self.observation.spec[0,0,:,0], self.instrumental_profile, mode="same")
-			# plt.plot(_obs, label="intp conv")
-			# _obs = convolve(self.observation.spec[0,0,:,0], self.instrumental_profile, mode="full")
-			# plt.plot(_obs, label="FFT conv")
-			# plt.legend()
-			# plt.show()
-
-			# plt.plot(self.instrumental_wave, self.instrumental_profile)#/np.sum(self.instrumental_profile))
-			# plt.plot(xnew, aux)#/np.sum(aux))
 
 			self.atmosphere.instrumental_profile = self.instrumental_profile
 
