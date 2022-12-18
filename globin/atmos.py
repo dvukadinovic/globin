@@ -758,9 +758,9 @@ class Atmosphere(object):
 					ind = np.argmin(np.abs(self.logtau-x[-1]))
 					for idz in range(ind, self.nz):
 						if y[-1]>0:
-							y_new[idz] = np.min([y_new[idz], y[-1]/2])
-						if y[-1]<0:
 							y_new[idz] = np.max([y_new[idz], y[-1]/2])
+						if y[-1]<0:
+							y_new[idz] = np.min([y_new[idz], y[-1]/2])
 
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
@@ -1547,7 +1547,6 @@ class Atmosphere(object):
 			values = self.values[parameter]
 			perturbation = self.delta[parameter]
 
-			# for nodeID in trange(len(nodes), desc=f"{parameter} nodes", leave=None, ncols=0):
 			for nodeID in range(len(nodes)):
 				if self.mask[parameter][nodeID]==0:
 					continue			
