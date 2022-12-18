@@ -8,6 +8,8 @@ import multiprocessing as mp
 
 import globin
 
+from .utils import extend
+
 class Spectrum(object):
 	"""
 	Custom class for storing computed spectra object. It is rebuilt from RH
@@ -108,12 +110,12 @@ class Spectrum(object):
 
 		if order==0:
 			# Gaussian kernel
-			return kernel[::-1]
+			return kernel
 		elif order==1:
 			# first derivative of Gaussian kernel with respect to standard deviation
 			step = self.wavelength[1] - self.wavelength[0]
 			kernel *= (2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / step
-			return kernel[::-1]
+			return kernel
 		else:
 			raise ValueError(f"Kernel order {order} not supported.")
 
@@ -367,33 +369,10 @@ class Observation(Spectrum):
 def _broaden_spectra(args):
 	spec, kernel = args
 
+	N = len(kernel)
 	for ids in range(4):
-		spec[...,ids] = correlate1d(spec[...,ids], kernel)
+		aux = extend(spec[:,ids], N)
+		spec[:,ids] = np.convolve(aux, kernel)[N:-N]
+		#correlate1d(spec[:,ids], kernel)
 
 	return spec
-
-def get_Icont(wavelength=500, mu=1.0):
-	"""
-	Compute the continuum intensity in the given wavelength from FAL C model that
-	will be used as a normalization factor for synthetic spectra.
-	"""
-	hsrasp = globin.Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
-	hsrasp.mu = mu
-	hsrasp.norm = False
-
-	try:
-		nw = len(wavelength)
-		hsrasp.wavelength_air = np.asarray(wavelength)
-		hsrasp.wavelength_obs = np.asarray(wavelength)
-		hsrasp.wavelength_vacuum = globin.rh.write_wavs(wavelength, fname=None)
-	except:
-		hsrasp.wavelength_air = np.asarray([wavelength])
-		hsrasp.wavelength_obs = np.asarray([wavelength])
-		hsrasp.wavelength_vacuum = globin.rh.write_wavs(np.array([wavelength], dtype=np.float64), fname=None)
-	nw = len(hsrasp.wavelength_vacuum)
-	
-	hsrasp.spectra = Spectrum(nx=1, ny=1, nw=nw)
-	spec = hsrasp.compute_spectra()
-	icont = spec.spec[0,0,0,0]
-	
-	return icont, spec.spec[0,0]

@@ -1688,7 +1688,7 @@ class Atmosphere(object):
 		#--- add instrumental broadening
 		# if instrumental_profile is not None:
 		# 	spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-		# 	self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+			# self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
@@ -2050,8 +2050,10 @@ def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 def _broaden_rfs(args):
 	rf, kernel = args
 
+	N = len(kernel)
 	for ids in range(4):
-		rf[...,ids] = correlate1d(rf[...,ids], kernel)
+		aux = extend(rf[:,ids], N)
+		rf[:,ids] = np.convolve(aux, kernel)
 
 	return rf
 
