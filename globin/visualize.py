@@ -60,11 +60,13 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
 	is_list = type(reference)==list
+	Nref = 0
 	if is_list:
 		Nref = len(reference)
 	else:
-		Nref = 1
-		reference = [reference]
+		if reference is not None:
+			Nref = 1
+			reference = [reference]
 
 	if Nref<=3:
 		legend_ncols = Nref+1

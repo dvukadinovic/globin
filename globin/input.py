@@ -335,16 +335,23 @@ class InputData(object):
 		#--- resample and normalize the instrumental profile to specified wavelength grid
 		if self.instrumental_profile is not None:
 			fun = interp1d(self.instrumental_wave/10, self.instrumental_profile, fill_value=0)
-			dlam = self.step*10
-			N = (self.instrumental_wave.max() - self.instrumental_wave.min()) / (dlam)
+			if self.mode>=1:
+				dlam = self.observation.wavelength[1] - self.observation.wavelength[0]
+			else:
+				dlam = self.step
+			N = (self.instrumental_wave.max()/10 - self.instrumental_wave.min()/10) / (dlam)
 			M = np.ceil(N)//2
 			M = int(M)
 			xnew = np.linspace(0, (M-1)*dlam, num=M)
 			aux = np.linspace(-(M-1)*dlam, -dlam, num=M-1)
 			xnew = np.append(aux, xnew)
-			xnew /= 10 # [A --> nm] beacause we make observations in nm scale
+			# xnew /= 10 # [A --> nm] beacause we synthesize spectra in 'nm' scale
 			aux = fun(xnew)
 			self.instrumental_profile = aux/np.sum(aux)
+
+			# plt.plot(self.instrumental_profile)
+			# plt.show()
+			# sys.exit()
 
 			self.atmosphere.instrumental_profile = self.instrumental_profile
 

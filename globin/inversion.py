@@ -15,7 +15,7 @@ from tqdm import tqdm, trange
 
 import pyrh
 
-from .spec import get_Icont, Spectrum
+from .spec import Spectrum
 from .container import Globin
 from .input import InputData, Chi2
 from .visualize import plot_spectra
@@ -197,8 +197,8 @@ class Inverter(InputData):
 							spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 			
 			#--- add instrument broadening (if applicable)
-			if self.instrumental_profile is not None:
-				spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			if atmos.instrumental_profile is not None:
+				spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			#--- add noise
 			if self.noise!=0:
@@ -362,7 +362,7 @@ class Inverter(InputData):
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
 				
-				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["Inverted"])
 				# globin.show()
@@ -427,14 +427,14 @@ class Inverter(InputData):
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 			delta *= delta_scale
 
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					for ids in range(4):
-						flag = np.isnan(spec.spec[idx,idy,:,ids])
-						if any(flag):
-							globin.visualize.plot_atmosphere(atmos, parameters=["temp", "mag", "vz", "vmic", "gamma", "chi", "ne", "nH"],
-								idx=idx, idy=idy)
-							globin.show()
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		for ids in range(4):
+			# 			flag = np.isnan(spec.spec[idx,idy,:,ids])
+			# 			if any(flag):
+			# 				globin.visualize.plot_atmosphere(atmos, parameters=["temp", "mag", "vz", "vmic", "gamma", "chi", "ne", "nH"],
+			# 					idx=idx, idy=idy)
+			# 				globin.show()
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, Npar, atmos.nx, atmos.ny, self.n_thread)
@@ -482,8 +482,8 @@ class Inverter(InputData):
 								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
 								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
-			#if self.instrumental_profile is not None:
-			#	corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+			if atmos.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -675,7 +675,7 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, instrumental_profile=self.instrumental_profile)
+				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean)
 
 				if atmos.spatial_regularization:
 					Gamma = atmos.get_regularization_gamma()
@@ -853,8 +853,8 @@ class Inverter(InputData):
 							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 
 			# convolve profiles with instrumental profile
-			#if self.instrumental_profile is not None:
-			#	corrected_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			if atmos.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -968,8 +968,8 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
 		
-		#if self.instrumental_profile is not None:
-		#	inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=ones, n_thread=self.n_thread)
+		if atmos.instrumental_profile is not None:
+			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 

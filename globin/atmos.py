@@ -1459,32 +1459,17 @@ class Atmosphere(object):
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
-		
-		# convolve with the instrumental profile
-		if self.instrumental_profile is not None:
-			# from scipy.integrate import simpson
 
-			# indmin = np.argmin(np.abs(spec.lam - 630.10))
-			# indmax = np.argmin(np.abs(spec.lam - 630.20))+1
-			# eqw = simpson(1-spec.I[indmin:indmax], spec.lam[indmin:indmax])
-			# print(eqw)
-
-			N = len(self.instrumental_profile)
-			# extend Stokes vector with the boundaries before convolution
-			# (this is necessary to remove the obscure boundary problems with convolution)
-			spec.I = extend(spec.I, N)
-			spec.Q = extend(spec.Q, N)
-			spec.U = extend(spec.U, N)
-			spec.V = extend(spec.V, N)
-
-
-			spec.I = np.convolve(spec.I, self.instrumental_profile, mode="same")[N:-N]
-			spec.Q = np.convolve(spec.Q, self.instrumental_profile, mode="same")[N:-N]
-			spec.U = np.convolve(spec.U, self.instrumental_profile, mode="same")[N:-N]
-			spec.V = np.convolve(spec.V, self.instrumental_profile, mode="same")[N:-N]
-
-			# eqw = simpson(1-spec.I[indmin:indmax], spec.lam[indmin:indmax])
-			# print(eqw)
+		# if self.instrumental_profile is not None:
+		# 	N = len(self.instrumental_profile)
+		# 	sI = extend(spec.I, N)
+		# 	spec.I = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
+		# 	sQ = extend(spec.Q, N)
+		# 	spec.Q = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
+		# 	sU = extend(spec.U, N)
+		# 	spec.U = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
+		# 	sV = extend(spec.V, N)
+		# 	spec.V = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
 
 		# interpolate the output spectrum to an observation wavelength 
 		# grid because conversion air --> vacuum --> air has a significant
@@ -1511,7 +1496,7 @@ class Atmosphere(object):
 		# return spec.I, spec.Q, spec.U, spec.V, spec.lam
 		return np.vstack((spec.I, spec.Q, spec.U, spec.V, spec.lam))
 
-	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, instrumental_profile=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
 		Parameters:
 		-----------
@@ -1686,9 +1671,9 @@ class Atmosphere(object):
 						spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
-		# if instrumental_profile is not None:
-		# 	spec.instrumental_broadening(kernel=instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			# self.rf = broaden_rfs(self.rf, instrumental_profile, synthesize, -1, self.n_thread)
+		if self.instrumental_profile is not None:
+			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
@@ -2053,7 +2038,7 @@ def _broaden_rfs(args):
 	N = len(kernel)
 	for ids in range(4):
 		aux = extend(rf[:,ids], N)
-		rf[:,ids] = np.convolve(aux, kernel)
+		rf[:,ids] = np.convolve(aux, kernel, mode="same")[N:-N]
 
 	return rf
 
