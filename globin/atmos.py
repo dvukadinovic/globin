@@ -1449,7 +1449,7 @@ class Atmosphere(object):
 
 		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
 		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
-		spectra.wavelength = self.wavelength_obs
+		spectra.wavelength = self.wavelength_air
 		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
@@ -1486,28 +1486,29 @@ class Atmosphere(object):
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
 
-		if self.instrumental_profile is not None:
-			N = len(self.instrumental_profile)
-			sI = extend(sI, N)
-			sI = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
-			sQ = extend(sQ, N)
-			sQ = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
-			sU = extend(sU, N)
-			sU = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
-			sV = extend(sV, N)
-			sV = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
+		# apply the instrumental profile broadening
+		# if self.instrumental_profile is not None:
+		# 	N = len(self.instrumental_profile)
+		# 	sI = extend(sI, N)
+		# 	sI = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
+		# 	sQ = extend(sQ, N)
+		# 	sQ = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
+		# 	sU = extend(sU, N)
+		# 	sU = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
+		# 	sV = extend(sV, N)
+		# 	sV = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
 
 		# interpolate the output spectrum to an observation wavelength
-		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
+		# if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
 
-			tck = splrep(self.wavelength_air, sI)
-			sI = splev(self.wavelength_obs, tck, ext=3)
-			tck = splrep(self.wavelength_air, sQ)
-			sQ = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(self.wavelength_air, sU)
-			sU = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(self.wavelength_air, sV)
-			sV = splev(self.wavelength_obs, tck, ext=1)
+		# 	tck = splrep(self.wavelength_air, sI)
+		# 	sI = splev(self.wavelength_obs, tck, ext=3)
+		# 	tck = splrep(self.wavelength_air, sQ)
+		# 	sQ = splev(self.wavelength_obs, tck, ext=1)
+		# 	tck = splrep(self.wavelength_air, sU)
+		# 	sU = splev(self.wavelength_obs, tck, ext=1)
+		# 	tck = splrep(self.wavelength_air, sV)
+		# 	sV = splev(self.wavelength_obs, tck, ext=1)
 
 		return np.vstack((sI, sQ, sU, sV))
 
@@ -1530,7 +1531,14 @@ class Atmosphere(object):
 		if self.hydrostatic:
 			self.makeHSE(synthesize)
 		spec = self.compute_spectra(synthesize)
-		Nw = len(self.wavelength_obs)
+		Nw = len(self.wavelength_air)
+
+		if self.mode==1:
+			Npar = self.n_local_pars
+		elif (self.mode==2) or (self.mode==3):
+			Npar = self.n_local_pars + self.n_global_pars
+
+		self.rf = np.zeros((self.nx, self.ny, Npar, Nw, 4))
 
 		active_indx, active_indy = np.where(synthesize==1)
 
@@ -1706,9 +1714,13 @@ class Atmosphere(object):
 			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
-		# if self.instrumental_profile is not None:
-		# 	spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-		# 	self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		if self.instrumental_profile is not None:
+			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			# self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+
+		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
+			spec.interpolate(self.wavelength_obs)
+			self.rf = interpolate_rf(self.rf, self.wavelength_air, self.wavelength_obs)
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
@@ -2086,6 +2098,21 @@ def _compute_vmac_RF(args):
 		spec[:,ids] = np.convolve(aux, kernel, mode="same")[N:-N]
 
 	return spec
+
+def interpolate_rf(rf_in, wave_in, wave_out):
+	nx, ny, npar, nw, ns = rf_in.shape
+
+	rf_out = np.zeros((nx, ny, npar, len(wave_out), ns))
+
+	for idx in range(nx):
+		for idy in range(ny):
+			for idp in range(npar):
+				for ids in range(ns):
+					rf_out[idx,idy,idp,:,ids] = interp1d(wave_in, rf_in[idx,idy,idp,:,ids])(wave_out)
+
+	del rf_in
+
+	return rf_out
 
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844

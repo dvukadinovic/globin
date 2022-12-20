@@ -3,7 +3,7 @@ from astropy.io import fits
 import numpy as np
 from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 import matplotlib.pyplot as plt
-from scipy.interpolate import splev, splrep
+from scipy.interpolate import splev, splrep, interp1d
 import multiprocessing as mp
 
 import globin
@@ -287,16 +287,22 @@ class Spectrum(object):
 		return
 
 	def interpolate(self, wavs):
-		self.nw = len(wavs)
-		spectra = np.zeros((self.nx, self.ny, self.nw, 4))
+		"""
+		Interpolate the spectrum on given 'wavs' wavelength grid.
+		"""
+		spectra = np.zeros((self.nx, self.ny, len(wavs), 4))
+
+		if wavs[0]<self.wavelength[0] or wavs[-1]>self.wavelength[-1]:
+			raise ValueError("Interpolation is outside of the wavelength range.")
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				for ids in range(4):
-					tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
-					spectra[idx,idy,:,ids] = splev(wavs, tck)
+					# tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
+					spectra[idx,idy,:,ids] = interp1d(self.wavelength, self.spec[idx,idy,:,ids])(wavs) # splev(wavs, tck)
 
 		self.spec = spectra
+		self.nw = len(wavs)
 		self.wavelength = wavs
 
 class Observation(Spectrum):

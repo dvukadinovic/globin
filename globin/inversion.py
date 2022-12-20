@@ -171,14 +171,14 @@ class Inverter(InputData):
 
 		# weights on Stokes vector based on observed Stokes I
 		# (nx, ny, nw, 4)
-		if self.weight_type=="StokesI":
-			# print("  Set the weight based on Stokes I...")
-			aux = 1/self.observation.spec[...,0]
-			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-			norm = np.sum(weights, axis=2)
-			weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
-		else:
-			weights = 1
+		# if self.weight_type=="StokesI":
+		# 	# print("  Set the weight based on Stokes I...")
+		# 	aux = 1/self.observation.spec[...,0]
+		# 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+		# 	norm = np.sum(weights, axis=2)
+		# 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
+		# else:
+		weights = 1
 		
 		noise_stokes /= weights
 
@@ -238,7 +238,8 @@ class Inverter(InputData):
 		p = np.arange(Npar)
 		X,Y,P = np.meshgrid(x,y,p, indexing="ij")
 
-		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
+		rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
+		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs))
 
 		chi2 = Chi2(nx=atmos.nx, ny=atmos.ny, niter=max_iter)
 		chi2.mode = self.mode
@@ -247,7 +248,7 @@ class Inverter(InputData):
 		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 
-		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		# atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, len(atmos.wavelength_air), 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
 
@@ -291,7 +292,7 @@ class Inverter(InputData):
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
 				
-				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
+				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["Inverted"])
 				# globin.show()
@@ -311,7 +312,7 @@ class Inverter(InputData):
 				#--- compute chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
-				diff /= noise_stokes
+				diff /= diff_noise_stokes
 				diff *= np.sqrt(2)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
@@ -410,13 +411,16 @@ class Inverter(InputData):
 								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
 								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
-			# if atmos.instrumental_profile is not None:
-			# 	corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+			if atmos.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+
+			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+				corrected_spec.interpolate(atmos.wavelength_obs)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
-			new_diff /= noise_stokes
+			new_diff /= diff_noise_stokes
 			new_diff *= np.sqrt(2)
 			if self.wavs_weight is not None:
 				diff *= self.wavs_weight
@@ -499,8 +503,11 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
-		#if self.instrumental_profile is not None:
-		#	inverted_spectra.instrumental_broadening(kernel=self.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+		if atmos.instrumental_profile is not None:
+			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+
+		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+			inverted_spectra.interpolate(atmos.wavelength_obs)
 
 		return atmos, inverted_spectra, chi2
 
@@ -530,7 +537,8 @@ class Inverter(InputData):
 		Ndof = np.count_nonzero(self.weights)*Nw*Natmos - Nlocalpar*Natmos - Nglobalpar
 
 		#--- estimate of Stokes noise
-		noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, Nw)
+		rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
+		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs))
 
 		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
 		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
@@ -558,7 +566,7 @@ class Inverter(InputData):
 		indx, indy = np.where(ones==1)		
 
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
-		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, len(atmos.wavelength_air), 4))
 
 		# eye matrix
 		eye = sp.eye(Natmos*Nlocalpar + Nglobalpar, Natmos*Nlocalpar + Nglobalpar)
@@ -603,7 +611,7 @@ class Inverter(InputData):
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
-				spec = atmos.compute_rfs(rf_noise_scale=noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean)
+				spec = atmos.compute_rfs(rf_noise_scale=rf_noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean)
 
 				if atmos.spatial_regularization:
 					Gamma = atmos.get_regularization_gamma()
@@ -621,7 +629,7 @@ class Inverter(InputData):
 				#--- calculate chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
-				diff /= noise_stokes
+				diff /= diff_noise_stokes
 				diff *= np.sqrt(2)
 				# diff /= np.sqrt(Ndof)
 				if self.wavs_weight is not None:
@@ -784,13 +792,16 @@ class Inverter(InputData):
 							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 
 			# convolve profiles with instrumental profile
-			# if atmos.instrumental_profile is not None:
-			# 	corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			if atmos.instrumental_profile is not None:
+				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+
+			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+				corrected_spec.interpolate(atmos.wavelength_obs)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
-			new_diff /= noise_stokes
+			new_diff /= diff_noise_stokes
 			new_diff *= np.sqrt(2)
 			if self.wavs_weight is not None:
 				new_diff *= self.wavs_weight
@@ -899,8 +910,11 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
 		
-		# if atmos.instrumental_profile is not None:
-		# 	inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+		if atmos.instrumental_profile is not None:
+			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+
+		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+			inverted_spectra.interpolate(atmos.wavelength_obs)
 
 		return atmos, inverted_spectra, chi2
 
