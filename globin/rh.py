@@ -784,11 +784,15 @@ def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
     ind = np.argmin(abs(wavelength-air2vacuum_limit))
     fact[wavelength<air2vacuum_limit] = 1
 
-    return wavelength*fact
+    aux = wavelength*fact
+
+    return aux
 
 def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
     factor = np.ones_like(wavelength)
     wave2 = 1/wavelength**2
     factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2) * wave2
 
-    return wavelength/factor
+    aux = wavelength/factor
+
+    return aux

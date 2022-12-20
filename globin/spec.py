@@ -106,13 +106,15 @@ class Spectrum(object):
 		radius = int(4*kernel_sigma + 0.5)
 		x = np.arange(-radius, radius+1)
 		phi = np.exp(-x**2/kernel_sigma**2)
-		kernel = phi/phi.sum()
 
 		if order==0:
 			# Gaussian kernel
+			kernel = phi/phi.sum()
 			return kernel
 		elif order==1:
 			# first derivative of Gaussian kernel with respect to standard deviation
+			# kernel = phi/phi.sum() * 2 * x**2/kernel_sigma**3
+			kernel = phi/phi.sum()
 			step = self.wavelength[1] - self.wavelength[0]
 			kernel *= (2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / step
 			return kernel
@@ -154,6 +156,33 @@ class Spectrum(object):
 
 			results = np.array(results)
 			self.spec[indx,indy] = results
+
+	def add_stray_light(self, mode, stray_light, stray_type="gray", hsra_spec=None):
+		"""
+		Add the stray light contamination to the spectra.
+
+		If stray_type='hsra' we requiere 'hsra_spec' to not be None.
+		"""
+		if stray_type=="hsra":
+			if hsra_spec is None:
+				raise ValueError("'hsra_spec' can not be None in case of 'hsra' stray-light type.")
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				if mode==1 or mode==2:
+					stray_factor = stray_light[idx,idy]
+				if mode==3:
+					if self.invert_stray:
+						stray_factor = stray_light#self.global_pars["stray"]
+					else:
+						stray_factor = stray_light[idx,idy]
+				if stray_type=="hsra":
+					self.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * self.spec[idx,idy]
+				if stray_type=="gray":
+					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
+					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
+					self.spec[idx,idy,:,2] = (1-stray_factor) * self.spec[idx,idy,:,2]
+					self.spec[idx,idy,:,3] = (1-stray_factor) * self.spec[idx,idy,:,3]
 
 	def norm(self):
 		if (globin.norm) and (globin.Icont is not None):

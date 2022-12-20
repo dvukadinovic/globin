@@ -4,8 +4,6 @@ import copy
 from astropy.io import fits
 import sys
 
-# import globin
-
 fact = {"temp"  : 1,
 		"ne"    : 1,
 		"vz"    : 1,

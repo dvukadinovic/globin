@@ -19,7 +19,7 @@ m_e *= 1e3
 
 import globin
 
-def convert_spinor_inversion(fpath, get_obs=False):
+def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     parameter_relay = {"TEMPE" : "temp",
                        "VELOS" : "vz",
                        "VMICI" : "vmic",
@@ -70,37 +70,38 @@ def convert_spinor_inversion(fpath, get_obs=False):
         lttop = par_data[par_header["LTTOP"]-1,0,0]
         ltbot = 1
         ltinc = par_data[par_header["LTINC"]-1,0,0]
-        nz = (ltbot - lttop)/ltinc + 1
+        nz = int((ltbot - lttop)/ltinc) + 1
         # nz = int(nz) + 1 # dunno why are there +1 more than it should be...
         atm = globin.Atmosphere(nx=nx, ny=ny, nz=nz)
         atm.logtau = np.linspace(lttop, ltbot, num=nz)
     
     # get the nodes for each parameter
-    max_nodes = len(par_header["LGTRF*"])
-    start = par_header["LGTRF"]-1
-    nodes = par_data[start:start+max_nodes,0,0]
+    if inversion:
+        max_nodes = len(par_header["LGTRF*"])
+        start = par_header["LGTRF"]-1
+        nodes = par_data[start:start+max_nodes,0,0]
 
-    # add the node values into the atmosphere structure
-    for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
-        ind = par_header[f"{parameter}*"]
-        nnodes = len(ind)
-        if nnodes==0:
-            continue
-        start = ind[0] - 1
-        if nnodes==1:
-            atm.nodes[parameter_relay[parameter]] = np.array([0])
-        else:
-            atm.nodes[parameter_relay[parameter]] = nodes
+        # add the node values into the atmosphere structure
+        for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
+            ind = par_header[f"{parameter}*"]
+            nnodes = len(ind)
+            if nnodes==0:
+                continue
+            start = ind[0] - 1
+            if nnodes==1:
+                atm.nodes[parameter_relay[parameter]] = np.array([0])
+            else:
+                atm.nodes[parameter_relay[parameter]] = nodes
 
-        fact = 1
-        if parameter=="VELOS":
-            fact = -1
-        if parameter in ["GAMMA", "AZIMU"]:
-            fact = np.pi/180
-        
-        atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
-        for idn in range(nnodes):
-            atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
+            fact = 1
+            if parameter=="VELOS":
+                fact = -1
+            if parameter in ["GAMMA", "AZIMU"]:
+                fact = np.pi/180
+            
+            atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
+            for idn in range(nnodes):
+                atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
 
     # create the Spectrum() structure
     spec = globin.Spectrum(nx=nx, ny=ny, nw=nw)
@@ -158,6 +159,32 @@ def Planck(wave, T):
     C2 = globin.PLANCK*globin.LIGHT_SPEED/(wave*globin.K_BOLTZMAN*T)
 
     return C1 / (np.exp(C2) - 1)
+
+def pretty_print_parameters(atmos, conv_flag, mode):
+    for parameter in atmos.values:
+        print(parameter)
+        for idx in range(atmos.nx):
+            for idy in range(atmos.ny):
+                if conv_flag[idx,idy]==1:
+                    if parameter=="gamma":
+                        print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
+                    elif parameter=="chi":
+                        print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
+                    else:
+                        print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
+
+    if mode>=2:
+        for parameter in atmos.global_pars:
+            if parameter=="vmac" or parameter=="stray":
+                print(parameter)
+                print(atmos.global_pars[parameter])
+            else:
+                if atmos.line_no[parameter].size > 0:
+                    indx, indy = np.where(conv_flag==1)
+                    if mode==3:
+                        indx, indy = 0, 0
+                    print(parameter)
+                    print(atmos.global_pars[parameter][indx,indy])
 
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))

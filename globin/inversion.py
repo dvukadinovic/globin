@@ -18,49 +18,10 @@ import pyrh
 from .spec import Spectrum
 from .container import Globin
 from .input import InputData, Chi2
-from .visualize import plot_spectra
+from .visualize import plot_spectra, add_colorbar
+from .utils import pretty_print_parameters
 
 import globin
-
-def add_colorbar(fig, ax, im, label=None):
-    from mpl_toolkits.axes_grid1.inset_locator import inset_axes
-    axins = inset_axes(ax,
-                       width="5%",
-                       height="100%",
-                       loc="lower left",
-                       bbox_to_anchor=(1.02, 0., 1, 1),
-                       bbox_transform=ax.transAxes,
-                       borderpad=0)
-    cbar = fig.colorbar(im, cax=axins)
-    # cbar.ax.set_yticklabels(cbar.ax.get_yticks(), fontsize="medium")
-    if label is not None:
-        cbar.set_label(label)
-
-def pretty_print_parameters(atmos, conv_flag, mode):
-	for parameter in atmos.values:
-		print(parameter)
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				if conv_flag[idx,idy]==1:
-					if parameter=="gamma":
-						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
-					elif parameter=="chi":
-						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
-					else:
-						print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
-
-	if mode>=2:
-		for parameter in atmos.global_pars:
-			if parameter=="vmac" or parameter=="stray":
-				print(parameter)
-				print(atmos.global_pars[parameter])
-			else:
-				if atmos.line_no[parameter].size > 0:
-					indx, indy = np.where(conv_flag==1)
-					if mode==3:
-						indx, indy = 0, 0
-					print(parameter)
-					print(atmos.global_pars[parameter][indx,indy])
 
 class Inverter(InputData):
 	def __init__(self, save_output=True, verbose=True):
@@ -69,50 +30,18 @@ class Inverter(InputData):
 		self.verbose = verbose
 
 	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
-		self.run_name = run_name
-		if (rh_input_name is not None) and (globin_input_name is not None):
-			# store input parameters in InputData()
-			self.read_input_files(globin_input_name, rh_input_name)
-
-			# initialize RH class (cythonized)
-			self.atmosphere.n_thread = self.n_thread
-			self.atmosphere.mode = self.mode
-			if self.atmosphere.add_stray_light:
-				self.atmosphere.stray_mode = self.stray_mode
-				self.atmosphere.stray_type = self.stray_type
-			self.atmosphere.norm = self.norm
-			self.atmosphere.norm_level = self.norm_level
-			self.atmosphere.step = self.step
-
-			if self.atmosphere.pg_top is None:
-				self.atmosphere.get_pg_top()
-
-			# fudge data
-			if self.mode>=1:
-				self.atmosphere.interp_degree = self.interp_degree
-				self.atmosphere.wavelength_obs = self.observation.wavelength
-			elif self.mode==0:
-				self.atmosphere.wavelength_obs = self.wavelength_air
-			
-			self.atmosphere.wavelength_air = self.wavelength_air
-			self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
-
-			# we do not want to have sparse synthetic spectrum from which we will scale up
-			# we want to have the same or higher number of wavelength points than there
-			# are in the observations.
-			if self.mode>=1:
-				if len(self.observation.wavelength)>len(self.wavelength_air):
-					msg = "  Specified wavelength grid has lower number of points than\n"
-					msg+= "  the observation's wavelength grid. Increase the number of\n"
-					msg+= "  wavelength points to improve the sampling.\n"
-					sys.exit(msg)
-
-		else:
-			if rh_input_name is None:
-				print(f"  There is no path for globin input file.")
-			if globin_input_name is None:
-				print(f"  There is no path for RH input file.")
+		if rh_input_name is None:
+			print(f"[Error] There is no path for globin input file.")
 			sys.exit()
+		if globin_input_name is None:
+			print(f"[Error] There is no path for RH input file.")
+			sys.exit()
+
+		# name of the folder in which we will store all synthesis/inversion results
+		self.run_name = run_name
+		
+		#--- read the input parameters from input files
+		self.read_input_files(globin_input_name, rh_input_name)
 
 	def run(self):
 		# if self.atmosphere.spectra is None:
@@ -1238,17 +1167,22 @@ def normalize_hessian(H, atmos, mode):
 		# get the global (atomic) parameters scale values
 		start = Natmos*Nlocalpar
 		for parameter in atmos.global_pars:
-			N = len(atmos.line_no[parameter])
-			if N==0:
-				continue
+			if parameter=="vmac":
+				atmos.parameter_scale[parameter] = scales[start]
+				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+				start += 1
+			if parameter in ["loggf", "dlam"]:
+				N = len(atmos.line_no[parameter])
+				if N==0:
+					continue
 
-			for idl in range(N):
-				ind = start + idl
-				atmos.parameter_scale[parameter][...,idl] = scales[ind]
+				for idl in range(N):
+					ind = start + idl
+					atmos.parameter_scale[parameter][...,idl] = scales[ind]
 
-			atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
 
-			start += N
+				start += N
 
 		# create the sparse matrix of scales for each parameter combination for every atmosphere
 		l, u = 0, 0
@@ -1269,9 +1203,13 @@ def normalize_hessian(H, atmos, mode):
 		start = Natmos*Nlocalpar
 		Ng = 0
 		for parameter in atmos.global_pars:
-			N = len(atmos.line_no[parameter])
-			if N==0:
-				continue
+			if parameter in ["loggf", "dlam"]:
+				N = len(atmos.line_no[parameter])
+				if N==0:
+					continue
+
+			if parameter=="vmac":
+				N = 1
 
 			for idl in range(N):
 				scale = scales[start + idl]

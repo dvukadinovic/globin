@@ -122,6 +122,7 @@ class Atmosphere(object):
 										"chi"   : np.pi,		# [rad]
 										"of"    : 2,				#
 										"stray" : 0.1,
+										"vmac"  : 2,				# [km/s]
 										"dlam"  : 10,				# [mA]
 										"loggf" : -1.0}			#
 
@@ -270,7 +271,6 @@ class Atmosphere(object):
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 			self.idx_meshgrid = self.idx_meshgrid.flatten()
 			self.idy_meshgrid = self.idy_meshgrid.flatten()
-			# self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
 			self.fudge = np.ones((self.nx, self.ny, 3, 3))
 		else:
 			self.data = None
@@ -287,7 +287,6 @@ class Atmosphere(object):
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 				self.idx_meshgrid = self.idx_meshgrid.flatten()
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
-				# self.ids_tuple = list(zip(self.idx_meshgrid, self.idy_meshgrid))
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
@@ -855,7 +854,7 @@ class Atmosphere(object):
 		elif top>=globin.falc.logtau[0] and top<=globin.falc.logtau[-1]:
 			pg_top = splev(self.logtau[0], globin.pg_tck)
 		else:
-			sys.exit("Top of atmosphere not in range of FAL C log_tau scale.")
+			sys.exit("Top of atmosphere not in range of FAL C log(tau) scale.")
 
 		# convert to SI unit
 		self.pg_top = pg_top/10
@@ -955,7 +954,29 @@ class Atmosphere(object):
 						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,idp])
 						self.data[idx,idy,idp] = splev(x_new, tck)
 					self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
-				
+	
+	def resample(self, Nz):
+		xnew = np.linspace(self.logtau[0], self.logtau[-1], num=Nz)
+
+		cube = np.ones((self.nx, self.ny, self.npar, Nz))
+	
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				for idp in range(1, 8):
+					if idp!=2:
+						tck = splrep(self.logtau, self.data[idx,idy,idp])
+						cube[idx,idy,idp] = splev(xnew, tck)
+
+		self.data = cube
+		self.data[:,:,0] = xnew
+		self.logtau = xnew
+		self.shape = self.data.shape
+		self.nz = Nz
+		self.rho = np.zeros((self.nx, self.ny, self.nz))
+		self.pg = np.zeros((self.nx, self.ny, self.nz))
+
+		self.makeHSE()
+
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		"""
 		Save the atmosphere to a fits file with all the parameters.
@@ -1423,9 +1444,8 @@ class Atmosphere(object):
 
 		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
 		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
-		# spectra.wavelength = self.wavelength_obs
-		spectra.wavelength = spectra_list[0,:,-1]
-		spectra.spec[indx,indy] = spectra_list[...,:-1]
+		spectra.wavelength = self.wavelength_obs
+		spectra.spec[indx,indy] = spectra_list
 
 		if self.norm:
 			if self.norm_level=="hsra":
@@ -1448,53 +1468,43 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
+			
+			sI, sQ, sU, sV = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			spec = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
+			sI, sQ, sU, sV = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
 
-		# if self.instrumental_profile is not None:
-		# 	N = len(self.instrumental_profile)
-		# 	sI = extend(spec.I, N)
-		# 	spec.I = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
-		# 	sQ = extend(spec.Q, N)
-		# 	spec.Q = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
-		# 	sU = extend(spec.U, N)
-		# 	spec.U = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
-		# 	sV = extend(spec.V, N)
-		# 	spec.V = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
+		if self.instrumental_profile is not None:
+			N = len(self.instrumental_profile)
+			sI = extend(sI, N)
+			sI = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
+			sQ = extend(sQ, N)
+			sQ = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
+			sU = extend(sU, N)
+			sU = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
+			sV = extend(sV, N)
+			sV = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
 
-		# interpolate the output spectrum to an observation wavelength 
-		# grid because conversion air --> vacuum --> air has a significant
-		# difference which hinders the vz inversion (~ 0.13 km/s for 
-		# Hinode line par).
+		# interpolate the output spectrum to an observation wavelength
 		if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
-			tck = splrep(spec.lam, spec.I)
-			spec.I = splev(self.wavelength_obs, tck, ext=3)
-			tck = splrep(spec.lam, spec.Q)
-			spec.Q = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(spec.lam, spec.U)
-			spec.U = splev(self.wavelength_obs, tck, ext=1)
-			tck = splrep(spec.lam, spec.V)
-			spec.V = splev(self.wavelength_obs, tck, ext=1)
 
-			spec.lam = self.wavelength_obs
+			tck = splrep(self.wavelength_air, sI)
+			sI = splev(self.wavelength_obs, tck, ext=3)
+			tck = splrep(self.wavelength_air, sQ)
+			sQ = splev(self.wavelength_obs, tck, ext=1)
+			tck = splrep(self.wavelength_air, sU)
+			sU = splev(self.wavelength_obs, tck, ext=1)
+			tck = splrep(self.wavelength_air, sV)
+			sV = splev(self.wavelength_obs, tck, ext=1)
 
-			# return StokesI, StokesQ, StokesU, StokesV, spec.lam
-
-		# when we are computing only the continuum intensity from HSRA for
-		# spectrum normalization or in synthesis mode 
-		# (wavelength_air == wavelength_obs)
-		
-		# return spec.I, spec.Q, spec.U, spec.V, spec.lam
-		return np.vstack((spec.I, spec.Q, spec.U, spec.V, spec.lam))
+		return np.vstack((sI, sQ, sU, sV))
 
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
@@ -1599,14 +1609,21 @@ class Atmosphere(object):
 					with mp.Pool(self.n_thread) as pool:
 						results = pool.map(func=_compute_vmac_RF, iterable=args)
 
+					dlam = spec.wavelength[1] - spec.wavelength[0]
+
 					results = np.array(results)
 					self.rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
-					self.rf[:,:,free_par_ID] *= kernel_sigma * self.step / self.global_pars["vmac"]
+					self.rf[:,:,free_par_ID] *= kernel_sigma * dlam / self.global_pars["vmac"]
+					self.rf[:,:,free_par_ID] *= weights
 					self.rf[:,:,free_par_ID] /= rf_noise_scale
 					self.rf[:,:,free_par_ID] *= np.sqrt(2)
-					self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
+					# self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
 
 					self.rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
+
+					# plt.plot(self.rf[0,0,free_par_ID,:,0])
+					# plt.show()
+					# sys.exit()
 
 					skip_par = free_par_ID
 					free_par_ID += 1
@@ -1653,22 +1670,35 @@ class Atmosphere(object):
 
 		#--- add the stray light component:
 		if self.add_stray_light:
-			for idx in range(self.nx):
-				for idy in range(self.ny):
-					if self.stray_mode==1 or self.stray_mode==2:
-						stray_factor = self.stray_light[idx,idy]
-					if self.stray_mode==3:
-						if self.invert_stray:
-							stray_factor = self.global_pars["stray"]
-						else:
-							stray_factor = self.stray_light[idx,idy]
-					if self.stray_type=="hsra":
-						spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
-					if self.stray_type=="gray":
-						spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
-						spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
-						spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
-						spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
+			# get the strat light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			hsra_spec = None
+			if self.stray_type=="hsra":
+				hsra_spec = self.hsra_spec
+
+			spec.add_stray_light(self.stray_mode, stray_light, self.stray_type, hsra_spec=hsra_spec)
+			
+			# for idx in range(self.nx):
+			# 	for idy in range(self.ny):
+			# 		if self.stray_mode==1 or self.stray_mode==2:
+			# 			stray_factor = self.stray_light[idx,idy]
+			# 		if self.stray_mode==3:
+			# 			if self.invert_stray:
+			# 				stray_factor = self.global_pars["stray"]
+			# 			else:
+			# 				stray_factor = self.stray_light[idx,idy]
+			# 		if self.stray_type=="hsra":
+			# 			spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
+			# 		if self.stray_type=="gray":
+			# 			spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
+			# 			spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
+			# 			spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
+			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
@@ -2045,8 +2075,10 @@ def _broaden_rfs(args):
 def _compute_vmac_RF(args):
 	spec, kernel = args
 
+	N = len(kernel)
 	for ids in range(4):
-		spec[...,ids] = correlate1d(spec[...,ids], kernel)
+		aux = extend(spec[:,ids], N)
+		spec[:,ids] = np.convolve(aux, kernel, mode="same")[N:-N]
 
 	return spec
 
