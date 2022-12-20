@@ -341,12 +341,11 @@ class Inverter(InputData):
 				# checked if the array manipulations return what we expect
 				# and it does!
 
+				# get scaling of Hessian matrix
+				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=1)
+
 			# hessian = (nx, ny, npar, npar)
 			H = JTJ
-
-			# get scaling
-			H_scale, delta_scale = normalize_hessian(H, atmos, mode=1)
-
 			H *= H_scale
 
 			# multiply with LM parameter
@@ -411,8 +410,8 @@ class Inverter(InputData):
 								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
 								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 			
-			if atmos.instrumental_profile is not None:
-				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+			# if atmos.instrumental_profile is not None:
+			# 	corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -657,6 +656,9 @@ class Inverter(InputData):
 
 				#---
 				JglobalT = Jglobal.transpose()
+				JTJ = JglobalT.dot(Jglobal)
+
+				del Jglobal
 
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
 				aux = aux.reshape(Natmos, 4*Nw, order="C")
@@ -676,6 +678,9 @@ class Inverter(InputData):
 				# It produces expected results.
 				# [17.11.2022.] This statement still holds also for regularization terms.
 
+				# get the scaling for H, deltaSP and parameters
+				sp_scales, scales = normalize_hessian(JTJ, atmos, mode=3)
+
 			#--- invert Hessian matrix
 
 			# fig = plt.figure()
@@ -683,7 +688,7 @@ class Inverter(InputData):
 			# ax1 = fig.add_subplot(gs[0,0])
 			# ax2 = fig.add_subplot(gs[0,1])
 
-			H = JglobalT.dot(Jglobal)
+			H = JTJ
 			if atmos.spatial_regularization:
 				H += LTL
 				Hdiag = H.diagonal(k=0)
@@ -695,9 +700,6 @@ class Inverter(InputData):
 				# plt.show()
 				# print(eta[:Nlocalpar])
 				# sys.exit()
-
-			# get the scaling for H, deltaSP and parameters
-			sp_scales, scales = normalize_hessian(H, atmos, mode=3)
 
 			H = H.multiply(sp_scales)
 			RHS = deltaSP/scales
@@ -782,8 +784,8 @@ class Inverter(InputData):
 							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
 
 			# convolve profiles with instrumental profile
-			if atmos.instrumental_profile is not None:
-				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			# if atmos.instrumental_profile is not None:
+			# 	corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -897,8 +899,8 @@ class Inverter(InputData):
 						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
 						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
 		
-		if atmos.instrumental_profile is not None:
-			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+		# if atmos.instrumental_profile is not None:
+		# 	inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 

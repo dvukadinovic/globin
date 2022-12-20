@@ -6,7 +6,7 @@ import sys
 import copy
 import time
 from scipy.ndimage import median_filter, correlate1d
-from scipy.interpolate import splev, splrep
+from scipy.interpolate import splev, splrep, interp1d
 import matplotlib.pyplot as plt
 from tqdm import tqdm, trange
 import multiprocessing as mp
@@ -964,8 +964,9 @@ class Atmosphere(object):
 			for idy in range(self.ny):
 				for idp in range(1, 8):
 					if idp!=2:
-						tck = splrep(self.logtau, self.data[idx,idy,idp])
-						cube[idx,idy,idp] = splev(xnew, tck)
+						# tck = splrep(self.logtau, self.data[idx,idy,idp])
+						# cube[idx,idy,idp] = splev(xnew, tck)
+						cube[idx,idy,idp] = interp1d(self.logtau, self.data[idx,idy,idp])(xnew)
 
 		self.data = cube
 		self.data[:,:,0] = xnew
@@ -1380,22 +1381,24 @@ class Atmosphere(object):
 
 		return self.icont, self.hsra_spec
 
-	def get_hsra_cont_Bezier(self):
-		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
-		hsra.mu = self.mu
+	def get_hsra_cont_Bezier(self, Nz=200):
+		atmos = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+		if atmos.nz!=Nz:
+			atmos.resample(Nz=Nz)
+		atmos.mu = self.mu
 
 		wlref = self.wavelength_vacuum[0]
-		tau = hsra.get_tau(wlref)
+		tau = atmos.get_tau(wlref)
 
 		wlref = self.wavelength_obs[0]
-		B = Planck(wlref, hsra.data[0,0,1])
+		B = Planck(wlref, atmos.data[0,0,1])
 		C = get_control_point(tau, B, K0=None, Kn=None, degree=2)
 
-		StokesI = np.zeros(hsra.nz)
+		StokesI = np.zeros(atmos.nz)
 		Kn = (B[-1]-B[-2])/(tau[-1]-tau[-2])
 		StokesI[-1] = B[-1] + Kn
 
-		for idz in range(hsra.nz-2,-1,-1):
+		for idz in range(atmos.nz-2,-1,-1):
 			dt = tau[idz+1] - tau[idz]
 			alpha = 2 + dt**2 - 2*dt - 2*np.exp(-dt)
 			alpha /= dt**2
@@ -1410,6 +1413,8 @@ class Atmosphere(object):
 		# StokesI *= globin.LIGHT_SPEED/nu**2
 
 		print(StokesI[0])
+
+		return StokesI[0]
 
 	def get_tau(self, wlref):
 		tau_wlref = self.RH.get_tau(self.cwd, self.mu, 0, self.data[0,0], np.array([wlref]))
@@ -1701,9 +1706,9 @@ class Atmosphere(object):
 			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
 		#--- add instrumental broadening
-		if self.instrumental_profile is not None:
-			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		# if self.instrumental_profile is not None:
+		# 	spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+		# 	self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
