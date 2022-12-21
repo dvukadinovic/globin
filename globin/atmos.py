@@ -1713,12 +1713,12 @@ class Atmosphere(object):
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
 		
-		# update the RFs for those pixels that have updated parameters
-		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
-
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			spec.interpolate(self.wavelength_obs, self.n_thread)
-			self.rf = interpolate_rf(self.rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
+			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
+
+		# update the RFs for those pixels that have updated parameters
+		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
