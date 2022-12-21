@@ -1538,7 +1538,7 @@ class Atmosphere(object):
 		elif (self.mode==2) or (self.mode==3):
 			Npar = self.n_local_pars + self.n_global_pars
 
-		self.rf = np.zeros((self.nx, self.ny, Npar, Nw, 4))
+		rf = np.zeros((self.nx, self.ny, Npar, Nw, 4))
 
 		active_indx, active_indy = np.where(synthesize==1)
 
@@ -1592,7 +1592,7 @@ class Atmosphere(object):
 				node_RF *= np.sqrt(2)
 				
 				#--- set RFs value
-				self.rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
+				rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
 				free_par_ID += 1
 
 				#--- return back perturbations (node way)
@@ -1625,18 +1625,13 @@ class Atmosphere(object):
 					dlam = spec.wavelength[1] - spec.wavelength[0]
 
 					results = np.array(results)
-					self.rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
-					self.rf[:,:,free_par_ID] *= kernel_sigma * dlam / self.global_pars["vmac"]
-					self.rf[:,:,free_par_ID] *= weights
-					self.rf[:,:,free_par_ID] /= rf_noise_scale
-					self.rf[:,:,free_par_ID] *= np.sqrt(2)
-					# self.rf[:,:,free_par_ID] = np.einsum("ijkl,l->ijkl", self.rf[:,:,free_par_ID], weights)
+					rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
+					rf[:,:,free_par_ID] *= kernel_sigma * dlam / self.global_pars["vmac"]
+					rf[:,:,free_par_ID] *= weights
+					rf[:,:,free_par_ID] /= rf_noise_scale
+					rf[:,:,free_par_ID] *= np.sqrt(2)
 
-					self.rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
-
-					# plt.plot(self.rf[0,0,free_par_ID,:,0])
-					# plt.show()
-					# sys.exit()
+					rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
 
 					skip_par = free_par_ID
 					free_par_ID += 1
@@ -1650,7 +1645,7 @@ class Atmosphere(object):
 					diff /= rf_noise_scale
 					diff *= np.sqrt(2)
 
-					self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
+					rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 					free_par_ID += 1
 
 				elif parameter=="loggf" or parameter=="dlam":
@@ -1669,7 +1664,7 @@ class Atmosphere(object):
 							diff /= rf_noise_scale
 							diff *= np.sqrt(2)
 
-							self.rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
+							rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 							free_par_ID += 1
 							
 							self.global_pars[parameter][...,idp] += perturbation
@@ -1679,7 +1674,7 @@ class Atmosphere(object):
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
-				self.rf = broaden_rfs(self.rf, kernel, synthesize, skip_par, self.n_thread)
+				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread)
 
 		#--- add the stray light component:
 		if self.add_stray_light:
@@ -1713,14 +1708,26 @@ class Atmosphere(object):
 			# 			spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
 			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
+		# N = len(self.instrumental_profile)
+		# aux = extend(self.rf[0,0,0,:,0], N)
+		# aux = np.convolve(aux, self.instrumental_profile, mode="same")[N:-N]
+
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			# self.rf = broaden_rfs(self.rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+			self.rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		else:
+			self.rf = rf
+
+		plt.plot(self.wavelength_air, spec.spec[0,0,:,0])
 
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			spec.interpolate(self.wavelength_obs)
-			self.rf = interpolate_rf(self.rf, self.wavelength_air, self.wavelength_obs)
+			spec.interpolate(self.wavelength_obs, self.n_thread)
+			self.rf = interpolate_rf(self.rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
+	
+		plt.plot(self.wavelength_obs, spec.spec[0,0,:,0])
+		plt.show()
+		sys.exit()
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
@@ -2054,7 +2061,6 @@ class Atmosphere(object):
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	nx, ny, npar, nw, ns = rf.shape
 
-	indx, indy = np.where(flag==1)
 	indp = np.arange(npar, dtype=np.int32)
 	if skip_par!=-1:
 		npar -= 1
@@ -2065,22 +2071,28 @@ def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	if len(indp)==0:
 		return rf
 
-	_rf = rf[indx,indy][:,indp]
-	_rf = _rf.reshape(len(indx)*npar, nw, ns)
+	_rf = rf[:,:,indp,:,:].reshape(nx*ny, npar, nw, ns)
+	_rf = _rf.reshape(nx*ny*npar, nw, ns)
 	
-	args = zip(_rf,[kernel]*len(indx)*npar)
+	_flag = flag.reshape(nx*ny)
+	_flag = np.repeat(_flag, npar)
+
+	args = zip(_rf, [kernel]*nx*ny*npar, _flag)
 
 	with mp.Pool(n_thread) as pool:
 		results = pool.map(func=_broaden_rfs, iterable=args)
 
 	results = np.array(results)
-	results = results.reshape(len(indx), npar, nw, ns)
-	rf[indx,indy][:,indp] = results
+	results = results.reshape(nx*ny, npar, nw, ns)
+	rf[:,:,indp,:,:] = results.reshape(nx, ny, npar, nw, ns)
 
 	return rf
 
 def _broaden_rfs(args):
-	rf, kernel = args
+	rf, kernel, flag = args
+
+	if flag==0:
+		return rf
 
 	N = len(kernel)
 	for ids in range(4):
@@ -2099,18 +2111,31 @@ def _compute_vmac_RF(args):
 
 	return spec
 
-def interpolate_rf(rf_in, wave_in, wave_out):
+def interpolate_rf(rf_in, wave_in, wave_out, n_thread):
 	nx, ny, npar, nw, ns = rf_in.shape
 
-	rf_out = np.zeros((nx, ny, npar, len(wave_out), ns))
+	_rf = rf_in.reshape(nx*ny, npar, nw, ns)
 
-	for idx in range(nx):
-		for idy in range(ny):
-			for idp in range(npar):
-				for ids in range(ns):
-					rf_out[idx,idy,idp,:,ids] = interp1d(wave_in, rf_in[idx,idy,idp,:,ids])(wave_out)
+	args = zip(_rf, [wave_in]*(nx*ny), [wave_out]*(nx*ny))
 
-	del rf_in
+	with mp.Pool(n_thread) as pool:
+		results = pool.map(func=_interpolate_rf, iterable=args)
+
+	results = np.array(results)
+	rf_out = results.reshape(nx, ny, npar, len(wave_out), ns)
+
+	return rf_out
+
+def _interpolate_rf(args):
+	rf_in, wave_in, wave_out = args
+
+	npar,_,_ = rf_in.shape
+
+	rf_out = np.zeros((npar, len(wave_out), 4))
+
+	for idp in range(npar):
+		for ids in range(4):
+			rf_out[idp,:,ids] = interp1d(wave_in, rf_in[idp,:,ids], kind=3)(wave_out)
 
 	return rf_out
 

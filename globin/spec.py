@@ -286,24 +286,35 @@ class Spectrum(object):
 	def read(self, fpath):
 		return
 
-	def interpolate(self, wavs):
+	def interpolate(self, wave_out, n_thread):
 		"""
-		Interpolate the spectrum on given 'wavs' wavelength grid.
+		Interpolate the spectrum on given 'wave_out' wavelength grid.
 		"""
-		spectra = np.zeros((self.nx, self.ny, len(wavs), 4))
-
-		if wavs[0]<self.wavelength[0] or wavs[-1]>self.wavelength[-1]:
+		if wave_out[0]<self.wavelength[0] or wave_out[-1]>self.wavelength[-1]:
 			raise ValueError("Interpolation is outside of the wavelength range.")
+		
+		# spectra = np.zeros((self.nx, self.ny, len(wave_out), 4))
+		_spec = self.spec.reshape(self.nx*self.ny, self.nw, 4)
 
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				for ids in range(4):
-					# tck = splrep(self.wavelength, self.spec[idx,idy,:,ids])
-					spectra[idx,idy,:,ids] = interp1d(self.wavelength, self.spec[idx,idy,:,ids])(wavs) # splev(wavs, tck)
+		args = zip(_spec, [wave_out]*(self.nx*self.ny))
 
-		self.spec = spectra
-		self.nw = len(wavs)
-		self.wavelength = wavs
+		with mp.Pool(n_thread) as pool:
+			results = pool.map(func=self._interpolate, iterable=args)
+
+		results = np.array(results)
+		self.nw = len(wave_out)
+		self.wavelength = wave_out
+		self.spec = results.reshape(self.nx, self.ny, self.nw, 4)
+
+	def _interpolate(self, args):
+		spec_in, wave_out = args
+
+		spec_out = np.zeros((len(wave_out), 4))
+
+		for ids in range(4):
+			spec_out[:,ids] = interp1d(self.wavelength, spec_in[:,ids], kind=3)(wave_out)
+
+		return spec_out
 
 class Observation(Spectrum):
 	"""
