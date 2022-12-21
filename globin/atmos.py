@@ -1711,9 +1711,10 @@ class Atmosphere(object):
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			self.rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
-		else:
-			self.rf = rf
+			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		
+		# update the RFs for those pixels that have updated parameters
+		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
 
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			spec.interpolate(self.wavelength_obs, self.n_thread)

@@ -248,7 +248,7 @@ class Inverter(InputData):
 		chi2.Nw = np.count_nonzero(self.weights)*Nw
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
 
-		# atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, len(atmos.wavelength_air), 4))
+		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
 
@@ -566,7 +566,7 @@ class Inverter(InputData):
 		indx, indy = np.where(ones==1)		
 
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
-		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, len(atmos.wavelength_air), 4))
+		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
 		# eye matrix
 		eye = sp.eye(Natmos*Nlocalpar + Nglobalpar, Natmos*Nlocalpar + Nglobalpar)
@@ -1139,6 +1139,12 @@ def normalize_hessian(H, atmos, mode):
 			for idy in range(atmos.ny):
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
+
+				# idp = np.where(scales==0)
+				# if len(idp)>0:
+				# 	print(idx, idy)
+				# 	print(scales)
+				# 	sys.exit("Parameter scales is ")
 
 				l, u = 0, 0
 				for parameter in atmos.nodes:
