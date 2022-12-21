@@ -415,7 +415,7 @@ class Inverter(InputData):
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-				corrected_spec.interpolate(atmos.wavelength_obs)
+				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -507,7 +507,7 @@ class Inverter(InputData):
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-			inverted_spectra.interpolate(atmos.wavelength_obs)
+			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 
@@ -796,7 +796,7 @@ class Inverter(InputData):
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-				corrected_spec.interpolate(atmos.wavelength_obs)
+				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -914,7 +914,7 @@ class Inverter(InputData):
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-			inverted_spectra.interpolate(atmos.wavelength_obs)
+			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		return atmos, inverted_spectra, chi2
 

@@ -1708,10 +1708,6 @@ class Atmosphere(object):
 			# 			spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
 			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 
-		# N = len(self.instrumental_profile)
-		# aux = extend(self.rf[0,0,0,:,0], N)
-		# aux = np.convolve(aux, self.instrumental_profile, mode="same")[N:-N]
-
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
