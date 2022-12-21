@@ -1719,15 +1719,9 @@ class Atmosphere(object):
 		else:
 			self.rf = rf
 
-		plt.plot(self.wavelength_air, spec.spec[0,0,:,0])
-
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			self.rf = interpolate_rf(self.rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
-	
-		plt.plot(self.wavelength_obs, spec.spec[0,0,:,0])
-		plt.show()
-		sys.exit()
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
