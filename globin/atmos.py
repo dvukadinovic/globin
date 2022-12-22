@@ -110,7 +110,7 @@ class Atmosphere(object):
 	# 								  "nH"     : "Hydrogen density"}
 
 	#--- normalization values for atmospheric parameters
-	#    use them to scale RFs first and regularization functions
+	#    use them to scale RFs first and regularization functions;
 	#    RFs are later scaled together with regularization 
 	#    contributions to have 1s on the Hessian diagonal (before
 	#    adding the Marquardt parameter).
@@ -577,6 +577,23 @@ class Atmosphere(object):
 	def nH(self):
 		return self.data[:,:,8:]
 
+	def get_atmos(self, idx, idy):
+		dtau = self.logtau[1] - self.logtau[0]
+		new = Atmosphere(nx=1, ny=1, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
+
+		new.data[0,0] = self.data[idx,idy]
+		new.logtau = self.logtau
+
+		for parameter in self.nodes:
+			nnodes = len(self.nodes[parameter])
+			new.nodes[parameter] = np.zeros((1,1,nnodes))
+			new.nodes[parameter][0,0] = self.nodes[parameter]
+			new.values[parameter] = np.zeros((1,1,nnodes))
+			new.values[parameter][0,0] = self.values[parameter][idx,idy]
+			# new.parameter_scale[parameter][0,0] = self.parameter_scale[parameter][idx,idy]
+
+		return new
+
 	def build_from_nodes(self, flag=None, params=None):
 		"""
 		Construct the atmosphere from node values for given parameters.
@@ -740,8 +757,8 @@ class Atmosphere(object):
 				elif self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
 				# similar for the bottom for maximum/min values
-				# if self.limit_values[parameter][1]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-				# 	Kn = (self.limit_values[parameter][1] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+				# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 				if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 					Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
@@ -751,15 +768,15 @@ class Atmosphere(object):
 				y_new = spline_interpolation(x, y, atmos.logtau, tension=self.spline_tension, K0=K0, Kn=Kn)
 
 			# it the LOS velocity switches the sign, we re-extrapolate it so that it does not (SPINOR style, hatcha!)
-			if parameter=="vz":
-				sign = y_new[-1]*y[-1]
-				if sign<0:
-					ind = np.argmin(np.abs(self.logtau-x[-1]))
-					for idz in range(ind, self.nz):
-						if y[-1]>0:
-							y_new[idz] = np.max([y_new[idz], y[-1]/2])
-						if y[-1]<0:
-							y_new[idz] = np.min([y_new[idz], y[-1]/2])
+			# if parameter=="vz":
+			# 	sign = y_new[-1]*y[-1]
+			# 	if sign<0:
+			# 		ind = np.argmin(np.abs(self.logtau-x[-1]))
+			# 		for idz in range(ind, self.nz):
+			# 			if y[-1]>0:
+			# 				y_new[idz] = np.max([y_new[idz], y[-1]/2])
+			# 			if y[-1]<0:
+			# 				y_new[idz] = np.min([y_new[idz], y[-1]/2])
 
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 

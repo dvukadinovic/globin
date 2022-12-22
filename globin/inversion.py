@@ -365,8 +365,13 @@ class Inverter(InputData):
 			# 					idx=idx, idy=idy)
 			# 				globin.show()
 
+			#plt.imshow(H[0,0], origin="upper")
+			#plt.colorbar()
+			#plt.show()
+			#sys.exit()
+
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
-			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, Npar, atmos.nx, atmos.ny, self.n_thread)
+			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, self.n_thread)
 
 			#--- save old parameters (atmospheric and atomic)
 			old_atmos_parameters = copy.deepcopy(atmos.values)
@@ -1014,7 +1019,8 @@ class Inverter(InputData):
 
 		return reg_weight, total_chi2, regul_chi2
 
-def invert_Hessian(H, delta, svd_tolerance, stop_flag, Npar, nx, ny, n_thread=1):
+def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1):
+	nx, ny, Npar, _ = H.shape
 	indx, indy = np.where(stop_flag==1)
 	args = zip(H[indx,indy], delta[indx,indy], [svd_tolerance]*nx*ny)
 
