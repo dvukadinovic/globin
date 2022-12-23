@@ -80,7 +80,9 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     plt.show()
 
 def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"]):
-    cmaps = {"temp" : "plasma", "mag" : "nipy_spectral", "vz" : "bwr_r", "vmic" : "plasma"}
+    cmaps = {"temp" : "plasma", "mag" : "nipy_spectral", 
+             "vz" : "bwr_r", "vmic" : "plasma",
+             "gamma" : "nipy_spectral"}
     
     N = 1
     n2 = 0
