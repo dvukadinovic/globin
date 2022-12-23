@@ -6,62 +6,44 @@ import copy
 
 import globin
 
-obs = globin.Observation("obs_uniform.fits")
-#atm = globin.Atmosphere("atmos_uniform.fits")
+#===--- Estimate the spatial regularization relative weighting
+#inverter = globin.Inverter(verbose=True)
+#inverter.read_input(run_name="reg_test")
+# alpha, chi2, chi2_reg = inverter.estimate_regularization_weight(-6, 2, num=9, fpath="reg_weight")
 
-#inv = globin.Atmosphere("runs/dummy/inverted_atmos_c1.fits")
+# alpha, chi2, chi2_reg = np.loadtxt("reg_weight", unpack=True)
 
-# print(inv.values["temp"][0,0])
-# print(atm.values["temp"][0,0])
-# print(inv.pg_top, atm.pg_top)
-
-# plt.plot(inv.data[0,0,2] - atm.data[0,0,2])
+# plt.plot(alpha, chi2)
+# plt.plot(alpha, chi2_reg)
+# plt.xscale("log")
+# plt.yscale("log")
 # plt.show()
 
 # sys.exit()
 
-# obs2 = globin.Observation("obs_uniform_norm_sl3p.fits")
+#===--- Synthesis/Inversion
+# obs = globin.Observation("obs_bezier_Fe630_mu1_abs.fits")
+# inv = globin.Observation("runs/dummy/inverted_spectra_c1.fits")
 
 # for idx in range(obs.nx):
-# 	for idy in range(obs.ny):
-# 		globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength,
-# 			inv=obs2.spec[idx,idy])
-# 		plt.show()
-# sys.exit()
-
-# inv = globin.Atmosphere("runs/mode3_test/inverted_atmos.fits")
-# # inv_spec = globin.Observation("runs/mode3_test/inverted_spectra.fits")
-# inv_spec = globin.Observation("spectrum.fits")
-
-# params = ["temp", "vz", "vmic", "mag", "gamma", "chi"]
-# # params = ["ne", "nH"]
-# for idx in range(atmos.nx):
-# 	for idy in range(atmos.ny):
-# 		# globin.visualize.plot_atmosphere(atmos, params, idx=idx, idy=idy)
-# 		# globin.visualize.plot_atmosphere(inv, params, idx=idx, idy=idy, color="tab:red")
-# 		# plt.show()
-
-# 		globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv_spec.spec[idx,idy])
-# 		plt.show()
-
+#     for idy in range(obs.ny):
+#         globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv.spec[idx,idy])
+#         globin.show()
 # sys.exit()
 
 inverter = globin.Inverter(verbose=True)
 inverter.read_input(run_name="dummy")
-inv_atmos, inv_spec = inverter.run()
-sys.exit()
+inv_atmos, inv_spec, chi2 = inverter.run()
 
-for parameter in inv_atmos.nodes:
-	print(parameter)
-	if parameter in ["gamma", "chi"]:
-		print(inv_atmos.values[parameter] * 180/np.pi)
-	else:
-		print(inv_atmos.values[parameter])
-	print("-----")
+idx, idy = 0,0
+inv = None
+obs = inv_spec
+if inverter.mode>=1:
+    obs = inverter.observation
+    inv = inv_spec.spec[idx,idy]
+globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv)
+globin.show()
 
-# print(inv_atmos.global_pars)
-
-for idx in range(inv_atmos.nx):
-	for idy in range(inv_atmos.ny):
-		globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv_spec.spec[idx,idy])
-		plt.show()
+atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[1,2,2,3])
+globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "vmic", "mag", "gamma", "chi"], reference=atmos)
+globin.show()

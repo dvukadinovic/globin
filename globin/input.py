@@ -1101,6 +1101,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
+	Ic = obs.I[:,:,0]
 
 	# number of interpolation points for each spectral line
 	N = 101
@@ -1186,7 +1187,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				# plt.plot(obs.I[idx,idy].max() - obs.I[idx,idy])
 
 				# find spectral lines
-				peaks, properties = find_peaks(obs.I[idx,idy].max() - obs.I[idx,idy,ind_min:ind_max],
+				peaks, properties = find_peaks(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy],
 					height=(0.2, None), 
 					width=(1, None),
 					distance=D)
@@ -1212,10 +1213,10 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 				# get only the line of interest and interpolate it on finner grid
 				tmp_x = obs.wavelength[ind_min:ind_max]
-				tmp_si = obs.I[idx,idy,ind_min:ind_max]
-				tmp_sq = obs.Q[idx,idy,ind_min:ind_max]
-				tmp_su = obs.U[idx,idy,ind_min:ind_max]
-				tmp_sv = obs.V[idx,idy,ind_min:ind_max]
+				tmp_si = obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy]
+				tmp_sq = obs.Q[idx,idy,ind_min:ind_max]/Ic[idx,idy]
+				tmp_su = obs.U[idx,idy,ind_min:ind_max]/Ic[idx,idy]
+				tmp_sv = obs.V[idx,idy,ind_min:ind_max]/Ic[idx,idy]
 				x[idx,idy,:,idl] = np.linspace(tmp_x.min(), tmp_x.max(), num=N)
 				si[idx,idy,:,idl] = interp1d(tmp_x, tmp_si, kind=3)(x[idx,idy,:,idl])
 				sq[idx,idy,:,idl] = interp1d(tmp_x, tmp_sq, kind=3)(x[idx,idy,:,idl])

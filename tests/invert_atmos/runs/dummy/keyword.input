@@ -7,8 +7,6 @@
 # First specify input files for atmosphere and abundances
 # (both KEYWORD_REQUIRED).
 
-  ATMOS_FILE = ../../Atmos/FALC_tau_scale.atmos
-  #ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
   ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
@@ -118,7 +116,7 @@
 # Set HYDROGEN_LTE = TRUE if hydrogen in the background has to be
 # treated with LTE populations (KEYWORD_DEFAULT). Default is FALSE
 
-#  HYDROGEN_LTE = TRUE
+  HYDROGEN_LTE = TRUE
 #  HYDROSTATIC = FALSE
 
 # Data file for background opacity fudge to compensate for missing
@@ -151,10 +149,10 @@
 # written to the specified file, as well as the broadening velocity
 # for the specific atom.
 
-  OPACITY_OUTPUT  = opacity.out
-  RADRATE_OUTPUT  = radrate.out
-  COLLRATE_OUTPUT = collrate.out
-  DAMPING_OUTPUT  = damping.out
+#  OPACITY_OUTPUT  = opacity.out
+#  RADRATE_OUTPUT  = radrate.out
+#  COLLRATE_OUTPUT = collrate.out
+#  DAMPING_OUTPUT  = damping.out
 
 # Typical value of ``micro-turbulence'' in [km/s]. Used in getlambda.c
 # to convert doppler units to real wavelengths.
@@ -165,7 +163,7 @@
 # absorption coefficients are calculated seperately for the different mu
 # values (KEYWORD_OPTIONAL).
 
-  VMACRO_TRESH = 1.e-1
+  VMACRO_TRESH = 0
   S_INTERPOLATION = S_BEZIER3
   S_INTERPOLATION_STOKES = DELO_BEZIER3
   
@@ -178,11 +176,11 @@
 # VACUUM_TO_AIR_LIMIT (see spectrum.h) will be converted to air wavelength
 # in the output files.
 
-  VACUUM_TO_AIR = TRUE
+  VACUUM_TO_AIR = FALSE
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-  STOKES_INPUT = ./FALC_82_500G_45.B
+#  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.

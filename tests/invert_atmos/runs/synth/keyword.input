@@ -7,8 +7,7 @@
 # First specify input files for atmosphere and abundances
 # (both KEYWORD_REQUIRED).
 
-  ATMOS_FILE = ../../Atmos/FALC_tau_scale.atmos
-  ABUND_FILE = ../../Atoms/abundance.input
+  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
@@ -18,13 +17,18 @@
 
   ATOMS_FILE = atoms.input
 
+# arklem tables for the collisional coefficients
+  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
+  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
+  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
+
 # Input file for all molecules (KEYWORD_REQUIRED).
 
   MOLECULES_FILE = molecules.input
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = /home/vukadinovic/Documents/globin/tests/invert_atmos/runs/synth/win_4015_two_lines.wave
+  WAVETABLE = spinor.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
@@ -103,16 +107,17 @@
 # type KEYWORD_DEFAULT
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
-  KURUCZ_PF_DATA = ../../Atoms/pf_Kurucz.input
+  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
+  #KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
-  SOLVE_NE = ONCE
+  SOLVE_NE = NONE
   RLK_SCATTER = FALSE
 
 # Set HYDROGEN_LTE = TRUE if hydrogen in the background has to be
 # treated with LTE populations (KEYWORD_DEFAULT). Default is FALSE
 
   HYDROGEN_LTE = TRUE
-  HYDROSTATIC = FALSE
+#  HYDROSTATIC = FALSE
 
 # Data file for background opacity fudge to compensate for missing
 # UV line haze. Type is KEYWORD_OPTIONAL. When set to ``none'' (the
@@ -122,8 +127,8 @@
 # OF_SASHA if opacity fudge factors from Shapiro+10 should be used
 # (added on 03/04/2020 by D.Vukadinovic); it does not show any infulence.
 
-#  OPACITY_FUDGE = ../../Atmos/opacity_fudge.input
-#  OPACITY_FUDGE = ../../Atmos/of_test
+# OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
+#  OPACITY_FUDGE = of.data
 #  OF_SASHA = ../../Atmos/of_sasha.dat
 #  LINE_FUDGE = TRUE
 
@@ -144,10 +149,10 @@
 # written to the specified file, as well as the broadening velocity
 # for the specific atom.
 
-  OPACITY_OUTPUT  = opacity.out
-  RADRATE_OUTPUT  = radrate.out
-  COLLRATE_OUTPUT = collrate.out
-  DAMPING_OUTPUT  = damping.out
+#  OPACITY_OUTPUT  = opacity.out
+#  RADRATE_OUTPUT  = radrate.out
+#  COLLRATE_OUTPUT = collrate.out
+#  DAMPING_OUTPUT  = damping.out
 
 # Typical value of ``micro-turbulence'' in [km/s]. Used in getlambda.c
 # to convert doppler units to real wavelengths.
@@ -158,7 +163,7 @@
 # absorption coefficients are calculated seperately for the different mu
 # values (KEYWORD_OPTIONAL).
 
-  VMACRO_TRESH = 1.e-1
+  VMACRO_TRESH = 0
   S_INTERPOLATION = S_BEZIER3
   S_INTERPOLATION_STOKES = DELO_BEZIER3
   
@@ -171,11 +176,11 @@
 # VACUUM_TO_AIR_LIMIT (see spectrum.h) will be converted to air wavelength
 # in the output files.
 
-  VACUUM_TO_AIR = TRUE
+  VACUUM_TO_AIR = FALSE
 
 # Input file for the magnetic field (KEYWORD_OPTIONAL). Default is "none".
 
-  STOKES_INPUT = ./FALC_82_500G_45.B
+#  STOKES_INPUT = ./FALC_82_500G_45.B
 
 # Input Stokes mode (KEYWORD_OPTIONAL). 
 # Options are: NO_STOKES, FIELD_FREE, POLARIZATION_FREE, and FULL_STOKES.
@@ -185,7 +190,7 @@
 
 # Include magneto-optical effects (KEYWORD_DEFAULT). Default is TRUE.
 
-#  MAGNETO_OPTICAL = FALSE
+  MAGNETO_OPTICAL = FALSE
 
 # Typical value of magnetic field in Tesla (1 T = 1.0E+4 Gauss)
 # (KEYWORD_DEFAULT).
@@ -215,4 +220,3 @@
 #  N_THREADS = 2
 
 # End
-
