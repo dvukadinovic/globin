@@ -1125,6 +1125,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	inclination = 0
 
 	init_lines = [None]*nl
+	mag_line = [None]*nl
 
 	for idl, line in enumerate(lines):
 		line = list(filter(None,line.split(" ")))
@@ -1133,9 +1134,11 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 		if len(line)==2:
 		   lam0, line_dlam = map(float,line)
 		   init_lines[idl] = [lam0, line_dlam/1e4]
+		   mag_line[idl] = False
 		elif len(line)==7:
-			raise ValueError("We currently do not support intialization of magnetic field vector.")
+			# raise ValueError("We currently do not support intialization of magnetic field vector.")
 			init_mag = True
+			mag_line[idl] = True
 			lam0, line_dlam, geff, gl, gu, Jl, Ju = map(float, line)
 			gs = gu + gl
 			gd = gu - gl
@@ -1160,16 +1163,20 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 		D = obs.nw//2
 
 	# initialize the arrays to be used
-	x = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	si = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	sq = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	su = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	sv = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	x = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	si = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sq = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	su = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sv = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 
 	for idx in range(obs.nx):
 		for idy in range(obs.ny):
 			for idl, line in enumerate(init_lines):
-				lam0, line_dlam = line
+				if not mag_line[idl]:
+					lam0, line_dlam = line
+				if mag_line[idl]:
+					lam0, line_dlam, geff, Geff = line
+
 				lmin = lam0 - line_dlam
 				lmax = lam0 + line_dlam
 
@@ -1234,31 +1241,25 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			# azimuth = np.mean(azimuth, axis=-1)
 			# print(azimuth)
 		
-		#--- B + gamma initialization (CoG + WF)
+		#--- B (CoG method)
 		if "mag" in atmos.nodes:
-			lamp = np.sum(x*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
-			lamm = np.sum(x*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
-			
-			# idx, idy = 1,0
-			# plt.plot(1-si[idx,idy]-sv[idx,idy])
-			# plt.plot(1-si[idx,idy]+sv[idx,idy])
-			# print(lamp[idx,idy], lamm[idx,idy])
-			# plt.show()
-			# sys.exit()
+			lamp = simps((1-si-sv)*x, axis=-2) / simps(1-si-sv, axis=-2)
+			lamm = simps((1-si+sv)*x, axis=-2) / simps(1-si+sv, axis=-2)
 
-			if geff!=0:
-				# C = 4*np.pi*globin.LIGHT_SPEED*globin.ELECTRON_MASS/globin.ELECTRON_CHARGE
-				# _blos = (lamp - lamm)/2/lam0 / C / geff / (lam0*1e-9)
-				C = 4.67e-13*(lam0*10)**2*geff
-				_blos = (lamp - lamm)*10/2 / C
-				blos += np.abs(_blos)
-				nl_mag += 1
+			ind = np.argmin(si, axis=-2)
+			_lam0 = x[indx,indy,ind.ravel()].reshape(obs.nx, obs.ny, nl)
 
-			# tck = splrep(x[0,0]*10, si[0,0])
-			# si_der = splev(x[0,0]*10, tck, der=1)
-			
-			# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
-			# print(blos_wf, blos[0,0])
+			C = 4.67e-13 * (_lam0*10)**2 * geff
+			blos = (lamp - lamm)*10/2 / C
+			blos = np.sum(blos, axis=-1)
+			# count how many magnetic lines do we have
+			nl_mag = np.sum(np.ones(nl)[mag_line])
+			blos /= nl_mag
+
+			# convert LOS B to B strength assumin inclination of 60 degrees
+			b = blos / np.cos(np.pi/3)
+
+			atmos.values["mag"] = np.repeat(b[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 
 		#--- inclination initialization
 		# if "gamma" in atmos.nodes:
@@ -1281,46 +1282,6 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 		# 			gamma[idx,idy] = np.arctan2(denom, nom)
 
 		# 	inclination += gamma
-
-	if init_mag:
-		# if "gamma" in atmos.nodes:
-		# 	#--- check for the bounds in inclination
-		# 	#--- inclination can not be closer than 5 degrees to 90 degrees
-		# 	for idx in range(atmos.nx):
-		# 		for idy in range(atmos.ny):
-		# 			if np.abs(inclination[idx,idy]-np.pi/2) < 5*np.pi/180:
-		# 				inclination[idx,idy] = np.pi/2 + 5*np.pi/180 * np.sign(inclination[idx,idy] - np.pi/2)
-		# 	# atmos.values["gamma"] = np.repeat(np.tan(inclination[..., np.newaxis]/nl_mag/2), len(atmos.nodes["gamma"]), axis=-1)
-		# 	# atmos.values["gamma"] = np.repeat(np.cos(inclination[..., np.newaxis]/nl_mag), len(atmos.nodes["gamma"]), axis=-1)
-		# 	atmos.values["gamma"] = np.repeat(inclination[..., np.newaxis]/nl_mag, len(atmos.nodes["gamma"]), axis=-1)
-		# 	y = np.cos(atmos.values["gamma"])
-		# 	atmos.values["gamma"] = np.arccos(y)
-		if "mag" in atmos.nodes:
-			blos /= nl_mag
-			# inclination /= nl_mag
-			# if "gamma" in atmos.nodes:
-			# 	# mag = blos / np.cos(inclination)
-			# 	mag = blos / np.cos(atmos.values["gamma"])
-			# else:
-			mag = blos / np.cos(np.pi/3)
-			#--- check for the bounds in magnetic field strength
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if mag[idx,idy] > atmos.limit_values["mag"].max:
-						mag[idx,idy] = atmos.limit_values["mag"].max
-			atmos.values["mag"] = np.repeat(mag[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
-		# if "chi" in atmos.nodes:
-		# 	# atmos.values["chi"] = np.repeat(np.tan(azimuth[..., np.newaxis]/nl/4), len(atmos.nodes["chi"]), axis=-1)
-		# 	# atmos.values["chi"] = np.repeat(np.cos(azimuth[..., np.newaxis]/nl), len(atmos.nodes["chi"]), axis=-1)
-		# 	atmos.values["chi"] = np.repeat(azimuth[..., np.newaxis]/nl, len(atmos.nodes["chi"]), axis=-1)
-		# 	y = np.cos(atmos.values["chi"])
-		# 	atmos.values["chi"] = np.arccos(y)
-
-		# print("-----")
-		# # print(atmos.values["mag"])
-		# # print(atmos.values["gamma"])
-		# print(atmos.values["chi"] * 180/np.pi)
-		# sys.exit()
 
 def read_OF_data(fpath):
 	try:
