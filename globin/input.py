@@ -1,23 +1,21 @@
 import os
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
 import multiprocessing as mp
 import re
 import copy
 import subprocess as sp
-from scipy.interpolate import interp1d
 from astropy.io import fits
-from scipy.interpolate import splrep, splev
-from scipy.signal import resample
-
-import matplotlib.pyplot as plt
+from scipy.interpolate import splrep, splev, interp1d
+from scipy.integrate import simps
+from scipy.signal import find_peaks
 
 from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
 from .spec import Observation
 from .rh import air_to_vacuum
 from .utils import _set_keyword, _slice_line, construct_atmosphere_from_nodes
-from .container import Globin
 
 import globin
 
@@ -1104,22 +1102,39 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
 
+	# number of interpolation points for each spectral line
+	N = 101
+
 	lines = open(fpath).readlines()
 	lines = [line.rstrip("\n") for line in lines if (len(line.rstrip("\n"))>0) and ("#" not in line)]
 	nl = len(lines)
 	nl_mag = 0
+	
+	if nl>=2:
+		raise ValueError("We currently do not support atmosphere initialization for mroe than one spectral line.")
+
+	indx = np.arange(obs.nx)
+	indy = np.arange(obs.ny)
+	indx, indy = np.meshgrid(indx, indy)
+	indx = indx.ravel()
+	indy = indy.ravel()
 
 	vlos = 0
 	blos = 0
 	azimuth = 0
 	inclination = 0
-	for line in lines:
+
+	init_lines = [None]*nl
+
+	for idl, line in enumerate(lines):
 		line = list(filter(None,line.split(" ")))
 
 		init_mag = False
 		if len(line)==2:
 		   lam0, line_dlam = map(float,line)
+		   init_lines[idl] = [lam0, line_dlam/1e4]
 		elif len(line)==7:
+			raise ValueError("We currently do not support intialization of magnetic field vector.")
 			init_mag = True
 			lam0, line_dlam, geff, gl, gu, Jl, Ju = map(float, line)
 			gs = gu + gl
@@ -1130,129 +1145,142 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			if geff<0:
 				geff = 1/2*gs + 1/4*gd*_d
 			Geff = geff**2 - delta
+			init_lines[idl] = [lam0, line_dlam/1e4, geff, Geff]
 		else:
 			print("[Error] input.initialize_atmos_pars():")
 			print("  Wrong number of parameters for initializing")
 			print("  the LOS velocity and magnetic field vector.")
 			sys.exit()
 
-		line_dlam /= 1e4 # [mA --> nm]
-		lmin = lam0 - line_dlam
-		lmax = lam0 + line_dlam
+	# D = (0.1)/ dlam - 6
 
-		ind_min = np.argmin(np.abs(wavs - lmin))
-		ind_max = np.argmin(np.abs(wavs - lmax))+1
+	# if we are using only one line, set the distance between lines to very high value
+	# that it will not identify other lines in the spectral window
+	if nl==1:
+		D = obs.nw//2
 
-		# x = obs.wavelength[ind_min:ind_max]
-		# si = obs.spec[0,5,ind_min:ind_max,0]
-		# # lam0 = 401.6
-		# lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
-		# vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
-		# print(vlos)
-		# sys.exit()
+	# initialize the arrays to be used
+	x = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	si = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sq = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	su = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sv = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 
-		# plt.plot(globin.ref_atm.logtau, globin.ref_atm.data[0,5,3])
-		# plt.show()
+	for idx in range(obs.nx):
+		for idy in range(obs.ny):
+			for idl, line in enumerate(init_lines):
+				lam0, line_dlam = line
+				lmin = lam0 - line_dlam
+				lmax = lam0 + line_dlam
 
-		# # plt.plot(obs.spec[0,13,ind_min:ind_max,0])
-		# plt.plot(obs.wavelength, obs.spec[0,5,:,0])
-		# plt.show()
-		# sys.exit()
-
-		inds = find_line_positions(obs.I[...,ind_min:ind_max])
-		dd = int(line_dlam // dlam)
-		ind_min += inds - dd
-		ind_max = ind_min + 2*dd
-
-		x = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
-		si = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
-		sq = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
-		su = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
-		sv = np.empty((atmos.nx, atmos.ny, 2*dd),dtype=np.float64)
-
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				mmin = ind_min[idx,idy]
-				mmax = ind_max[idx,idy]
-				if mmin!=np.nan and mmax!=np.nan:
-					x[idx,idy] = obs.wavelength[mmin:mmax]
-					si[idx,idy] = obs.I[idx,idy,mmin:mmax]
-					sq[idx,idy] = obs.Q[idx,idy,mmin:mmax]
-					su[idx,idy] = obs.U[idx,idy,mmin:mmax]
-					sv[idx,idy] = obs.V[idx,idy,mmin:mmax]
-				else:
-					x[idx,idy] = np.nan
-					si[idx,idy] = np.nan
-					sq[idx,idy] = np.nan
-					su[idx,idy] = np.nan
-					sv[idx,idy] = np.nan
-
-		#--- v_LOS initialization (CoG)
-		if "vz" in atmos.nodes:
-			lcog = np.sum(x*(1-si), axis=-1) / np.sum(1-si, axis=-1)
-			vlos += globin.LIGHT_SPEED * (1 - lcog/lam0) / 1e3
-			# vlos = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
-			# atmos.values["vz"] = vlos
-
-		if init_mag:
-			#--- azimuth initialization
-			# if "chi" in atmos.nodes:	
-			# 	_azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
-			# 	# _azimuth %= 2*np.pi
-			# 	azimuth += _azimuth
-				# azimuth = np.mean(azimuth, axis=-1)
-				# print(azimuth)
-			
-			#--- B + gamma initialization (CoG + WF)
-			if "mag" in atmos.nodes:
-				lamp = np.sum(x*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
-				lamm = np.sum(x*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+				ind_min = np.argmin(np.abs(wavs - lmin))
+				ind_max = np.argmin(np.abs(wavs - lmax))+1
 				
-				# idx, idy = 1,0
-				# plt.plot(1-si[idx,idy]-sv[idx,idy])
-				# plt.plot(1-si[idx,idy]+sv[idx,idy])
-				# print(lamp[idx,idy], lamm[idx,idy])
+				# plt.plot(obs.I[idx,idy].max() - obs.I[idx,idy])
+
+				# find spectral lines
+				peaks, properties = find_peaks(obs.I[idx,idy].max() - obs.I[idx,idy,ind_min:ind_max],
+					height=(0.2, None), 
+					width=(1, None),
+					distance=D)
+
+				peaks[0] += ind_min
+
+				# top = 0.8
+				# bot = -0.01
+
+				# colors = ["tab:orange", "tab:red"]
+				# for peak, w, lb, rb, c in zip(peaks, properties["widths"], properties["left_bases"], properties["right_bases"], colors):
+				# 	peak += ind_min
+				# 	plt.axvline(x=peak, c=c)
+				# 	plt.fill_between(x=np.linspace(peak-w, peak+w, num=101), y1=bot, y2=top, color=c, alpha=0.7)
+				
 				# plt.show()
-				# sys.exit()
 
-				if geff!=0:
-					# C = 4*np.pi*globin.LIGHT_SPEED*globin.ELECTRON_MASS/globin.ELECTRON_CHARGE
-					# _blos = (lamp - lamm)/2/lam0 / C / geff / (lam0*1e-9)
-					C = 4.67e-13*(lam0*10)**2*geff
-					_blos = (lamp - lamm)*10/2 / C
-					blos += np.abs(_blos)
-					nl_mag += 1
+				# 'width' of the line; we add 20% to be sure that we can catch wings in Stokes V profile
+				w = properties["widths"][idl] * 1.2
+				w = int(w)
+				ind_min = peaks[0] - w
+				ind_max = peaks[0] + w
 
-				# tck = splrep(x[0,0]*10, si[0,0])
-				# si_der = splev(x[0,0]*10, tck, der=1)
-				
-				# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
-				# print(blos_wf, blos[0,0])
+				# get only the line of interest and interpolate it on finner grid
+				tmp_x = obs.wavelength[ind_min:ind_max]
+				tmp_si = obs.I[idx,idy,ind_min:ind_max]
+				tmp_sq = obs.Q[idx,idy,ind_min:ind_max]
+				tmp_su = obs.U[idx,idy,ind_min:ind_max]
+				tmp_sv = obs.V[idx,idy,ind_min:ind_max]
+				x[idx,idy,:,idl] = np.linspace(tmp_x.min(), tmp_x.max(), num=N)
+				si[idx,idy,:,idl] = interp1d(tmp_x, tmp_si, kind=3)(x[idx,idy,:,idl])
+				sq[idx,idy,:,idl] = interp1d(tmp_x, tmp_sq, kind=3)(x[idx,idy,:,idl])
+				su[idx,idy,:,idl] = interp1d(tmp_x, tmp_su, kind=3)(x[idx,idy,:,idl])
+				sv[idx,idy,:,idl] = interp1d(tmp_x, tmp_sv, kind=3)(x[idx,idy,:,idl])
 
-			#--- inclination initialization
-			# if "gamma" in atmos.nodes:
-			# 	ind_lam_wing = dd//2-1
-			# 	L = np.sqrt(sq**2 + su**2)
-
-			# 	gamma = np.zeros((atmos.nx, atmos.ny))
-			# 	for idx in range(atmos.nx):
-			# 		for idy in range(atmos.ny):
-			# 			tck = splrep(x[idx,idy], si[idx,idy])
-			# 			si_der = splev(x[idx,idy,ind_lam_wing], tck, der=1)
-						
-			# 			_L = L[idx,idy,ind_lam_wing]
-			# 			delta_lam = x[idx,idy,dd] - x[idx,idy,ind_lam_wing]
-
-			# 			denom = -4*geff*delta_lam*si_der * _L
-			# 			denom = np.sqrt(np.abs(denom))
-			# 			nom = 3*Geff*sv[idx,idy,ind_lam_wing]**2
-			# 			nom = np.sqrt(np.abs(nom))
-			# 			gamma[idx,idy] = np.arctan2(denom, nom)
-
-			# 	inclination += gamma
-
+	#--- v_LOS initialization (CoG)
 	if "vz" in atmos.nodes:
+		lcog = simps((1-si)*x, x, axis=-2) / simps(1-si, x, axis=-2)
+		ind = np.argmin(si, axis=-2)
+		_lam0 = x[indx,indy,ind.ravel()].reshape(obs.nx, obs.ny, nl)
+		vlos = globin.LIGHT_SPEED * (1 - lcog/_lam0) / 1e3
+		vlos = np.sum(vlos, axis=-1)/nl
+
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
+
+	if init_mag:
+		#--- azimuth initialization
+		# if "chi" in atmos.nodes:	
+		# 	_azimuth = np.arctan2(np.sum(su, axis=-1), np.sum(sq, axis=-1))# * 180/np.pi / 2
+		# 	# _azimuth %= 2*np.pi
+		# 	azimuth += _azimuth
+			# azimuth = np.mean(azimuth, axis=-1)
+			# print(azimuth)
+		
+		#--- B + gamma initialization (CoG + WF)
+		if "mag" in atmos.nodes:
+			lamp = np.sum(x*(1-si-sv), axis=-1) / np.sum(1-si-sv, axis=-1)
+			lamm = np.sum(x*(1-si+sv), axis=-1) / np.sum(1-si+sv, axis=-1)
+			
+			# idx, idy = 1,0
+			# plt.plot(1-si[idx,idy]-sv[idx,idy])
+			# plt.plot(1-si[idx,idy]+sv[idx,idy])
+			# print(lamp[idx,idy], lamm[idx,idy])
+			# plt.show()
+			# sys.exit()
+
+			if geff!=0:
+				# C = 4*np.pi*globin.LIGHT_SPEED*globin.ELECTRON_MASS/globin.ELECTRON_CHARGE
+				# _blos = (lamp - lamm)/2/lam0 / C / geff / (lam0*1e-9)
+				C = 4.67e-13*(lam0*10)**2*geff
+				_blos = (lamp - lamm)*10/2 / C
+				blos += np.abs(_blos)
+				nl_mag += 1
+
+			# tck = splrep(x[0,0]*10, si[0,0])
+			# si_der = splev(x[0,0]*10, tck, der=1)
+			
+			# blos_wf = -np.sum(sv[0,0]*si_der)/np.sum(si_der**2)/C
+			# print(blos_wf, blos[0,0])
+
+		#--- inclination initialization
+		# if "gamma" in atmos.nodes:
+		# 	ind_lam_wing = dd//2-1
+		# 	L = np.sqrt(sq**2 + su**2)
+
+		# 	gamma = np.zeros((atmos.nx, atmos.ny))
+		# 	for idx in range(atmos.nx):
+		# 		for idy in range(atmos.ny):
+		# 			tck = splrep(x[idx,idy], si[idx,idy])
+		# 			si_der = splev(x[idx,idy,ind_lam_wing], tck, der=1)
+					
+		# 			_L = L[idx,idy,ind_lam_wing]
+		# 			delta_lam = x[idx,idy,dd] - x[idx,idy,ind_lam_wing]
+
+		# 			denom = -4*geff*delta_lam*si_der * _L
+		# 			denom = np.sqrt(np.abs(denom))
+		# 			nom = 3*Geff*sv[idx,idy,ind_lam_wing]**2
+		# 			nom = np.sqrt(np.abs(nom))
+		# 			gamma[idx,idy] = np.arctan2(denom, nom)
+
+		# 	inclination += gamma
 
 	if init_mag:
 		# if "gamma" in atmos.nodes:
