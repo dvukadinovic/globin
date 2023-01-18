@@ -680,8 +680,6 @@ class InputData(object):
 		self.atmosphere.global_pars["loggf"] = np.zeros((1,1,len(aux_values)), dtype=np.float64)
 		self.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
 
-		print(aux_lineNo)
-
 		self.atmosphere.global_pars["loggf"][0,0] = aux_values
 		self.atmosphere.line_no["loggf"][:] = aux_lineNo
 
