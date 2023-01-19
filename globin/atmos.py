@@ -156,7 +156,7 @@ class Atmosphere(object):
 																"gamma" : 0,
 																"chi"   : 0}
 
-	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None], 
+	def __init__(self, fpath=None, atm_type="multi", atm_range=[0,None,0,None],
 			nx=None, ny=None, nz=None, logtau_top=-6, logtau_bot=1, logtau_step=0.1):
 		self.type = atm_type
 		self.fpath = fpath
@@ -276,12 +276,12 @@ class Atmosphere(object):
 			self.data = None
 			self.header = None
 			if (self.nx is not None) and (self.ny is not None) and (self.nz is not None):
-				self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-				self.height = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.fudge = np.zeros((self.nx, self.ny, 3, len(self.fudge_lam)), dtype=np.float64)
+				self.data = np.empty((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+				self.height = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.rho = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+				self.fudge = np.empty((self.nx, self.ny, 3, len(self.fudge_lam)), dtype=np.float64)
 				# if nz is None:
 				# 	self.data[:,:,0,:] = self.logtau
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
