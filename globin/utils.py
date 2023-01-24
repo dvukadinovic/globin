@@ -25,7 +25,8 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
                        "VMICI" : "vmic",
                        "BFIEL" : "mag",
                        "GAMMA" : "gamma",
-                       "AZIMU" : "chi"}
+                       "AZIMU" : "chi",
+                       "LOGGF" : "loggf"}
     #--- inverted profiles
     inv_spinor = fits.open(f"{fpath}/inverted_profs.1.fits")[0]
     wlref = inv_spinor.header["WLREF"]
@@ -102,6 +103,18 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
             atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
             for idn in range(nnodes):
                 atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
+
+        for parameter in ["LOGGF"]:
+            ind = par_header[f"{parameter}*"]
+            nlines = len(ind)
+            if nlines==0:
+                continue
+
+            start = ind[0] - 1
+            atm.global_pars[parameter_relay[parameter]] = np.empty((atm.nx, atm.ny, nlines))
+
+            for idl in range(nlines):
+                atm.global_pars[parameter_relay[parameter]][:,:,idl] = par_data[start+idl]
 
     # create the Spectrum() structure
     spec = globin.Spectrum(nx=nx, ny=ny, nw=nw)
