@@ -346,6 +346,8 @@ class Observation(Spectrum):
 				self.read_spinor(fpath, obs_range)
 			if spec_type=="hinode":
 				self.read_hinode(fpath, obs_range)
+		else:
+			raise IOError("We cannot recognize the observation file type.")
 
 	def read_fits(self, fpath, obs_range):
 		hdu = fits.open(fpath)[0]
