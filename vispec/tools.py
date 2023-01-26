@@ -27,8 +27,8 @@ def create_fig(nrows=1, ncols=1, figsize=None, hspace=0.3, wspace=0.3):
                           hspace=hspace, wspace=wspace)
 
     axs = []
-    for idx in range(ncols):
-        for idy in range(nrows):
+    for idx in range(nrows):
+        for idy in range(ncols):
             axs.append(fig.add_subplot(gs[idx,idy]))
 
     axs = np.asarray(axs)
