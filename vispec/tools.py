@@ -10,7 +10,7 @@ def add_colorbar(fig, ax, im, label=None):
                        width="5%",
                        height="100%",
                        loc="lower left",
-                       bbox_to_anchor=(1.02, 0., 1, 1),
+                       bbox_to_anchor=(1.00, 0., 1, 1),
                        bbox_transform=ax.transAxes,
                        borderpad=0)
     cbar = fig.colorbar(im, cax=axins)
@@ -18,11 +18,13 @@ def add_colorbar(fig, ax, im, label=None):
     if label is not None:
         cbar.set_label(label)
 
-def create_fig(nrows=1, ncols=1, figsize=None, hspace=0.3):
+def create_fig(nrows=1, ncols=1, figsize=None, hspace=0.3, wspace=0.3):
     if figsize is None:
         figsize = (WIDTH*ncols, HEIGHT*nrows)
+    
     fig = plt.figure(figsize=figsize)
-    gs = fig.add_gridspec(nrows=nrows, ncols=ncols, hspace=hspace)
+    gs = fig.add_gridspec(nrows=nrows, ncols=ncols, 
+                          hspace=hspace, wspace=wspace)
 
     axs = []
     for idx in range(ncols):

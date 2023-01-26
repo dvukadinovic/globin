@@ -1,27 +1,35 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import curve_fit
+from scipy.stats import pearsonr
 
 from .tools import add_colorbar
+
+alphabet = list(map(chr, range(97, 123)))
 
 def lin(x, a, b):
     return x*a + b
 
-def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False):
-    # print(list(atm1.nodes.keys()))
-    # if parameters not in list(atm1.nodes.keys()):
-    #     print("Not all parameters present in atm1.")
-    #     return
-    # if parameters not in list(atm2.nodes.keys()):
-    #     print("Not all parameters present in atm2.")
-    #     return
-    
+def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False):
+    parameter_relay = {"temp"  : "Temperature [K]",
+                       "vz"    : "LOS velocity [km/s]",
+                       "vmic"  : "Micro-turbulent velocity [km/s]",
+                       "mag"   : "Magnetic field [G]",
+                       "gamma" : r"Inclination [$^\circ$]",
+                       "chi"   : r"Azimuth [$^\circ$]"}
+
     nrows = 0
+    _parameters = []
     for parameter in parameters:
-        n1 = len(atm1.nodes[parameter])
-        n2 = len(atm2.nodes[parameter])
-        nrows = max([nrows, n1, n2])
-    ncols = len(parameters)
+        try:
+            n1 = len(atm1.nodes[parameter])
+            n2 = len(atm2.nodes[parameter])
+            nrows = max([nrows, n1, n2])
+            _parameters.append(parameter)
+        except:
+            print(f"Parameter {parameter} not found in inversion parameters.")
+    
+    ncols = len(_parameters)
     width, height = 3, 2 + 2/3
     fig = plt.figure(figsize=(width*ncols, height*nrows))
     gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
@@ -33,25 +41,43 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
         n = 5 - k*np.min(weight)
         ms = k*weight + n
 
+    idsp = 0
     for idc in range(ncols):
-        parameter = parameters[idc]
+        parameter = _parameters[idc]
         nnodes = len(atm1.nodes[parameter])
         for idr in range(nnodes):
+
             ax = fig.add_subplot(gs[idr,idc])
             x = atm1.values[parameter][:,:,idr].ravel()
             y = atm2.values[parameter][:,:,idr].ravel()
 
-            # set titles
-            if idr==0:
-                ax.set_title("{:s} @ {:3.2f}".format(parameter, atm1.nodes[parameter][idr]))
-            else:
-                ax.set_title("@ {:3.2f}".format(atm2.nodes[parameter][idr]))
+            if statistics:
+                R = pearsonr(x, y)
+                # par, cov = curve_fit(lin, x, y, p0=[1,0])
+                t = ax.text(0.95, 0.05, r"$R={:3.2f}$".format(R.statistic),
+                        fontsize="x-small", 
+                        horizontalalignment="right",
+                        verticalalignment="bottom",
+                        transform=ax.transAxes)
+                t.set_bbox(dict(facecolor="white", alpha=0.9, linewidth=0))
 
-            # set axis labels
-            if idr+1==nnodes:
-                ax.set_xlabel(labels[0])
-            if idc==0:
-                ax.set_ylabel(labels[1])
+            if subplot_markers:
+                t = ax.text(0.05, 0.95, alphabet[idsp],
+                        weight="bold",
+                        fontsize="large",
+                        horizontalalignment="left",
+                        verticalalignment="top",
+                        transform=ax.transAxes)
+                t.set_bbox(dict(facecolor="white", alpha=0.9, linewidth=0))
+
+            # set parameters at top of the columns
+            if idr==0:
+                ax.set_title(f"{parameter_relay[parameter]}")
+
+            # set log(tau) values as y-label on the right side of last column
+            if idc==(ncols-1):
+                ax.set_ylabel(r"$\log\tau = {:3.2f}$".format(atm2.nodes[parameter][idr]))
+                ax.yaxis.set_label_position("right")
 
             ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
             mean = np.mean(x)
@@ -72,9 +98,15 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
             ax.set_xlim([vmin, vmax])
             ax.set_ylim([vmin, vmax])
 
-            if statistics:
-                par, cov = curve_fit(lin, x, y, p0=[1,0])
-                print("{:6s}  {:5.4f}  {:>+5.1f}".format(parameter, *par))
+            # if statistics:
+            #     x = np.array([vmin, vmax])
+            #     ax.plot(x, lin(x, *par), c="tab:purple", lw=1)
+
+            idsp += 1
+
+    # set global labels
+    fig.supxlabel(f"{labels[0]}", ha="center", fontsize="large")
+    fig.supylabel(f"{labels[1]}", va="center", fontsize="large")
 
     fig.tight_layout()
     plt.show()
@@ -83,35 +115,45 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     cmaps = {"temp" : "plasma", "mag" : "nipy_spectral", 
              "vz" : "bwr_r", "vmic" : "plasma",
              "gamma" : "nipy_spectral"}
-    
+
+    parameter_relay = {"temp"  : "Temperature [K]",
+                       "vz"    : "LOS velocity [km/s]",
+                       "vmic"  : "Micro-turbulent velocity [km/s]",
+                       "mag"   : "Magnetic field [G]",
+                       "gamma" : r"Inclination [$^\circ$]",
+                       "chi"   : r"Azimuth [$^\circ$]"}
+
     N = 1
     n2 = 0
     if atm2 is not None:
         N = 2
 
     nrows = 0
+    _parameters = []
     for parameter in parameters:
-        n1 = len(atm1.nodes[parameter])
-        if atm2 is not None:
-            n2 = len(atm2.nodes[parameter])
-        nrows = max([nrows, n1, n2])
-    ncols = len(parameters)
+        try:
+            n1 = len(atm1.nodes[parameter])
+            if atm2 is not None:
+                n2 = len(atm2.nodes[parameter])
+            nrows = max([nrows, n1, n2])
+            _parameters.append(parameter)
+        except:
+            pass
+
+    ncols = len(_parameters)
     width, height = 3, 2 + 2/3
     fig = plt.figure(figsize=(N*width*ncols, height*nrows))
     gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=0.5, hspace=0.1)
 
+    fig_width = RIGHT - LEFT
+    bbox_width = fig_width / ncols
+
     for idc in range(ncols):
-        parameter = parameters[idc]
+        parameter = _parameters[idc]
         nnodes = len(atm1.nodes[parameter])
         for idr in range(nnodes):
             ax = fig.add_subplot(gs[idr,N*idc])
             
-            # set titles
-            if idr==0:
-                ax.set_title("{:s} \n {:s} @ {:3.2f}".format(labels[0], parameter, atm1.nodes[parameter][idr]))
-            else:
-                ax.set_title("@ {:3.2f}".format(atm1.nodes[parameter][idr]))
-
             x = atm1.values[parameter][:,:,idr]
             mean = np.mean(x)
             std = np.std(x)
@@ -127,23 +169,55 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 vmax = np.max([np.abs(vmin), np.abs(vmax)])
                 vmin = -vmax
 
+            if idr==0:
+                ax.set_title(labels[0], fontsize="large")
+
+            # label for color bars
+            cblabel_1 = r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
+            if atm2 is not None:
+                cblabel_2 = cblabel_1
+                cblabel_1 = None
+            
             im = ax.imshow(x, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
-            add_colorbar(fig, ax, im)
+            if idc==(ncols-1):
+                add_colorbar(fig, ax, im, label=cblabel_1)
+            else:
+                add_colorbar(fig, ax, im)
+
             if idr+1!=nnodes:
                 ax.set_xticklabels([])
             if idc!=0:
                 ax.set_yticklabels([])
 
+            # add the second axis if we have two atmospheres
             if atm2 is not None:
-                ax = fig.add_subplot(gs[idr,2*idc+1])
+                ax2 = fig.add_subplot(gs[idr,2*idc+1])
+                
                 # set titles
-                if idr==0:
-                    ax.set_title(labels[1])
                 y = atm2.values[parameter][:,:,idr]
-                im = ax.imshow(y, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
-                add_colorbar(fig, ax, im)
+                
+                if idr==0:
+                    ax2.set_title(labels[1], fontsize="large")
+                im = ax2.imshow(y, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
+                if idc==(ncols-1):
+                    add_colorbar(fig, ax2, im, label=cblabel_2)
+                else:
+                    add_colorbar(fig, ax2, im)
+                
                 if idr+1!=nnodes:
-                    ax.set_xticklabels([])
-                ax.set_yticklabels([])
+                    ax2.set_xticklabels([])
+                ax2.set_yticklabels([])
+
+        # add parameter wise titles (spanning N columns)
+        y0 = 0.91
+        x0 = (ax.get_position().x1 + ax.get_position().x0)/2
+        if N==2:
+            x0 = (ax2.get_position().x1 + ax.get_position().x0)/2
+
+        fig.text(x0, y0, parameter_relay[parameter],
+            fontsize="large",
+            ha="center",
+            va="center",
+            transform=fig.transFigure)
 
     plt.show()
