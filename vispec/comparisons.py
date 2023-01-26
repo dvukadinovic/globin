@@ -145,9 +145,6 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     fig = plt.figure(figsize=(N*width*ncols, height*nrows))
     gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=0.5, hspace=0.1)
 
-    fig_width = RIGHT - LEFT
-    bbox_width = fig_width / ncols
-
     for idc in range(ncols):
         parameter = _parameters[idc]
         nnodes = len(atm1.nodes[parameter])
