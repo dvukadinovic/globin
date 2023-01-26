@@ -421,6 +421,5 @@ def _broaden_spectra(args):
 	for ids in range(4):
 		aux = extend(spec[:,ids], N)
 		spec[:,ids] = np.convolve(aux, kernel, mode="same")[N:-N]
-		#correlate1d(spec[:,ids], kernel)
 
 	return spec

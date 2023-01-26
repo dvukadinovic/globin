@@ -219,7 +219,7 @@ class Atmosphere(object):
 		self.n_thread = 1
 
 		# container for the RH() class
-		self.RH = pyrh.RH()
+		# self.RH = pyrh.RH()
 
 		# continuum intensity
 		self.icont = None
@@ -821,7 +821,7 @@ class Atmosphere(object):
 
 		idx, idy = arg
 		
-		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 0,
+		ne, nH, nHtot, rho, pg = pyrh.hse(self.cwd, 0,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 														 self.pg_top, 0, self.fudge_lam, self.fudge[idx,idy])
 		
@@ -847,7 +847,7 @@ class Atmosphere(object):
 	def _compute_tau(self, args):
 		idx, idy = args
 
-		ne, nH, nHtot, rho, pg = self.RH.hse(self.cwd, 2,
+		ne, nH, nHtot, rho, pg = pyrh.hse(self.cwd, 2,
 														 self.height[idx,idy], self.data[idx,idy,1], 
 														 self.pg_top, 0, self.fudge_lam, self.fudge)
 
@@ -1434,7 +1434,7 @@ class Atmosphere(object):
 		return StokesI[0]
 
 	def get_tau(self, wlref):
-		tau_wlref = self.RH.get_tau(self.cwd, self.mu, 0, self.data[0,0], np.array([wlref]))
+		tau_wlref = pyrh.get_tau(self.cwd, self.mu, 0, self.data[0,0], np.array([wlref]))
 
 		return tau_wlref
 
@@ -1485,19 +1485,21 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
 
+		# print(f"[{idx},{idy}]")
+
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 			
-			sI, sQ, sU, sV = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			sI, sQ, sU, sV = self.RH.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
@@ -1526,6 +1528,8 @@ class Atmosphere(object):
 		# 	sU = splev(self.wavelength_obs, tck, ext=1)
 		# 	tck = splrep(self.wavelength_air, sV)
 		# 	sV = splev(self.wavelength_obs, tck, ext=1)
+
+		# print("----------------------------------------")
 
 		return np.vstack((sI, sQ, sU, sV))
 

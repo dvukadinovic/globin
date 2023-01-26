@@ -132,7 +132,8 @@ class InputData(object):
 			self.lmin /= 10
 			self.lmax /= 10
 			self.step /= 10
-			wavetable = np.arange(self.lmin, self.lmax+self.step, self.step)
+			Nw = int((self.lmax - self.lmin)/self.step + 1)
+			wavetable = np.linspace(self.lmin, self.lmax, num=Nw)
 
 		self.wavelength_air = wavetable
 		self.wavelength_vacuum = air_to_vacuum(wavetable)
