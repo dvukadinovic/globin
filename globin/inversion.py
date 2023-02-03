@@ -343,7 +343,7 @@ class Inverter(InputData):
 				# and it does!
 
 				# get scaling of Hessian matrix
-				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=1)
+				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=self.mode)
 
 			# hessian = (nx, ny, npar, npar)
 			H = JTJ
@@ -1165,7 +1165,42 @@ def normalize_hessian(H, atmos, mode):
 		return H_scales, RHS_scales
 
 	if mode==2:
-		raise ValueError("Not implemented yet.")
+		Nlocal = atmos.n_local_pars
+		Nglobal = atmos.n_global_pars
+		Npar = Nlocal + Nglobal
+
+		RHS_scales = np.zeros((atmos.nx, atmos.ny, Npar))
+		H_scales = np.zeros((atmos.nx, atmos.ny, Npar, Npar))
+		
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				diagonal = np.diagonal(H[idx,idy], offset=0)
+				scales = np.sqrt(diagonal)
+
+				l, u = 0, 0
+				for parameter in atmos.nodes:
+					l, u = u, u + len(atmos.nodes[parameter])
+					atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u]
+					atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
+				
+				for parameter in atmos.global_pars:
+					# if parameter=="vmac":
+					# 	atmos.parameter_scale[parameter] = scales[start]
+					# 	atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+					if parameter in ["loggf", "dlam"]:
+						N = len(atmos.line_no[parameter])
+						if N==0:
+							continue
+
+						for idl in range(N):
+							atmos.parameter_scale[parameter][...,idl] = scales[Nlocal+idl]
+						atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+
+				scales = 1/scales
+				RHS_scales[idx,idy] = scales
+				H_scales[idx,idy] = np.outer(scales, scales)
+
+		return H_scales, RHS_scales
 
 	if mode==3:
 		Nlocalpar = atmos.n_local_pars
