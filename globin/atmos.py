@@ -368,7 +368,7 @@ class Atmosphere(object):
 			atmos_data = np.repeat(atmos_data[:, np.newaxis, :, :], self.nx, axis=1)
 
 		self.shape = (self.nx, self.ny, 14, self.nz)
-		self.data = np.zeros(self.shape)
+		self.data = np.empty(self.shape)
 
 		# log(tau)
 		self.data[:,:,0] = atmos_data[0]
@@ -379,7 +379,8 @@ class Atmosphere(object):
 		# Temperature [K]
 		self.data[:,:,1] = atmos_data[2]
 		# Electron density [1/cm3]
-		self.data[:,:,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
+		if np.count_nonzero(atmos_data[4])!=0:
+			self.data[:,:,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
 		# Vertical velocity [cm/s] --> [km/s]
 		self.data[:,:,3] = atmos_data[9]/1e5
 		# Microturbulent velocitu [cm/s] --> [km/s]
@@ -390,21 +391,23 @@ class Atmosphere(object):
 		self.data[:,:,6] = atmos_data[-2]
 		# Azimuth [rad]
 		self.data[:,:,7] = atmos_data[-1]
-		# Hydrogen populations [1/cm3]
-		nH = distribute_hydrogen(atmos_data[2], atmos_data[3], atmos_data[4])
-		for idl in range(6):
-			self.data[:,:,8+idl] = nH[idl]
 
 		# gas pressure at the top of the atmosphere (in SI units)
 		self.pg_top = atmos_data[3,0,0,0]/10
 
 		# container for the gas pressure [dyn/cm2]
-		self.pg = np.zeros((self.nx, self.ny, self.nz))
-		self.pg = atmos_data[3]
+		self.pg = np.empty((self.nx, self.ny, self.nz))
+		self.pg[:,:,:] = atmos_data[3]
 
-		# container for the density [g/cm3]
-		self.rho = np.zeros((self.nx, self.ny, self.nz))
-		self.rho = atmos_data[6]
+		# rho --> total Hydrogen density (in RH it is atmos.nHtot)
+		m0 = globin.AMU*1e3 # [g]
+		avg_mass = np.sum(10**(globin.abundance-12) * globin.atom_mass)
+		self.data[:,:,8] = atmos_data[6]/m0/avg_mass
+
+		# container for the height [cm]
+		if np.count_nonzero(atmos_data[1])!=0:
+			self.height = np.empty((self.nx, self.ny, self.nz))
+			self.height[:,:,:] = atmos_data[1]/1e5 # [km]
 
 	def read_sir(self, fpath):
 		"""
@@ -544,6 +547,21 @@ class Atmosphere(object):
 			self.chi_c = hdu_list[ind].data
 		except:
 			self.chi_c = None
+
+		#--- check for the height
+		try:
+			ind = hdu_list.index_of("Height")
+			
+			unit = hdu_list[ind].header["UNIT"]
+			fact = 1
+			if unit.lower()=="cm":
+				fact = 1e-5 # [cm --> km]
+			if unit.lower()=="m":
+				fact = 1e-3 # [m --> km]
+
+			self.height = hdu_list[ind].data * fact
+		except:
+			self.height = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 
 	@property
 	def T(self):
@@ -767,17 +785,6 @@ class Atmosphere(object):
 			if self.interpolation_method=="spline":
 				y_new = spline_interpolation(x, y, atmos.logtau, tension=self.spline_tension, K0=K0, Kn=Kn)
 
-			# it the LOS velocity switches the sign, we re-extrapolate it so that it does not (SPINOR style, hatcha!)
-			# if parameter=="vz":
-			# 	sign = y_new[-1]*y[-1]
-			# 	if sign<0:
-			# 		ind = np.argmin(np.abs(self.logtau-x[-1]))
-			# 		for idz in range(ind, self.nz):
-			# 			if y[-1]>0:
-			# 				y_new[idz] = np.max([y_new[idz], y[-1]/2])
-			# 			if y[-1]<0:
-			# 				y_new[idz] = np.min([y_new[idz], y[-1]/2])
-
 			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
 
 		return atmos.data[idx,idy]
@@ -815,16 +822,12 @@ class Atmosphere(object):
 		"""
 		Parallelized call from makeHSE() function.
 		"""
-		# fudge_num = 2
-		# fudge_lam = np.linspace(401.5, 401.7, num=fudge_num, dtype=np.float64)
-		# fudge = np.ones((3, fudge_num), dtype=np.float64)
-
 		idx, idy = arg
 		
 		ne, nH, nHtot, rho, pg = pyrh.hse(self.cwd, 0,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-														 self.pg_top, 0, self.fudge_lam, self.fudge[idx,idy])
-		
+														 self.pg[idx,idy,0]/10, 0, self.fudge_lam, self.fudge[idx,idy])
+
 		result = np.vstack((ne/1e6, nH/1e6, rho/1e3, pg*10))
 		return result
 
@@ -882,9 +885,49 @@ class Atmosphere(object):
 
 		Units dyn/cm2 (CGS).
 		"""
+		totalAbundance = np.sum(10**(globin.abundance-12))
 		nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
 		ne = self.data[...,2,:] * 1e6 # [m3]
-		self.pg = (nH + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
+		self.pg = (nH*totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
+
+	def get_ne_from_nH(self, scale="tau"):
+		"""
+		Compute the electron concentration using RH from temperature and 
+		total hydrogen density.
+		"""
+		if scale=="tau":
+			self.scale_type = 0
+			self.scale = self.data[:,:,0]
+		if scale=="height":
+			self.scale_type = 2
+			self.scale = self.height[:,:]
+
+		for idy in range(3):
+			print(f"{idy+1}/{self.ny}")
+			for idx in range(self.nx):
+				# print(f"{idx+1}/{self.nx}")
+				pyrh.get_ne_from_nH(self.cwd, self.scale_type, self.scale[idx,idy], self.data[idx,idy])
+
+		return
+
+		args = zip(self.idx_meshgrid, self.idy_meshgrid)
+
+		with mp.Pool(self.n_thread) as pool:
+			results = pool.map(self._get_ne_from_nH, iterable=args)
+
+		results = np.array(results)
+		print(results.shape)
+		# self.data[:,:,2] = results
+
+		del self.scale_type
+		del self.scale
+
+	def _get_ne_from_nH(self, args):
+		idx, idy = args
+
+		pyrh.get_ne_from_nH(self.cwd, self.scale_type, self.scale[idx,idy], self.data[idx,idy])
+
+		return self.data[idx,idy,2]
 
 	def makeHSE_old(self):
 		"""
@@ -952,25 +995,33 @@ class Atmosphere(object):
 		ref_atm_nx, ref_atm_ny, _, _ = ref_atm.shape
 		oneD = (ref_atm_nx*ref_atm_ny==1)
 
-		self.data = np.zeros((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
-		self.nHtot = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-		self.pg = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
-		self.rho = np.zeros((self.nx, self.ny, self.nz), dtype=np.float64)
+		self.data = np.empty((self.nx, self.ny, self.npar, self.nz), dtype=np.float64)
+		self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+		self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
+		self.rho = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 		self.data[:,:,0,:] = x_new
 		self.logtau = x_new
 
 		if oneD:
 			for idp in range(1, self.npar):
-				tck = splrep(ref_atm[0,0,0], ref_atm[0,0,idp])
-				self.data[...,idp,:] = splev(x_new, tck)
-			self.nHtot = np.sum(self.data[...,8:,:], axis=2)
+				if idp==2 or idp==8:
+					fun = interp1d(ref_atm[0,0,0], np.log10(ref_atm[0,0,idp]), kind=3)
+					self.data[:,:,idp,:] = 10**(fun(x_new))
+				else:
+					fun = interp1d(ref_atm[0,0,0], ref_atm[0,0,idp], kind=3)
+					self.data[...,idp,:] = fun(x_new)
+			# self.nHtot = np.sum(self.data[...,8:,:], axis=2)
 		else:
 			for idx in range(self.nx):
 				for idy in range(self.ny):
 					for idp in range(1, self.npar):
-						tck = splrep(ref_atm[0,0,0], ref_atm[idx,idy,idp])
-						self.data[idx,idy,idp] = splev(x_new, tck)
-					self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
+						if idp==2 or idp==8:
+							fun = interp1d(ref_atm[idx,idy,0], np.log10(ref_atm[idx,idy,idp]), kind=3)
+							self.data[idx,idy,idp] = 10**(fun(x_new))
+						else:
+							fun = interp1d(ref_atm[idx,idy,0], ref_atm[idx,idy,idp], kind=3)
+							self.data[idx,idy,idp] = fun(x_new)
+					# self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 	
 	def resample(self, Nz):
 		xnew = np.linspace(self.logtau[0], self.logtau[-1], num=Nz)
@@ -1107,6 +1158,17 @@ class Atmosphere(object):
 			par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
 
 			hdulist.append(par_hdu)
+
+		# height HDU
+		par_hdu = fits.ImageHDU(self.height)
+		par_hdu.name = "Height"
+
+		par_hdu.header.comments["NAXIS1"] = "number of depths"
+		par_hdu.header.comments["NAXIS2"] = "y-axis atmospheres"
+		par_hdu.header.comments["NAXIS3"] = "x-axis atmospheres"
+		par_hdu.header["UNIT"] = "KM"
+
+		hdulist.append(par_hdu)
 
 		# if globin.of_mode:
 		# 	par_hdu = fits.ImageHDU(self.of_value)
@@ -1485,8 +1547,6 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
 
-		# print(f"[{idx},{idy}]")
-
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
 				_idx, _idy = idx, idy
@@ -1504,32 +1564,6 @@ class Atmosphere(object):
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
-
-		# apply the instrumental profile broadening
-		# if self.instrumental_profile is not None:
-		# 	N = len(self.instrumental_profile)
-		# 	sI = extend(sI, N)
-		# 	sI = np.convolve(sI, self.instrumental_profile, mode="same")[N:-N]
-		# 	sQ = extend(sQ, N)
-		# 	sQ = np.convolve(sQ, self.instrumental_profile, mode="same")[N:-N]
-		# 	sU = extend(sU, N)
-		# 	sU = np.convolve(sU, self.instrumental_profile, mode="same")[N:-N]
-		# 	sV = extend(sV, N)
-		# 	sV = np.convolve(sV, self.instrumental_profile, mode="same")[N:-N]
-
-		# interpolate the output spectrum to an observation wavelength
-		# if (not np.array_equal(self.wavelength_obs, self.wavelength_air)):
-
-		# 	tck = splrep(self.wavelength_air, sI)
-		# 	sI = splev(self.wavelength_obs, tck, ext=3)
-		# 	tck = splrep(self.wavelength_air, sQ)
-		# 	sQ = splev(self.wavelength_obs, tck, ext=1)
-		# 	tck = splrep(self.wavelength_air, sU)
-		# 	sU = splev(self.wavelength_obs, tck, ext=1)
-		# 	tck = splrep(self.wavelength_air, sV)
-		# 	sV = splev(self.wavelength_obs, tck, ext=1)
-
-		# print("----------------------------------------")
 
 		return np.vstack((sI, sQ, sU, sV))
 
