@@ -306,6 +306,7 @@ class InputData(object):
 		# get the Pg at top of the atmosphere
 		if self.atmosphere.pg_top is None:
 			self.atmosphere.get_pg_top()
+			self.atmosphere.get_pg()
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
