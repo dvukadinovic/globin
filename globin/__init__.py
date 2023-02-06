@@ -14,12 +14,11 @@ Contributors:
 			 and also take as argument working directory for RH computation so that we can have
 			 many different executions from the same PC. Otherwise we have conflict in names.
 """
-
+# Limit the number of threads used by numpy/scipy when we run using MPI
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 
 import numpy as np
-
 import sys
 
 try:
@@ -27,47 +26,11 @@ try:
 except ImportError:
 	sys.exit("No module 'pyrh'. Install the module first before using 'globin'.")
 
-# from .container import Globin
 from .inversion import Inverter
-
-# from .atmos import \
-# 	Atmosphere, compute_rfs, compute_spectra, write_multi_atmosphere, compute_full_rf, convert_atmosphere, \
-# 	multi2spinor
-
 from .atmos import Atmosphere
-
 from .input import Chi2
-# 	read_input, read_node_atmosphere, \
-# 	write_line_parameters, write_line_par, \
-# 	read_inverted_atmosphere, \
-# 	initialize_atmos_pars, make_RH_OF_files, \
-# 	InputData
-
-# from .atoms import \
-# 	Line, read_RLK_lines, read_init_line_parameters, init_line_pars, write_line_pars
-
-# from .rh import \
-# 	write_wavs, Rhout, write_B
-
-from .spec import \
-	Observation, Spectrum
-
-# from .inversion import \
-# 	invert
-
-# from .tools import \
-# 	save_chi2, bezier_spline
-
-from .visualize import show
-# 	plot_atmosphere, plot_spectra, plot_rf, plot_chi2
-
-# from .utils import \
-# 	construct_atmosphere_from_nodes, RHatm2Spinor, make_synthetic_observations, \
-# 	calculate_chi2, remove_dirs
-
-# from .makeHSE import makeHSE
-
-# from .mppools import pool_write_atmosphere, pool_build_from_nodes, pool_rf, pool_synth, pool_spinor2multi
+from .spec import Observation, Spectrum
+from .visualize import show, plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
@@ -101,24 +64,7 @@ atom_mass = np.array([1.00797, 4.00260, 6.941, 9.01218, 10.81, 12.011, 14.0067,
 					  227.0278, 232.0381, 231.0359, 238.029, 237.0482, 242, 243, 
 					  247, 247, 251, 252])
 
-#--- standard deviations for smoothing resulting parameters in many cycle inversion run
-smooth_std = {"temp"   : 50, 	# [K]
-			  "vz"     : 0.1,	# [km/s]
-			  "vmic"   : 0.1,	# [km/s]
-			  "mag"    : 25,	# [G]
-			  "gamma"  : 0.087, # [rad == 5deg]
-			  "chi"    : 0.087,	# [rad == 5deg]
-			  "vmac"   : 0.1,	# [km/s]
-			  "loggf"  : 0.010,	#
-			  "dlam"   : 5}		# [mA]
-
-#--- parameter differences for flaging if RF needs to be computed
-diff = {"temp"   : 10,		# K
-		"vz"     : 0.01,	# km/s
-		"vmic"   : 0.01,	# km/s
-		"mag"    : 10,		# G
-		"gamma"  : 0.001,	# rad = 0.057 deg
-		"chi"    : 0.001}	# rad = 0.057 deg
+totalAbundance = np.sum(10**(abundance-12))
 
 #--- parameters units (for FITS header)
 parameter_unit = {"temp"   : "K",

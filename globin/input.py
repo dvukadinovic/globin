@@ -1184,7 +1184,8 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				ind_min = np.argmin(np.abs(wavs - lmin))
 				ind_max = np.argmin(np.abs(wavs - lmax))+1
 				
-				# plt.plot(obs.I[idx,idy].max() - obs.I[idx,idy])
+				# plt.plot(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy])
+				# plt.show()
 
 				# find spectral lines
 				peaks, properties = find_peaks(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy],

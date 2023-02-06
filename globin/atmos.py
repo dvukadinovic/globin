@@ -808,6 +808,9 @@ class Atmosphere(object):
 		indx, indy = np.where(flag==1)
 		args = zip(indx, indy)
 
+		# obtain new Pg and use it as initial value for the HSE at the top
+		self.get_pg()
+
 		with mp.Pool(self.n_thread) as pool:
 			results = pool.map(func=self._makeHSE, iterable=args)
 
@@ -823,7 +826,7 @@ class Atmosphere(object):
 		Parallelized call from makeHSE() function.
 		"""
 		idx, idy = arg
-		
+
 		ne, nH, nHtot, rho, pg = pyrh.hse(self.cwd, 0,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 														 self.pg[idx,idy,0]/10, 0, self.fudge_lam, self.fudge[idx,idy])
@@ -885,10 +888,9 @@ class Atmosphere(object):
 
 		Units dyn/cm2 (CGS).
 		"""
-		totalAbundance = np.sum(10**(globin.abundance-12))
 		nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
 		ne = self.data[...,2,:] * 1e6 # [m3]
-		self.pg = (nH*totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
+		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
 
 	def get_ne_from_nH(self, scale="tau"):
 		"""
