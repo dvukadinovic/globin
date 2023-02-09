@@ -446,7 +446,9 @@ class Inverter(InputData):
 				atmos.values[parameter][indx,indy] = copy.deepcopy(old_atmos_parameters[parameter][indx,indy])
 			if self.mode==2:
 				for parameter in old_atomic_parameters:
-					atmos.global_pars[parameter][indx,indy] = copy.deepcopy(old_atomic_parameters[parameter][indx,indy])
+					N = len(old_atomic_parameters[parameter])
+					if N!=0:
+						atmos.global_pars[parameter][indx,indy] = copy.deepcopy(old_atomic_parameters[parameter][indx,indy])
 			updated_pars[indx,indy] = 0
 
 			#--- remake OF table after check of chi2 convergance
@@ -1192,9 +1194,8 @@ def normalize_hessian(H, atmos, mode):
 						if N==0:
 							continue
 
-						for idl in range(N):
-							atmos.parameter_scale[parameter][...,idl] = scales[Nlocal+idl]
-						atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+						atmos.parameter_scale[parameter][idx,idy,:] = scales[Nlocal:]
+						atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
 
 				scales = 1/scales
 				RHS_scales[idx,idy] = scales

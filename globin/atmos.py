@@ -399,7 +399,7 @@ class Atmosphere(object):
 		self.pg = np.empty((self.nx, self.ny, self.nz))
 		self.pg[:,:,:] = atmos_data[3]
 
-		# rho --> total Hydrogen density (in RH it is atmos.nHtot)
+		# rho --> total Hydrogen density [1/cm3] (in RH it is atmos.nHtot)
 		m0 = globin.AMU*1e3 # [g]
 		avg_mass = np.sum(10**(globin.abundance-12) * globin.atom_mass)
 		self.data[:,:,8] = atmos_data[6]/m0/avg_mass
@@ -1770,6 +1770,7 @@ class Atmosphere(object):
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
 		
+		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)

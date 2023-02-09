@@ -1452,6 +1452,8 @@ class Chi2(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				inds_non_zero = np.nonzero(self.chi2[idx,idy])[0]
+				if inds_non_zero.size==0:
+					continue
 				last_iter[idx,idy] = inds_non_zero[-1]
 				best_chi2[idx,idy] = self.chi2[idx,idy,inds_non_zero[-1]]
 
