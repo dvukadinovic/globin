@@ -361,7 +361,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, norm=False):
+def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, norm=False, integrate=False):
 	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
@@ -422,38 +422,60 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 			print(repr(hdulist[0].header))
 			sys.exit(f"No RF for parameter {parameter}")
 
-		for j_, ids in enumerate(stokes_range):
-			ax = fig.add_subplot(gs[i_,j_])
-			if i_==0:
-				ax.set_title(stokes_labels[j_])
-			matrix = rf[idx, idy, idp, :, :, ids]
-			if norm:
-				norm = np.sqrt(np.sum(matrix**2))
-				matrix /= norm
-			vmax = np.max(np.abs(matrix))
-			vmin = -vmax
-			par_cmap = cmap[parameter]
-			if parameter=="temp":
-				if ids!=0:
-					par_cmap = "bwr"
-				if norm and ids==0:
-					par_cmap = "bwr"
-			# 	else:
-			# 		vmin = 0
-			im = ax.imshow(matrix, aspect="auto", origin="upper",
-				cmap=par_cmap, vmin=vmin, vmax=vmax,
-				extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
-			if j_+1==ncols:
-				add_colorbar(fig, ax, im, label=cbar_label[parameter])
-			else:
-				add_colorbar(fig, ax, im)
+		if not integrate:
+			for j_, ids in enumerate(stokes_range):
+				ax = fig.add_subplot(gs[i_,j_])
+				if i_==0:
+					ax.set_title(stokes_labels[j_])
+				
+				matrix = rf[idx, idy, idp, :, :, ids]
+				if norm:
+					norm = np.sqrt(np.sum(matrix**2))
+					matrix /= norm
+				vmax = np.max(np.abs(matrix))
+				vmin = -vmax
+				par_cmap = cmap[parameter]
+				if parameter=="temp":
+					if ids!=0:
+						par_cmap = "bwr"
+					if norm and ids==0:
+						par_cmap = "bwr"
+				# 	else:
+				# 		vmin = 0
+				
+				im = ax.imshow(matrix, aspect="auto", origin="upper",
+					cmap=par_cmap, vmin=vmin, vmax=vmax,
+					extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
+				if j_+1==ncols:
+					add_colorbar(fig, ax, im, label=cbar_label[parameter])
+				else:
+					add_colorbar(fig, ax, im)
+				if j_>0:
+					ax.set_yticklabels([])
+				if i_+1<nrows:
+					ax.set_xticklabels([])
 
-			if j_>0:
-				ax.set_yticklabels([])
-			if i_+1<nrows:
-				ax.set_xticklabels([])
+				ax.grid(b=True, which="major", axis="y", lw=0.5)
 
-			ax.grid(b=True, which="major", axis="y", lw=0.5)
+		if integrate:	
+			RF = rf[idx,idy,idp,ind_top:ind_bot,:,:]
+			integratedRF = np.sum(np.abs(RF), axis=1)
+			vmax = np.max(integratedRF)*1.05
+			vmin = np.min(integratedRF)*1.05
+
+			for j_, ids in enumerate(stokes_range):
+				ax = fig.add_subplot(gs[i_,j_])
+				if i_==0:
+					ax.set_title(stokes_labels[j_])
+
+				ax.plot(logtau, integratedRF[...,ids], c="k")
+				ax.axhline(y=0, c="k", lw=0.5, alpha=0.5)
+				ax.set_xlim([logtau[0], logtau[-1]])
+				ax.set_ylim([vmin, vmax])
+				if j_==0:
+					ax.set_ylabel(f"{cbar_label[parameter]}")
+
+				ax.grid(b=True, which="major", axis="both", lw=0.5)
 
 def add_colorbar(fig, ax, im, label=None):
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
