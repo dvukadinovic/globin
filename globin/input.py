@@ -168,7 +168,7 @@ class InputData(object):
 		atm_type = atm_type.lower()
 
 		# scale used to define atmospheric parameters
-		self.atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", conversion=str)
+		atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", conversion=str)
 
 		# filling-factor for stray light correction
 		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, conversion=float)
@@ -269,6 +269,9 @@ class InputData(object):
 			self.atmosphere.n_global_pars = 0
 			for parameter in self.atmosphere.global_pars:
 				self.atmosphere.n_global_pars += self.atmosphere.global_pars[parameter].shape[-1]
+
+			# add the scale type (of the inversion atmosphere)
+			self.atmosphere.scale_id = globin.scale_id[atm_scale]
 		else:
 			raise ValueError(f"Mode {mode} is unsupported.")
 
@@ -615,6 +618,7 @@ class InputData(object):
 	def read_mode_2(self):
 		#--- Kurucz line list for given spectral region
 		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
+		Nlines = len(self.RLK_lines)
 
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
@@ -654,9 +658,24 @@ class InputData(object):
 		self.atmosphere.global_pars["dlam"][:,:] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
+		try:
+			id_max = np.max(self.atmosphere.line_no["loggf"])
+			if id_max>Nlines:
+				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
+		except:
+			pass
+
+		try:
+			id_max = np.max(self.atmosphere.line_no["dlam"])
+			if id_max>Nlines:
+				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
+		except:
+			pass
+
 	def read_mode_3(self):
 		#--- Kurucz line list for given spectral region
 		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
+		Nlines = len(self.RLK_lines)
 
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
@@ -698,6 +717,20 @@ class InputData(object):
 
 		self.atmosphere.global_pars["dlam"][0,0] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
+
+		try:
+			id_max = np.max(self.atmosphere.line_no["loggf"])
+			if id_max>Nlines:
+				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
+		except:
+			pass
+
+		try:
+			id_max = np.max(self.atmosphere.line_no["dlam"])
+			if id_max>Nlines:
+				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
+		except:
+			pass
 
 	def read_node_parameters(self, parameter, text):
 		"""

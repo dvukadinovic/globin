@@ -1148,12 +1148,6 @@ def normalize_hessian(H, atmos, mode):
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
 
-				# idp = np.where(scales==0)
-				# if len(idp)>0:
-				# 	print(idx, idy)
-				# 	print(scales)
-				# 	sys.exit("Parameter scales is ")
-
 				l, u = 0, 0
 				for parameter in atmos.nodes:
 					l, u = u, u + len(atmos.nodes[parameter])
@@ -1194,7 +1188,7 @@ def normalize_hessian(H, atmos, mode):
 						if N==0:
 							continue
 
-						atmos.parameter_scale[parameter][idx,idy,:] = scales[Nlocal:]
+						atmos.parameter_scale[parameter][idx,idy,:] = scales[-Nglobal:]
 						atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
 
 				scales = 1/scales

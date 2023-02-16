@@ -77,6 +77,11 @@ parameter_unit = {"temp"   : "K",
 				  "chi"    : "rad",
 				  "of"     : "a.u."}
 
+#--- scale id (connected to the scale numeration in pyrh/rh/rhf1d/pyrh_* files)
+scale_id = {"tau"    : 0,
+			"cmass"  : 1,
+			"height" : 2}
+
 #--- curent working directory: one from which we imported 'globin'
 cwd = os.getcwd()
 

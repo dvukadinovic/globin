@@ -178,7 +178,7 @@ class Atmosphere(object):
 		self.hydrostatic = False
 
 		# gas pressure at the top (used for HSE computation from RH)
-		self.pg_top = None # [N/m2]
+		self.pg_top = 0.03 # [N/m2]
 
 		# interpolation degree, method for building atmosphere from node values
 		# and (optional) tension value in case of "spinor" method
@@ -311,6 +311,15 @@ class Atmosphere(object):
 		# remove commented lines
 		lines = [line.rstrip("\n") for line in lines if "*" not in line]
 
+		# get the scale of the atmosphere
+		scale = lines[1].replace(" ", "")[0]
+		if (scale.upper()=="M"):
+			self.scale_id = globin.scale_id["cmass"]
+		if (scale.upper()=="T"):
+			self.scale_id = globin.scale_id["tau"]
+		if (scale.upper()=="H"):
+			self.scale_id = globin.scale_id["height"]
+
 		# get number of depth points
 		nz = int(lines[3].replace(" ", ""))
 
@@ -404,10 +413,27 @@ class Atmosphere(object):
 		avg_mass = np.sum(10**(globin.abundance-12) * globin.atom_mass)
 		self.data[:,:,8] = atmos_data[6]/m0/avg_mass
 
-		# container for the height [cm]
+		# container for the height [km]
+		height_flag = False
 		if np.count_nonzero(atmos_data[1])!=0:
 			self.height = np.empty((self.nx, self.ny, self.nz))
 			self.height[:,:,:] = atmos_data[1]/1e5 # [km]
+			height_flag = True
+
+		# check for the scale
+		if np.count_nonzero(self.logtau)!=0:
+			self.scale_id = globin.scale_id["tau"]
+			return
+		elif height_flag:
+			self.scale_id = globin.scale_id["height"]
+			self.data[:,:,0] = self.height
+			return
+		elif np.count_nonzero(atmos_data[5])!=0:
+			self.scale_id = globin.scale_id["cmass"]
+			self.data[:,:,0] = atmos_data[5]
+			return
+		else:
+			raise ValueError("There is none scaling of the atmosphere.")
 
 	def read_sir(self, fpath):
 		"""
@@ -457,6 +483,21 @@ class Atmosphere(object):
 		self.rho = np.zeros((1,1,nz))
 		self.rho[0,0] = data[-3] # CHECK THIS! MAYBE IT IS HEIGHT and NOT DENSITY
 
+		# check for the scale
+		if np.count_nonzero(self.logtau)!=0:
+			self.scale_id = globin.scale_id["tau"]
+		# 	return
+		# elif height_flag:
+		# 	self.scale_id = globin.scale_id["height"]
+		# 	self.data[:,:,0] = self.height
+		# 	return
+		# elif np.count_nonzero(atmos_data[5])!=0:
+		# 	self.scale_id = globin.scale_id["cmass"]
+		# 	self.data[:,:,0] = atmos_data[5]
+		# 	return
+		else:
+			raise ValueError("There is none scaling of the atmosphere.")
+
 	def read_multi_cube(self, fpath, atm_range=[0,None,0,None]):
 		"""
 		Read the 3D atmosphere of MULTI type in fits format.
@@ -489,11 +530,16 @@ class Atmosphere(object):
 		self.logtau_step = self.logtau[1] - self.logtau[0]
 		self.header = hdu_list[0].header
 
+		try:
+			self.scale_id = globin.scale_id[self.header["SCALE"].lower()]
+		except:
+			self.scale_id = globin.scale_id["tau"]
+
 		if self.npar!=14:
 			raise ValueError(f"MULTI atmosphere is not compatible with globin. It has {self.npar} parameters instead of 14.")
 
-		self.pg = np.zeros((self.nx, self.ny, self.nz))
-		self.rho = np.zeros((self.nx, self.ny, self.nz))
+		self.pg = np.empty((self.nx, self.ny, self.nz))
+		self.rho = np.empty((self.nx, self.ny, self.nz))
 
 		try:
 			self.pg_top = hdu_list[0].header["PGTOP"]
@@ -593,11 +639,23 @@ class Atmosphere(object):
 
 	@property
 	def nH(self):
-		return self.data[:,:,8:]
+		return self.data[:,:,8]
+
+	@property
+	def scale(self):
+		return list(globin.scale_id.keys())[self.scale_id].upper()
 
 	def get_atmos(self, idx, idy):
 		dtau = self.logtau[1] - self.logtau[0]
 		new = Atmosphere(nx=1, ny=1, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
+
+		# this needs to be cleaned and optimized...
+		new.cwd = self.cwd
+		new.scale_id = self.scale_id
+		new.fudge_lam = self.fudge_lam
+		new.fudge = self.fudge
+		new.global_pars = self.global_pars
+		#-------------------------------------------
 
 		new.data[0,0] = self.data[idx,idy]
 		new.logtau = self.logtau
@@ -817,9 +875,12 @@ class Atmosphere(object):
 		results = np.array(results)
 
 		self.data[indx,indy,2] = results[:,0,:]
-		self.data[indx,indy,8:] = results[:,1:7,:]
-		self.rho[indx,indy] = results[:,7,:]
-		self.pg[indx,indy] = results[:,8,:]
+		self.data[indx,indy,8] = results[:,1,:]
+
+		# self.data[indx,indy,2] = results[:,0,:]
+		# self.data[indx,indy,8:] = results[:,1:7,:]
+		# self.rho[indx,indy] = results[:,7,:]
+		# self.pg[indx,indy] = results[:,8,:]
 
 	def _makeHSE(self, arg):
 		"""
@@ -827,12 +888,11 @@ class Atmosphere(object):
 		"""
 		idx, idy = arg
 
-		ne, nH, nHtot, rho, pg = pyrh.hse(self.cwd, 0,
+		ne, _, nHtot, _, _ = pyrh.hse(self.cwd, self.scale_id,
 														 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 														 self.pg[idx,idy,0]/10, 0, self.fudge_lam, self.fudge[idx,idy])
 
-		result = np.vstack((ne/1e6, nH/1e6, rho/1e3, pg*10))
-		return result
+		return np.vstack((ne/1e6, nHtot/1e6))
 
 	def compute_tau(self, flag=None):
 		if flag is None:
@@ -979,11 +1039,10 @@ class Atmosphere(object):
 		or to change the reference atmosphere that goes higher, if needed.
 		
 		"""
-		new_top = np.round(x_new[0], decimals=2)
-		old_top = np.round(ref_atm[0,0,0,0], decimals=2)
-		new_bot = np.round(x_new[-1], decimals=2)
-		old_bot = np.round(ref_atm[0,0,0,-1], decimals=2)
-		if new_top<old_top or new_bot>old_bot:
+		x_new = np.round(x_new, decimals=2)
+		ref_atm[:,:,0] = np.round(ref_atm[:,:,0], decimals=2)
+
+		if x_new[0]<ref_atm[0,0,0,0] or x_new[-1]>ref_atm[0,0,0,-1]:
 			print("--> Warning: atmosphere will be extrapolated")
 			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
 			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
@@ -1088,6 +1147,17 @@ class Atmosphere(object):
 		primary.header["NX"] = self.nx
 		primary.header["NY"] = self.ny
 		primary.header["NZ"] = self.nz
+
+		# set the value for atmosphere scale type
+		try:
+			scale = list(globin.scale_id.keys())[self.scale_id]
+			primary.header["SCALE"] = (scale.upper(), "scale type")
+			if self.scale_id==1:
+				primary.header["SCALEU"] = ("cm^2/g", "scale unit")
+			if self.scale_id==2:
+				primary.header["SCALEU"] = ("km", "scale unit")
+		except:
+			pass
 
 		# save spatial regularization weights
 		if self.spatial_regularization:
@@ -1245,7 +1315,6 @@ class Atmosphere(object):
 			(self.nx * self.ny * n_local_parameters + n_global_parameters).
 		"""
 		if self.mode==1 or self.mode==2:
-			low_ind, up_ind = 0, 0
 			
 			#--- update atmospheric parameters
 			idp = 0
@@ -1258,6 +1327,7 @@ class Atmosphere(object):
 					idp += 1
 
 			#--- update atomic parameters
+			low_ind, up_ind = self.n_local_pars, self.n_local_pars
 			for parameter in self.global_pars:
 				if self.line_no[parameter].size > 0:
 					low_ind = up_ind
@@ -1394,6 +1464,8 @@ class Atmosphere(object):
 			if cycle>=2:
 				size = 5
 
+			size = 3
+
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
 					tmp = median_filter(self.values[parameter][...,idn], size=size)
@@ -1450,6 +1522,7 @@ class Atmosphere(object):
 		hsra.wavelength_air = self.wavelength_obs
 		hsra.wavelength_obs = self.wavelength_obs
 		hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
+		hsra.cwd = self.cwd
 		hsra.mu = self.mu
 		# just to be sure that we are not normalizing...
 		hsra.norm = False
@@ -1555,13 +1628,13 @@ class Atmosphere(object):
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 			
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, 0, self.data[idx,idy], 
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, 0, self.data[idx,idy],
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],

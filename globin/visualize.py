@@ -94,7 +94,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			except:
 				pass
 
-			ax.plot(logtau, cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
+			ax.plot(atmos.data[idx,idy,0], cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
 			if parameter=="ne" or parameter=="nH":
 				ax.set_yscale("log")
 
@@ -103,7 +103,7 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 
 			if reference is not None:
 				for idr, ref in enumerate(reference):
-					ax.plot(ref.logtau, ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
+					ax.plot(ref.data[idx,idy,0], ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
 					try:
 						x = ref.nodes[parameter]
 						y = ref.values[parameter][idx,idy] * fact[parameter]
