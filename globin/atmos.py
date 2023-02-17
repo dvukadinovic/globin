@@ -1363,7 +1363,7 @@ class Atmosphere(object):
 					up_ind += 1
 					step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 					self.global_pars[parameter] += step
-				else:
+				if parameter=="loggf" or parameter=="dlam":
 					Nlines = self.global_pars[parameter].size
 					if Nlines>0:
 						low_ind = up_ind
@@ -1434,7 +1434,6 @@ class Atmosphere(object):
 
 	def smooth_parameters(self, cycle, num=5, std=2.5):
 		"""
-
 		Run Gaussian kernel on 'num' x 'num' pixels with stadard deviation
 		of 'std'. This is done after every inversion cycle, except on the last
 		one. The inversion parameters are saved before smoothing is done.
@@ -1464,7 +1463,7 @@ class Atmosphere(object):
 			if cycle>=2:
 				size = 5
 
-			size = 3
+			size = 4
 
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
