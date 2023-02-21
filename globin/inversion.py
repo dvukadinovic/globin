@@ -1188,7 +1188,8 @@ def normalize_hessian(H, atmos, mode):
 						if N==0:
 							continue
 
-						atmos.parameter_scale[parameter][idx,idy,:] = scales[-Nglobal:]
+						l, u = u, u + N
+						atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u]
 						atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
 
 				scales = 1/scales
