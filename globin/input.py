@@ -1,13 +1,11 @@
 import os
 import sys
 import numpy as np
-import matplotlib.pyplot as plt
-import multiprocessing as mp
 import re
 import copy
 import subprocess as sp
 from astropy.io import fits
-from scipy.interpolate import splrep, splev, interp1d
+from scipy.interpolate import interp1d
 from scipy.integrate import simps
 from scipy.signal import find_peaks
 
@@ -15,7 +13,7 @@ from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
 from .spec import Observation
 from .rh import air_to_vacuum
-from .utils import _set_keyword, _slice_line, construct_atmosphere_from_nodes
+from .utils import _slice_line, construct_atmosphere_from_nodes
 
 import globin
 
@@ -273,7 +271,7 @@ class InputData(object):
 			# add the scale type (of the inversion atmosphere)
 			self.atmosphere.scale_id = globin.scale_id[atm_scale]
 		else:
-			raise ValueError(f"Mode {mode} is unsupported.")
+			raise ValueError(f"Mode {self.mode} is unsupported.")
 
 		# add angle for which we need to compute spectrum
 		self.atmosphere.mu = mu
@@ -1340,7 +1338,7 @@ def read_OF_data(fpath):
 		of_wave = np.array(of_wave)
 		of_value = np.array(of_value)
 
-	of_wave = write_wavs(of_wave, fname=None)
+	of_wave = globin.rh.write_wavs(of_wave, fname=None)
 
 	return of_num, of_wave, of_value
 
@@ -1463,7 +1461,8 @@ class Chi2(object):
 			self.chi2 = chi2
 
 	def read(self, fpath):
-		hdu = fits.open(fpath)[0]
+		hdu_list = fits.open(fpath)
+		hdu = hdu_list[0]
 		header = hdu.header
 		self.chi2 = hdu.data
 
@@ -1476,6 +1475,11 @@ class Chi2(object):
 			# for the older outputs
 			self.nx, self.ny,_ = self.chi2.shape
 			self.chi2, _ = self.get_final_chi2()
+
+		try:
+			self.full_chi2 = hdu_list[2].data
+		except:
+			self.full_chi2 = None
 
 		self.nx, self.ny = self.chi2.shape
 
@@ -1523,10 +1527,15 @@ class Chi2(object):
 		primary.header["NGLOBALP"] = (self.Nlocal_par, "num. of global parameters")
 		primary.header["NW"] = (self.Nw, "number of wavelenghts (for full Stokes")
 
-		# contianer for last iteration number for each pixel
+		# container for last iteration number for each pixel
 		iter_hdu = fits.ImageHDU(last_iter)
 		iter_hdu.name = "iteration_num"
 		hdulist.append(iter_hdu)
+
+		# container for all the chi2 values (for every pixel in every iteration)
+		all_hdu = fits.ImageHDU(self.chi2)
+		all_hdu.name = "All chi2 values"
+		hdulist.append(all_hdu)
 
 		# save
 		hdulist.writeto(fpath, overwrite=True)

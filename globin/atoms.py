@@ -293,7 +293,7 @@ class AtomPars(object):
                 ind = hdu.index_of(parameter)
                 self.header[parameter] = hdu[ind].header
                 self.data[parameter] = hdu[ind].data[:,:,1,:]
-                self.data[parameter+"IDs"] = np.array(hdu[ind].data[0,0,0], dtype=np.int)
+                self.data[parameter+"IDs"] = np.array(hdu[ind].data[0,0,0], dtype=np.int32)
                 self.nx, self.ny = self.data[parameter].shape[:-1]
                 self.nl[parameter] = len(self.data[parameter+"IDs"])
             except Exception as e:
