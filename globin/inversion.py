@@ -246,7 +246,7 @@ class Inverter(InputData):
 		chi2.Nlolcal_par = Npar
 		chi2.Nglobal_par = 0
 		chi2.Nw = np.count_nonzero(self.weights)*Nw
-		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int)
+		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int32)
 
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
@@ -1216,7 +1216,7 @@ def normalize_hessian(H, atmos, mode):
 			nnodes = len(atmos.nodes[parameter])
 			for idn in range(nnodes):
 				ind = np.arange(0, Natmos*Nlocalpar, Nlocalpar) + shift
-				atmos.parameter_scale[parameter][:,:,idn] = scales[ind].reshape(atmos.nx, atmos.ny, order="F")
+				atmos.parameter_scale[parameter][:,:,idn] = scales[ind].reshape(atmos.nx, atmos.ny, order="C")
 				shift += 1
 			# parameter scale must be multiplied by the normalization value in order to retrieve 
 			# the proposed step in unit of a parameter. We scaled the Regularization function and
