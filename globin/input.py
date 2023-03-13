@@ -176,7 +176,7 @@ class InputData(object):
 		#	raise ValueError("Stray light factor value below 0.")
 
 		#--- read Opacity Fudge (OF) data
-		self.of_mode = _find_value_by_key("of_mode", self.parameters_input, "default", -1, conversion=int)
+		self.of_mode = _find_value_by_key("of_fit_mode", self.parameters_input, "default", -1, conversion=int)
 		# of_mode:
 		#   0    -- use it only for synthesis
 		#   1    -- invert for it in pixel-by-pixel manner
@@ -185,7 +185,7 @@ class InputData(object):
 		if (self.of_mode==0) or (self.of_mode==1):
 			self.do_fudge = True
 			of_file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, conversion=str)
-			self.of_scatter = _find_value_by_key("of_scatter", self.parameters_input, "default", 0, conversion=int)
+			self.of_scatter = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, conversion=int)
 			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
 
@@ -261,7 +261,7 @@ class InputData(object):
 				self.atmosphere.n_local_pars += np.sum(self.atmosphere.mask[parameter], dtype=np.int32)
 				# self.atmosphere.n_local_pars += len(self.atmosphere.nodes[parameter])
 
-			if (self.do_fudge):
+			if self.do_fudge and self.of_mode==1:
 				self.atmosphere.n_local_pars += of_num
 
 			self.atmosphere.n_global_pars = 0
@@ -321,13 +321,18 @@ class InputData(object):
 			if of_value.ndim==1:
 				of_value = np.repeat(of_value[np.newaxis, :], self.atmosphere.nx, axis=0)
 				of_value = np.repeat(of_value[:, np.newaxis, :], self.atmosphere.ny, axis=1)
-			
+
 			self.atmosphere.do_fudge = 1
 			self.atmosphere.of_num = of_num
-			self.atmosphere.nodes["of"] = of_wave
-			self.atmosphere.values["of"] = of_value
-			self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
-			self.atmosphere.mask["of"] = np.ones(self.atmosphere.of_num)
+			self.atmosphere.of_mode = self.of_mode
+			if self.of_mode==1:
+				self.atmosphere.nodes["of"] = of_wave
+				self.atmosphere.values["of"] = of_value
+				self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
+				self.atmosphere.mask["of"] = np.ones(self.atmosphere.of_num)
+			else:
+				self.atmosphere.of_wave = of_wave
+				self.atmosphere.of_values = of_value
 
 			# create arrays to be passed to RH for synthesis
 			self.atmosphere.of_scatter = self.of_scatter
@@ -539,10 +544,10 @@ class InputData(object):
 				self.wavs_weight[...,2] = wU
 				self.wavs_weight[...,3] = wV
 			else:
-				self.wavs_weight[...,0] = interp1d(lam, wI)(self.wavelength)
-				self.wavs_weight[...,1] = interp1d(lam, wQ)(self.wavelength)
-				self.wavs_weight[...,2] = interp1d(lam, wU)(self.wavelength)
-				self.wavs_weight[...,3] = interp1d(lam, wV)(self.wavelength)
+				self.wavs_weight[...,0] = interp1d(lam, wI)(self.wavelength_air)
+				self.wavs_weight[...,1] = interp1d(lam, wQ)(self.wavelength_air)
+				self.wavs_weight[...,2] = interp1d(lam, wU)(self.wavelength_air)
+				self.wavs_weight[...,3] = interp1d(lam, wV)(self.wavelength_air)
 
 		# if macro-turbulent velocity is negative, we fit it
 		if vmac<0:

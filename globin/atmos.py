@@ -1190,10 +1190,11 @@ class Atmosphere(object):
 				else:
 					primary.header["STRAY"] = (self.stray_light[0,0,0], "stray light factor")
 
-		#primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity [km/s]")
 		if "vmac" in self.global_pars:
+			primary.header["VMAC"] = ("{:5.3f}".format(self.vmac[0]), "macro-turbulen velocity [km/s]")
 			primary.header["VMAC_FIT"] = ("True", "flag for fitting macro velocity")
 		else:
+			primary.header["VMAC"] = ("{:5.3f}".format(self.vmac), "macro-turbulen velocity [km/s]")
 			primary.header["VMAC_FIT"] = ("False", "flag for fitting macro velocity")
 
 		# add keys from kwargs (as dict)
@@ -2008,12 +2009,22 @@ class Atmosphere(object):
 				print(_L)
 
 	def make_OF_table(self, wavelength_vacuum):
+		if self.of_mode==0:
+			nodes = self.of_wave
+			values = self.of_values
+		elif self.of_mode==1:
+			nodes = self.nodes["of"]
+			values = self.values["of"]
+		else:
+			raise ValueError("Unsupported of_mode value. Choose eighter 0 or 1 to apply the fudging.")
+
 		if wavelength_vacuum[0]<=210:
 			print("  Sorry, but OF is not properly implemented for wavelengths")
 			print("    belowe 210 nm. You have to wait for newer version of globin.")
 			sys.exit()
 		
 		if self.of_num==1:
+			print("This is not checked yet... Do not trust results...")
 			self.fudge_lam = np.zeros(4, dtype=np.float64)
 			self.fudge = np.ones((self.nx, self.ny, 3,4), dtype=np.float64)
 
@@ -2046,7 +2057,7 @@ class Atmosphere(object):
 			self.fudge = np.ones((self.nx, self.ny, 3, Nof), dtype=np.float64)
 			
 			# first point outside of interval (must be =1)
-			self.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+			self.fudge_lam[0] = nodes[0] - 0.0002
 			self.fudge[...,0] = 1
 
 			for idf in range(self.of_num):
@@ -2056,14 +2067,14 @@ class Atmosphere(object):
 					shift = -0.0001
 				if idf==self.of_num-1:
 					shift = 0.0001
-				self.fudge_lam[idf+1] = self.nodes["of"][idf] + shift
-				self.fudge[...,0,idf+1] = self.values["of"][...,idf]
+				self.fudge_lam[idf+1] = nodes[idf] + shift
+				self.fudge[...,0,idf+1] = values[...,idf]
 				if self.of_scatter:
-					self.fudge[...,1,idf+1] = self.values["of"][...,idf]
+					self.fudge[...,1,idf+1] = values[...,idf]
 				self.fudge[...,2,idf+1] = 1	
 
 			# last point outside of interval (must be =1)
-			self.fudge_lam[-1] = wavelength_vacuum[-1] + 0.0002
+			self.fudge_lam[-1] = nodes[-1] + 0.0002
 			self.fudge[...,-1] = 1
 
 	def compare(self, atmos, idx=0, idy=0):
