@@ -79,42 +79,43 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     # get the nodes for each parameter
     if inversion:
         max_nodes = len(par_header["LGTRF*"])
-        start = par_header["LGTRF"]-1
-        nodes = par_data[start:start+max_nodes,0,0]
+        if max_nodes!=0:
+            start = par_header["LGTRF"]-1
+            nodes = par_data[start:start+max_nodes,0,0]
 
-        # add the node values into the atmosphere structure
-        for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
-            ind = par_header[f"{parameter}*"]
-            nnodes = len(ind)
-            if nnodes==0:
-                continue
-            start = ind[0] - 1
-            if nnodes==1:
-                atm.nodes[parameter_relay[parameter]] = np.array([0])
-            else:
-                atm.nodes[parameter_relay[parameter]] = nodes
+            # add the node values into the atmosphere structure
+            for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
+                ind = par_header[f"{parameter}*"]
+                nnodes = len(ind)
+                if nnodes==0:
+                    continue
+                start = ind[0] - 1
+                if nnodes==1:
+                    atm.nodes[parameter_relay[parameter]] = np.array([0])
+                else:
+                    atm.nodes[parameter_relay[parameter]] = nodes
 
-            fact = 1
-            if parameter=="VELOS":
-                fact = -1
-            if parameter in ["GAMMA", "AZIMU"]:
-                fact = np.pi/180
-            
-            atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
-            for idn in range(nnodes):
-                atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
+                fact = 1
+                if parameter=="VELOS":
+                    fact = -1
+                if parameter in ["GAMMA", "AZIMU"]:
+                    fact = np.pi/180
+                
+                atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
+                for idn in range(nnodes):
+                    atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
 
-        for parameter in ["LOGGF"]:
-            ind = par_header[f"{parameter}*"]
-            nlines = len(ind)
-            if nlines==0:
-                continue
+            for parameter in ["LOGGF"]:
+                ind = par_header[f"{parameter}*"]
+                nlines = len(ind)
+                if nlines==0:
+                    continue
 
-            start = ind[0] - 1
-            atm.global_pars[parameter_relay[parameter]] = np.empty((atm.nx, atm.ny, nlines))
+                start = ind[0] - 1
+                atm.global_pars[parameter_relay[parameter]] = np.empty((atm.nx, atm.ny, nlines))
 
-            for idl in range(nlines):
-                atm.global_pars[parameter_relay[parameter]][:,:,idl] = par_data[start+idl]
+                for idl in range(nlines):
+                    atm.global_pars[parameter_relay[parameter]][:,:,idl] = par_data[start+idl]
 
     # create the Spectrum() structure
     spec = globin.Spectrum(nx=nx, ny=ny, nw=nw)
