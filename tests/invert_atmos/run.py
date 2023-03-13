@@ -34,6 +34,7 @@ import globin
 inverter = globin.Inverter(verbose=True)
 inverter.read_input(run_name="dummy")
 inv_atmos, inv_spec, chi2 = inverter.run()
+sys.exit()
 
 idx, idy = 0,0
 inv = None
@@ -42,8 +43,7 @@ if inverter.mode>=1:
     obs = inverter.observation
     inv = inv_spec.spec[idx,idy]
 globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv)
-globin.show()
 
-atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[1,2,2,3])
-globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "vmic", "mag", "gamma", "chi"], reference=atmos)
+# atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[0,1,0,1])
+# globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "ne", "nH"], reference=atmos)
 globin.show()
