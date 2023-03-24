@@ -71,6 +71,19 @@ class Spectrum(object):
 	def TotalP(self):		
 		return np.sqrt(self.Q**2 + self.U**2 + self.V**2)
 
+	def integrate_V(self):
+		StokesV_int = np.empty((self.nx, self.ny))
+		ones = -1*np.ones(self.nw)
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				StokesV = self.V[idx,idy]
+				tck = splrep(self.wavelength, StokesV)
+				der_StokesI = splev(self.wavelength, tck, der=1)
+				flip = der_StokesI<0
+				StokesV[flip] *= ones[flip]
+				StokesV_int[idx,idy] = np.sum(StokesV) / self.nw
+		return StokesV_int
+
 	def list_spectra(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
