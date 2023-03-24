@@ -30,11 +30,16 @@ class Line(object):
 
         self.gLlow = gLlow
         self.gLup = gLup
+        self.get_effective_Lande()
 
         self.swap = swap
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
+
+    def get_effective_Lande(self):
+        self.gLeff = 0.5*(self.gLup+self.gLlow) + 0.25*(self.gLup-self.gLlow) * (self.Jup*(self.Jup+1.0) - self.Jlow*(self.Jlow+1.0))
+        return self.gLeff
 
 def read_RLK_lines(fpath):
     """
