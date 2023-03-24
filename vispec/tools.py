@@ -17,6 +17,7 @@ def add_colorbar(fig, ax, im, label=None):
     # cbar.ax.set_yticklabels(cbar.ax.get_yticks(), fontsize="medium")
     if label is not None:
         cbar.set_label(label)
+    return cbar
 
 def create_fig(nrows=1, ncols=1, figsize=None, hspace=0.3, wspace=0.3):
     if figsize is None:

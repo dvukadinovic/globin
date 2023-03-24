@@ -1349,23 +1349,71 @@ def read_OF_data(fpath):
 
 class RF(object):
 	def __init__(self, fpath=None):
+		self.rf_local = None
+		self.rf_global = None
+		self.local_pars = {}
+		self.global_pars = {}
 		if fpath is not None:
 			self.read(fpath)
 
 	def read(self, fpath):
-		hdu = fits.open(fpath)
+		hdulist = fits.open(fpath)
+		nheaders = len(hdulist)
+		header_names = [hdulist[i].name for i in range(nheaders)]
+		
+		# read atmospheric (local) RFs
+		if "RF_LOCAL" in header_names:
+			index = hdulist.index_of("RF_LOCAL")
+			self.read_atmospheric_RFs(hdulist[index])
+		if "RF_GLOBAL" in header_names:
+			index = hdulist.index_of("RF_GLOBAL")
+			self.read_global_pars_RFs(hdulist[index])
 
-		# print(repr(hdu[0].header))
+		# read in the wavelength grid
+		self.wavelength = hdulist[-2].data
+		# read in the optical depth scale
+		self.logtau = hdulist[-1].data
 
-		self.rf = hdu[0].data
-		self.wavelength = hdu[1].data
-		self.logtau = hdu[2].data
+	def read_atmospheric_RFs(self, hdu):
+		self.rf_local = hdu.data
 
-		self.nx = self.rf.shape[0]
-		self.ny = self.rf.shape[1]
-		self.nz = self.rf.shape[3]
+		shape = self.rf_local.shape
+		self.nx, self.ny, self.nz = shape[0], shape[1], shape[3]
 
-		norm = hdu[0].header["NORMED"]
+		self._get_norm_flag(hdu)
+
+		npar = shape[2]
+		nread = 0
+		i_ = 1
+		while nread<npar:
+			parameter = hdu.header[f"PAR{i_}"]
+			idp = hdu.header[f"PARID{i_}"] - 1
+			nread += 1
+			self.local_pars[parameter] = idp
+			i_ += 1
+
+	def read_global_pars_RFs(self, hdu):
+		self.rf_global = hdu.data
+
+		shape = self.rf_global.shape
+		self.nx, self.ny, self.nw = shape[0], shape[1], shape[3]
+
+		self._get_norm_flag(hdu)
+
+		npar = shape[2]
+		nread = 0
+		i_ = 1
+		while nread<npar:
+			parameter = hdu.header[f"PAR{i_}"]
+			idp_min = hdu.header[f"PAR{i_}S"]-1
+			idp_max = hdu.header[f"PAR{i_}E"]-1
+			idp = np.arange(idp_min, idp_max+1, 1, dtype=np.int32)
+			nread += len(idp)
+			self.global_pars[parameter] = idp
+			i_ += 1
+
+	def _get_norm_flag(self, hdu):
+		norm = hdu.header["NORMED"]
 		if norm.lower()=="true":
 			self.normed_spec = True
 		elif norm.lower()=="false":
@@ -1373,37 +1421,21 @@ class RF(object):
 		else:
 			self.normed_spec = None
 
-		npar = self.rf.shape[2]
-		self.pars = {}
-		nread = 0
-		i_ = 0
-		while nread < npar:
-			parameter = hdu[0].header[f"PAR{i_+1}"]
-			if parameter in ["loggf", "dlam"]:
-				idp_min = hdu[0].header["PARIDMIN"]-1
-				idp_max = hdu[0].header["PARIDMAX"]-1
-				idp = np.arange(idp_min, idp_max+1)
-				nread += len(idp)
-			else:
-				idp = hdu[0].header[f"PARID{i_+1}"] - 1
-				nread += 1
-			self.pars[parameter] = idp
-			i_ += 1
-
 	def norm(self):
-		for parameter in self.pars:
-			idp = self.pars[parameter]
-			if parameter in ["loggf", "dlam"]:
-				# norm = np.sqrt(np.sum(self.rf[:,:,idp]**2, axis=(4,5)))
-				continue
-			else:
-			# sum over wavelength and Stokes components and depth
-				norm = np.sqrt(np.sum(self.rf[:,:,idp]**2, axis=(2,3,4)))
-			# print(norm[0,0])
-			for idx in range(self.nx):
-				for idy in range(self.ny):
-					# self.rf[idx,idy,idp] = np.einsum("ijk,i->ijk", self.rf[idx,idy,idp], 1/norm[idx,idy])
-					self.rf[idx,idy,idp] /= norm[idx,idy]
+		"""
+		Normalize the RF's by summing through the wavelength and Stokes vector (for global parameters) 
+		and through depth points (for local parameters. By normalizatio RFs become unitless values.
+		"""
+		for parameter in self.local_pars:
+			idp = self.local_pars[parameter]
+			# sum over wavelength, Stokes components and height
+			norm = np.sqrt(np.sum(self.rf_local[:,:,idp]**2, axis=(2,3,4)))
+			self.rf_local[:,:,idp] /= norm[..., np.newaxis, np.newaxis, np.newaxis]
+		for parameter in self.global_pars:
+			idp = self.global_pars[parameter]
+			# sum over wavelength and Stokes components
+			norm = np.sqrt(np.sum(self.rf_global[:,:,idp]**2, axis=(3,4)))
+			self.rf_global[:,:,idp] /= norm[..., np.newaxis, np.newaxis]
 
 	@property	
 	def T(self):
@@ -1429,11 +1461,22 @@ class RF(object):
 	def phi(self):
 		return self.get_par_rf("chi")
 
+	@property
+	def loggf(self):
+		return self.get_par_rf("loggf")
+
 	def get_par_rf(self, parameter):
-		idp = self.pars[parameter]
-		return self.rf[:,:,idp]
+		if parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+			idp = self.local_pars[parameter]
+			return self.rf_local[:,:,idp]
+		if parameter in ["loggf", "dlam"]:
+			idp = self.global_pars[parameter]
+			return self.rf_global[:,:,idp]
+		
+		raise ValueError(f"We do not have RF for {parameter}.")
 
 	def get_stokes_rf(self, stokes):
+		return None
 		if stokes.lower()=="i":
 			ids = 0
 		if stokes.lower()=="q":

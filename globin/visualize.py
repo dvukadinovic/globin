@@ -31,6 +31,18 @@ pars_symbol = {"temp"  : "T",
 			   "chi"   : r"$\phi$",
 			   "nH"    : r"$n_\mathrm{H}^0$"}
 
+parameter_norm = {"temp"  : 5000,		# [K]
+				  "vz" 	  : 6,			# [km/s]
+				  "vmic"  : 6,			# [km/s]
+				  "mag"   : 1000,		# [G]
+				  "gamma" : np.pi,		# [rad]
+				  "chi"   : np.pi,		# [rad]
+				  "of"    : 2,			#
+				  "stray" : 0.1,
+				  "vmac"  : 2,			# [km/s]
+				  "dlam"  : 10,			# [mA]
+				  "loggf" : -1.0}		#
+
 def show():
 	"""
 	Just to show up the plot from 'plot_atmosphere' and/or
@@ -361,7 +373,8 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, norm=False, integrate=False):
+def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, 
+	    	 rf_wave_integrate=False, rf_tau_integrate=False):
 	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
@@ -388,14 +401,12 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 	ind_bot = np.argmin(np.abs(_rf.logtau - logtau_bot))+1
 
 	# rf.shape = (nx, ny, 6, nz, nw, 4)
-	if norm:
-		_rf.norm()
-	rf = _rf.rf
-	nx, ny, npar, nz, nw, ns = rf.shape
+	rf_local, rf_global = _rf.rf_local, _rf.rf_global
+	nx, ny, npar, nz, nw, ns = rf_local.shape
 	logtau = _rf.logtau[ind_top:ind_bot]
 	dtau = _rf.logtau[1] - _rf.logtau[0]
 
-	pars = _rf.pars
+	local_pars, global_pars = _rf.local_pars, _rf.global_pars
 
 	stokes_range = []
 	stokes_labels = []
@@ -404,41 +415,37 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 		stokes_range.append(stokesV[item])
 		stokes_labels.append(f"Stokes {item}")
 
-	NZ = int(np.int((logtau[-1] - logtau[0])) / dtau) + 1
+	NZ = int((logtau[-1] - logtau[0]) / dtau) + 1
 
-	nrows = len(parameters)
+	nrows = len(local_parameters) + len(global_parameters)
 	ncols = len(stokes_range)
 	NW = 11
 	if ncols!=1:
 		NW = 5
 
-	fig = plt.figure(figsize=(12,10), dpi=90)
+	width, height = 3, 2+2/3
+	fig = plt.figure(figsize=(width*ncols, height*nrows))
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.35, hspace=0.5)
 
-	for i_, parameter in enumerate(parameters):
+	for i_, parameter in enumerate(local_parameters):
 		try:
-			idp = pars[parameter]
+			idp = local_pars[parameter]
 		except:
-			print(repr(hdulist[0].header))
-			sys.exit(f"No RF for parameter {parameter}")
+			print(f"No RF for parameter {parameter}")
+			continue
 
-		if not integrate:
+		if not rf_wave_integrate:
 			for j_, ids in enumerate(stokes_range):
 				ax = fig.add_subplot(gs[i_,j_])
 				if i_==0:
 					ax.set_title(stokes_labels[j_])
 				
-				matrix = rf[idx, idy, idp, :, :, ids]
-				if norm:
-					norm = np.sqrt(np.sum(matrix**2))
-					matrix /= norm
+				matrix = rf_local[idx, idy, idp, ind_top:ind_bot, :, ids]
 				vmax = np.max(np.abs(matrix))
 				vmin = -vmax
 				par_cmap = cmap[parameter]
 				if parameter=="temp":
 					if ids!=0:
-						par_cmap = "bwr"
-					if norm and ids==0:
 						par_cmap = "bwr"
 				# 	else:
 				# 		vmin = 0
@@ -455,10 +462,11 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 				if i_+1<nrows:
 					ax.set_xticklabels([])
 
-				ax.grid(b=True, which="major", axis="y", lw=0.5)
+				ax.grid(which="major", axis="y", lw=0.5)
 
-		if integrate:	
-			RF = rf[idx,idy,idp,ind_top:ind_bot,:,:]
+		if rf_wave_integrate:	
+			RF = rf_local[idx,idy,idp,ind_top:ind_bot,:,:]
+			# RF *= parameter_norm[parameter]
 			integratedRF = np.sum(np.abs(RF), axis=1)
 			vmax = np.max(integratedRF)*1.05
 			vmin = np.min(integratedRF)*1.05
@@ -475,7 +483,21 @@ def plot_rf(_rf, parameters=["temp"], idx=0, idy=0, Stokes="I", logtau_top=-6, l
 				if j_==0:
 					ax.set_ylabel(f"{cbar_label[parameter]}")
 
-				ax.grid(b=True, which="major", axis="both", lw=0.5)
+				# ax.grid(b=True, which="major", axis="both", lw=0.5)
+
+	i_ = len(local_parameters)
+	for ii, parameter in enumerate(global_parameters):
+		i_ += ii
+		try:
+			idp = global_pars[parameter]
+		except:
+			print(f"No RF for parameter {parameter}.")
+			continue
+
+		for j_, ids in enumerate(stokes_range):
+			ax = fig.add_subplot(gs[i_,j_])
+			for idl in idp:
+				ax.plot(rf_global[idx,idy,idl,:,ids])#*parameter_norm[parameter])
 
 def add_colorbar(fig, ax, im, label=None):
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes

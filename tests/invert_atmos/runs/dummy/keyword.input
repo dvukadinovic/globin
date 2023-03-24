@@ -209,7 +209,7 @@
 # Set this value to TRUE to get printout on CPU usage (may take some
 # extra CPU usage though!).
 
-#  PRINT_CPU = TRUE
+  PRINT_CPU = TRUE
 
 # Enable program to do the formal solution for N_THREADS wavelengths
 # concurrently (KEYWORD_OPTIONAL). Maximum number of threads is limited

@@ -1845,6 +1845,8 @@ class Atmosphere(object):
 		
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
+			print(self.wavelength_air)
+			print(self.wavelength_obs)
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
@@ -2367,7 +2369,7 @@ def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 
 def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=None):
 	if (local_pars is None) and (global_pars is None):
-		raise ValueError("None of atmospheric or atomic are given for RF computation.")
+		raise ValueError("None of atmospheric or atomic parameters are given for RF computation.")
 
 	dlogtau = atmos.logtau[1] - atmos.logtau[0]
 
@@ -2387,9 +2389,12 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 	
 	n_pars = n_local + n_global
 	
-	rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
+	# rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
+	if n_local>0:
+		rf_local = np.zeros((atmos.nx, atmos.ny, n_local, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
+	if n_global>0:
+		rf_global = np.zeros((atmos.nx, atmos.ny, n_global, len(atmos.wavelength_air), 4), dtype=np.float64)
 
-	i_ = -1
 	free_par_ID = 0
 	if local_pars is not None:
 		for idp, parameter in enumerate(local_pars):
@@ -2404,7 +2409,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 				spec_minus = atmos.compute_spectra()
 				
 				diff = spec_plus.spec - spec_minus.spec
-				rf[:,:,free_par_ID,idz] = diff / 2 / perturbation
+				rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
 
 				# remove perturbation from data
 				atmos.data[:,:,parID,idz] += perturbation
@@ -2413,6 +2418,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 	#--- loop through global parameters and calculate RFs
 	if global_pars is not None:
+		free_par_ID = 0
 		for parameter in global_pars:
 			if parameter=="vmac":
 				radius = int(4*kernel_sigma + 0.5)
@@ -2446,9 +2452,9 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 
-					rf[:,:,free_par_ID] = diff
-					if atmos.mode==3:
-						rf[:,:,free_par_ID,:,:] = np.repeat(diff[:,:,np.newaxis,:,:], atmos.nz , axis=2)
+					rf_global[:,:,free_par_ID] = diff
+					# if atmos.mode==3:
+					# 	rf[:,:,free_par_ID,:,:] = np.repeat(diff[:,:,np.newaxis,:,:], atmos.nz , axis=2)
 
 					free_par_ID += 1
 					
@@ -2459,39 +2465,63 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 	# if we have provided the path, save the RFs
 	if fpath is not None:
-		primary = fits.PrimaryHDU(rf)
-		primary.name = "RF"
+		hdulist = []#fits.HDUList([])
+		# save atmospheric RFs
+		if n_local>0:
+			atmos_hdu = fits.PrimaryHDU(rf_local)
+			atmos_hdu.name = "RF_LOCAL"
 
-		# np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(globin.wavelength), 4), dtype=np.float64)
+			atmos_hdu.header.comments["NAXIS1"] = "stokes components"
+			atmos_hdu.header.comments["NAXIS2"] = "number of wavelengths"
+			atmos_hdu.header.comments["NAXIS3"] = "depth points"
+			atmos_hdu.header.comments["NAXIS4"] = "number of parameters"
+			atmos_hdu.header.comments["NAXIS5"] = "y-axis atmospheres"
+			atmos_hdu.header.comments["NAXIS6"] = "x-axis atmospheres"
 
-		primary.header.comments["NAXIS1"] = "stokes components"
-		primary.header.comments["NAXIS2"] = "number of wavelengths"
-		primary.header.comments["NAXIS3"] = "depth points"
-		primary.header.comments["NAXIS4"] = "number of parameters"
-		primary.header.comments["NAXIS5"] = "y-axis atmospheres"
-		primary.header.comments["NAXIS6"] = "x-axis atmospheres"
+			atmos_hdu.header["STOKES"] = ("IQUV", "the Stokes vector order")
 
-		primary.header["STOKES"] = ("IQUV", "the Stokes vector order")
+			if norm:
+				atmos_hdu.header["NORMED"] = ("TRUE", "flag for spectrum normalization")
+			else:
+				atmos_hdu.header["NORMED"] = ("FALSE", "flag for spectrum normalization")
 
-		if norm:
-			primary.header["NORMED"] = ("TRUE", "flag for spectrum normalization")
-		else:
-			primary.header["NORMED"] = ("FALSE", "flag for spectrum normalization")
-
-		i_ = 1
-		if local_pars:
+			i_ = 1
 			for par in local_pars:
-				primary.header[f"PAR{i_}"] = (par, "parameter")
-				primary.header[f"PARID{i_}"] = (i_, "parameter ID")
+				atmos_hdu.header[f"PAR{i_}"] = (par, "parameter")
+				atmos_hdu.header[f"PARID{i_}"] = (i_, "parameter ID")
 				i_ += 1
-		if global_pars:
-			for par in global_pars:
-				primary.header[f"PAR{i_}"] = (par, "parameter")
-				primary.header["PARIDMIN"] = (i_, "parameter ID min")
-				primary.header["PARIDMAX"] = (i_ + atmos.line_no[par].size -1, "parameter ID max")
-				i_ += atmos.line_no[par].size
 
-		hdulist = fits.HDUList([primary])
+			hdulist.append(atmos_hdu)
+		if n_global>0:
+			if n_local>0:
+				global_hdu = fits.ImageHDU(rf_global)
+			else:
+				global_hdu = fits.PrimaryHDU(rf_global)
+			global_hdu.name = "RF_GLOBAL"
+
+			global_hdu.header.comments["NAXIS1"] = "stokes components"
+			global_hdu.header.comments["NAXIS2"] = "number of wavelengths"
+			global_hdu.header.comments["NAXIS3"] = "depth points"
+			global_hdu.header.comments["NAXIS4"] = "y-axis atmospheres"
+			global_hdu.header.comments["NAXIS5"] = "x-axis atmospheres"
+
+			global_hdu.header["STOKES"] = ("IQUV", "the Stokes vector order")
+
+			# if norm:
+			global_hdu.header["NORMED"] = (f"{str(norm).upper()}", "flag for spectrum normalization")
+			# else:
+			# 	global_hdu.header["NORMED"] = ("FALSE", "flag for spectrum normalization")
+
+			i_ = 1
+			start_index = 1
+			for par in global_pars:
+				global_hdu.header[f"PAR{i_}"] = (par, "parameter")
+				global_hdu.header[f"PAR{i_}S"] = (start_index, "ID of parameter RF begining")
+				global_hdu.header[f"PAR{i_}E"] = (start_index + atmos.line_no[par].size -1, "ID of parameter RF end")
+				i_ += 1
+				start_index += atmos.line_no[par].size
+
+			hdulist.append(global_hdu)
 
 		#--- wavelength list
 		par_hdu = fits.ImageHDU(atmos.wavelength_air)
@@ -2508,9 +2538,15 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 		hdulist.append(par_hdu)
 
 		#--- save HUDs to fits file
+		hdulist = fits.HDUList(hdulist)
 		hdulist.writeto(fpath, overwrite=True)
 
-	return rf
+	if n_local>0 and n_global>0:
+		return rf_local, rf_global
+	if n_local>0:
+		return rf_local
+	if n_global>0:
+		return rf_global
 
 def convert_atmosphere(logtau, atmos_data, atm_type):
 	"""
