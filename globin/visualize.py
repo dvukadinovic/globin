@@ -415,7 +415,13 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 	# rf.shape = (nx, ny, 6, nz, nw, 4)
 	rf_local, rf_global = _rf.rf_local, _rf.rf_global
-	nx, ny, npar, nz, nw, ns = rf_local.shape
+	if rf_local is not None:
+		nx, ny, npar, nz, nw, ns = rf_local.shape
+	elif rf_global is not None:
+		nx, ny, npar, nw, ns = rf_global.shape
+	else:
+		raise ValueError("There is not RF to be plotted.")
+
 	logtau = _rf.logtau[ind_top:ind_bot]
 	dtau = _rf.logtau[1] - _rf.logtau[0]
 

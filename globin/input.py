@@ -1350,9 +1350,13 @@ def read_OF_data(fpath):
 class RF(object):
 	def __init__(self, fpath=None):
 		self.rf_local = None
-		self.rf_global = None
 		self.local_pars = {}
+		
+		self.rf_global = None
 		self.global_pars = {}
+
+		self.normed_spec = None
+
 		if fpath is not None:
 			self.read(fpath)
 
@@ -1369,9 +1373,11 @@ class RF(object):
 			index = hdulist.index_of("RF_GLOBAL")
 			self.read_global_pars_RFs(hdulist[index])
 
-		# read in the wavelength grid
+		self._get_norm_flag(hdulist[0])
+
+		# get the wavelength grid
 		self.wavelength = hdulist[-2].data
-		# read in the optical depth scale
+		# get the optical depth scale
 		self.logtau = hdulist[-1].data
 
 	def read_atmospheric_RFs(self, hdu):
@@ -1379,8 +1385,6 @@ class RF(object):
 
 		shape = self.rf_local.shape
 		self.nx, self.ny, self.nz = shape[0], shape[1], shape[3]
-
-		self._get_norm_flag(hdu)
 
 		npar = shape[2]
 		nread = 0
@@ -1398,8 +1402,6 @@ class RF(object):
 		shape = self.rf_global.shape
 		self.nx, self.ny, self.nw = shape[0], shape[1], shape[3]
 
-		self._get_norm_flag(hdu)
-
 		npar = shape[2]
 		nread = 0
 		i_ = 1
@@ -1416,10 +1418,8 @@ class RF(object):
 		norm = hdu.header["NORMED"]
 		if norm.lower()=="true":
 			self.normed_spec = True
-		elif norm.lower()=="false":
+		if norm.lower()=="false":
 			self.normed_spec = False
-		else:
-			self.normed_spec = None
 
 	def norm(self):
 		"""
