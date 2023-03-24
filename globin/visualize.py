@@ -130,13 +130,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 						  ncol=legend_ncols, 
 						  fontsize="x-small", 
 						  frameon=True)
-
 			k_ += 1
 	
 	fig.tight_layout()
 
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, 
-	color="tab:blue", lw=1, title=None, subtitles_flag=False, relative=True, 
+	color="tab:blue", inv_colors=None, lw=1, title=None, subtitles_flag=False, relative=True, 
 	labels=None):
 	"""
 	Plot spectra.
@@ -154,6 +153,9 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		Figure title.
 	"""
 	colors = ["tab:red", "tab:orange", "tab:green"]
+	if inv_colors is not None:
+		colors = inv_colors
+
 	Ncolors = len(colors)
 
 	lmin = np.min(wavelength)
@@ -234,8 +236,11 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		return axI, axQ, axU, axV
 	else:
 		if axes is None:
-			fig = plt.figure(figsize=(9,9))
-			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.35, hspace=0.15)
+			width, height = 3, 2 + 2/3
+			width *= 1.25
+			height *= 1.25
+			fig = plt.figure(figsize=(2*width,2*height))
+			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.40, hspace=0.15)
 			gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 			ax0_SI = fig.add_subplot(gsSI[0,0])
 			ax1_SI = fig.add_subplot((gsSI[1,0]))
@@ -266,12 +271,13 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 
 		#--- Stokes I
 		# ax0_SI.set_title("Stokes I")
-		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2, label="Observation")
+		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2, lw=lw, label="Observation")
 		for idn in range(Ninv):
-			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[idn%Ncolors], lw=1.5, label=labels[idn])
+			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[idn%Ncolors], lw=1, label=labels[idn])
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SI.set_ylabel(r"Stokes $I$")
 		ax0_SI.set_xlim([-dlam, dlam])
+		ax0_SI.set_xticklabels([])
 
 		# plot legend
 		if Ninv<=3:
@@ -287,69 +293,76 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		ax1_SI.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):
 			difference = obs[:,0] - inv[idn][:,0]
-			ax1_SI.plot((wavelength - lam0)*10, difference, color=colors[idn%Ncolors], lw=1.5)
+			ax1_SI.plot((wavelength - lam0)*10, difference, color=colors[idn%Ncolors], lw=1)
 		# ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		# if not relative:
 		# 	ax1_SI.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SI.set_ylabel(r"$\Delta I$")
 		ax1_SI.set_xlim([-dlam, dlam])
+		ax1_SI.minorticks_off()
 
 		#--- Stokes Q
 		# ax0_SQ.set_title("Stokes Q")
-		ax0_SQ.plot((wavelength - lam0)*10, obs[:,1]*100, "k-", markersize=2)
+		ax0_SQ.plot((wavelength - lam0)*10, obs[:,1]*100, "k-", markersize=2, lw=lw)
 		for idn in range(Ninv):	
-			ax0_SQ.plot((wavelength - lam0)*10, inv[idn][:,1]*100, color=colors[idn%Ncolors], lw=1.5)
+			ax0_SQ.plot((wavelength - lam0)*10, inv[idn][:,1]*100, color=colors[idn%Ncolors], lw=1)
 		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SQ.set_ylabel(r"Stokes $Q/I_c$ [\%]")
 		ax0_SQ.set_xlim([-dlam, dlam])
+		ax0_SQ.set_xticklabels([])
 
 		ax1_SQ.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):
 			difference = obs[:,1] - inv[idn][:,1]
-			ax1_SQ.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
+			ax1_SQ.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1)
 		# ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		# if not relative:
 		# 	ax1_SQ.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SQ.set_ylabel(r"$\Delta Q$")
 		ax1_SQ.set_xlim([-dlam, dlam])
+		ax1_SQ.minorticks_off()
 
 		#--- Stokes U
 		# ax0_SU.set_title("Stokes U")
-		ax0_SU.plot((wavelength - lam0)*10, obs[:,2]*100, "k-", markersize=2)
+		ax0_SU.plot((wavelength - lam0)*10, obs[:,2]*100, "k-", markersize=2, lw=lw)
 		for idn in range(Ninv):	
-			ax0_SU.plot((wavelength - lam0)*10, inv[idn][:,2]*100, color=colors[idn%Ncolors], lw=1.5)
+			ax0_SU.plot((wavelength - lam0)*10, inv[idn][:,2]*100, color=colors[idn%Ncolors], lw=1)
 		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SU.set_ylabel(r"Stokes $U/I_c$ [\%]")
 		ax0_SU.set_xlim([-dlam, dlam])
+		ax0_SU.set_xticklabels([])
 
 		ax1_SU.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):
 			difference = obs[:,2] - inv[idn][:,2]
-			ax1_SU.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
+			ax1_SU.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1)
 		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
 			ax1_SU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SU.set_ylabel(r"$\Delta U$")
 		ax1_SU.set_xlim([-dlam, dlam])
+		ax1_SU.minorticks_off()
 		
 		#--- Stokes V
 		# ax0_SV.set_title("Stokes V")
-		ax0_SV.plot((wavelength - lam0)*10, obs[:,3]*100, "k-", markersize=2)
+		ax0_SV.plot((wavelength - lam0)*10, obs[:,3]*100, "k-", markersize=2, lw=lw)
 		for idn in range(Ninv):	
-			ax0_SV.plot((wavelength - lam0)*10, inv[idn][:,3]*100, color=colors[idn%Ncolors], lw=1.5)
+			ax0_SV.plot((wavelength - lam0)*10, inv[idn][:,3]*100, color=colors[idn%Ncolors], lw=1)
 		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SV.set_ylabel(r"Stokes $V/I_c$ [\%]")
 		ax0_SV.set_xlim([-dlam, dlam])
+		ax0_SV.set_xticklabels([])
 
 		ax1_SV.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):	
 			difference = obs[:,3] - inv[idn][:,3]
-			ax1_SV.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1.5)
+			ax1_SV.plot((wavelength - lam0)*10, difference*100, color=colors[idn%Ncolors], lw=1)
 		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
 			ax1_SV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		ax1_SV.set_ylabel(r"$\Delta V$")
 		ax1_SV.set_xlim([-dlam, dlam])
+		ax1_SV.minorticks_off()
 
 		return ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV
 
