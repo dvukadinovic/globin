@@ -948,9 +948,10 @@ class Atmosphere(object):
 
 		Units dyn/cm2 (CGS).
 		"""
-		nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
-		ne = self.data[...,2,:] * 1e6 # [m3]
-		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10
+		# nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
+		nH = self.nH * 1e6 # [m3]
+		ne = self.ne * 1e6 # [m3]
+		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
 
 	def get_ne_from_nH(self, scale="tau"):
 		"""
@@ -965,7 +966,7 @@ class Atmosphere(object):
 			self.scale = self.height[:,:]
 
 		for idy in range(3):
-			print(f"{idy+1}/{self.ny}")
+			# print(f"{idy+1}/{self.ny}")
 			for idx in range(self.nx):
 				# print(f"{idx+1}/{self.nx}")
 				pyrh.get_ne_from_nH(self.cwd, self.scale_type, self.scale[idx,idy], self.data[idx,idy])
@@ -1566,7 +1567,7 @@ class Atmosphere(object):
 		# nu = globin.LIGHT_SPEED/wlref/1e-9
 		# StokesI *= globin.LIGHT_SPEED/nu**2
 
-		print(StokesI[0])
+		# print(StokesI[0])
 
 		return StokesI[0]
 
@@ -1845,8 +1846,8 @@ class Atmosphere(object):
 		
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			print(self.wavelength_air)
-			print(self.wavelength_obs)
+			# print(self.wavelength_air)
+			# print(self.wavelength_obs)
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
