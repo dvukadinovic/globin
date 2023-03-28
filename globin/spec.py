@@ -184,11 +184,14 @@ class Spectrum(object):
 			for idy in range(self.ny):
 				if mode==1 or mode==2:
 					stray_factor = stray_light[idx,idy]
-				if mode==3:
+				elif mode==3:
 					if self.invert_stray:
 						stray_factor = stray_light#self.global_pars["stray"]
 					else:
 						stray_factor = stray_light[idx,idy]
+				else:
+					raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
+				
 				if stray_type=="hsra":
 					self.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="gray":

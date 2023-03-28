@@ -398,25 +398,11 @@ class Inverter(InputData):
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
 			
-			if atmos.add_stray_light:
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						if stop_flag[idx,idy]==1:
-							if self.stray_mode==1 or self.stray_type==2:
-								stray_factor = atmos.stray_light[idx,idy]
-							if self.stray_mode==3:
-								if atmos.invert_stray:
-									stray_factor = atmos.global_pars["stray"]
-								else:
-									stray_factor = atmos.stray_light[idx,idy]
-							if self.stray_type=="hsra":
-								corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
-							if self.stray_type=="gray":
-								corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
-								corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
-								corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
-								corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
-			
+			hsra_spec = None
+			if self.stray_type=="hsra":
+				hsra_spec = atmos.hsra_spec.spec
+			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+				
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
 
@@ -494,23 +480,12 @@ class Inverter(InputData):
 		inverted_spectra = atmos.compute_spectra(updated_pars)
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
-		if atmos.add_stray_light:
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if self.stray_mode==1 or self.stray_mode==2:
-						stray_factor = atmos.stray_light[idx,idy]
-					if self.stray_mode==3:
-						if atmos.invert_stray:
-							stray_factor = atmos.global_pars["stray"]
-						else:
-							stray_factor = atmos.stray_light[idx,idy]
-					if self.stray_type=="hsra":
-						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
-					if self.stray_type=="gray":
-						inverted_spectra.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * inverted_spectra.spec[idx,idy,:,0]
-						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
-						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
-						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
+		
+		hsra_spec = None
+		if self.stray_type=="hsra":
+			hsra_spec = atmos.hsra_spec.spec
+		corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+		
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
@@ -781,24 +756,11 @@ class Inverter(InputData):
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 			
 			# add the stray light contamination
-			if atmos.add_stray_light:
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						if self.stray_mode==1 or self.stray_mode==2:
-							stray_factor = atmos.stray_light[idx,idy]
-						if self.stray_mode==3:
-							if atmos.invert_stray:
-								stray_factor = atmos.global_pars["stray"]
-							else:
-								stray_factor = atmos.stray_light[idx,idy]
-						if self.stray_type=="hsra":
-							corrected_spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * corrected_spec.spec[idx,idy]
-						if self.stray_type=="gray":
-							corrected_spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * corrected_spec.spec[idx,idy,:,0]
-							corrected_spec.spec[idx,idy,:,1] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,1]
-							corrected_spec.spec[idx,idy,:,2] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,2]
-							corrected_spec.spec[idx,idy,:,3] = (1-stray_factor) * corrected_spec.spec[idx,idy,:,3]
-
+			hsra_spec = None
+			if self.stray_type=="hsra":
+				hsra_spec = atmos.hsra_spec.spec
+			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+			
 			# convolve profiles with instrumental profile
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
@@ -900,24 +862,11 @@ class Inverter(InputData):
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
 		
-		if atmos.add_stray_light:
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					if self.stray_mode==1 or self.stray_mode==2:
-						stray_factor = atmos.stray_light[idx,idy]
-					if self.stray_mode==3:	
-						if atmos.invert_stray:
-							stray_factor = atmos.global_pars["stray"]
-						else:
-							stray_factor = atmos.stray_light[idx,idy]
-					if self.stray_type=="hsra":
-						inverted_spectra.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * inverted_spectra.spec[idx,idy]
-					if self.stray_type=="gray":
-						inverted_spectra.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * inverted_spectra.spec[idx,idy,:,0]
-						inverted_spectra.spec[idx,idy,:,1] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,1]
-						inverted_spectra.spec[idx,idy,:,2] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,2]
-						inverted_spectra.spec[idx,idy,:,3] = (1-stray_factor) * inverted_spectra.spec[idx,idy,:,3]
-		
+		hsra_spec = None
+		if self.stray_type=="hsra":
+			hsra_spec = atmos.hsra_spec.spec
+		corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 

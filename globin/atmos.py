@@ -1809,7 +1809,7 @@ class Atmosphere(object):
 
 		#--- add the stray light component:
 		if self.add_stray_light:
-			# get the strat light factor(s)
+			# get the stray light factor(s)
 			if "stray" in self.global_pars:
 				stray_light = self.global_pars["stray"]
 			else:
@@ -1818,7 +1818,7 @@ class Atmosphere(object):
 			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
 			hsra_spec = None
 			if self.stray_type=="hsra":
-				hsra_spec = self.hsra_spec
+				hsra_spec = self.hsra_spec.spec
 
 			spec.add_stray_light(self.stray_mode, stray_light, self.stray_type, hsra_spec=hsra_spec)
 			
