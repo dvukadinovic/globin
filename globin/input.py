@@ -47,6 +47,9 @@ class InputData(object):
 		# flag for computing the mean spectrum
 		self.mean = False	
 
+		# type of stray light contamination
+		self.stray_type = None
+
 	def read_input_files(self, globin_input_name, rh_input_name):
 		"""
 		Read input files for globin and RH.
