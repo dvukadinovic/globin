@@ -30,7 +30,7 @@ class Line(object):
 
         self.gLlow = gLlow
         self.gLup = gLup
-        self.get_effective_Lande()
+        # self.get_effective_Lande()
 
         self.swap = swap
 
