@@ -21,6 +21,8 @@ Currently, supported atomic line parameters are transition probability (through 
    user/introduction
    user/installation
 
+   changelog
+
 .. Indices and tables
 .. ==================
 

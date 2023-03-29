@@ -9,7 +9,7 @@ n_thread = 6
 interp_deree = 3
 interp_method = bezier
 spline_tension = 0
-mode = 1
+mode = 3
 
 #--- Spectra to be fitted
 observation = obs_bezier_4016_mu1_abs.fits
@@ -23,9 +23,9 @@ norm = False
 mu = 1.0
 #instrumental_profile = hinode_instr_prof.dat
 
-#stray_factor = 0.03
-#stray_mode = 1
-#stray_type = gray
+stray_factor = 0.03
+stray_mode = 1
+stray_type = hsra
 
 #--- Output spectra
 #spectrum = obs_4016_vmac1.fits

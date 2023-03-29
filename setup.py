@@ -5,7 +5,7 @@ with open("readme.md", "r") as fh:
 
 setuptools.setup(
     name="globin", # Replace with your own username
-    version="0.0.1",
+    version="0.1.1",
     author="Dusan Vukadinovic",
     author_email="vukadinovic@mps.mpg.de",
     description="Global inversion of atomic parameters",
