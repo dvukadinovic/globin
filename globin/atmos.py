@@ -199,6 +199,7 @@ class Atmosphere(object):
 
 		self.chi_c = None
 		self.pg = None
+		self.vmac = 0
 
 		# cos(theta) for which we are computing the spectrum
 		self.mu = 1.0
@@ -1593,7 +1594,7 @@ class Atmosphere(object):
 			synthesize = np.ones((self.nx, self.ny))
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
-		
+
 		with mp.Pool(self.n_thread) as pool:
 			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
 
