@@ -1806,6 +1806,18 @@ class Atmosphere(object):
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
 				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread)
+		
+		#--- add instrumental broadening
+		if self.instrumental_profile is not None:
+			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+		
+		#--- downsample the synthetic spectrum to observed wavelength grid
+		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
+			# print(self.wavelength_air)
+			# print(self.wavelength_obs)
+			spec.interpolate(self.wavelength_obs, self.n_thread)
+			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
 		#--- add the stray light component:
 		if self.add_stray_light:
@@ -1821,35 +1833,6 @@ class Atmosphere(object):
 				hsra_spec = self.hsra_spec.spec
 
 			spec.add_stray_light(self.stray_mode, stray_light, self.stray_type, hsra_spec=hsra_spec)
-			
-			# for idx in range(self.nx):
-			# 	for idy in range(self.ny):
-			# 		if self.stray_mode==1 or self.stray_mode==2:
-			# 			stray_factor = self.stray_light[idx,idy]
-			# 		if self.stray_mode==3:
-			# 			if self.invert_stray:
-			# 				stray_factor = self.global_pars["stray"]
-			# 			else:
-			# 				stray_factor = self.stray_light[idx,idy]
-			# 		if self.stray_type=="hsra":
-			# 			spec.spec[idx,idy] = stray_factor * self.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
-			# 		if self.stray_type=="gray":
-			# 			spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
-			# 			spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
-			# 			spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
-			# 			spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
-
-		#--- add instrumental broadening
-		if self.instrumental_profile is not None:
-			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
-		
-		#--- downsample the synthetic spectrum to observed wavelength grid
-		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			# print(self.wavelength_air)
-			# print(self.wavelength_obs)
-			spec.interpolate(self.wavelength_obs, self.n_thread)
-			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
