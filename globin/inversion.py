@@ -398,10 +398,11 @@ class Inverter(InputData):
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
 			
-			hsra_spec = None
-			if self.stray_type=="hsra":
-				hsra_spec = atmos.hsra_spec.spec
-			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+			if atmos.add_stray_light:
+				hsra_spec = None
+				if self.stray_type=="hsra":
+					hsra_spec = atmos.hsra_spec.spec
+				corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 				
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
@@ -481,10 +482,11 @@ class Inverter(InputData):
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 		
-		hsra_spec = None
-		if self.stray_type=="hsra":
-			hsra_spec = atmos.hsra_spec.spec
-		corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+		if atmos.add_stray_light:
+			hsra_spec = None
+			if self.stray_type=="hsra":
+				hsra_spec = atmos.hsra_spec.spec
+			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 		
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
@@ -756,10 +758,11 @@ class Inverter(InputData):
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 			
 			# add the stray light contamination
-			hsra_spec = None
-			if self.stray_type=="hsra":
-				hsra_spec = atmos.hsra_spec.spec
-			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+			if atmos.add_stray_light:
+				hsra_spec = None
+				if self.stray_type=="hsra":
+					hsra_spec = atmos.hsra_spec.spec
+				corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 			
 			# convolve profiles with instrumental profile
 			if atmos.instrumental_profile is not None:
@@ -862,10 +865,11 @@ class Inverter(InputData):
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
 		
-		hsra_spec = None
-		if self.stray_type=="hsra":
-			hsra_spec = atmos.hsra_spec.spec
-		corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
+		if atmos.add_stray_light:
+			hsra_spec = None
+			if self.stray_type=="hsra":
+				hsra_spec = atmos.hsra_spec.spec
+			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
