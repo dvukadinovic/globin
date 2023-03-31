@@ -769,7 +769,7 @@ class Atmosphere(object):
 		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid, params)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.imap(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+			results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
@@ -917,7 +917,7 @@ class Atmosphere(object):
 		self.get_pg()
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.imap(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+			results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 
@@ -948,7 +948,7 @@ class Atmosphere(object):
 		args = zip(indx, indy)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.imap(func=self._compute_tau, iterable=args, chunksize=self.chunk_size)
+			results = pool.map(func=self._compute_tau, iterable=args, chunksize=self.chunk_size)
 
 		# results = np.array(results)
 
@@ -1023,7 +1023,7 @@ class Atmosphere(object):
 		args = zip(self.idx_meshgrid, self.idy_meshgrid)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.imap(self._get_ne_from_nH, iterable=args, chunksize=self.chunk_size)
+			results = pool.map(self._get_ne_from_nH, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 		print(results.shape)
@@ -1641,7 +1641,7 @@ class Atmosphere(object):
 		args = zip(indx, indy)
 
 		with mp.Pool(self.n_thread) as pool:
-			spectra_list = pool.imap(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
