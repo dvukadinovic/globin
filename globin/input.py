@@ -306,7 +306,7 @@ class InputData(object):
 
 		# get the Pg at top of the atmosphere
 		if self.atmosphere.pg_top is None:
-			self.atmosphere.get_pg_top()
+			# self.atmosphere.get_pg_top()
 			self.atmosphere.get_pg()
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
@@ -314,6 +314,7 @@ class InputData(object):
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
 			print(f"[Warning] Reduced the number of threads to {self.n_thread}.")
 		self.atmosphere.n_thread = self.n_thread
+		self.atmosphere.chunk_size = (self.atmosphere.nx * self.atmosphere.ny) // self.n_thread + 1
 
 		#--- set OF data in atmosphere
 		if self.do_fudge:

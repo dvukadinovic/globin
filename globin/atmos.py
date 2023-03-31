@@ -219,6 +219,9 @@ class Atmosphere(object):
 		# number of threads to be used for parallel execution of different functions
 		self.n_thread = 1
 
+		# size of the chunks that are submitted to each process (for multiprocessing map())
+		self.chunk_size = 1
+
 		# container for the RH() class
 		# self.RH = pyrh.RH()
 
@@ -646,6 +649,49 @@ class Atmosphere(object):
 	def scale(self):
 		return list(globin.scale_id.keys())[self.scale_id].upper()
 
+	def split(self, size, fpath):
+		"""
+		Split the atmosphere in workable chunks that will be Scattered to
+		each process/thread.
+		"""
+		self.indx = np.array_split(self.idx_meshgrid, size)
+		self.indy = np.array_split(self.idy_meshgrid, size)
+
+		# atm_chunks = [None]*size
+		
+		dic = self.__dict__
+		keys = dic.keys()
+		
+
+		for idt in range(size):
+			print(f"{idt+1}/{size}")
+			idx = self.indx[idt]
+			idy = self.indy[idt]
+			
+			atm_chunk = Atmosphere(nx=1, ny=len(idy), nz=self.nz)
+
+			for key in keys:
+
+				if key=="data":
+					atm_chunk.data[0,:,:,:] = self.data[idx,idy]
+					atm_chunk.shape = atm_chunk.data.shape
+				elif key in ["nx", "ny", "npar", "nz", "shape"]:
+					pass
+				elif key in ["pg", "height", "rho", "nHtot"]:
+					pass
+				elif key in ["idx_meshgrid", "idy_meshgrid"]:
+					pass
+				elif key in ["rank", "size", "use_mpi"]:
+					pass
+				else:
+					setattr(atm_chunk, key, dic[key])
+
+			atm_chunk.save_atmosphere(f"{fpath}/atm_c{idt+1}.fits")
+
+			# atm_chunks[idt].rank = idt
+
+		# return atm_chunks
+
 	def get_atmos(self, idx, idy):
 		dtau = self.logtau[1] - self.logtau[0]
 		new = Atmosphere(nx=1, ny=1, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
@@ -723,7 +769,7 @@ class Atmosphere(object):
 		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid, params)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(func=self._build_from_nodes, iterable=args)
+			results = pool.imap(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
@@ -871,7 +917,7 @@ class Atmosphere(object):
 		self.get_pg()
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(func=self._makeHSE, iterable=args)
+			results = pool.imap(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 
@@ -902,7 +948,7 @@ class Atmosphere(object):
 		args = zip(indx, indy)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(func=self._compute_tau, iterable=args)
+			results = pool.imap(func=self._compute_tau, iterable=args, chunksize=self.chunk_size)
 
 		# results = np.array(results)
 
@@ -977,7 +1023,7 @@ class Atmosphere(object):
 		args = zip(self.idx_meshgrid, self.idy_meshgrid)
 
 		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(self._get_ne_from_nH, iterable=args)
+			results = pool.imap(self._get_ne_from_nH, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
 		print(results.shape)
@@ -1521,8 +1567,7 @@ class Atmosphere(object):
 			spectrum is normalized to the local continuum point (@ first wavelength).
 		"""
 		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
-		hsra.wavelength_air = self.wavelength_obs
-		hsra.wavelength_obs = self.wavelength_obs
+		hsra.wavelength_air = self.wavelength_air
 		hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
 		hsra.cwd = self.cwd
 		hsra.mu = self.mu
@@ -1533,7 +1578,7 @@ class Atmosphere(object):
 		if self.norm and self.norm_level=="hsra":
 			self.hsra_spec.spec /= self.icont
 
-			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_obs[0]))
+			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[0]))
 
 		return self.icont, self.hsra_spec
 
@@ -1596,7 +1641,7 @@ class Atmosphere(object):
 		args = zip(indx, indy)
 
 		with mp.Pool(self.n_thread) as pool:
-			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args)
+			spectra_list = pool.imap(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
@@ -2797,3 +2842,4 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 		atmos.chi_c = None
 
 	return atmos
+
