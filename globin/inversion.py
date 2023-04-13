@@ -158,7 +158,7 @@ class Inverter(InputData):
 
 		return Npar
 
-	def _estimate_noise_level(self, nx, ny, nw):
+	def _estimate_noise_level(self, nx, ny, nw, weights=False):
 		if self.noise==0:
 			# noise = 1e-4
 			return np.ones((nx, ny, nw, 4))
@@ -171,14 +171,16 @@ class Inverter(InputData):
 
 		# weights on Stokes vector based on observed Stokes I
 		# (nx, ny, nw, 4)
-		# if self.weight_type=="StokesI":
-		# 	# print("  Set the weight based on Stokes I...")
-		# 	aux = 1/self.observation.spec[...,0]
-		# 	weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-		# 	norm = np.sum(weights, axis=2)
-		# 	weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
-		# else:
-		weights = 1
+		if weights and self.weight_type=="StokesI":
+			# print("  Set the weight based on Stokes I...")
+			aux = 1/self.observation.I
+			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+			# because they will enter the diff which will be squared in chi^2 computation
+			weights = np.sqrt(weights)
+			# norm = np.sum(weights, axis=2)
+			# weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
+		else:
+			weights = 1
 		
 		noise_stokes /= weights
 
@@ -239,7 +241,7 @@ class Inverter(InputData):
 		X,Y,P = np.meshgrid(x,y,p, indexing="ij")
 
 		rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
-		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs))
+		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs), weights=True)
 
 		chi2 = Chi2(nx=atmos.nx, ny=atmos.ny, niter=max_iter)
 		chi2.mode = self.mode
@@ -523,7 +525,7 @@ class Inverter(InputData):
 
 		#--- estimate of Stokes noise
 		rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
-		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs))
+		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs), weights=True)
 
 		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
 		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
