@@ -89,6 +89,16 @@ class Spectrum(object):
 			for idy in range(self.ny):
 				yield self.spec[idx,idy]
 
+	def is_array_valid(self):
+		"""
+		Check if there is NaN's in the spectrum.
+		"""
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				if np.isnan(self.spec[idx,idy]).any():
+					return False
+		return True
+
 	def generate_list(self):
 		self.spectrum_list = [spec for spec in self.list_spectra()]
 
@@ -362,6 +372,8 @@ class Observation(Spectrum):
 				self.read_spinor(fpath, obs_range)
 			if spec_type=="hinode":
 				self.read_hinode(fpath, obs_range)
+			if not self.is_array_valid():
+				raise ValueError(f"Spectrum {fpath} contains NaNs. Check the data.")
 		else:
 			raise IOError("We cannot recognize the observation file type.")
 

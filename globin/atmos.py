@@ -271,6 +271,9 @@ class Atmosphere(object):
 			else:
 				raise ValueError(f"  Unsupported atmosphere type '{atm_type}'.")
 
+			if not self.is_valid():
+				raise ValueError()
+
 			self.nHtot = np.sum(self.data[:,:,8:,:], axis=2)
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 			self.idx_meshgrid = self.idx_meshgrid.flatten()
@@ -648,6 +651,18 @@ class Atmosphere(object):
 	@property
 	def scale(self):
 		return list(globin.scale_id.keys())[self.scale_id].upper()
+
+	def is_valid(self):
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				for idp in [1,2,3,4,5,6,7,8]:
+					if np.isnan(self.data[idx,idy,idp]).any():
+						print(f"Found NaN in ({idx},{idy}) for parameter {idp}.")
+						return False
+					if idp==1 and any(self.data[idx,idy,idp]<self.Tmin):
+						print(f"Found a temperature point in ({idx},{idy}) that is lower than the Tmin={self.Tmin}.")
+						return False
+		return True
 
 	def split(self, size, fpath):
 		"""

@@ -229,11 +229,11 @@ class Inverter(InputData):
 		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
 
 		# check for NaN's in observations and 'remove' these pixels from inversion
-		for idx in range(obs.nx):
-			for idy in range(obs.ny):
-				if np.isnan(obs.spec[idx,idy]).any():
-					stop_flag[idx,idy] = 0
-					updated_pars[idx,idy] = 0
+		# for idx in range(obs.nx):
+		# 	for idy in range(obs.ny):
+		# 		if np.isnan(obs.spec[idx,idy]).any():
+		# 			stop_flag[idx,idy] = 0
+		# 			updated_pars[idx,idy] = 0
 
 		"""
 		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
