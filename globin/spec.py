@@ -37,12 +37,12 @@ class Spectrum(object):
 			self.ny = shape[1]
 			self.nw = shape[2]
 		elif (nx is not None) and (ny is not None) and (nw is not None):
-			self.spec = np.zeros((nx, ny, nw, 4))
+			self.spec = np.empty((nx, ny, nw, 4))
 			self.spec[:,:,:,:] = np.nan
-			self.wavelength = np.zeros(nw)
+			self.wavelength = np.empty(nw)
 			self.wavelength[:] = np.nan
 			if self.nz is not None:
-				self.J = np.zeros((nx, ny, nw, nz))
+				self.J = np.empty((nx, ny, nw, nz))
 
 		self.xmin, self.xmax = 0, None
 		self.ymin, self.ymax = 0, None

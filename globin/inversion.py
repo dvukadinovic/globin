@@ -228,6 +228,13 @@ class Inverter(InputData):
 		#   1 -- we have updated parameters; we need new RF and spectrum
 		updated_pars = np.ones((atmos.nx, atmos.ny), dtype=np.int32)
 
+		# check for NaN's in observations and 'remove' these pixels from inversion
+		for idx in range(obs.nx):
+			for idy in range(obs.ny):
+				if np.isnan(obs.spec[idx,idy]).any():
+					stop_flag[idx,idy] = 0
+					updated_pars[idx,idy] = 0
+
 		"""
 		'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
 		parameters in one pixel in given iteration, but in the next one, we can have successful. 
@@ -251,8 +258,8 @@ class Inverter(InputData):
 		itter = np.zeros((atmos.nx, atmos.ny), dtype=np.int32)
 
 		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-		spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-		# atmos.spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw, nz=atmos.nz)
+		# spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		spec = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=Nw)
 
 		proposed_steps = np.zeros((atmos.nx, atmos.ny, Npar))
 
@@ -297,7 +304,7 @@ class Inverter(InputData):
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["Inverted"])
-				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength)
 				# globin.show()
 
 				# copy old RF into new for new itteration inversion
@@ -346,7 +353,7 @@ class Inverter(InputData):
 				# and it does!
 
 				# get scaling of Hessian matrix
-				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=self.mode)
+				H_scale, delta_scale = normalize_hessian(JTJ, atmos, stop_flag, mode=self.mode)
 
 			# hessian = (nx, ny, npar, npar)
 			H = JTJ
@@ -354,6 +361,12 @@ class Inverter(InputData):
 
 			# multiply with LM parameter
 			H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		if np.isnan(H[idx,idy]).any():
+			# 			print(idx,idy)
+			# 			print(H[idx,idy])
+			# 			print("-----")
 			
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
@@ -1000,8 +1013,12 @@ def _invert_Hessian(args):
 	one = np.ones(Npar)
 
 	# steps = np.linalg.solve(hessian, delta)
-
-	invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
+	try:
+		invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
+	except:
+		print(hessian)
+		print("----")
+		sys.exit()
 	steps = np.dot(invH, delta)
 
 	# det = np.linalg.det(hessian)
@@ -1048,7 +1065,7 @@ def _chi2_convergence(args):
 	chi2, flag, itter, updated_pars, max_iter, chi2_tolerance = args
 
 	# we do not check chi2 until the iteration=3
-	if itter<2:
+	if itter<2 and flag!=0:
 		return 1, itter, updated_pars
 	
 	# if we have already converged or max_iter reached
@@ -1067,7 +1084,7 @@ def _chi2_convergence(args):
 	# if we still have not converged
 	return 1, itter, updated_pars
 
-def normalize_hessian(H, atmos, mode):
+def normalize_hessian(H, atmos, stop_flag, mode):
 	"""
 	Normalize Hessian matrix so that diagonal elements are =1.
 
@@ -1101,6 +1118,9 @@ def normalize_hessian(H, atmos, mode):
 		
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
+				if stop_flag[idx,idy]==0:
+					continue
+
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
 
@@ -1126,6 +1146,9 @@ def normalize_hessian(H, atmos, mode):
 		
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
+				if stop_flag[idx,idy]==0:
+					continue
+
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
 
@@ -1209,6 +1232,10 @@ def normalize_hessian(H, atmos, mode):
 			for idy in range(atmos.ny):
 				l = u
 				u += Nlocalpar
+				if stop_flag[idx,idy]==0:
+					ida += 1
+					continue
+
 				division = np.outer(scales[l:u], scales[l:u])
 				rows = np.append(rows, X.ravel() + ida*Nlocalpar)
 				cols = np.append(cols, Y.ravel() + ida*Nlocalpar)
