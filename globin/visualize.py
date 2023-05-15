@@ -134,6 +134,8 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 	
 	fig.tight_layout()
 
+	return fig
+
 def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False, 
 	color="tab:blue", inv_colors=None, lw=1, title=None, subtitles_flag=False, relative=True, 
 	labels=None):
@@ -233,7 +235,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 			axV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [\%]")
 		
-		return axI, axQ, axU, axV
+		# return axI, axQ, axU, axV
 	else:
 		if axes is None:
 			width, height = 3, 2 + 2/3
@@ -364,7 +366,8 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		ax1_SV.set_xlim([-dlam, dlam])
 		ax1_SV.minorticks_off()
 
-		return ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV
+		# return ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV
+	return fig
 
 def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	fig = plt.figure(figsize=(12,10))
