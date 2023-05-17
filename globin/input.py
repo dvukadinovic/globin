@@ -143,8 +143,9 @@ class InputData(object):
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
 
 		# angle for the outgoing radiation; forwarded to RH
-		mu = _find_value_by_key("mu", self.parameters_input, "default", 1.0, conversion=float)
-		if mu>1 or mu<0:
+		mu = _find_value_by_key("mu", self.parameters_input, "default", 1.0)
+		mu = list(map(float, list(mu.split(","))))
+		if any(mu)>1 or any(mu)<0:
 			raise ValueError(f"Angle mu={mu} for computing the outgoing radiation is out of bounds [0,1].")
 
 		# macro-turbulent velocity
@@ -274,7 +275,12 @@ class InputData(object):
 			raise ValueError(f"Mode {self.mode} is unsupported.")
 
 		# add angle for which we need to compute spectrum
-		self.atmosphere.mu = mu
+		if len(mu)==1:
+			self.atmosphere.mu = mu[0]
+		else:
+			mu = np.array(mu)
+			self.atmosphere.mu = mu.reshape(self.atmosphere.nx, self.atmosphere.ny)
+
 		# add the mode
 		self.atmosphere.mode = self.mode
 
@@ -1522,8 +1528,10 @@ class Chi2(object):
 			self.Nw = header["NW"]
 		except:
 			# for the older outputs
-			self.nx, self.ny,_ = self.chi2.shape
-			self.chi2, _ = self.get_final_chi2()
+			pass		
+
+		self.nx, self.ny,_ = self.chi2.shape
+		self.chi2, _ = self.get_final_chi2()
 
 		try:
 			self.full_chi2 = hdu_list[2].data

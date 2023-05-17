@@ -1681,19 +1681,24 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
 
+		try:
+			mu = self.mu[idx,idy]
+		except:
+			mu = self.mu
+
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 			
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, self.scale_id, self.data[idx,idy], 
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, self.mu, self.scale_id, self.data[idx,idy],
+			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
