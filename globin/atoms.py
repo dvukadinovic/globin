@@ -246,10 +246,12 @@ def check_init_loggf():
 def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None, min_max={"loggf" : 1, "dlam" : 25}):
     out = open(fpath, "w")
 
+    out.write("# parID   LineNo   initial   min     max\n")
+
     if loggf is not None:
         for val,idl in zip(loggf, loggfID):
             out.write("loggf    ")
-            out.write("{: 3d}    ".format(idl+1))
+            out.write("{: >3d}    ".format(idl+1))
             out.write("{: 4.3f}    ".format(val))
             out.write("{: 4.3f}    ".format(val-min_max["loggf"]))
             out.write("{: 4.3f}\n".format(val+min_max["loggf"]))
@@ -257,9 +259,9 @@ def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None, min
     if dlam is not None:
         for val,idl in zip(dlam, dlamID):
             out.write("dlam     ")
-            out.write("{: 3d}   ".format(idl+1))
-            out.write("{: 5.3f}   ".format(val))
-            out.write("{: 5.3f}   ".format(val-min_max["dlam"]))
+            out.write("{: >3d}    ".format(idl+1))
+            out.write("{: 5.3f}    ".format(val))
+            out.write("{: 5.3f}    ".format(val-min_max["dlam"]))
             out.write("{: 5.3f}\n".format(val+min_max["dlam"]))
 
     out.close()
@@ -304,6 +306,34 @@ class AtomPars(object):
             except Exception as e:
                 print(parameter)
                 print(e)
+
+class PSE(object):
+    def __init__(self):
+        self.symbols = ["H",  "He", 
+                        "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne",
+                        "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar",
+                        "K",  "Ca", "Sc", "Ti", "V",  "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+                        "Ga", "Ge", "As", "Se", "Br", "Kr",
+                        "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
+                        "In", "Sn", "Sb", "Te", "I",  "Xe",
+                        "Cs", "Ba", 
+                        "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
+                        "Hf", "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
+                        "Fr", "Ra",
+                        "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm"]
+
+    def get_element_symbol(self, element_number):
+        symbols = []
+        for number in element_number:
+            symbols.append(self.symbols[int(number-1)])
+
+        return symbols
+
+    def get_element_number(self, element_symbol):
+        element_number = []
+        for symbol in element_symbol:
+            element_number = self.symbols.index(symbol)
+        return np.array(element_number, dtype=np.int32)
 
 if __name__=="__main__":
     lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}

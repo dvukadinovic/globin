@@ -166,7 +166,7 @@ class Inverter(InputData):
 			noise = self.noise
 		
 		noise_stokes = np.ones((nx, ny, nw, 4))
-		StokesI_cont = self.observation.spec[...,0,0]
+		StokesI_cont = np.quantile(self.observation.I, 0.9, axis=2)
 		noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
 
 		# weights on Stokes vector based on observed Stokes I
@@ -353,7 +353,7 @@ class Inverter(InputData):
 				# and it does!
 
 				# get scaling of Hessian matrix
-				H_scale, delta_scale = normalize_hessian(JTJ, atmos, stop_flag, mode=self.mode)
+				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=self.mode)
 
 			# hessian = (nx, ny, npar, npar)
 			H = JTJ
@@ -1084,7 +1084,7 @@ def _chi2_convergence(args):
 	# if we still have not converged
 	return 1, itter, updated_pars
 
-def normalize_hessian(H, atmos, stop_flag, mode):
+def normalize_hessian(H, atmos, mode):
 	"""
 	Normalize Hessian matrix so that diagonal elements are =1.
 
@@ -1118,9 +1118,6 @@ def normalize_hessian(H, atmos, stop_flag, mode):
 		
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				if stop_flag[idx,idy]==0:
-					continue
-
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
 
@@ -1146,9 +1143,6 @@ def normalize_hessian(H, atmos, stop_flag, mode):
 		
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				if stop_flag[idx,idy]==0:
-					continue
-
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
 
@@ -1232,9 +1226,6 @@ def normalize_hessian(H, atmos, stop_flag, mode):
 			for idy in range(atmos.ny):
 				l = u
 				u += Nlocalpar
-				if stop_flag[idx,idy]==0:
-					ida += 1
-					continue
 
 				division = np.outer(scales[l:u], scales[l:u])
 				rows = np.append(rows, X.ravel() + ida*Nlocalpar)

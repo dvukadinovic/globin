@@ -234,8 +234,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		if not relative:
 			axV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
 		axV.set_ylabel(r"Stokes V/I$_\mathrm{c}$ [\%]")
-		
-		# return axI, axQ, axU, axV
 	else:
 		if axes is None:
 			width, height = 3, 2 + 2/3
@@ -366,7 +364,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		ax1_SV.set_xlim([-dlam, dlam])
 		ax1_SV.minorticks_off()
 
-		# return ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV
 	return fig
 
 def plot_chi2(chi2, fpath="chi2.png", log_scale=False):

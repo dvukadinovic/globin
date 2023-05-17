@@ -542,19 +542,22 @@ class InputData(object):
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
 		self.wavs_weight = None
 		if fpath is not None:
-			self.wavs_weight = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(self.wavelength_air),4))
+			self.wavs_weight = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(self.observation.wavelength),4))
 			lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
 			# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
-			if len(lam)==len(self.wavelength_air):
+			if len(lam)==len(self.observation.wavelength):
 				self.wavs_weight[...,0] = wI
 				self.wavs_weight[...,1] = wQ
 				self.wavs_weight[...,2] = wU
 				self.wavs_weight[...,3] = wV
 			else:
-				self.wavs_weight[...,0] = interp1d(lam, wI)(self.wavelength_air)
-				self.wavs_weight[...,1] = interp1d(lam, wQ)(self.wavelength_air)
-				self.wavs_weight[...,2] = interp1d(lam, wU)(self.wavelength_air)
-				self.wavs_weight[...,3] = interp1d(lam, wV)(self.wavelength_air)
+				self.wavs_weight[...,0] = interp1d(lam, wI)(self.observation.wavelength)
+				self.wavs_weight[...,1] = interp1d(lam, wQ)(self.observation.wavelength)
+				self.wavs_weight[...,2] = interp1d(lam, wU)(self.observation.wavelength)
+				self.wavs_weight[...,3] = interp1d(lam, wV)(self.observation.wavelength)
+			# import matplotlib.pyplot as plt
+			# plt.plot(self.wavs_weight[0,0,:,0])
+			# plt.show()
 
 		# if macro-turbulent velocity is negative, we fit it
 		if vmac<0:
@@ -1235,6 +1238,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 					height=(0.2, None), 
 					width=(1, None),
 					distance=D)
+				
+				#plt.plot(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy])
+				#plt.show()
 
 				peaks[0] += ind_min
 
@@ -1533,6 +1539,9 @@ class Chi2(object):
 		self.nx, self.ny,_ = self.chi2.shape
 		self.chi2, _ = self.get_final_chi2()
 
+		self.nx, self.ny,_ = self.chi2.shape
+		self.chi2, _ = self.get_final_chi2()
+
 		try:
 			self.full_chi2 = hdu_list[2].data
 		except:
@@ -1570,10 +1579,10 @@ class Chi2(object):
 			return best_chi2
 
 	def save(self, fpath="chi2.fits"):
-		best_chi2, last_iter = self.get_final_chi2()
-		best_chi2 = self.per_pixel(best_chi2)
+		# best_chi2, last_iter = self.get_final_chi2()
+		# best_chi2 = self.per_pixel(best_chi2)
 
-		primary = fits.PrimaryHDU(best_chi2)
+		primary = fits.PrimaryHDU(self.chi2)
 		hdulist = fits.HDUList([primary])
 
 		primary.name = "best_chi2"
@@ -1585,9 +1594,9 @@ class Chi2(object):
 		primary.header["NW"] = (self.Nw, "number of wavelenghts (for full Stokes")
 
 		# container for last iteration number for each pixel
-		iter_hdu = fits.ImageHDU(last_iter)
-		iter_hdu.name = "iteration_num"
-		hdulist.append(iter_hdu)
+		# iter_hdu = fits.ImageHDU(last_iter)
+		# iter_hdu.name = "iteration_num"
+		# hdulist.append(iter_hdu)
 
 		# container for all the chi2 values (for every pixel in every iteration)
 		all_hdu = fits.ImageHDU(self.chi2)

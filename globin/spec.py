@@ -9,6 +9,7 @@ import multiprocessing as mp
 import globin
 
 from .utils import extend
+from .utils import congrid
 
 class Spectrum(object):
 	"""
@@ -342,6 +343,49 @@ class Spectrum(object):
 
 		return spec_out
 
+	def extract_wavelength_region(self, lmin, lmax):
+		ind_min = np.argmin(np.abs(self.wavelength - lmin))
+		ind_max = np.argmin(np.abs(self.wavelength - lmax))+1
+
+		self.wavelength = self.wavelength[ind_min:ind_max]
+		self.spec = self.spec[:,:,ind_min:ind_max,:]
+		self.shape = self.spec.shape
+		self.nx, self.ny, self.nw, _ = self.spec.shape
+
+	def wavelength_rebinning(self, binning):
+		if binning==1:
+			return
+
+		if binning<0:
+			raise ValueError("globin.spec.wavelength_rebinning :: Binning factor must be larger than 0.")
+
+		self.wavelength = congrid(self.wavelength[:, np.newaxis], [self.nw//binning, 1], method="neighbour", centre=True)[:,0]
+
+		old_spec = np.copy(self.spec)
+		self.spec = np.empty((self.nx, self.ny, len(self.wavelength), 4), dtype=np.float64)
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				self.spec[idx,idy] = congrid(old_spec[idx,idy], [self.nw//binning, 4], method="linear", centre=True)
+
+		self.shape = self.spec.shape
+		self.nx, self.ny, self.nw, _ = self.spec.shape
+
+	def spatial_rebinning(self, binning):
+		if binning==1:
+			return
+
+		if binning<0:
+			raise ValueError("globin.spec.wavelength_rebinning :: Binning factor must be larger than 0.")
+
+		old_spec = np.copy(self.spec)
+		self.spec = np.empty((self.nx//2, self.ny//2, self.nw, 4), dtype=np.float64)
+		for idw in range(self.nw):
+			for ids in range(4):
+				self.spec[:,:,idw,ids] = congrid(old_spec[:,:,idw,ids], [self.nx//2, self.ny//2], method="linear", centre=True)
+
+		self.shape = self.spec.shape
+		self.nx, self.ny, _, _ = self.spec.shape
+
 class Observation(Spectrum):
 	"""
 	Class object for storing observations.
@@ -351,7 +395,7 @@ class Observation(Spectrum):
 	row in last axis is reserved for wavelength and rest 4 are for Stokes vector.
 	"""
 
-	def __init__(self, fpath, obs_range=[0,None,0,None], spec_type="globin"):
+	def __init__(self, fpath, obs_range=[0,None,0,None], spec_type="globin", verify=True):
 		super().__init__()
 		ftype = fpath.split(".")[-1]
 
@@ -372,8 +416,10 @@ class Observation(Spectrum):
 				self.read_spinor(fpath, obs_range)
 			if spec_type=="hinode":
 				self.read_hinode(fpath, obs_range)
-			if not self.is_array_valid():
-				raise ValueError(f"Spectrum {fpath} contains NaNs. Check the data.")
+
+			if verify:
+				if not self.is_array_valid():
+					raise ValueError(f"Spectrum {fpath} contains NaNs. Check the data.")
 		else:
 			raise IOError("We cannot recognize the observation file type.")
 
