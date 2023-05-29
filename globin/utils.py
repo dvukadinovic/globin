@@ -633,3 +633,9 @@ def congrid(a, newdims, method='neighbour', centre=True, minusone=False):
               "Currently only \'neighbour\', \'nearest\',\'linear\',", \
               "and \'spline\' are supported.")
         return None
+
+def get_first_larger_divisor(n, vmin):
+    for i in range(vmin+1, n//2 + 1):
+        if n % i == 0:
+            return i
+    return n

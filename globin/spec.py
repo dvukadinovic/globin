@@ -10,6 +10,7 @@ import globin
 
 from .utils import extend
 from .utils import congrid
+from .utils import get_first_larger_divisor
 
 class Spectrum(object):
 	"""
@@ -211,19 +212,48 @@ class Spectrum(object):
 					self.spec[idx,idy,:,2] = (1-stray_factor) * self.spec[idx,idy,:,2]
 					self.spec[idx,idy,:,3] = (1-stray_factor) * self.spec[idx,idy,:,3]
 
-	def norm(self):
-		if (globin.norm) and (globin.Icont is not None):
+	def norm(self, degree=7, roi=None):
+		# if (globin.norm) and (globin.Icont is not None):
+		# 	for idx in range(self.nx):
+		# 		for idy in range(self.ny):
+		# 	# 		# sI_cont = rh_obj.int[ind_min]
+		# 	# 		# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
+		# 	# 		# k = (self.spec[idx,idy,-1,0] - self.spec[idx,idy,0,0]) / (self.wavelength[-1] - self.wavelength[0])
+		# 	# 		# n = self.spec[idx,idy,-1,0] - k*self.wavelength[-1]
+		# 	# 		# sI_cont = k*self.wavelength + n
+		# 	# 		# sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
+		# 	# 		sI_cont = 1e-8#np.max(self.spec[idx,idy,:,0])
+		# 			# sI_cont = np.mean(self.spec[idx,idy,:,0])
+		# 			self.spec[idx,idy] /= globin.Icont
+		"""
+		Fit a high order polynomial to the continuum level (divided in 'degree'+1 number of bands) and use this to normalize spectra.
+		"""
+		nbands = get_first_larger_divisor(self.nw, 2*degree)
+		bands = np.split(self.I, nbands, axis=2)
+		wbands = np.split(self.wavelength, nbands)
+
+		x = np.empty(nbands)
+		Ics = np.empty((nbands, self.nx, self.ny))
+		
+		for idb in range(nbands):
+			Ics[idb] = np.quantile(bands[idb], 0.95, axis=2)
+			x[idb] = np.mean(wbands[idb])
+
+		Ic = np.empty((self.nx, self.ny))
+
+		for idy in range(self.ny):
+			coeffs = np.polyfit(x, Ics[...,idy], degree)
 			for idx in range(self.nx):
-				for idy in range(self.ny):
-			# 		# sI_cont = rh_obj.int[ind_min]
-			# 		# sI_cont = np.max(rh_obj.int[ind_min:ind_max])
-			# 		# k = (self.spec[idx,idy,-1,0] - self.spec[idx,idy,0,0]) / (self.wavelength[-1] - self.wavelength[0])
-			# 		# n = self.spec[idx,idy,-1,0] - k*self.wavelength[-1]
-			# 		# sI_cont = k*self.wavelength + n
-			# 		# sI_cont = np.repeat(sI_cont[..., np.newaxis], 4, axis=-1)
-			# 		sI_cont = 1e-8#np.max(self.spec[idx,idy,:,0])
-					# sI_cont = np.mean(self.spec[idx,idy,:,0])
-					self.spec[idx,idy] /= globin.Icont
+				continuum = np.polyval(coeffs[...,idx], self.wavelength)
+				Ic[idx,idy] = np.mean(continuum)
+				self.spec[idx,idy] /= continuum[:, np.newaxis]
+				self.spec[idx,idy] *= Ic[idx,idy]
+
+		if roi is not None:
+			Icont = np.mean(Ic[roi[0],roi[1]])
+		else:
+			Icont = np.quantile(Ic, 0.95)
+		self.spec /= Icont
 
 	def mean(self):
 		"""
@@ -463,6 +493,8 @@ class Observation(Spectrum):
 
 		xmin, xmax, ymin, ymax = obs_range
 
+		self.IC = hdu[2].data
+
 		self.icont = float(hdu[2].header["IC_HSRA"])
 		
 		# we assume that wavelength is same for every pixel in observation
@@ -485,8 +517,8 @@ class Observation(Spectrum):
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
 
-	def norm(self):
-		Spectrum.norm(self)
+	# def norm(self):
+	# 	Spectrum.norm(self)
 
 def _broaden_spectra(args):
 	spec, kernel = args
