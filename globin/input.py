@@ -130,7 +130,7 @@ class InputData(object):
 			self.lmin /= 10
 			self.lmax /= 10
 			self.step /= 10
-			Nw = int((self.lmax - self.lmin)/self.step + 1)
+			Nw = int((self.lmax - self.lmin)/self.step) + 1
 			wavetable = np.linspace(self.lmin, self.lmax, num=Nw)
 
 		self.wavelength_air = wavetable
@@ -1535,9 +1535,6 @@ class Chi2(object):
 		except:
 			# for the older outputs
 			pass		
-
-		self.nx, self.ny,_ = self.chi2.shape
-		self.chi2, _ = self.get_final_chi2()
 
 		self.nx, self.ny,_ = self.chi2.shape
 		self.chi2, _ = self.get_final_chi2()

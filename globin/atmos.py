@@ -2189,7 +2189,8 @@ class Atmosphere(object):
 			if nwl is not None:
 				self.wavelength_air = np.linspace(lmin, lmax, num=nwl)
 			elif dlam is not None:
-				self.wavelength_air = np.arange(lmin, lmax+dlam, dlam)
+				nwl = int((lmax - lmin)/dlam) + 1
+				self.wavelength_air = np.linspace(lmin, lmax, num=nwl)
 			else:
 				sys.exit("globin.atmos.Atmosphere.set_wavelength():\n  Neighter the number of wavelenths or spacing has been provided.")
 
