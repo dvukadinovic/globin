@@ -65,6 +65,7 @@ atom_mass = np.array([1.00797, 4.00260, 6.941, 9.01218, 10.81, 12.011, 14.0067,
 					  247, 247, 251, 252])
 
 totalAbundance = np.sum(10**(abundance-12))
+avgmass = np.sum(10**(abundance-12)*atom_mass)
 
 #--- parameters units (for FITS header)
 parameter_unit = {"temp"   : "K",
