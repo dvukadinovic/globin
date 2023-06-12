@@ -153,6 +153,11 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		Same shape as 'obs'.
 	title : string (optional)
 		Figure title.
+	norm : bool (optional)
+		Flag if the spectra are already normalized or not. It applies x100 to
+		polarization signals if the spectra are normalized.
+	relative : bool (optional)
+		Flag for setting the wavelength grid relative to the central wavelength.
 	"""
 	colors = ["tab:red", "tab:orange", "tab:green"]
 	if inv_colors is not None:
