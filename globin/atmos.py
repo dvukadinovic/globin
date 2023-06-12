@@ -704,6 +704,60 @@ class Atmosphere(object):
 
 		# return atm_chunks
 
+	def rebin(self, new_shape):
+		nx, ny = new_shape
+
+		assert self.nx%nx==0
+		assert self.ny%ny==0
+
+		dx = self.nx//nx
+		dy = self.ny//ny
+
+		new_atmos = np.empty((nx, ny, self.npar, self.nz))
+
+		for idx in range(1,nx+1):
+			for idy in range(1,ny+1):
+				for idp in range(1,9):
+					new_atmos[idx-1,idy-1,idp] = np.mean(self.data[(idx-1)*dx:idx*dx, (idy-1)*dy:idy*dy, idp], axis=(0,1))
+
+		self.data = new_atmos
+		self.nx = self.nx
+		self.ny = self.ny
+		self.shape = self.data.shape
+
+		return self
+
+	def extract(self, slice_x, slice_y, slice_z):
+		dic = self.__dict__
+		keys = dic.keys()
+
+		idx_min, idx_max = slice_x
+		idy_min, idy_max = slice_y
+		idz_min, idz_max = slice_z
+
+		new_atmos = globin.Atmosphere()
+
+		for key in keys:
+
+			if key=="data":
+				new_atmos.data = self.data[idx_min:idx_max, idy_min:idy_max, :, idz_min:idz_max]
+				new_atmos.shape = new_atmos.data.shape
+				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
+				new_atmos.logtau = self.logtau[idz_min:idz_max]
+				new_atmos.height = self.height[idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
+				pass
+			elif key in ["pg", "height", "rho", "nHtot"]:
+				pass
+			elif key in ["idx_meshgrid", "idy_meshgrid"]:
+				pass
+			elif key in ["rank", "size", "use_mpi"]:
+				pass
+			else:
+				setattr(new_atmos, key, dic[key])
+
+		return new_atmos
+
 	def get_atmos(self, idx, idy):
 		dtau = self.logtau[1] - self.logtau[0]
 		new = Atmosphere(nx=1, ny=1, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
