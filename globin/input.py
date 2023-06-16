@@ -1536,8 +1536,11 @@ class Chi2(object):
 			# for the older outputs
 			pass		
 
-		self.nx, self.ny,_ = self.chi2.shape
-		self.chi2, _ = self.get_final_chi2()
+		try:
+			self.nx, self.ny,_ = self.chi2.shape
+			self.chi2, _ = self.get_final_chi2()
+		except:
+			pass
 
 		try:
 			self.full_chi2 = hdu_list[2].data
