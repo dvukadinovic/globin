@@ -290,6 +290,14 @@ class AtomPars(object):
         if fpath:
             self.read_atom_pars(fpath)
 
+    @property
+    def loggf(self):
+        return self.data["loggf"]
+
+    @property
+    def dlam(self):
+        return self.data["dlam"]
+    
     def read_atom_pars(self, fpath):
         hdu = fits.open(fpath)
 
