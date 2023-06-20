@@ -869,7 +869,7 @@ class Inverter(InputData):
 				break_flag = True
 
 			#--- save intermediate results every 'output_frequency' iteration
-			if self.output_frequency!=self.max_iter:
+			if self.output_frequency!=max_iter:
 				if itter%self.output_frequency==0 and itter!=0:
 					self.save_cycle(chi2, obs, corrected_spec, atmos, 0)
 
