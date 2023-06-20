@@ -18,7 +18,7 @@ class Spectrum(object):
 	class.
 	"""
 	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None, nz=None):
-		self.icont = None
+		self.Icont = None
 
 		self.nx = nx
 		self.ny = ny
@@ -239,20 +239,21 @@ class Spectrum(object):
 			Ics[idb] = np.quantile(bands[idb], 0.95, axis=2)
 			x[idb] = np.mean(wbands[idb])
 
-		Ic = np.empty((self.nx, self.ny))
+		self.Ic = np.empty((self.nx, self.ny))
 
 		for idy in range(self.ny):
 			coeffs = np.polyfit(x, Ics[...,idy], degree)
 			for idx in range(self.nx):
 				continuum = np.polyval(coeffs[...,idx], self.wavelength)
-				Ic[idx,idy] = np.mean(continuum)
+				self.Ic[idx,idy] = np.mean(continuum)
 				self.spec[idx,idy] /= continuum[:, np.newaxis]
-				self.spec[idx,idy] *= Ic[idx,idy]
+				self.spec[idx,idy] *= self.Ic[idx,idy]
 
 		if roi is not None:
-			Icont = np.mean(Ic[roi[0],roi[1]])
+			Icont = np.mean(self.Ic[roi[0],roi[1]])
 		else:
-			Icont = np.quantile(Ic, 0.95)
+			Icont = np.quantile(self.Ic, 0.95)
+		self.Icont = Icont
 		self.spec /= Icont
 
 	def mean(self):
@@ -288,7 +289,7 @@ class Spectrum(object):
 			self.spec = np.zeros((self.nx, self.ny, self.nw, 4))
 			self.spec[0,0] = mean
 
-	def save(self, fpath, wavelength):
+	def save(self, fpath, wavelength, spec_type="globin"):
 		"""
 		Get list of spectra computed for every pixel and store them in fits file.
 		Spectra for pixels which are not computed, we set to 0.
@@ -314,10 +315,15 @@ class Spectrum(object):
 		---------------
 		make fits header with additional info
 		"""
-		data = np.zeros((self.nx, self.ny, len(wavelength), 5))
-		data[...,0] = wavelength
-		data[...,1:] = self.spec
-		
+		if spec_type=="globin":
+			data = np.zeros((self.nx, self.ny, len(wavelength), 5))
+			data[...,0] = wavelength
+			data[...,1:] = self.spec
+		elif spec_type=="hinode":
+			data = np.swapaxes(self.spec, 2, 3) * self.Icont
+		else:
+			raise ValueError(f"'{spec_type}' as a spectra type is not supported. Choose one from 'globin' or 'hinode'.")
+
 		primary = fits.PrimaryHDU(data)
 
 		primary.header["XMIN"] = self.xmin+1
@@ -338,6 +344,25 @@ class Spectrum(object):
 		primary.header["noise"] = ("{:4.3e}".format(self.noise), "assumed noise level; -1 when we do not know")
 
 		hdulist = fits.HDUList([primary])
+		
+		if spec_type=="hinode":
+			#--- wavelengths
+			par_hdu = fits.ImageHDU(self.wavelength*10)
+			par_hdu.name = "wavelength"
+			par_hdu.header["UNIT"] = "Angstrom"
+
+			hdulist.append(par_hdu)
+
+			#--- Ic
+			try:
+				par_hdu = fits.ImageHDU(self.Ic)
+				par_hdu.name = "continuum_intensity"
+				par_hdu.header["IC_HSRA"] = np.mean(self.Icont)
+
+				hdulist.append(par_hdu)
+			except:
+				raise ValueError("No information regarding the continuum intensity. Unable to save the spectra of 'hinode' type.")
+
 		hdulist.writeto(fpath, overwrite=True)
 
 	def read(self, fpath):
@@ -381,6 +406,27 @@ class Spectrum(object):
 		self.spec = self.spec[:,:,ind_min:ind_max,:]
 		self.shape = self.spec.shape
 		self.nx, self.ny, self.nw, _ = self.spec.shape
+
+	def extract(self, slice_x, slice_y):
+		dic = self.__dict__
+		keys = dic.keys()
+
+		idx_min, idx_max = slice_x
+		idy_min, idy_max = slice_y
+
+		new_spec = globin.Spectrum()
+
+		for key in keys:
+			if key=="spec":
+				new_spec.spec = self.spec[idx_min:idx_max, idy_min:idy_max]
+				new_spec.shape = new_spec.spec.shape
+				new_spec.nx, new_spec.ny, _, _ = new_spec.spec.shape
+			elif key in ["nx", "ny", "shape"]:
+				pass
+			else:
+				setattr(new_spec, key, dic[key])
+
+		return new_spec
 
 	def wavelength_rebinning(self, binning):
 		if binning==1:
@@ -493,9 +539,9 @@ class Observation(Spectrum):
 
 		xmin, xmax, ymin, ymax = obs_range
 
-		self.IC = hdu[2].data
+		self.Ic = hdu[2].data
 
-		self.icont = float(hdu[2].header["IC_HSRA"])
+		self.Icont = float(hdu[2].header["IC_HSRA"])
 		
 		# we assume that wavelength is same for every pixel in observation
 		self.wavelength = hdu[1].data/10 # [A --> nm]
@@ -512,13 +558,10 @@ class Observation(Spectrum):
 		self.spec[...,1] = data[...,1,:]
 		self.spec[...,2] = data[...,2,:]
 		self.spec[...,3] = data[...,3,:]
-		self.spec /= self.icont
+		self.spec /= self.Icont
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
-
-	# def norm(self):
-	# 	Spectrum.norm(self)
 
 def _broaden_spectra(args):
 	spec, kernel = args
