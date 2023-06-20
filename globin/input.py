@@ -1129,6 +1129,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	"""
 	from scipy.signal import argrelextrema
 	from scipy.interpolate import splev, splrep
+	from scipy.optimize import curve_fit
 	import matplotlib.pyplot as plt
 
 	def find_line_positions(x):
@@ -1144,6 +1145,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 					# sys.exit()
 					inds[idx,idy] = np.argmin(x[idx,idy])
 		return inds
+
+	def gaussian(x, mu, std, A):
+		return A * np.exp(-(x-mu)**2/std**2)
 
 	dlam = obs.wavelength[1] - obs.wavelength[0]
 	wavs = obs.wavelength
@@ -1215,6 +1219,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	sq = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 	su = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 	sv = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	_lam0 = np.zeros((atmos.nx, atmos.ny, nl), dtype=np.float64)
 
 	for idx in range(obs.nx):
 		for idy in range(obs.ny):
@@ -1239,8 +1244,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 					width=(1, None),
 					distance=D)
 				
-				#plt.plot(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy])
-				#plt.show()
+				# plt.plot(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy])
+				# plt.axvline(x=peaks[0], c="k", lw=0.75)
+				# plt.show()
 
 				peaks[0] += ind_min
 
@@ -1256,7 +1262,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				# plt.show()
 
 				# 'width' of the line; we add 20% to be sure that we can catch wings in Stokes V profile
-				w = properties["widths"][idl] * 1.2
+				w = properties["widths"][idl]# * 1.2
 				w = int(w)
 				ind_min = peaks[0] - w
 				ind_max = peaks[0] + w
@@ -1273,11 +1279,19 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				su[idx,idy,:,idl] = interp1d(tmp_x, tmp_su, kind=3)(x[idx,idy,:,idl])
 				sv[idx,idy,:,idl] = interp1d(tmp_x, tmp_sv, kind=3)(x[idx,idy,:,idl])
 
+				mean = x[idx,idy,:,idl].mean()
+				par, _ = curve_fit(gaussian, x[idx,idy,:,idl], 1-si[idx,idy,:,idl], 
+					p0=[mean, line_dlam, 1],
+					bounds=([mean-line_dlam/2, 0, 0],[mean+line_dlam/2, line_dlam, 2]))
+				_lam0[idx,idy,idl] = par[0]
+
+				# plt.plot(x[idx,idy,:,idl]-par[0], 1-si[idx,idy,:,idl])
+				# plt.plot(x[idx,idy,:,idl]-par[0], gaussian(x[idx,idy,:,idl], *par))
+				# plt.show()
+
 	#--- v_LOS initialization (CoG)
 	if "vz" in atmos.nodes:
 		lcog = simps((1-si)*x, x, axis=-2) / simps(1-si, x, axis=-2)
-		ind = np.argmin(si, axis=-2)
-		_lam0 = x[indx,indy,ind.ravel()].reshape(obs.nx, obs.ny, nl)
 		vlos = globin.LIGHT_SPEED * (1 - lcog/_lam0) / 1e3
 		vlos = np.sum(vlos, axis=-1)/nl
 
@@ -1297,9 +1311,6 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			lamp = simps((1-si-sv)*x, axis=-2) / simps(1-si-sv, axis=-2)
 			lamm = simps((1-si+sv)*x, axis=-2) / simps(1-si+sv, axis=-2)
 
-			ind = np.argmin(si, axis=-2)
-			_lam0 = x[indx,indy,ind.ravel()].reshape(obs.nx, obs.ny, nl)
-
 			C = 4.67e-13 * (_lam0*10)**2 * geff
 			blos = (lamp - lamm)*10/2 / C
 			blos = np.sum(blos, axis=-1)
@@ -1308,7 +1319,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			blos /= nl_mag
 
 			# convert LOS B to B strength assumin inclination of 60 degrees
-			b = blos / np.cos(np.pi/3)
+			b = np.abs(blos) / np.cos(np.pi/3)
 
 			atmos.values["mag"] = np.repeat(b[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
 
