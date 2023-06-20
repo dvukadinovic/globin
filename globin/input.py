@@ -692,6 +692,7 @@ class InputData(object):
 
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
+		self.output_frequency = _find_value_by_key("output_frequency", self.output_frequency, "default", self.max_iter)
 
 		if line_pars_path is None:
 			print("[Warning] No atomic parameters to fit. You sure?\n")
