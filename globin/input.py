@@ -1161,8 +1161,8 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	nl = len(lines)
 	nl_mag = 0
 	
-	if nl>=2:
-		raise ValueError("We currently do not support atmosphere initialization for mroe than one spectral line.")
+	# if nl>=3:
+	# 	raise ValueError("We currently do not support atmosphere initialization for mroe than one spectral line.")
 
 	indx = np.arange(obs.nx)
 	indy = np.arange(obs.ny)
@@ -1206,12 +1206,14 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			print("  the LOS velocity and magnetic field vector.")
 			sys.exit()
 
-	# D = (0.1)/ dlam - 6
 
 	# if we are using only one line, set the distance between lines to very high value
 	# that it will not identify other lines in the spectral window
-	if nl==1:
-		D = obs.nw//2
+	D = obs.nw//2
+	# if nl==1:
+	# else:
+	# 	# D = (0.1)/ dlam - 6
+	# 	D = np.abs(init_lines[0][0] - init_lines[0][1]) / dlam
 
 	# initialize the arrays to be used
 	x = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
@@ -1219,7 +1221,10 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	sq = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 	su = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 	sv = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	_lam0 = np.zeros((atmos.nx, atmos.ny, nl), dtype=np.float64)
+	_lam0 = np.ones((atmos.nx, atmos.ny, nl), dtype=np.float64)
+
+	for idl in range(nl):
+		_lam0[...,idl] *= init_lines[idl][0]
 
 	for idx in range(obs.nx):
 		for idy in range(obs.ny):
@@ -1262,7 +1267,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				# plt.show()
 
 				# 'width' of the line; we add 20% to be sure that we can catch wings in Stokes V profile
-				w = properties["widths"][idl]# * 1.2
+				w = properties["widths"][0] * 1.2
 				w = int(w)
 				ind_min = peaks[0] - w
 				ind_max = peaks[0] + w
@@ -1279,11 +1284,11 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				su[idx,idy,:,idl] = interp1d(tmp_x, tmp_su, kind=3)(x[idx,idy,:,idl])
 				sv[idx,idy,:,idl] = interp1d(tmp_x, tmp_sv, kind=3)(x[idx,idy,:,idl])
 
-				mean = x[idx,idy,:,idl].mean()
-				par, _ = curve_fit(gaussian, x[idx,idy,:,idl], 1-si[idx,idy,:,idl], 
-					p0=[mean, line_dlam, 1],
-					bounds=([mean-line_dlam/2, 0, 0],[mean+line_dlam/2, line_dlam, 2]))
-				_lam0[idx,idy,idl] = par[0]
+				# mean = x[idx,idy,:,idl].mean()
+				# par, _ = curve_fit(gaussian, x[idx,idy,:,idl], 1-si[idx,idy,:,idl], 
+				# 	p0=[mean, line_dlam, 1],
+				# 	bounds=([mean-line_dlam/2, 0, 0],[mean+line_dlam/2, line_dlam, 2]))
+				# _lam0[idx,idy,idl] = par[0]
 
 				# plt.plot(x[idx,idy,:,idl]-par[0], 1-si[idx,idy,:,idl])
 				# plt.plot(x[idx,idy,:,idl]-par[0], gaussian(x[idx,idy,:,idl], *par))
@@ -1295,7 +1300,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 		vlos = globin.LIGHT_SPEED * (1 - lcog/_lam0) / 1e3
 		vlos = np.sum(vlos, axis=-1)/nl
 
-		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis]/nl, len(atmos.nodes["vz"]), axis=-1)
+		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
 
 	if init_mag:
 		#--- azimuth initialization
@@ -1311,9 +1316,16 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			lamp = simps((1-si-sv)*x, axis=-2) / simps(1-si-sv, axis=-2)
 			lamm = simps((1-si+sv)*x, axis=-2) / simps(1-si+sv, axis=-2)
 
-			C = 4.67e-13 * (_lam0*10)**2 * geff
-			blos = (lamp - lamm)*10/2 / C
+			# WF approximation
+			# C = 4.67e-13 * (_lam0*10)**2 * geff
+			# blos = (lamp - lamm)*10/2 / C
+			
+			# COG method
+			C = 4*np.pi*globin.ELECTRON_MASS*globin.LIGHT_SPEED/globin.ELECTRON_CHARGE/geff
+			blos = (lamp - lamm)/2 / _lam0**2 * 1e9 * C
+			blos *= 1e4 # [T --> G]
 			blos = np.sum(blos, axis=-1)
+
 			# count how many magnetic lines do we have
 			nl_mag = np.sum(np.ones(nl)[mag_line])
 			blos /= nl_mag
