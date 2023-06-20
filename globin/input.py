@@ -150,6 +150,8 @@ class InputData(object):
 
 		# macro-turbulent velocity
 		vmac = _find_value_by_key("vmac", self.parameters_input, "default", 0, conversion=float)
+		if vmac<0 and self.mode!=3:
+			raise ValueError(f"Cannot invert for 'vmac' in mode={self.mode}. Please use mode=3.")
 		
 		# FOV of atmosphere/observation that we want to synthesize/invert
 		atm_range = get_atmosphere_range(self.parameters_input)
