@@ -1585,8 +1585,13 @@ class Atmosphere(object):
 					tmp = median_filter(self.values[parameter][...,idn], size=size)
 					self.values[parameter][...,idn] = tmp
 
-		# for parameter in self.global_pars:
-		# 	if parameter=="loggf" and len(self.line_no["loggf"])>0:
+		for parameter in self.global_pars:
+			if parameter=="loggf" and len(self.line_no["loggf"])>0 and self.mode==3:
+				Niter, Nloggf = self.loggf_history.shape
+				weights = np.exp(np.arange(Niter)+1 - Niter)
+				weights /= np.sum(weights)
+				mean_values = np.average(self.loggf_history, axis=0, weights=weights)
+				self.global_pars[parameter] = np.ones((self.nx, self.ny, Nloggf), dtype=np.float64) * mean_values
 		# 		size = self.line_no[parameter].size
 		# 		nx, ny = 1, 1	
 		# 		if self.mode==2:
@@ -1594,6 +1599,10 @@ class Atmosphere(object):
 		# 			ny = self.ny
 		# 		# delta = 0.0413 --> 10% relative error in oscillator strength (f)
 		# 		self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
+			if parameter=="dlam":
+				median = np.median(self.global_pars[parameter])
+				Ndlam = len(self.line_no[parameter])
+				self.global_pars[parameter] = np.ones((self.nx, self.ny, Ndlam), dtype=np.float64) * median
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)

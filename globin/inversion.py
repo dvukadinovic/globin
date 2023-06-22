@@ -584,6 +584,11 @@ class Inverter(InputData):
 		# number of times we failed to adjust parameters (rise in Marquardt parameter)
 		num_failed = 0
 
+		# save log(gf) parameter for computing the mean if we are doing multicycle inversion
+		if self.ncycle!=1 and "loggf" in atmos.global_pars:
+			loggf_history = np.copy(atmos.global_pars["loggf"][0,0])
+			N_loggf_history = 1
+
 		print(f"Observations: {obs.nx} x {obs.ny}")
 		print(f"Number of parameters/px: {Npar}")
 		print(f"  local/global: {Nlocalpar}/{Nglobalpar}")
@@ -825,6 +830,10 @@ class Inverter(InputData):
 				for parameter in atmos.nodes:
 					self.atmos_debug[parameter][itter-1] = atmos.values[parameter]
 
+			if self.ncycle!=1 and "loggf" in atmos.global_pars:
+				loggf_history = np.vstack((loggf_history, atmos.global_pars["loggf"][0,0]))
+				N_loggf_history += 1
+
 			#--- check the Marquardt parameter boundaries
 			if LM_parameter<=1e-5:
 				LM_parameter = 1e-5
@@ -840,7 +849,6 @@ class Inverter(InputData):
 				pretty_print_parameters(atmos, ones, atmos.mode)
 				print(LM_parameter)
 				print("-"*globin.NCHAR, "\n")
-
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
@@ -876,6 +884,10 @@ class Inverter(InputData):
 			#--- if all pixels have converged, we stop inversion
 			if break_flag:
 				break
+
+		if self.ncycle!=1 and ("loggf" in atmos.global_pars):
+			Nloggf = len(atmos.line_no["loggf"])
+			atmos.loggf_history = loggf_history
 
 		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:
