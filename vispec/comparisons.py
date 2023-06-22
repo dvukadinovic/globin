@@ -111,7 +111,7 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"]):
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3):
     cmaps = {"temp" : "plasma", "mag" : "nipy_spectral", 
              "vz" : "bwr_r", "vmic" : "plasma",
              "gamma" : "nipy_spectral"}
@@ -154,8 +154,8 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             x = atm1.values[parameter][:,:,idr]
             mean = np.mean(x)
             std = np.std(x)
-            vmin = mean - 3*std
-            vmax = mean + 3*std
+            vmin = mean - contrast*std
+            vmax = mean + contrast*std
             if parameter=="mag":
                 if vmin<10:
                     vmin = 9
@@ -175,7 +175,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 cblabel_2 = cblabel_1
                 cblabel_1 = None
             
-            im = ax.imshow(x, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
+            im = ax.imshow(x.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
             if idc==(ncols-1):
                 add_colorbar(fig, ax, im, label=cblabel_1)
             else:
@@ -195,7 +195,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 
                 if idr==0:
                     ax2.set_title(labels[1], fontsize="large")
-                im = ax2.imshow(y, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
+                im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
                 if idc==(ncols-1):
                     add_colorbar(fig, ax2, im, label=cblabel_2)
                 else:
