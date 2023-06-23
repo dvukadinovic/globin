@@ -1591,7 +1591,7 @@ class Atmosphere(object):
 				weights = np.exp(np.arange(Niter)+1 - Niter)
 				weights /= np.sum(weights)
 				mean_values = np.average(self.loggf_history, axis=0, weights=weights)
-				self.global_pars[parameter] = np.ones((self.nx, self.ny, Nloggf), dtype=np.float64) * mean_values
+				self.global_pars[parameter][0,0] = mean_values
 		# 		size = self.line_no[parameter].size
 		# 		nx, ny = 1, 1	
 		# 		if self.mode==2:
@@ -1599,10 +1599,10 @@ class Atmosphere(object):
 		# 			ny = self.ny
 		# 		# delta = 0.0413 --> 10% relative error in oscillator strength (f)
 		# 		self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
-			if parameter=="dlam":
+			if parameter=="dlam" and self.mode==3:
 				median = np.median(self.global_pars[parameter])
 				Ndlam = len(self.line_no[parameter])
-				self.global_pars[parameter] = np.ones((self.nx, self.ny, Ndlam), dtype=np.float64) * median
+				self.global_pars[parameter][0,0] = median
 
 	def compute_errors(self, H, chi2):
 		invH = np.linalg.inv(H)
