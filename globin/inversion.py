@@ -909,6 +909,11 @@ class Inverter(InputData):
 				hsra_spec = atmos.hsra_spec.spec
 			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
+		try:
+			atmos.compute_errors(H, chi2.chi2)
+		except:
+			pass
+
 		return atmos, inverted_spectra, chi2
 
 	def save_debug(self):

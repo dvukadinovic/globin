@@ -1605,9 +1605,19 @@ class Atmosphere(object):
 				self.global_pars[parameter][0,0] = median
 
 	def compute_errors(self, H, chi2):
-		invH = np.linalg.inv(H)
-		diag = np.einsum("...kk->...k", invH)
-		diag = diag.flatten(order="F")
+		"""
+		Computing parameters error. Based on equations from Iniesta (2003) which
+		are originally presented in Sanchez Almeida J. (1997), A&A.
+		"""
+		if self.mode!=3:
+			return
+
+		# invH = np.linalg.inv(H)
+		invH = sp.linalg.inv(H)
+		# diag = np.einsum("...kk->...k", invH)
+		# diag = diag.flatten(order="F")
+		diag = invH.diag(k=0)
+		diag = np.array(diag)
 
 		npar = self.n_local_pars + self.n_global_pars
 
