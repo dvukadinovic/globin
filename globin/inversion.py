@@ -585,7 +585,7 @@ class Inverter(InputData):
 		num_failed = 0
 
 		# save log(gf) parameter for computing the mean if we are doing multicycle inversion
-		if self.ncycle!=1 and "loggf" in atmos.global_pars:
+		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
 			loggf_history = np.copy(atmos.global_pars["loggf"][0,0])
 			N_loggf_history = 1
 
@@ -830,7 +830,7 @@ class Inverter(InputData):
 				for parameter in atmos.nodes:
 					self.atmos_debug[parameter][itter-1] = atmos.values[parameter]
 
-			if self.ncycle!=1 and "loggf" in atmos.global_pars:
+			if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
 				loggf_history = np.vstack((loggf_history, atmos.global_pars["loggf"][0,0]))
 				N_loggf_history += 1
 
@@ -886,7 +886,7 @@ class Inverter(InputData):
 					atmos.build_from_nodes(ones)
 					self.save_cycle(chi2, obs, corrected_spec, atmos, 0)
 		
-		if self.ncycle!=1 and ("loggf" in atmos.global_pars):
+		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
 			atmos.loggf_history = loggf_history
 
 		atmos.build_from_nodes(ones)
@@ -910,9 +910,9 @@ class Inverter(InputData):
 			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 		try:
-			atmos.compute_errors(H, chi2.chi2)
+			atmos.compute_errors(H, chi2)
 		except:
-			pass
+			print("[Info] Could not compute parameters error.")
 
 		return atmos, inverted_spectra, chi2
 
@@ -952,15 +952,15 @@ class Inverter(InputData):
 	def save_cycle(self, chi2, obs, spec, atmos, cycle):
 		output_path = f"runs/{self.run_name}"
 
-		if self.mode==2:
-			if atmos.line_no["loggf"].size>0:
-				mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
-			else:
-				mean_loggf = None
-			if atmos.line_no["dlam"].size>0:
-				mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
-			else:
-				mean_dlam = None
+		# if self.mode==2:
+		# 	if atmos.line_no["loggf"].size>0:
+		# 		mean_loggf = np.mean(atmos.global_pars["loggf"], axis=(1,2))
+		# 	else:
+		# 		mean_loggf = None
+		# 	if atmos.line_no["dlam"].size>0:
+		# 		mean_dlam = np.mean(atmos.global_pars["dlam"], axis=(1,2))
+		# 	else:
+		# 		mean_dlam = None
 
 		if atmos.do_fudge==1:
 			atmos.make_OF_table(self.wavelength_vacuum)
@@ -973,6 +973,27 @@ class Inverter(InputData):
 		atmos.save_atmosphere(f"{output_path}/inverted_atmos_c{cycle}.fits")
 		if self.mode==2 or self.mode==3:
 			atmos.save_atomic_parameters(f"{output_path}/inverted_atoms_c{cycle}.fits")
+		
+		try:
+			primary = fits.PrimaryHDU(atmos.loggf_history)
+			primary.writeto(f"{output_path}/loggf_history_c{cycle}.fits", overwrite=True)
+		except:
+			print("[Info] Could not save the log(gf) parameter history.")
+
+		try:
+			primary = fits.PrimaryHDU(atmos.local_pars_errors)
+			primary.name = "local_pars_error"
+
+			hdulist = fits.HDUList([primary])
+
+			par_hdu = fits.ImageHDU(atmos.global_pars_errors)
+			par_hdu.name = "global_pars_error"
+			hdulist.append(par_hdu)
+
+			hdulist.writeto(f"{output_path}/parameters_error_c{cycle}.fits", overwrite=True)
+		except:
+			print("[Info] Could not save the parameters error.")
+
 		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
 		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
 

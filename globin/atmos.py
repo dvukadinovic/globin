@@ -1586,7 +1586,7 @@ class Atmosphere(object):
 					self.values[parameter][...,idn] = tmp
 
 		for parameter in self.global_pars:
-			if parameter=="loggf" and len(self.line_no["loggf"])>0 and self.mode==3:
+			if parameter=="loggf" and len(self.line_no["loggf"])!=0 and self.mode==3:
 				Niter, Nloggf = self.loggf_history.shape
 				weights = np.exp(np.arange(Niter)+1 - Niter)
 				weights /= np.sum(weights)
@@ -1599,7 +1599,7 @@ class Atmosphere(object):
 		# 			ny = self.ny
 		# 		# delta = 0.0413 --> 10% relative error in oscillator strength (f)
 		# 		self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
-			if parameter=="dlam" and self.mode==3:
+			if parameter=="dlam" and len(self.line_no["dlam"])!=0 and self.mode==3:
 				median = np.median(self.global_pars[parameter])
 				Ndlam = len(self.line_no[parameter])
 				self.global_pars[parameter][0,0] = median
@@ -1612,28 +1612,53 @@ class Atmosphere(object):
 		if self.mode!=3:
 			return
 
-		# invH = np.linalg.inv(H)
+		chi2, _ = chi2.get_final_chi2()
+
 		invH = sp.linalg.inv(H)
-		# diag = np.einsum("...kk->...k", invH)
-		# diag = diag.flatten(order="F")
-		diag = invH.diag(k=0)
+		diag = invH.diagonal(k=0)
 		diag = np.array(diag)
 
 		npar = self.n_local_pars + self.n_global_pars
 
-		self.errors = np.zeros(npar)
+		self.local_pars_errors = np.zeros((self.nx, self.ny, self.n_local_pars))
+		self.global_pars_errors = np.zeros(self.n_global_pars)
 
 		low, up = 0, 0
+		Npassed_nodes = 0
 		for parameter in self.nodes:
-			scale = globin.parameter_scale[parameter].flatten()
-			up += len(self.nodes[parameter])
-			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
+			nnodes = len(self.nodes[parameter])
+			_tmp = np.arange(self.nx*self.ny, dtype=np.int32) * self.n_local_pars
+			_tmp += Npassed_nodes
+			inds = np.copy(_tmp)
+			for idn in range(1, nnodes):
+				_tmp += 1
+				inds = np.vstack((inds, _tmp))
+
 			low = up
+			up += self.nx*self.ny*nnodes
+			scale = self.parameter_scale[parameter]
+			invH_diag = diag[inds].reshape(self.nx, self.ny, nnodes)
+			self.local_pars_errors[:,:, Npassed_nodes:Npassed_nodes+nnodes] = np.sqrt(chi2[..., np.newaxis]/npar * invH_diag / scale**2)
+			Npassed_nodes += nnodes
+
+		low, up = None, self.n_local_pars*self.nx*self.ny
+		_low, _up = 0, 0
+		chi2 = np.sum(chi2)
 		for parameter in self.global_pars:
-			scale = globin.parameter_scale[parameter]
-			up += scale.size
-			self.errors[low:up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
+			if len(self.global_pars[parameter])==0:
+				continue
+
+			scale = self.parameter_scale[parameter]
+			N = scale.size
 			low = up
+			up += N
+			_low = _up
+			_up += N
+			self.global_pars_errors[_low:_up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
+
+		print(self.local_pars_errors)
+		print(self.global_pars_errors)
+		print("----- \n")
 
 	def get_hsra_cont(self):
 		"""
@@ -2559,7 +2584,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 					for idy in range(atmos.ny):
 						for sID in range(1,5):
 							rf[idx,idy,free_par_ID,0,:,sID-1] = correlate1d(spec[idx,idy,:,sID], kernel)
-							rf[idx,idy,free_par_ID,0,:,sID-1] *= 1/atmos.vmac * globin.parameter_scale["vmac"]
+							rf[idx,idy,free_par_ID,0,:,sID-1] *= 1/atmos.vmac * atmos.parameter_scale["vmac"]
 				free_par_ID += 1
 			elif parameter in ["loggf", "dlam"]:
 				perturbation = atmos.delta[parameter]
