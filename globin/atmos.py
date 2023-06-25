@@ -1656,9 +1656,9 @@ class Atmosphere(object):
 			_up += N
 			self.global_pars_errors[_low:_up] = np.sqrt(chi2/npar * diag[low:up] / scale**2)
 
-		print(self.local_pars_errors)
-		print(self.global_pars_errors)
-		print("----- \n")
+		# print(self.local_pars_errors)
+		# print(self.global_pars_errors)
+		# print("----- \n")
 
 	def get_hsra_cont(self):
 		"""
