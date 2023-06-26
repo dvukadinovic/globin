@@ -830,7 +830,7 @@ class Inverter(InputData):
 				for parameter in atmos.nodes:
 					self.atmos_debug[parameter][itter-1] = atmos.values[parameter]
 
-			if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
+			if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0 and updated_parameters:
 				loggf_history = np.vstack((loggf_history, atmos.global_pars["loggf"][0,0]))
 				N_loggf_history += 1
 
