@@ -1,4 +1,4 @@
-   ......Read Atmosphere:   0.005 [sec]
+   ......Read Atmosphere:   0.004 [sec]
 
     ........Read Atom H :   0.000 [sec]
     ........Read Atom HE:   0.001 [sec]
@@ -8,10 +8,10 @@
     ........Read Atom S :   0.000 [sec]
     ........Read Atom FE:   0.000 [sec]
     ........Read Atom SI:   0.001 [sec]
-    ........Read Atom AL:   0.001 [sec]
+    ........Read Atom AL:   0.000 [sec]
     ........Read Atom NA:   0.000 [sec]
     ........Read Atom MG:   0.001 [sec]
-   ....Read atomic input:   0.005 [sec]
+   ....Read atomic input:   0.004 [sec]
 
     ...Read Molecule  H2:   0.000 [sec]
     ...Read Molecule H2+:   0.000 [sec]
@@ -25,58 +25,58 @@
     ...Read Molecule  NO:   0.000 [sec]
     ...Read Molecule  OH:   0.000 [sec]
     ...Read Molecule H2O:   0.000 [sec]
-   .Read molecular input:   0.001 [sec]
+   .Read molecular input:   0.000 [sec]
 
    ...........SortLambda:   0.000 [sec]
 
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
-    ..............餠长鯱:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
+    ...................:   0.000 [sec]
     Chemical equilibrium:   0.001 [sec]
-    ..Background Opacity:   0.216 [sec]
-   .....Total Background:   0.218 [sec]
+    ..Background Opacity:   0.164 [sec]
+   .....Total Background:   0.165 [sec]
 
    .............Profiles:   0.000 [sec]
 
    .....Initial solution:   0.000 [sec]
 
-  ......Total Initialize:   0.228 [sec]
+  ......Total Initialize:   0.173 [sec]
 
 
-    .Spectrum & Operator:   0.022 [sec]
-   ..Total Iteration   1:   0.022 [sec]
+    .Spectrum & Operator:   0.018 [sec]
+   ..Total Iteration   1:   0.018 [sec]
 
-  .......Iteration Total:   0.022 [sec]
+  .......Iteration Total:   0.018 [sec]
 
 
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
-    ...................:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
+    ................ !:   0.000 [sec]
     Chemical equilibrium:   0.001 [sec]
-    ..Background Opacity:   0.212 [sec]
-   .....Total Background:   0.213 [sec]
+    ..Background Opacity:   0.160 [sec]
+   .....Total Background:   0.160 [sec]
 
    .............Profiles:   0.000 [sec]
 
    .....Initial solution:   0.000 [sec]
 
-  ......Total initialize:   0.213 [sec]
+  ......Total initialize:   0.160 [sec]
 
 
-    ......Solve Spectrum:   0.020 [sec]
+    ......Solve Spectrum:   0.017 [sec]

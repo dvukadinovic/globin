@@ -509,6 +509,11 @@ class Inverter(InputData):
 				hsra_spec = atmos.hsra_spec.spec
 			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
+		try:
+			atmos.compute_errors(H, chi2)
+		except:
+			print("[Info] Could not compute parameters error.")
+
 		return atmos, inverted_spectra, chi2
 
 	def invert_global(self, max_iter, marq_lambda):
@@ -1330,6 +1335,16 @@ def invert_mcmc(init, save_output, verbose):
 	diff = obs.spec - spec.spec
 	chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
 
+	def log_prob(x, ivar):
+	    return -0.5 * np.sum(ivar * x ** 2)
+
+	ndim, nwalkers = 5, 100
+	ivar = 1. / np.random.rand(ndim)
+	p0 = np.random.randn(nwalkers, ndim)
+
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[ivar])
+	sampler.run_mcmc(p0, 10000)
+
 	return atmos, spec
 
 def lnprior(pars):
@@ -1354,7 +1369,7 @@ def lnlike(theta, x, y, yp, yerr):
 	"""
 	return -0.5 * np.sum( (y-fn(theta, x, yp))**2 / yerr**2)
 
-def lnprob(theta, x, y, yp, yerr):
+def log_prob(theta, x, y, yp, yerr):
 	"""
 	Compute product of prior and likelihood.
 
