@@ -95,11 +95,14 @@ class Spectrum(object):
 		"""
 		Check if there is NaN's in the spectrum.
 		"""
+		valid = True
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				if np.isnan(self.spec[idx,idy]).any():
-					return False
-		return True
+					print(idx, idy)
+					valid &= False
+
+		return valid
 
 	def generate_list(self):
 		self.spectrum_list = [spec for spec in self.list_spectra()]
