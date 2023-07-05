@@ -48,8 +48,10 @@ class Inverter(InputData):
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
 		
 		if self.mode>=1:
-			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
 			start = time.time()
+			
+			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
+
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
 					print("="*globin.NCHAR)
@@ -97,8 +99,9 @@ class Inverter(InputData):
 			return atmos, spec, chi2
 
 		elif self.mode==0:
-			if self.verbose:	
-				print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
+			start = time.time()
+			
+			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
 
 			atmos = self.atmosphere
 
@@ -137,9 +140,13 @@ class Inverter(InputData):
 			if self.save_output:
 				spec.save(self.output_spectra_path, spec.wavelength)
 
-			if self.verbose:
-				print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
-				print("-"*globin.NCHAR)
+			t0 = datetime.now()
+			t0 = t0.isoformat(sep=' ', timespec='seconds')
+			end = time.time() - start
+			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+
+			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
+			print("-"*globin.NCHAR)
 
 			return atmos, spec, None
 		else:
