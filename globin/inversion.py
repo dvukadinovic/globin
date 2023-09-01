@@ -49,7 +49,7 @@ class Inverter(InputData):
 		
 		if self.mode>=1:
 			start = time.time()
-			
+
 			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
 
 			for cycle in range(self.ncycle):
@@ -148,7 +148,8 @@ class Inverter(InputData):
 			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
 			print("-"*globin.NCHAR)
 
-			return atmos, spec, None
+			# return atmos, spec, None
+			return spec
 		else:
 			raise ValueError(f"Unrecognized mode={self.mode} of operation. Check input parameters.")
 
@@ -888,15 +889,16 @@ class Inverter(InputData):
 				print("Failed 6 times to fix the LM parameter. We break.\n")
 				break_flag = True
 
-			#--- if all pixels have converged, we stop inversion
-			if break_flag:
-				break
-
 			#--- save intermediate results every 'output_frequency' iteration
 			if self.output_frequency!=max_iter:
 				if itter%self.output_frequency==0 and itter!=0:
 					atmos.build_from_nodes(ones)
 					self.save_cycle(chi2, obs, corrected_spec, atmos, 0)
+			
+			#--- if all pixels have converged, we stop inversion
+			if break_flag:
+				break
+
 		
 		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
 			atmos.loggf_history = loggf_history
@@ -990,7 +992,8 @@ class Inverter(InputData):
 			primary = fits.PrimaryHDU(atmos.loggf_history)
 			primary.writeto(f"{output_path}/loggf_history_c{cycle}.fits", overwrite=True)
 		except:
-			print("[Info] Could not save the log(gf) parameter history.")
+			# print("[Info] Could not save the log(gf) parameter history.")
+			pass
 
 		try:
 			primary = fits.PrimaryHDU(atmos.local_pars_errors)
@@ -1004,7 +1007,8 @@ class Inverter(InputData):
 
 			hdulist.writeto(f"{output_path}/parameters_error_c{cycle}.fits", overwrite=True)
 		except:
-			print("[Info] Could not save the parameters error.")
+			# print("[Info] Could not save the parameters error.")
+			pass
 
 		spec.save(f"{output_path}/inverted_spectra_c{cycle}.fits", spec.wavelength)
 		chi2.save(fpath=f"{output_path}/chi2_c{cycle}.fits")
