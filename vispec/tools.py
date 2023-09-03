@@ -19,8 +19,10 @@ def add_colorbar(fig, ax, im, label=None):
         cbar.set_label(label)
     return cbar
 
-def create_fig(nrows=1, ncols=1, figsize=None, hspace=0.3, wspace=0.3):
+def create_fig(nrows=1, ncols=1, figsize=None, aspect="auto", hspace=0.3, wspace=0.3):
     if figsize is None:
+        if aspect=="equal":
+            figsize = (WIDTH*ncols, WIDTH*nrows)
         figsize = (WIDTH*ncols, HEIGHT*nrows)
     
     fig = plt.figure(figsize=figsize)

@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
 import numpy as np
 import copy
 from astropy.io import fits
@@ -292,7 +293,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		ax0_SI.legend(loc="lower left", 
 					  bbox_to_anchor=(0, 1.01, 1, 0.2),
 					  ncol=legend_ncols, 
-					  fontsize="x-small", 
+					  fontsize=12, 
 					  frameon=True)
 
 		ax1_SI.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
@@ -391,7 +392,9 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.savefig(fpath)
 	plt.close()
 
-def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes="I", logtau_top=-6, logtau_bot=1, 
+def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes="I", 
+			 logtau_top=-6, logtau_bot=1,
+			 lmin=None, lmax=None,
 	    	 rf_wave_integrate=False, rf_tau_integrate=False):
 	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
@@ -407,30 +410,42 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 				  "gamma"  : r"Inclination", 
 				  "chi"    : r"Azimuth"}
 	stokesV = {"I" : 0, "Q" : 1, "U" : 2, "V" : 3}
+	global_pars_colors = ["black", "tab:red", "tab:blue", "tab:orange"]
+
+	fontsize = "large"
 
 	if not _rf.normed_spec:
 		cmap["temp"] = "YlOrRd"
 
-	wavs = _rf.wavelength
+	wavs = _rf.wavelength * 10
 	lam_min, lam_max = wavs[0], wavs[-1]
+	if lmin is not None:
+		lam_min = lmin
+	if lmax is not None:
+		lam_max = lmax
+	ind_lmin = np.argmin(np.abs(wavs-lam_min))
+	ind_lmax = np.argmin(np.abs(wavs-lam_max))+1
+	wavs = wavs[ind_lmin:ind_lmax]
 	lam0 = (lam_max + lam_min)/2
 
 	ind_top = np.argmin(np.abs(_rf.logtau - logtau_top))
 	ind_bot = np.argmin(np.abs(_rf.logtau - logtau_bot))+1
 
-	# rf.shape = (nx, ny, 6, nz, nw, 4)
-	rf_local, rf_global = _rf.rf_local, _rf.rf_global
-	if rf_local is not None:
-		nx, ny, npar, nz, nw, ns = rf_local.shape
-	elif rf_global is not None:
-		nx, ny, npar, nw, ns = rf_global.shape
-	else:
-		raise ValueError("There is not RF to be plotted.")
-
 	logtau = _rf.logtau[ind_top:ind_bot]
 	dtau = _rf.logtau[1] - _rf.logtau[0]
 
 	local_pars, global_pars = _rf.local_pars, _rf.global_pars
+
+	# rf_local.shape = (nx, ny, n_local_par, nz, nw, 4)
+	# rf_global.shape = (nx, ny, n_global_par, nw, 4)
+	rf_local = _rf.rf_local[idx,idy,:, ind_top:ind_bot, ind_lmin:ind_lmax]
+	rf_global = _rf.rf_global[idx,idy,:, ind_lmin:ind_lmax]
+	if rf_local is not None:
+		npar, nz, nw, ns = rf_local.shape
+	elif rf_global is not None:
+		npar, nw, ns = rf_global.shape
+	else:
+		raise ValueError("There is not RF to be plotted.")
 
 	stokes_range = []
 	stokes_labels = []
@@ -449,7 +464,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 	width, height = 3, 2+2/3
 	fig = plt.figure(figsize=(width*ncols, height*nrows))
-	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.35, hspace=0.5)
+	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.5, hspace=0.4)
 
 	for i_, parameter in enumerate(local_parameters):
 		try:
@@ -462,9 +477,11 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 			for j_, ids in enumerate(stokes_range):
 				ax = fig.add_subplot(gs[i_,j_])
 				if i_==0:
-					ax.set_title(stokes_labels[j_])
+					ax.set_title(stokes_labels[j_], fontsize=fontsize)
+				if j_==0:
+					ax.set_ylabel(r"$\log(\tau)$", fontsize=fontsize)
 				
-				matrix = rf_local[idx, idy, idp, ind_top:ind_bot, :, ids]
+				matrix = rf_local[idp,:,:, ids]
 				vmax = np.max(np.abs(matrix))
 				vmin = -vmax
 				par_cmap = cmap[parameter]
@@ -478,7 +495,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 					cmap=par_cmap, vmin=vmin, vmax=vmax,
 					extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
 				if j_+1==ncols:
-					add_colorbar(fig, ax, im, label=cbar_label[parameter])
+					add_colorbar(fig, ax, im, label=cbar_label[parameter], fontsize=fontsize)
 				else:
 					add_colorbar(fig, ax, im)
 				if j_>0:
@@ -486,10 +503,12 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 				if i_+1<nrows:
 					ax.set_xticklabels([])
 
+				ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+				ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))
 				ax.grid(which="major", axis="y", lw=0.5)
 
 		if rf_wave_integrate:	
-			RF = rf_local[idx,idy,idp,ind_top:ind_bot,:,:]
+			RF = rf_local[idp]
 			# RF *= parameter_norm[parameter]
 			integratedRF = np.sum(np.abs(RF), axis=1)
 			vmax = np.max(integratedRF)*1.05
@@ -520,13 +539,18 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 		for j_, ids in enumerate(stokes_range):
 			ax = fig.add_subplot(gs[i_,j_])
+			ax.set_xlabel(r"$\lambda [\AA{}]$", fontsize=fontsize)
 			for idl in idp:
-				ax.plot(rf_global[idx,idy,idl,:,ids])#*parameter_norm[parameter])
+				ax.plot(wavs, rf_global[idl,:,ids], c=global_pars_colors[idl])#*parameter_norm[parameter])
+				ax.set_xlim([wavs[0], wavs[-1]])
 
-def add_colorbar(fig, ax, im, label=None):
+		ax.yaxis.set_label_position("right")
+		ax.set_ylabel(r"$\log(gf)$", fontsize=fontsize)
+
+def add_colorbar(fig, ax, im, label=None, fontsize="normal"):
 	from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 	axins = inset_axes(ax,
-	                   width="2%",
+	                   width="5%",
 	                   height="100%",
 	                   loc='lower left',
 	                   bbox_to_anchor=(1.02, 0., 1, 1),
@@ -534,4 +558,4 @@ def add_colorbar(fig, ax, im, label=None):
 	                   borderpad=0)
 	cbar = fig.colorbar(im, cax=axins)
 	if label is not None:
-		cbar.set_label(label)
+		cbar.set_label(label, fontsize=fontsize)
