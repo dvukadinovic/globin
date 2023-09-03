@@ -758,27 +758,32 @@ class Atmosphere(object):
 
 		return new_atmos
 
-	def get_atmos(self, idx, idy):
+	def get_atmos(self, indx, indy):
+		nx = 1
+		ny = len(indy)
+
 		dtau = self.logtau[1] - self.logtau[0]
-		new = Atmosphere(nx=1, ny=1, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
+		new = Atmosphere(nx=nx, ny=ny, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
 
 		# this needs to be cleaned and optimized...
 		new.cwd = self.cwd
 		new.scale_id = self.scale_id
-		new.fudge_lam = self.fudge_lam
-		new.fudge = self.fudge
-		new.global_pars = self.global_pars
+		# new.fudge_lam = self.fudge_lam
+		# new.fudge = self.fudge[indx,indy]
+		# new.global_pars = self.global_pars
 		#-------------------------------------------
 
-		new.data[0,0] = self.data[idx,idy]
+		new.data[0,:,:,:] = self.data[indx,indy]
 		new.logtau = self.logtau
 
 		for parameter in self.nodes:
-			nnodes = len(self.nodes[parameter])
-			new.nodes[parameter] = np.zeros((1,1,nnodes))
-			new.nodes[parameter][0,0] = self.nodes[parameter]
-			new.values[parameter] = np.zeros((1,1,nnodes))
-			new.values[parameter][0,0] = self.values[parameter][idx,idy]
+			new.nodes[parameter] = self.nodes[parameter]
+			new.values[parameter] = self.values[parameter][indx,indy]
+			# nnodes = len(self.nodes[parameter])
+			# new.nodes[parameter] = np.zeros((1,1,nnodes))
+			# new.nodes[parameter][0,0] = self.nodes[parameter]
+			# new.values[parameter] = np.zeros((1,1,nnodes))
+			# new.values[parameter][0,0] = self.values[parameter][idx,idy]
 			# new.parameter_scale[parameter][0,0] = self.parameter_scale[parameter][idx,idy]
 
 		return new

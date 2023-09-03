@@ -104,6 +104,17 @@ class Spectrum(object):
 
 		return valid
 
+	def get_spectra(self, indx, indy):
+		nx = 1
+		ny = len(indy)
+
+		new = Spectrum(nx=nx, ny=ny, nw=self.nw)
+
+		new.spec[0,:,:,:] = self.spec[indx,indy]
+		new.wavelength = self.wavelength
+
+		return new
+
 	def generate_list(self):
 		self.spectrum_list = [spec for spec in self.list_spectra()]
 

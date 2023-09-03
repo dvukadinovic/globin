@@ -429,31 +429,41 @@ if __name__=="__main__":
     # example from de la Cruz Rodriguez et al. (2019)
     x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])
     y = np.array([0.2, 0, 0.6, 0.55, 0.29, 0.21, 0.4])
-    x = np.array([-3,-2,-1, 0.4, 2, 3.2])
-    y = np.array([0.2, 0, 0.55, 0.29, 0.21, 0.4])
+    x = np.array([-3,-1.5,-1, 0.4, 2, 3.2])
+    y = np.array([0.2, 0, 0.65, 0.29, 0.21, 0.4])
 
     # x = np.random.random(5)
     # x.sort()
     # y = np.random.random(5)
     
-    plt.scatter(x, y)
+    plt.scatter(x, y, c="k", label="nodes", zorder=3)
 
-    xintp = np.linspace(x[0]-0.2,x[-1]+0.2, num=201)
-
-    tension = 5
-    K0, Kn = get_K0_Kn(x, y, tension=tension)
-    yintp_ = spline_interpolation(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
-    plt.plot(xintp, yintp_, label="Cubic spline (s!=0)")
+    xintp = np.linspace(x[0]-0.2,x[-1]+0.2, num=2001)
 
     tension = 0
     K0, Kn = get_K0_Kn(x, y, tension=tension)
     yintp_ = spline_interpolation(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
-    plt.plot(xintp, yintp_, label="Cubic spline (s=0)")
+    plt.plot(xintp, yintp_, c="tab:blue", ls="-", label=r"Cubic spline $(\omega=0)$")
+
+    tension = 7
+    K0, Kn = get_K0_Kn(x, y, tension=tension)
+    yintp_ = spline_interpolation(x, y, xintp, tension=tension, K0=K0, Kn=Kn)
+    plt.plot(xintp, yintp_, c="tab:blue", ls="--", label=r"Cubic spline $(\omega=7)$")
+
+    yintp = bezier_spline(x, y, xintp, K0=K0, Kn=Kn, degree=2, extrapolate=True)
+    plt.plot(xintp, yintp, c="tab:green", ls="-", label="Quadratic Bezier")
 
     yintp = bezier_spline(x, y, xintp, K0=K0, Kn=Kn, degree=3, extrapolate=True)
-    plt.plot(xintp, yintp, label="Cubic Bezier")   
-    
+    plt.plot(xintp, yintp, c="tab:red", ls="-", label="Cubic Bezier")
+
+    plt.xlabel("x")
+    plt.ylabel("f(x)")
+
     plt.legend()
+
+    plt.savefig("interpolation_comparison.pdf", dpi=300)
+
+    # plt.ylim([-1.8, 1.0])
 
     plt.show()
     

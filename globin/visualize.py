@@ -97,13 +97,19 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 
 			parameter = parameters[k_]
 			parID = atmos.par_id[parameter]
+			# if parameter=="chi":
+			# 	y = np.sin(atmos.values[parameter])
+			# 	atmos.values[parameter] = np.arcsin(y)
+
+			# 	y = np.sin(cube[parID])
+			# 	cube[parID] = np.arcsin(y)
 
 			ax = fig.add_subplot(gs[i_,j_])
 
 			try:
 				x = atmos.nodes[parameter]
 				y = atmos.values[parameter][idx,idy] * fact[parameter]
-				ax.scatter(x, y, s=20, color=colors[0])
+				ax.scatter(x, y, s=20, color="black")
 			except:
 				pass
 
@@ -213,7 +219,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 			else:
 				obs[:,0] += shift
 
-		axI.plot((wavelength - lam0)*10, obs[:,0], lw=lw, color=color)
+		axI.plot((wavelength - lam0)*10, obs[:,0], lw=lw, color="k")
 		if norm:
 			axI.set_ylabel(r"Stokes I/I$_\mathrm{c}$")
 		else:
@@ -221,12 +227,12 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		axI.set_xlim([lmin, lmax])
 
 		#--- Stokes Q
-		axQ.plot((wavelength - lam0)*10, obs[:,1]*fact, lw=lw, color=color)
+		axQ.plot((wavelength - lam0)*10, obs[:,1]*fact, lw=lw, color="k")
 		axQ.set_ylabel(r"Stokes Q/I$_\mathrm{c}$ [\%]")
 		axI.set_xlim([lmin, lmax])
 		
 		#--- Stokes U
-		axU.plot((wavelength - lam0)*10, obs[:,2]*fact, lw=lw, color=color)
+		axU.plot((wavelength - lam0)*10, obs[:,2]*fact, lw=lw, color="k")
 		axI.set_xlim([lmin, lmax])
 		axU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
@@ -234,7 +240,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, shift=None, norm=False,
 		axU.set_ylabel(r"Stokes U/I$_\mathrm{c}$ [\%]")
 		
 		#--- Stokes V
-		axV.plot((wavelength - lam0)*10, obs[:,3]*fact, lw=lw, color=color)
+		axV.plot((wavelength - lam0)*10, obs[:,3]*fact, lw=lw, color="k")
 		axI.set_xlim([lmin, lmax])
 		axV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
 		if not relative:
