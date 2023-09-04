@@ -1805,17 +1805,26 @@ class Atmosphere(object):
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 			
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
+			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
 		else:
-			sI, sQ, sU, sV = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
+			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
+
+		tck = splrep(rh_wave_vac, sI, k=3)
+		sI = splev(self.wavelength_vacuum, tck, der=0)
+		tck = splrep(rh_wave_vac, sQ, k=3)
+		sQ = splev(self.wavelength_vacuum, tck, der=0)
+		tck = splrep(rh_wave_vac, sU, k=3)
+		sU = splev(self.wavelength_vacuum, tck, der=0)
+		tck = splrep(rh_wave_vac, sV, k=3)
+		sV = splev(self.wavelength_vacuum, tck, der=0)
 
 		return np.vstack((sI, sQ, sU, sV))
 
