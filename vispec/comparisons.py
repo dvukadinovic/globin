@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
@@ -111,9 +112,11 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3):
-    cmaps = {"temp" : "plasma", "mag" : "nipy_spectral", 
-             "vz" : "bwr_r", "vmic" : "plasma",
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15):
+    cmaps = {"temp" : "plasma", 
+             "vz" : "bwr_r", 
+             "vmic" : "plasma",
+             "mag" : "nipy_spectral", 
              "gamma" : "nipy_spectral"}
 
     parameter_relay = {"temp"  : "Temperature [K]",
@@ -122,6 +125,8 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                        "mag"   : "Magnetic field [G]",
                        "gamma" : r"Inclination [$^\circ$]",
                        "chi"   : r"Azimuth [$^\circ$]"}
+
+    mpl.rcParams.update({"font.size" : fontsize})
 
     N = 1
     n2 = 0
@@ -181,10 +186,10 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             else:
                 add_colorbar(fig, ax, im)
 
-            if idr+1!=nnodes:
-                ax.set_xticklabels([])
-            if idc!=0:
-                ax.set_yticklabels([])
+            # if idr+1!=nnodes:
+            #     ax.set_xticklabels([])
+            # if idc!=0:
+            #     ax.set_yticklabels([])
 
             # add the second axis if we have two atmospheres
             if atm2 is not None:
@@ -201,9 +206,19 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 else:
                     add_colorbar(fig, ax2, im)
                 
-                if idr+1!=nnodes:
-                    ax2.set_xticklabels([])
+                # if idr+1!=nnodes:
+                #     ax2.set_xticklabels([])
+                # ax2.set_yticklabels([])
+
+                ax2.set_xticks([])
+                ax2.set_xticklabels([])
+                ax2.set_yticks([])
                 ax2.set_yticklabels([])
+
+            ax.set_xticks([])
+            ax.set_xticklabels([])
+            ax.set_yticks([])
+            ax.set_yticklabels([])
 
         # add parameter wise titles (spanning N columns)
         y0 = 0.91
@@ -216,5 +231,3 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             ha="center",
             va="center",
             transform=fig.transFigure)
-
-    plt.show()
