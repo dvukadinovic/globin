@@ -445,7 +445,11 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	# rf_local.shape = (nx, ny, n_local_par, nz, nw, 4)
 	# rf_global.shape = (nx, ny, n_global_par, nw, 4)
 	rf_local = _rf.rf_local[idx,idy,:, ind_top:ind_bot, ind_lmin:ind_lmax]
-	rf_global = _rf.rf_global[idx,idy,:, ind_lmin:ind_lmax]
+	try:
+		rf_global = _rf.rf_global[idx,idy,:, ind_lmin:ind_lmax]
+	except:
+		pass
+
 	if rf_local is not None:
 		npar, nz, nw, ns = rf_local.shape
 	elif rf_global is not None:
