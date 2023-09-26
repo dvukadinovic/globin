@@ -176,12 +176,12 @@ def Planck(wave, T):
 
     return C1 / (np.exp(C2) - 1)
 
-def pretty_print_parameters(atmos, conv_flag, mode):
+def pretty_print_parameters(atmos, flag):
     for parameter in atmos.values:
         print(parameter)
         for idx in range(atmos.nx):
             for idy in range(atmos.ny):
-                if conv_flag[idx,idy]==1:
+                if flag[idx,idy]==1:
                     if parameter=="gamma":
                         print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy] * 180/np.pi)
                     elif parameter=="chi":
@@ -189,15 +189,16 @@ def pretty_print_parameters(atmos, conv_flag, mode):
                     else:
                         print(f"[{idx+1},{idy+1}] --> ", atmos.values[parameter][idx,idy])
 
-    if mode>=2:
+    if atmos.mode>=2:
         for parameter in atmos.global_pars:
             if parameter=="vmac" or parameter=="stray":
                 print(parameter)
                 print(atmos.global_pars[parameter])
             else:
                 if atmos.line_no[parameter].size > 0:
-                    indx, indy = np.where(conv_flag==1)
-                    if mode==3:
+                    indx = atmos.idx
+                    indy = atmos.idy
+                    if atmos.mode==3:
                         indx, indy = 0, 0
                     print(parameter)
                     print(atmos.global_pars[parameter][indx,indy])

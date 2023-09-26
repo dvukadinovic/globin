@@ -46,7 +46,7 @@ class Inverter(InputData):
 	def run(self):
 		# if self.atmosphere.spectra is None:
 		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
-		
+
 		if self.mode>=1:
 			start = time.time()
 
@@ -214,7 +214,7 @@ class Inverter(InputData):
 
 		if self.verbose:
 			print("Initial parameters:\n")
-			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
+			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print()
 
 		Nw = len(atmos.wavelength_obs)
@@ -476,7 +476,7 @@ class Inverter(InputData):
 
 			#--- print the current state of the inversion
 			if self.verbose and np.sum(stop_flag)!=0:
-				pretty_print_parameters(atmos, stop_flag, atmos.mode)
+				pretty_print_parameters(atmos, stop_flag)
 				idx, idy = np.where(stop_flag==1)
 				print(LM_parameter[idx,idy])
 
@@ -533,7 +533,7 @@ class Inverter(InputData):
 
 		if self.verbose:
 			print("Initial parameters:\n")
-			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)), atmos.mode)
+			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print()
 
 		if atmos.add_stray_light or atmos.norm_level=="hsra":
@@ -859,7 +859,7 @@ class Inverter(InputData):
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
-				pretty_print_parameters(atmos, ones, atmos.mode)
+				pretty_print_parameters(atmos, ones)
 				print(LM_parameter)
 				print("-"*globin.NCHAR, "\n")
 

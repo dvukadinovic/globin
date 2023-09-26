@@ -2577,7 +2577,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 				atmos.data[:,:,parID,idz] -= 2*perturbation
 				spec_minus = atmos.compute_spectra()
-				
+
 				diff = spec_plus.spec - spec_minus.spec
 				rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
 

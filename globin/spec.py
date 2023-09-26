@@ -160,7 +160,7 @@ class Spectrum(object):
 		else:
 			raise ValueError(f"Kernel order {order} not supported.")
 
-	def broaden_spectra(self, vmac, flag, n_thread=1):
+	def broaden_spectra(self, vmac, flag=None, n_thread=1):
 		if vmac==0:
 			return
 
@@ -170,6 +170,8 @@ class Spectrum(object):
 		# get only sample of spectra that we want to convolve
 		# (no need to do it in every pixel during inversion if
 		# we have not updated parameters)
+		if flag is None:
+			flag = np.ones((self.nx, self.ny))
 		indx, indy = np.where(flag==1)
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
