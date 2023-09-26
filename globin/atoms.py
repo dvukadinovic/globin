@@ -1,6 +1,8 @@
 from astropy.io import fits
 import numpy as np
 
+import globin
+
 class Line(object):
     """
     Class for storing spectral line data.
@@ -8,38 +10,72 @@ class Line(object):
     def __init__(self, lineNo=None, lam0=None,
                     loggf=None, loggf_min=None, loggf_max=None,
                     dlam=None, dlam_min=None, dlam_max=None,
-                    ion=None, state=None, e1=None, e2=None,
+                    ion=None, state=None, elow=None, eup=None,
                     gLlow=None, gLup=None, Jlow=None, Jup=None,
+                    Grad=None,
                     swap=None):
         self.lineNo = lineNo
-        self.lam0 = lam0
+        self.lam0 = lam0 # [1/nm]
         self.loggf = loggf
         self.loggf_min = loggf_min
         self.loggf_max = loggf_max
-        self.dlam = dlam
+        self.dlam = dlam # [mA]
         self.dlam_min = dlam_min
         self.dlam_max = dlam_max
 
         self.Jlow = Jlow
         self.Jup = Jup
 
+        self.Grad = 10**Grad # [1/s]
+
         self.ion = ion
         self.state = state
-        self.e1 = e1
-        self.e2 = e2
+        self.elow = elow # [eV]
+        self.eup = eup # [eV]
 
         self.gLlow = gLlow
         self.gLup = gLup
-        # self.get_effective_Lande()
 
-        self.swap = swap
+        if swap:
+            self._swap()
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
 
+    def _swap(self):
+        """
+        Swap levels' data since they were reversed in the Kurucz line list.
+        """
+        self.Jlow, self.Jup = self.Jup, self.Jlow
+        self.elow, self.eup = self.eup, self.elow
+        self.gLlow, self.gLup = self.gLup, self.gLlow
+
     def get_effective_Lande(self):
         self.gLeff = 0.5*(self.gLup+self.gLlow) + 0.25*(self.gLup-self.gLlow) * (self.Jup*(self.Jup+1.0) - self.Jlow*(self.Jlow+1.0))
+
         return self.gLeff
+
+    @property
+    def Aji(self):
+        glow = 2*self.Jlow + 1
+        gup = 2*self.Jup + 1
+        gf = 10**self.loggf
+        nu = globin.LIGHT_SPEED/self.lam0/1e-9
+        Aji = (2*np.pi*globin.ELECTRON_CHARGE**2*nu**2)/(globin.EPSILON_0*globin.ELECTRON_MASS*globin.LIGHT_SPEED**3) * gf/gup
+        return Aji
+
+    @property
+    def Bji(self):
+        nu = globin.LIGHT_SPEED/self.lam0/1e-9
+        Bji = globin.LIGHT_SPEED**2/(2*globin.PLANCK*nu**3) * self.Aji
+        return Bji
+
+    @property
+    def Bij(self):
+        glow = 2*self.Jlow + 1
+        gup = 2*self.Jup + 1
+        Bij = gup/glow * self.Bji
+        return Bij
 
 def read_RLK_lines(fpath):
     """
@@ -74,27 +110,33 @@ def read_RLK_lines(fpath):
         decimal, integer = np.modf(aux)
         ion = int(integer)
         state = round(decimal*100)
-        e1 = float(line[23:35])*0.00012 # [1/cm --> eV]
-        e2 = float(line[51:63])*0.00012 # [1/cm --> eV]
+        elow = float(line[23:35])*0.00012 # [1/cm --> eV]
+        eup = float(line[51:63])*0.00012 # [1/cm --> eV]
         gLlow = float(line[144:149]) / 1e3
         gLup = float(line[150:155]) / 1e3
         Jlow = float(line[35:40])
         Jup = float(line[63:68])
+        Grad = float(line[81:86])
 
-        if e1>e2:
-            RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
-                                  ion=ion, state=state,
-                                  e1=e2, e2=e1,
-                                  gLlow=gLup, gLup=gLlow, 
-                                  Jlow=Jup, Jup=Jlow,
-                                  swap=True))
-        else:
-            RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
-                                  ion=ion, state=state,
-                                  e1=e1, e2=e2,
-                                  gLlow=gLlow, gLup=gLup,
-                                  Jlow=Jlow, Jup=Jup,
-                                  swap=False))
+        swap = False
+        if elow>eup:
+            swap = True
+
+        RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
+                              ion=ion, state=state,
+                              elow=elow, eup=eup,
+                              gLlow=gLup, gLup=gLlow, 
+                              Jlow=Jup, Jup=Jlow,
+                              Grad=Grad,
+                              swap=True))
+        # else:
+        #     RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
+        #                           ion=ion, state=state,
+        #                           e1=e1, e2=e2,
+        #                           gLlow=gLlow, gLup=gLup,
+        #                           Jlow=Jlow, Jup=Jup,
+        #                           Grad=Grad,
+        #                           swap=False))
 
     return text_lines, RLK_lines
 
