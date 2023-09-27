@@ -1,17 +1,17 @@
-   ......Read Atmosphere:   0.004 [sec]
+   ......Read Atmosphere:   0.005 [sec]
 
     ........Read Atom H :   0.000 [sec]
     ........Read Atom HE:   0.001 [sec]
-    ........Read Atom C :   0.000 [sec]
+    ........Read Atom C :   0.001 [sec]
     ........Read Atom N :   0.000 [sec]
     ........Read Atom O :   0.000 [sec]
     ........Read Atom S :   0.000 [sec]
     ........Read Atom FE:   0.000 [sec]
     ........Read Atom SI:   0.001 [sec]
-    ........Read Atom AL:   0.000 [sec]
+    ........Read Atom AL:   0.001 [sec]
     ........Read Atom NA:   0.000 [sec]
     ........Read Atom MG:   0.001 [sec]
-   ....Read atomic input:   0.004 [sec]
+   ....Read atomic input:   0.006 [sec]
 
     ...Read Molecule  H2:   0.000 [sec]
     ...Read Molecule H2+:   0.000 [sec]
@@ -41,42 +41,42 @@
     ...................:   0.000 [sec]
     ...................:   0.000 [sec]
     Chemical equilibrium:   0.001 [sec]
-    ..Background Opacity:   0.164 [sec]
-   .....Total Background:   0.165 [sec]
+    ..Background Opacity:   0.266 [sec]
+   .....Total Background:   0.268 [sec]
 
    .............Profiles:   0.000 [sec]
 
    .....Initial solution:   0.000 [sec]
 
-  ......Total Initialize:   0.173 [sec]
+  ......Total Initialize:   0.280 [sec]
 
 
-    .Spectrum & Operator:   0.018 [sec]
-   ..Total Iteration   1:   0.018 [sec]
+    .Spectrum & Operator:   0.027 [sec]
+   ..Total Iteration   1:   0.027 [sec]
 
-  .......Iteration Total:   0.018 [sec]
+  .......Iteration Total:   0.027 [sec]
 
 
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
-    ................ !:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
+    ................ qH:   0.000 [sec]
     Chemical equilibrium:   0.001 [sec]
-    ..Background Opacity:   0.160 [sec]
-   .....Total Background:   0.160 [sec]
+    ..Background Opacity:   0.265 [sec]
+   .....Total Background:   0.266 [sec]
 
    .............Profiles:   0.000 [sec]
 
    .....Initial solution:   0.000 [sec]
 
-  ......Total initialize:   0.160 [sec]
+  ......Total initialize:   0.266 [sec]
 
 
-    ......Solve Spectrum:   0.017 [sec]
+    ......Solve Spectrum:   0.026 [sec]

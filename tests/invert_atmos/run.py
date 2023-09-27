@@ -32,7 +32,7 @@ import globin
 # sys.exit()
 
 inverter = globin.Inverter(verbose=True)
-inverter.read_input(run_name="dummy")
+inverter.read_input(run_name="m3")
 inv_atmos, inv_spec, chi2 = inverter.run()
 sys.exit()
 
