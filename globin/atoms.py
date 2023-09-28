@@ -26,7 +26,8 @@ class Line(object):
         self.Jlow = Jlow
         self.Jup = Jup
 
-        self.Grad = 10**Grad # [1/s]
+        if Grad is not None:
+            self.Grad = 10**Grad # [1/s]
 
         self.ion = ion
         self.state = state
