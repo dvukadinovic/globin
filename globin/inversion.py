@@ -96,6 +96,9 @@ class Inverter(InputData):
 			end = time.time() - start
 			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
+			if globin.collect_stats:
+				globin.statistics.save()
+
 			return atmos, spec, chi2
 
 		elif self.mode==0:
@@ -148,7 +151,9 @@ class Inverter(InputData):
 			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
 			print("-"*globin.NCHAR)
 
-			# return atmos, spec, None
+			if globin.collect_stats:
+				globin.statistics.save()
+
 			return spec
 		else:
 			raise ValueError(f"Unrecognized mode={self.mode} of operation. Check input parameters.")
