@@ -194,6 +194,7 @@ class Inverter(InputData):
 
 		return noise_stokes
 
+	@globin.utils.timeit
 	def invert_pxl_by_pxl(self, max_iter, marq_lambda):
 		"""
 		As input we expect all data to be present :)
@@ -284,7 +285,8 @@ class Inverter(InputData):
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
 		while np.min(itter) <=max_iter:
-			start_iter = time.time
+			if globin.collect_stats:
+				start_iter = time.time()
 			# counter for the progress bar
 			old = np.sum(stop_flag)
 
@@ -315,7 +317,7 @@ class Inverter(InputData):
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength)
 				# globin.show()
 
-				# copy old RF into new for new itteration inversion
+				# copy old spectra into new ones for the new itteration
 				if total!=atmos.nx*atmos.ny:
 					indx, indy = np.where(updated_pars==0)
 					spec.spec[indx,indy] = old_spec.spec[indx, indy]
@@ -489,6 +491,9 @@ class Inverter(InputData):
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
 
+			if globin.collect_stats and total!=0:
+				globin.statistics.add(fun_name="pbp_iteration", execution_time=time.time()-start_iter)
+
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:
 				break
@@ -524,6 +529,7 @@ class Inverter(InputData):
 
 		return atmos, inverted_spectra, chi2
 
+	@globin.utils.timeit
 	def invert_global(self, max_iter, marq_lambda):
 		"""
 		Glonal inversion of atmospheric and atomic parameters.
@@ -963,6 +969,7 @@ class Inverter(InputData):
 		primary = fits.PrimaryHDU(LM_debug)
 		primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
 
+	@globin.utils.timeit
 	def save_cycle(self, chi2, obs, spec, atmos, cycle):
 		output_path = f"runs/{self.run_name}"
 
@@ -1049,6 +1056,7 @@ class Inverter(InputData):
 
 		return reg_weight, total_chi2, regul_chi2
 
+@globin.utils.timeit
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1):
 	nx, ny, Npar, _ = H.shape
 	indx, indy = np.where(stop_flag==1)
@@ -1094,6 +1102,7 @@ def _invert_Hessian(args):
 	return steps
 
 #--- check the convergence of chi2
+@globin.utils.timeit
 def chi2_convergence(chi2, itter, stop_flag, updated_pars, n_thread, max_iter, chi2_tolerance):
 	nx, ny = stop_flag.shape
 
@@ -1143,6 +1152,7 @@ def _chi2_convergence(args):
 	# if we still have not converged
 	return 1, itter, updated_pars
 
+@globin.utils.timeit
 def normalize_hessian(H, atmos, mode):
 	"""
 	Normalize Hessian matrix so that diagonal elements are =1.

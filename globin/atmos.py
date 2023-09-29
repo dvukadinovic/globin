@@ -788,6 +788,7 @@ class Atmosphere(object):
 
 		return new
 
+	@globin.utils.timeit
 	def build_from_nodes(self, flag=None, params=None):
 		"""
 		Construct the atmosphere from node values for given parameters.
@@ -965,6 +966,7 @@ class Atmosphere(object):
 
 		return atmos.data[idx,idy]
 
+	@globin.utils.timeit
 	def makeHSE(self, flag=None):
 		"""
 		For given atmosphere structure (logtau and temperature) compute electron
@@ -1060,6 +1062,7 @@ class Atmosphere(object):
 		# convert to SI unit
 		self.pg_top = pg_top/10
 
+	@globin.utils.timeit
 	def get_pg(self):
 		"""
 		Compute the gas pressure from total hydrogen density and electron density.
@@ -1141,6 +1144,7 @@ class Atmosphere(object):
 
 		return np.vstack((ne, nH, rho))
 
+	@globin.utils.timeit
 	def interpolate_atmosphere(self, x_new, ref_atm):
 		"""
 		
@@ -1233,6 +1237,7 @@ class Atmosphere(object):
 
 		self.makeHSE()
 
+	@globin.utils.timeit
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		"""
 		Save the atmosphere to a fits file with all the parameters.
@@ -1429,6 +1434,7 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
+	@globin.utils.timeit
 	def update_parameters(self, proposed_steps):
 		"""
 		Change the inversion parameters (local and global) based on the given steps.
@@ -1498,6 +1504,7 @@ class Atmosphere(object):
 						step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 						self.global_pars[parameter] += step
 
+	@globin.utils.timeit
 	def check_parameter_bounds(self, mode):
 		"""
 
@@ -1675,6 +1682,7 @@ class Atmosphere(object):
 		# print(self.global_pars_errors)
 		# print("----- \n")
 
+	@globin.utils.timeit
 	def get_hsra_cont(self):
 		"""
 		Compute the HSRA spectrum for input wavelength grid.
@@ -1747,6 +1755,7 @@ class Atmosphere(object):
 
 		return tau_wlref
 
+	@globin.utils.timeit
 	def compute_spectra(self, synthesize=None):
 		"""
 		Parameters:
@@ -1765,7 +1774,10 @@ class Atmosphere(object):
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
 
+		start = time.time()
 		with mp.Pool(self.n_thread) as pool:
+			if globin.collect_stats:
+				globin.statistics.add(fun_name="pool_creation", execution_time=time.time() - start)
 			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 
 		spectra_list = np.array(spectra_list)
@@ -1828,6 +1840,7 @@ class Atmosphere(object):
 
 		return np.vstack((sI, sQ, sU, sV))
 
+	@globin.utils.timeit
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
 		Parameters:

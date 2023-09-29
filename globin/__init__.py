@@ -31,6 +31,7 @@ from .atmos import Atmosphere
 from .input import Chi2
 from .spec import Observation, Spectrum
 from .visualize import show, plot_atmosphere, plot_spectra, plot_rf, plot_chi2
+from .utils import Stats
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
@@ -105,3 +106,7 @@ pg_tck = splrep(falc.data[0,0,0], falc.pg[0,0])
 
 #--- print log character limit
 NCHAR = 80
+
+#--- container for statistical information about the code performance
+collect_stats = False
+statistics = Stats()

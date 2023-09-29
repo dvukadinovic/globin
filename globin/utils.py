@@ -10,6 +10,11 @@ import pyrh
 from scipy.interpolate import splrep, splev
 from scipy.interpolate import interp1d
 
+import time
+import cProfile
+import pstats
+import io
+
 from .makeHSE import makeHSE
 
 from scipy.constants import m_e, m_p
@@ -640,3 +645,82 @@ def get_first_larger_divisor(n, vmin):
         if n % i == 0:
             return i
     return n
+
+
+#--- function performance decorator
+
+def get_stats(fun):
+    def wrapped(args):
+        pr = cProfile.Profile()
+        pr.enable()
+        
+        output = fun(args)
+        
+        pr.disable()
+        
+        s = io.StringIO()
+        sortby = pstats.SortKey.CUMULATIVE
+        ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
+        ps.print_stats()
+        out = open(f"stats_{fun.__name__}", "w")
+        out.write(s.getvalue())
+        out.close()
+
+        return output
+    return wrapped
+
+def timeit(fun):
+    def wrapped(*args, **kwargs):
+        if globin.collect_stats:
+            start = time.time()
+
+        output = fun(*args, **kwargs)
+
+        if globin.collect_stats:
+            globin.statistics.add(fun_name=f"{fun.__module__}.{fun.__name__}", execution_time=time.time()-start)
+
+        return output
+    return wrapped
+    
+class FunStat(object):
+    def __init__(self, name, execution_time):
+        self.name = name
+        self.execution_time = [execution_time]
+        self.ncalls = 1
+
+    def __repr__(self):
+        total = np.sum(np.array(self.execution_time))
+        return f"{self.name:<35.35s}  {self.ncalls:^6d}    {total:^16.3f}    {total/self.ncalls:^9.3f}"
+
+    def update(self, execution_time):
+        self.ncalls += 1
+        self.execution_time.append(execution_time)
+
+class Stats(object):
+    """
+    Object collecting statistics by decorators imposed on functions throught the code.
+    """
+
+    def __init__(self):
+        self.stats = {}
+
+    def __repr__(self):
+        output = ["function                             Ncalls    Total exec. time    Exec/call"]
+        output.append("----------------------------------------------------------------------------")
+        for item in self.stats:
+            output.append(repr(self.stats[item]))
+        output = "\n".join(output)
+        return output
+
+    def save(self):
+        if globin.collect_stats:
+            output = self.__repr__()
+            out = open("globin_stats", "w")
+            out.write(output)
+            out.close()
+
+    def add(self, fun_name, execution_time):
+        if fun_name in self.stats:
+            self.stats[fun_name].update(execution_time)
+        else:
+            self.stats[fun_name] = FunStat(fun_name, execution_time)
