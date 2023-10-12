@@ -216,6 +216,9 @@ class Atmosphere(object):
 		self.fudge_lam = np.linspace(400, 500, num=3)
 		self.of_scatter = 1
 
+		# flag for computing the atomic parameters RFs (for those in self.global_pars)
+		self.get_atomic_rfs = False
+
 		# number of threads to be used for parallel execution of different functions
 		self.n_thread = 1
 
@@ -1782,13 +1785,14 @@ class Atmosphere(object):
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
-		spectra_list = spectra_list.reshape(natm, ns, nw, order="C")
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
 		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
 		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
 		spectra.wavelength = self.wavelength_air
-		spectra.spec[indx,indy] = spectra_list
+		spectra.spec[indx,indy] = spectra_list[:,:,:4]
+
+		self.atomic_rfs = spectra_list[:,:,4:]
 
 		if self.norm:
 			if self.norm_level=="hsra":
@@ -1817,17 +1821,25 @@ class Atmosphere(object):
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 			
-			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
+			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
-								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4)
+								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4,
+								  self.get_atomic_rfs)
+			if self.get_atomic_rfs:
+				sI, sQ, sU, sV, rh_wave_vac, rf = output
+			else:
+				sI, sQ, sU, sV, rh_wave_vac = output
+				rf = None
 		else:
 			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
 								  self.line_no["loggf"], self.global_pars["loggf"],
-								  self.line_no["dlam"], self.global_pars["dlam"]/1e4)
+								  self.line_no["dlam"], self.global_pars["dlam"]/1e4,
+								  False)
+			rf = None
 
 		tck = splrep(rh_wave_vac, sI, k=3)
 		sI = splev(self.wavelength_vacuum, tck, der=0)
@@ -1837,6 +1849,13 @@ class Atmosphere(object):
 		sU = splev(self.wavelength_vacuum, tck, der=0)
 		tck = splrep(rh_wave_vac, sV, k=3)
 		sV = splev(self.wavelength_vacuum, tck, der=0)
+
+		if rf is not None:
+			for idp in range(rf.shape[1]):
+				tck = splrep(rh_wave_vac, rf[:,idp], k=3)
+				rf[:,idp] = splev(self.wavelength_vacuum, tck, der=0)
+
+			return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
 
 		return np.vstack((sI, sQ, sU, sV))
 

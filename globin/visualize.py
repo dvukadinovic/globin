@@ -453,7 +453,10 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 	# rf_local.shape = (nx, ny, n_local_par, nz, nw, 4)
 	# rf_global.shape = (nx, ny, n_global_par, nw, 4)
-	rf_local = _rf.rf_local[idx,idy,:, ind_top:ind_bot, ind_lmin:ind_lmax]
+	try:
+		rf_local = _rf.rf_local[idx,idy,:, ind_top:ind_bot, ind_lmin:ind_lmax]
+	except:
+		rf_local = None
 	try:
 		rf_global = _rf.rf_global[idx,idy,:, ind_lmin:ind_lmax]
 	except:
@@ -485,67 +488,68 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	fig = plt.figure(figsize=(width*ncols, height*nrows))
 	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.5, hspace=0.4)
 
-	for i_, parameter in enumerate(local_parameters):
-		try:
-			idp = local_pars[parameter]
-		except:
-			print(f"No RF for parameter {parameter}")
-			continue
+	if rf_local is not None:
+		for i_, parameter in enumerate(local_parameters):
+			try:
+				idp = local_pars[parameter]
+			except:
+				print(f"No RF for parameter {parameter}")
+				continue
 
-		if not rf_wave_integrate:
-			for j_, ids in enumerate(stokes_range):
-				ax = fig.add_subplot(gs[i_,j_])
-				if i_==0:
-					ax.set_title(stokes_labels[j_], fontsize=fontsize)
-				if j_==0:
-					ax.set_ylabel(r"$\log(\tau)$", fontsize=fontsize)
-				
-				matrix = rf_local[idp,:,:, ids]
-				vmax = np.max(np.abs(matrix))
-				vmin = -vmax
-				par_cmap = cmap[parameter]
-				if parameter=="temp":
-					if ids!=0:
-						par_cmap = "bwr"
-				# 	else:
-				# 		vmin = 0
-				
-				im = ax.imshow(matrix, aspect="auto", origin="upper",
-					cmap=par_cmap, vmin=vmin, vmax=vmax,
-					extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
-				if j_+1==ncols:
-					add_colorbar(fig, ax, im, label=cbar_label[parameter], fontsize=fontsize)
-				else:
-					add_colorbar(fig, ax, im)
-				if j_>0:
-					ax.set_yticklabels([])
-				if i_+1<nrows:
-					ax.set_xticklabels([])
+			if not rf_wave_integrate:
+				for j_, ids in enumerate(stokes_range):
+					ax = fig.add_subplot(gs[i_,j_])
+					if i_==0:
+						ax.set_title(stokes_labels[j_], fontsize=fontsize)
+					if j_==0:
+						ax.set_ylabel(r"$\log(\tau)$", fontsize=fontsize)
+					
+					matrix = rf_local[idp,:,:, ids]
+					vmax = np.max(np.abs(matrix))
+					vmin = -vmax
+					par_cmap = cmap[parameter]
+					if parameter=="temp":
+						if ids!=0:
+							par_cmap = "bwr"
+					# 	else:
+					# 		vmin = 0
+					
+					im = ax.imshow(matrix, aspect="auto", origin="upper",
+						cmap=par_cmap, vmin=vmin, vmax=vmax,
+						extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
+					if j_+1==ncols:
+						add_colorbar(fig, ax, im, label=cbar_label[parameter], fontsize=fontsize)
+					else:
+						add_colorbar(fig, ax, im)
+					if j_>0:
+						ax.set_yticklabels([])
+					if i_+1<nrows:
+						ax.set_xticklabels([])
 
-				ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
-				ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))
-				ax.grid(which="major", axis="y", lw=0.5)
+					ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
+					ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))
+					ax.grid(which="major", axis="y", lw=0.5)
 
-		if rf_wave_integrate:	
-			RF = rf_local[idp]
-			# RF *= parameter_norm[parameter]
-			integratedRF = np.sum(np.abs(RF), axis=1)
-			vmax = np.max(integratedRF)*1.05
-			vmin = np.min(integratedRF)*1.05
+			if rf_wave_integrate:	
+				RF = rf_local[idp]
+				# RF *= parameter_norm[parameter]
+				integratedRF = np.sum(np.abs(RF), axis=1)
+				vmax = np.max(integratedRF)*1.05
+				vmin = np.min(integratedRF)*1.05
 
-			for j_, ids in enumerate(stokes_range):
-				ax = fig.add_subplot(gs[i_,j_])
-				if i_==0:
-					ax.set_title(stokes_labels[j_])
+				for j_, ids in enumerate(stokes_range):
+					ax = fig.add_subplot(gs[i_,j_])
+					if i_==0:
+						ax.set_title(stokes_labels[j_])
 
-				ax.plot(logtau, integratedRF[...,ids], c="k")
-				ax.axhline(y=0, c="k", lw=0.5, alpha=0.5)
-				ax.set_xlim([logtau[0], logtau[-1]])
-				ax.set_ylim([vmin, vmax])
-				if j_==0:
-					ax.set_ylabel(f"{cbar_label[parameter]}")
+					ax.plot(logtau, integratedRF[...,ids], c="k")
+					ax.axhline(y=0, c="k", lw=0.5, alpha=0.5)
+					ax.set_xlim([logtau[0], logtau[-1]])
+					ax.set_ylim([vmin, vmax])
+					if j_==0:
+						ax.set_ylabel(f"{cbar_label[parameter]}")
 
-				# ax.grid(b=True, which="major", axis="both", lw=0.5)
+					# ax.grid(b=True, which="major", axis="both", lw=0.5)
 
 	i_ = len(local_parameters)
 	for ii, parameter in enumerate(global_parameters):
