@@ -748,6 +748,9 @@ class Atmosphere(object):
 				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 				new_atmos.logtau = self.logtau[idz_min:idz_max]
 				new_atmos.height = self.height[idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+				for parameter in self.nodes:
+					new_atmos.nodes[parameter] = self.nodes[parameter]
+					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
 			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 				pass
 			elif key in ["pg", "height", "rho", "nHtot"]:
@@ -915,14 +918,16 @@ class Atmosphere(object):
 			# for 2+ number of nodes
 			if parameter=="temp":
 				if self.interpolation_method=="bezier":	
-					# bottom node slope for extrapolation based on temperature gradient from FAL C model
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
+					# bottom node slope for extrapolation based on temperature gradient from FAL C model
+					Kn = splev(x[-1], globin.temp_tck, der=1)
 				if self.interpolation_method=="spline":
 					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
+					# to the bottom we assume that the gradient is based only on the node positions;
+					# this is not fully reallistic thing to do, but... I do not wanna implement extrapolation
+					# using adiabatic and HSE assumption like in SPINOR for now to show similarities between them
 					x, y = add_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
-					K0, _ = get_K0_Kn(x, y, tension=self.spline_tension)
-
-				Kn = splev(x[-1], globin.temp_tck, der=1)
+					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
 				# check if extrapolation at the top atmosphere point goes below the minimum
 				# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
