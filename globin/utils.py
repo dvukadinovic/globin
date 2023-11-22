@@ -201,8 +201,7 @@ def pretty_print_parameters(atmos, flag):
                 print(atmos.global_pars[parameter])
             else:
                 if atmos.line_no[parameter].size > 0:
-                    indx = atmos.idx
-                    indy = atmos.idy
+                    indx, indy = np.where(flag==1)
                     if atmos.mode==3:
                         indx, indy = 0, 0
                     print(parameter)
