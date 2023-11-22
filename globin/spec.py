@@ -315,7 +315,7 @@ class Spectrum(object):
 			self.spec[0,0] = mean
 
 	@globin.utils.timeit
-	def save(self, fpath, wavelength, spec_type="globin"):
+	def save(self, fpath, wavelength=None, spec_type="globin"):
 		"""
 		Get list of spectra computed for every pixel and store them in fits file.
 		Spectra for pixels which are not computed, we set to 0.
@@ -342,8 +342,8 @@ class Spectrum(object):
 		make fits header with additional info
 		"""
 		if spec_type=="globin":
-			data = np.zeros((self.nx, self.ny, len(wavelength), 5))
-			data[...,0] = wavelength
+			data = np.zeros((self.nx, self.ny, len(self.wavelength), 5))
+			data[...,0] = self.wavelength
 			data[...,1:] = self.spec
 		elif spec_type=="hinode":
 			data = np.swapaxes(self.spec, 2, 3) * self.Icont
@@ -363,7 +363,7 @@ class Spectrum(object):
 
 		primary.header["NX"] = self.nx
 		primary.header["NY"] = self.ny
-		primary.header["NW"] = len(wavelength)
+		primary.header["NW"] = len(self.wavelength)
 		
 		if self.noise is None:
 			self.noise = -1
