@@ -392,7 +392,7 @@ class Atmosphere(object):
 
 		# log(tau)
 		self.data[:,:,0] = atmos_data[0]
-		self.logtau = atmos_data[0]
+		self.logtau = atmos_data[0,0,0]
 		self.logtau_top = self.logtau[0]
 		self.logtau_bot = self.logtau[-1]
 		self.logtau_step = self.logtau[1] - self.logtau[0]
@@ -1241,6 +1241,9 @@ class Atmosphere(object):
 
 		self.data = new.data
 		self.logtau = z_new
+		self.logtau_top = z_new[0]
+		self.logtau_bot = z_new[-1]
+		self.logtau_step = z_new[-1] - z_new[-2]
 
 		return self
 
