@@ -1153,7 +1153,7 @@ class Atmosphere(object):
 		return np.vstack((ne, nH, rho))
 
 	@globin.utils.timeit
-	def interpolate_atmosphere(self, x_new, ref_atm):
+	def interpolate_atmosphere(self, z_new, ref_atm):
 		"""
 		
 		Interpolate the structure of reference atmosphere into the new atmosphere.
@@ -1164,7 +1164,7 @@ class Atmosphere(object):
 
 		Parameters:
 		-----------
-		x_new : array
+		z_new : array
 			optical depth scale on which we want to interpolate the 'ref_atm'.
 		ref_atm : ndarray
 			reference atmosphere in the format (nx, ny, npar, nz) of MULTI type.
@@ -1177,18 +1177,18 @@ class Atmosphere(object):
 		or to change the reference atmosphere that goes higher, if needed.
 		
 		"""
-		x_new = np.round(x_new, decimals=2)
+		z_new = np.round(z_new, decimals=2)
 		ref_atm[:,:,0] = np.round(ref_atm[:,:,0], decimals=2)
 
-		if x_new[0]<ref_atm[0,0,0,0] or x_new[-1]>ref_atm[0,0,0,-1]:
+		if z_new[0]<ref_atm[0,0,0,0] or z_new[-1]>ref_atm[0,0,0,-1]:
 			print("--> Warning: atmosphere will be extrapolated")
-			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], x_new[0]))
+			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], z_new[0]))
 			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
 			self.logtau = ref_atm[0,0,0]
 			self.data = ref_atm
 			return
 
-		self.nz = len(x_new)
+		self.nz = len(z_new)
 
 		# check if reference atmosphere is 1D
 		ref_atm_nx, ref_atm_ny, _, _ = ref_atm.shape
@@ -1198,17 +1198,17 @@ class Atmosphere(object):
 		self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 		self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 		self.rho = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
-		self.data[:,:,0,:] = x_new
-		self.logtau = x_new
+		self.data[:,:,0,:] = z_new
+		self.logtau = z_new
 
 		if oneD:
 			for idp in range(1, self.npar):
 				if idp==2 or idp==8:
 					fun = interp1d(ref_atm[0,0,0], np.log10(ref_atm[0,0,idp]), kind=3)
-					self.data[:,:,idp,:] = 10**(fun(x_new))
+					self.data[:,:,idp,:] = 10**(fun(z_new))
 				else:
 					fun = interp1d(ref_atm[0,0,0], ref_atm[0,0,idp], kind=3)
-					self.data[...,idp,:] = fun(x_new)
+					self.data[...,idp,:] = fun(z_new)
 			# self.nHtot = np.sum(self.data[...,8:,:], axis=2)
 		else:
 			for idx in range(self.nx):
@@ -1216,12 +1216,34 @@ class Atmosphere(object):
 					for idp in range(1, self.npar):
 						if idp==2 or idp==8:
 							fun = interp1d(ref_atm[idx,idy,0], np.log10(ref_atm[idx,idy,idp]), kind=3)
-							self.data[idx,idy,idp] = 10**(fun(x_new))
+							self.data[idx,idy,idp] = 10**(fun(z_new))
 						else:
 							fun = interp1d(ref_atm[idx,idy,0], ref_atm[idx,idy,idp], kind=3)
-							self.data[idx,idy,idp] = fun(x_new)
+							self.data[idx,idy,idp] = fun(z_new)
 					# self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 	
+	def reinterpolate_atmosphere(self, z_new):
+		"""
+		Interpolate the atmosphere onto a new 'z_new' grid.
+		"""
+		if z_new[0]<np.max(self.data[...,0,0]):
+			raise ValueError("The top value of the new scale is outside of the atmosphere scale.")
+		if z_new[-1]>np.min(self.data[...,0,-1]):
+			raise ValueError("The bottom value of the new scale is outside of the atmosphere scale.")
+
+		new = Atmosphere(nx=self.nx, ny=self.ny, nz=len(z_new))
+		new.data[...,0,:] = z_new
+
+		for idp in range(1,8):
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					new.data[idx,idy,idp] = interp1d(self.data[idx,idy,0], self.data[idx,idy,idp], kind=3)(x_new)
+
+		self.data = new.data
+		self.logtau = z_new
+
+		return self
+
 	def resample(self, Nz):
 		xnew = np.linspace(self.logtau[0], self.logtau[-1], num=Nz)
 
