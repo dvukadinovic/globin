@@ -1237,7 +1237,7 @@ class Atmosphere(object):
 		for idp in range(1,8):
 			for idx in range(self.nx):
 				for idy in range(self.ny):
-					new.data[idx,idy,idp] = interp1d(self.data[idx,idy,0], self.data[idx,idy,idp], kind=3)(x_new)
+					new.data[idx,idy,idp] = interp1d(self.data[idx,idy,0], self.data[idx,idy,idp], kind=3)(z_new)
 
 		self.data = new.data
 		self.logtau = z_new
