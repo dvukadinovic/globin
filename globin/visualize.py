@@ -281,20 +281,21 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		# 	Ninv = 1
 		# 	inv = [None, inv]
 		# Ninv += 1
-		inv = [None, inv]
+		# inv = [None, inv]
+
 		Ninv = len(inv)
 
 		set_labels = False
 		if labels is not None:
 			set_labels = True
 		else:
-			labels = [None]*Ninv
+			labels = [None]*(Ninv+1)
 
 		#--- Stokes I
 		# ax0_SI.set_title("Stokes I")
 		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2, lw=lw, label=labels[0])
-		for idn in range(1,Ninv):
-			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[(idn-1)%Ncolors], lw=1, label=labels[idn])
+		for idn in range(Ninv):
+			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[(idn-1)%Ncolors], lw=1, label=labels[idn+1])
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SI.set_ylabel(r"Stokes $I$")
 		ax0_SI.set_xlim([-dlam, dlam])
@@ -312,7 +313,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 					  frameon=True)
 
 		ax1_SI.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		for idn in range(1,Ninv):
+		for idn in range(Ninv):
 			difference = obs[:,0] - inv[idn][:,0]
 			ax1_SI.plot((wavelength - lam0)*10, difference, color=colors[(idn-1)%Ncolors], lw=1)
 		# ax1_SI.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
@@ -325,7 +326,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		#--- Stokes Q
 		# ax0_SQ.set_title("Stokes Q")
 		ax0_SQ.plot((wavelength - lam0)*10, obs[:,1]*100, "k-", markersize=2, lw=lw)
-		for idn in range(1,Ninv):	
+		for idn in range(Ninv):	
 			ax0_SQ.plot((wavelength - lam0)*10, inv[idn][:,1]*100, color=colors[(idn-1)%Ncolors], lw=1)
 		# ax0_SQ.set_ylabel(r"Q [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SQ.set_ylabel(r"Stokes $Q/I_c$ [\%]")
@@ -333,7 +334,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		ax0_SQ.set_xticklabels([])
 
 		ax1_SQ.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		for idn in range(1,Ninv):
+		for idn in range(Ninv):
 			difference = obs[:,1] - inv[idn][:,1]
 			ax1_SQ.plot((wavelength - lam0)*10, difference*100, color=colors[(idn-1)%Ncolors], lw=1)
 		# ax1_SQ.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
@@ -346,7 +347,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		#--- Stokes U
 		# ax0_SU.set_title("Stokes U")
 		ax0_SU.plot((wavelength - lam0)*10, obs[:,2]*100, "k-", markersize=2, lw=lw)
-		for idn in range(1,Ninv):	
+		for idn in range(Ninv):	
 			ax0_SU.plot((wavelength - lam0)*10, inv[idn][:,2]*100, color=colors[(idn-1)%Ncolors], lw=1)
 		# ax0_SU.set_ylabel(r"U [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SU.set_ylabel(r"Stokes $U/I_c$ [\%]")
@@ -354,7 +355,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		ax0_SU.set_xticklabels([])
 
 		ax1_SU.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		for idn in range(1,Ninv):
+		for idn in range(Ninv):
 			difference = obs[:,2] - inv[idn][:,2]
 			ax1_SU.plot((wavelength - lam0)*10, difference*100, color=colors[(idn-1)%Ncolors], lw=1)
 		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
@@ -367,7 +368,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		#--- Stokes V
 		# ax0_SV.set_title("Stokes V")
 		ax0_SV.plot((wavelength - lam0)*10, obs[:,3]*100, "k-", markersize=2, lw=lw)
-		for idn in range(1,Ninv):	
+		for idn in range(Ninv):	
 			ax0_SV.plot((wavelength - lam0)*10, inv[idn][:,3]*100, color=colors[(idn-1)%Ncolors], lw=1)
 		# ax0_SV.set_ylabel(r"V [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SV.set_ylabel(r"Stokes $V/I_c$ [\%]")
@@ -375,7 +376,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		ax0_SV.set_xticklabels([])
 
 		ax1_SV.plot([-dlam, dlam], [0,0], color="k", lw=0.5)
-		for idn in range(1,Ninv):	
+		for idn in range(Ninv):	
 			difference = obs[:,3] - inv[idn][:,3]
 			ax1_SV.plot((wavelength - lam0)*10, difference*100, color=colors[(idn-1)%Ncolors], lw=1)
 		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")

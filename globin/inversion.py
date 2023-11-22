@@ -318,7 +318,7 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["Inverted"])
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength)
 				# globin.show()
 
@@ -646,7 +646,7 @@ class Inverter(InputData):
 					Gamma = atmos.get_regularization_gamma()
 					# Gamma *= np.sqrt(reg_weight)
 
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=spec.spec[0,0])
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]])
 				# plt.show()
 
 				if self.debug:
