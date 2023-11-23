@@ -1234,7 +1234,7 @@ class Atmosphere(object):
 		new = Atmosphere(nx=self.nx, ny=self.ny, nz=len(z_new))
 		new.data[...,0,:] = z_new
 
-		for idp in range(1,8):
+		for idp in range(1,9):
 			for idx in range(self.nx):
 				for idy in range(self.ny):
 					new.data[idx,idy,idp] = interp1d(self.data[idx,idy,0], self.data[idx,idy,idp], kind=3)(z_new)
