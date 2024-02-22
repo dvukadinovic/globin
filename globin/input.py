@@ -402,11 +402,11 @@ class InputData(object):
 		if self.mode>=1:
 			if self.debug:
 				Npar = self.atmosphere.n_local_pars + self.atmosphere.n_global_pars
-				self.rf_debug = np.zeros((self.atmosphere.nx, self.atmosphere.ny, self.max_iter, Npar, len(self.wavelength_air), 4))
+				self.rf_debug = np.zeros((self.atmosphere.nx, self.atmosphere.ny, self.max_iter[0], Npar, len(self.atmosphere.wavelength_air), 4))
 
 				elements = []
 				for parameter in self.atmosphere.nodes:
-					aux = np.zeros((self.max_iter, self.atmosphere.nx, self.atmosphere.ny, len(self.atmosphere.nodes[parameter])))
+					aux = np.zeros((self.max_iter[0], self.atmosphere.nx, self.atmosphere.ny, len(self.atmosphere.nodes[parameter])))
 					elements.append((parameter, aux))
 				self.atmos_debug = dict(elements)
 
@@ -485,6 +485,7 @@ class InputData(object):
 		#   -- node: compute the perturbations only in node
 		#   -- snapi: compute the perturbations in every atmosphere level (Milic and van Noort 2019) [obsolete]
 		self.rf_type = _find_value_by_key("rf_type", self.parameters_input, "default", "node", str)
+
 		
 		# type of wavelength-dependent weighting:
 		#   -- StokesI: use 1/StokesI as a weighting
@@ -513,6 +514,12 @@ class InputData(object):
 		self.atmosphere.interpolation_method = interpolation_method.lower()
 		if self.atmosphere.interpolation_method=="spline":
 			self.atmosphere.spline_tension = spline_tension
+
+		# type of RF derivative
+		#   -- central: central derivative 
+		#   -- forward: forward derivative
+		rf_der_type = _find_value_by_key("rf_der_type", self.parameters_input, "default", "central", str)
+		self.atmosphere.rf_der_type = rf_der_type
 
 		"""
 		cube_atmosphere -- refrence atmosphere (usually 3D) used for testing purpose; it is sliced as observations

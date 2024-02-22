@@ -219,6 +219,9 @@ class Atmosphere(object):
 		# flag for computing the atomic parameters RFs (for those in self.global_pars)
 		self.get_atomic_rfs = False
 
+		# type of RFs caluclation
+		self.rf_der_type = "central"
+
 		# number of threads to be used for parallel execution of different functions
 		self.n_thread = 1
 
@@ -540,6 +543,11 @@ class Atmosphere(object):
 		self.logtau_bot = self.logtau[-1]
 		self.logtau_step = self.logtau[1] - self.logtau[0]
 		self.header = hdu_list[0].header
+
+		try:
+			self.vmac = self.header["VMAC"]
+		except:
+			pass
 
 		try:
 			self.scale_id = globin.scale_id[self.header["SCALE"].lower()]
@@ -1895,7 +1903,7 @@ class Atmosphere(object):
 
 		active_indx, active_indy = np.where(synthesize==1)
 
-		node_RF = np.zeros((spec.nx, spec.ny, Nw, 4))
+		node_RF = np.zeros((self.nx, self.ny, Nw, 4))
 		if self.spatial_regularization:
 			self.scale_LT = np.zeros((self.nx*self.ny*self.n_local_pars + self.n_global_pars))
 			addition = np.arange(0, self.nx*self.ny*self.n_local_pars, self.n_local_pars)
@@ -1911,6 +1919,7 @@ class Atmosphere(object):
 			for nodeID in range(len(nodes)):
 				if self.mask[parameter][nodeID]==0:
 					continue			
+				
 				#--- positive perturbation
 				self.values[parameter][:,:,nodeID] += perturbation
 				if parameter=="of":
@@ -1922,7 +1931,7 @@ class Atmosphere(object):
 				spectra_plus = self.compute_spectra(synthesize)
 
 				#--- negative perturbation (except for inclination and azimuth)
-				if parameter=="gamma" or parameter=="chi":
+				if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
@@ -1955,7 +1964,7 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					pass
 				else:
-					if parameter=="gamma" or parameter=="chi":
+					if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
 						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
@@ -2009,10 +2018,13 @@ class Atmosphere(object):
 							self.global_pars[parameter][...,idp] += perturbation
 							spec_plus = self.compute_spectra(synthesize)
 
-							self.global_pars[parameter][...,idp] -= 2*perturbation
-							spec_minus = self.compute_spectra(synthesize)
-
-							diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+							if self.rf_der_type=="central":
+								self.global_pars[parameter][...,idp] -= 2*perturbation
+								spec_minus = self.compute_spectra(synthesize)
+								diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+							if self.rf_der_type=="forward":
+								diff = (spec_plus.spec - spec.spec) / perturbation
+							
 							diff *= weights
 							diff /= rf_noise_scale
 							diff *= np.sqrt(2)
@@ -2584,6 +2596,10 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 		atmos.norm = True
 		atmos.norm_level = 1
 
+	# reference spectrum for forward derivative computation
+	if atmos.rf_der_type=="forward":
+		spec = atmos.compute_spectra()
+	
 	# compute the total number of free parameters (have to sum atomic for each line)
 	n_global = 0
 	if global_pars is not None:
@@ -2612,14 +2628,22 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 				atmos.data[:,:,parID,idz] += perturbation
 				spec_plus = atmos.compute_spectra()
 
-				atmos.data[:,:,parID,idz] -= 2*perturbation
-				spec_minus = atmos.compute_spectra()
-
-				diff = spec_plus.spec - spec_minus.spec
-				rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
+				if atmos.rf_der_type=="central":
+					atmos.data[:,:,parID,idz] -= 2*perturbation
+					spec_minus = atmos.compute_spectra()
+					diff = spec_plus.spec - spec_minus.spec
+					rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
+				elif atmos.rf_der_type=="forward":
+					diff = spec_plus.spec - spec.spec
+					rf_local[:,:,free_par_ID,idz] = diff / perturbation
+				else:
+					raise ValueError("Unsupported type of the RF derivative.")
 
 				# remove perturbation from data
-				atmos.data[:,:,parID,idz] += perturbation
+				if atmos.rf_der_type=="central":
+					atmos.data[:,:,parID,idz] += perturbation
+				if atmos.rf_der_type=="forward":
+					atmos.data[:,:,parID,idz] -= perturbation
 
 			free_par_ID += 1
 
@@ -2654,18 +2678,26 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 					atmos.global_pars[parameter][...,idp] += perturbation
 					spec_plus = atmos.compute_spectra()
 
-					atmos.global_pars[parameter][...,idp] -= 2*perturbation
-					spec_minus = atmos.compute_spectra()
+					if atmos.rf_der_type=="central":
+						atmos.global_pars[parameter][...,idp] -= 2*perturbation
+						spec_minus = atmos.compute_spectra()
+						diff = spec_plus.spec - spec_minus.spec
+						rf_global[:,:,free_par_ID] = diff / 2 / perturbation
+					elif atmos.rf_der_type=="forward":
+						diff = spec_plus.spec - spec.spec
+						rf_global[:,:,free_par_ID] = diff / 2 / perturbation
+					else:
+						raise ValueError("Unsupported type of the RF derivative.")
 
-					diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
-
-					rf_global[:,:,free_par_ID] = diff
 					# if atmos.mode==3:
 					# 	rf[:,:,free_par_ID,:,:] = np.repeat(diff[:,:,np.newaxis,:,:], atmos.nz , axis=2)
 
 					free_par_ID += 1
 					
-					atmos.global_pars[parameter][...,idp] += perturbation
+					if atmos.rf_der_type=="central":
+						atmos.global_pars[parameter][...,idp] += perturbation
+					if atmos.rf_der_type=="forward":
+						atmos.global_pars[parameter][...,idp] -= perturbation
 
 			else:
 				print(f"Parameter {parameter} not yet Supported.\n")
