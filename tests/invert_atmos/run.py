@@ -6,6 +6,16 @@ import copy
 
 import globin
 
+# obs = globin.Observation("obs_630.fits")
+# for idx in range(obs.nx):
+#     for idy in range(obs.ny):
+#         obs.spec[idx,idy] /= obs.I[idx,idy,0]
+#         obs.spec[idx,idy,:,1:] *= 100
+#         globin.plot_spectra(obs.spec[idx,idy], obs.wavelength, labels=[f"({idx},{idy})"])
+#         plt.show()
+
+# sys.exit()
+
 #===--- Estimate the spatial regularization relative weighting
 #inverter = globin.Inverter(verbose=True)
 #inverter.read_input(run_name="reg_test")
@@ -32,18 +42,18 @@ import globin
 # sys.exit()
 
 inverter = globin.Inverter(verbose=True)
-inverter.read_input(run_name="m3")
-inv_atmos, inv_spec, chi2 = inverter.run()
+inverter.read_input(run_name="dummy")
+inv_atmos, inv, chi2 = inverter.run()
+
 sys.exit()
 
 idx, idy = 0,0
-inv = None
-obs = inv_spec
-if inverter.mode>=1:
-    obs = inverter.observation
-    inv = inv_spec.spec[idx,idy]
-globin.visualize.plot_spectra(obs.spec[idx,idy], obs.wavelength, inv=inv)
+# inv = globin.Observation("runs/dummy/inverted_spectra_c1.fits")
+globin.visualize.plot_spectra(inverter.observation.spec[idx,idy], inverter.observation.wavelength, 
+    inv=[inv.spec[idx,idy]], 
+    labels=["obs", "inv"])
 
-# atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[0,1,0,1])
-# globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "ne", "nH"], reference=atmos)
+atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[0,1,0,1])
+# inv_atmos = globin.Atmosphere("runs/dummy/inverted_atmos_c1.fits")
+globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "mag", "gamma", "chi"], reference=atmos)
 globin.show()

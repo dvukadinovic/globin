@@ -5,17 +5,17 @@
 
 # model file
 
-  /home/dusan/Documents/pyrh/rh/Molecules/H2.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/H2+.molecule     PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/C2.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/N2.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/O2.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/CH.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/CO.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/CN.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/NH.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/NO.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/OH.molecule      PASSIVE    LTE_POPULATIONS
-  /home/dusan/Documents/pyrh/rh/Molecules/H2O.molecule     PASSIVE    LTE_POPULATIONS
+  H2.molecule      PASSIVE    LTE_POPULATIONS
+  H2+.molecule     PASSIVE    LTE_POPULATIONS
+  C2.molecule      PASSIVE    LTE_POPULATIONS
+  N2.molecule      PASSIVE    LTE_POPULATIONS
+  O2.molecule      PASSIVE    LTE_POPULATIONS
+  CH.molecule      PASSIVE    LTE_POPULATIONS
+  CO.molecule      PASSIVE    LTE_POPULATIONS
+  CN.molecule      PASSIVE    LTE_POPULATIONS
+  NH.molecule      PASSIVE    LTE_POPULATIONS
+  NO.molecule      PASSIVE    LTE_POPULATIONS
+  OH.molecule      PASSIVE    LTE_POPULATIONS
+  H2O.molecule     PASSIVE    LTE_POPULATIONS
 
 #end
