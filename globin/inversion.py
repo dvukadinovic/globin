@@ -230,7 +230,11 @@ class Inverter(InputData):
 
 		LM_parameter = np.ones((atmos.nx, atmos.ny), dtype=np.float64) * marq_lambda
 		if self.debug:
-			LM_debug = np.zeros((self.max_iter, atmos.nx, atmos.ny))
+			self.LM_debug = np.zeros((max_iter, atmos.nx, atmos.ny))
+			self.spec_debug = np.empty((max_iter, *obs.shape))
+			for parameter in atmos.nodes:
+				self.atmos_debug[parameter][0] = atmos.values[parameter]
+			print(self.spec_debug.shape)
 
 		# flags those pixels whose chi2 converged:
 		#   1 --> we do inversion
@@ -290,6 +294,10 @@ class Inverter(InputData):
 		# other pixels will be blocked at max itteration earlier than or
 		# will stop due to convergence criterium
 		while np.min(itter) <=max_iter:
+			if self.debug:
+				for idx in range(atmos.nx):
+					for idy in range(atmos.ny):
+						self.LM_debug[itter[idx,idy],idx,idy] = LM_parameter[idx,idy]
 			if globin.collect_stats:
 				start_iter = time.time()
 			# counter for the progress bar
@@ -318,6 +326,9 @@ class Inverter(InputData):
 				
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
+				if self.debug and itter[0,0]==0:
+					self.spec_debug[0] = spec.spec
+
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength)
 				# globin.show()
@@ -327,12 +338,12 @@ class Inverter(InputData):
 					indx, indy = np.where(updated_pars==0)
 					spec.spec[indx,indy] = old_spec.spec[indx, indy]
 
-				if self.debug:
-					for idx in range(atmos.nx):
-						for idy in range(atmos.ny):
-							if stop_flag[idx,idy]==1:
-								niter = itter[idx,idy]
-								self.rf_debug[idx,idy,niter] = rf[idx,idy]
+				# if self.debug:
+				# 	for idx in range(atmos.nx):
+				# 		for idy in range(atmos.ny):
+				# 			if stop_flag[idx,idy]==1:
+				# 				niter = itter[idx,idy]
+				# 				self.rf_debug[idx,idy,niter] = rf[idx,idy]
 
 				#--- compute chi2
 				diff = obs.spec - spec.spec
@@ -473,6 +484,16 @@ class Inverter(InputData):
 			if atmos.do_fudge==1:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
+			if self.debug:
+				for parameter in atmos.nodes:
+					for idx in range(atmos.nx):
+						for idy in range(atmos.ny):
+							self.atmos_debug[parameter][itter[idx,idy],idx,idy] = atmos.values[parameter][idx,idy]
+							if updated_pars[idx,idy]==1:
+								self.spec_debug[itter[idx,idy]] = corrected_spec.spec
+							if updated_pars[idx,idy]==0:
+								self.spec_debug[itter[idx,idy]] = spec.spec
+
 			#--- check the Marquardt parameter value
 			indx, indy = np.where(LM_parameter<1e-5)
 			LM_parameter[indx,indy] = 1e-5
@@ -531,6 +552,10 @@ class Inverter(InputData):
 			atmos.compute_errors(H, chi2)
 		except:
 			print("[Info] Could not compute parameters error.")
+
+		# if self.debug:
+		# 	for parameter in atmos.nodes:
+		# 		self.atmos_debug[parameter][itter[0,0]]
 
 		return atmos, inverted_spectra, chi2
 
@@ -955,7 +980,7 @@ class Inverter(InputData):
 
 		hdulist = fits.HDUList([])
 
-		for parameter in atmos.nodes:
+		for parameter in self.atmosphere.nodes:
 			matrix = self.atmos_debug[parameter]
 
 			par_hdu = fits.ImageHDU(matrix)
@@ -971,8 +996,11 @@ class Inverter(InputData):
 
 		hdulist.writeto(f"{output_path}/atmos_debug.fits", overwrite=True)
 
-		primary = fits.PrimaryHDU(LM_debug)
-		primary.writeto(f"{output_path}/marquardt_parameter.fits", overwrite=True)
+		primary = fits.PrimaryHDU(self.spec_debug)
+		primary.writeto(f"{output_path}/spectrum_debug.fits", overwrite=True)
+
+		primary = fits.PrimaryHDU(self.LM_debug)
+		primary.writeto(f"{output_path}/marquardt_parameter_debug.fits", overwrite=True)
 
 	@globin.utils.timeit
 	def save_cycle(self, chi2, obs, spec, atmos, cycle):
