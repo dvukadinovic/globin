@@ -133,12 +133,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 						pass
 
 			# set legend
-			if i_+j_==0:
-				ax.legend(loc="lower left", 
-						  bbox_to_anchor=(0, 1.01, 1, 0.2),
-						  ncol=legend_ncols, 
-						  fontsize="x-small", 
-						  frameon=True)
+			# if i_+j_==0:
+			# 	ax.legend(loc="lower left", 
+			# 			  bbox_to_anchor=(0, 1.01, 1, 0.2),
+			# 			  ncol=legend_ncols, 
+			# 			  fontsize="x-small", 
+			# 			  frameon=True)
 			k_ += 1
 	
 	fig.tight_layout()
@@ -223,6 +223,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			else:
 				obs[:,0] += shift
 
+		print(obs.shape)
 		axI.plot((wavelength - lam0)*10, obs[:,0], lw=lw, color="k")
 		# if norm:
 		axI.set_ylabel(r"Stokes I/I$_\mathrm{c}$")

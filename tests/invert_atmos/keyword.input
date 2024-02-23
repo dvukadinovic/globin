@@ -7,7 +7,7 @@
 # First specify input files for atmosphere and abundances
 # (both KEYWORD_REQUIRED).
 
-  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
+#  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
@@ -18,9 +18,9 @@
   ATOMS_FILE = atoms.input
 
 # arklem tables for the collisional coefficients
-  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
-  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
-  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
+#  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
+#  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
+#  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
 
 # Input file for all molecules (KEYWORD_REQUIRED).
 
@@ -28,7 +28,7 @@
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-  WAVETABLE = spinor.wave
+#  WAVETABLE = spinor.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
@@ -107,7 +107,7 @@
 # type KEYWORD_DEFAULT
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
-  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
+#  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
   #KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
   SOLVE_NE = NONE
@@ -209,7 +209,7 @@
 # Set this value to TRUE to get printout on CPU usage (may take some
 # extra CPU usage though!).
 
-  PRINT_CPU = TRUE
+  PRINT_CPU = FALSE
 
 # Enable program to do the formal solution for N_THREADS wavelengths
 # concurrently (KEYWORD_OPTIONAL). Maximum number of threads is limited
