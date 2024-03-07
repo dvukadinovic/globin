@@ -447,8 +447,8 @@ class Spectrum(object):
 			if key=="spec":
 				new_spec.spec = self.spec[idx_min:idx_max, idy_min:idy_max]
 				new_spec.shape = new_spec.spec.shape
-				new_spec.nx, new_spec.ny, _, _ = new_spec.spec.shape
-			if key=="Ic":
+				new_spec.nx, new_spec.ny, _, _ = new_spec.shape
+			elif key=="Ic":
 				new_spec.Ic = self.Ic[idx_min:idx_max, idy_min:idy_max]
 			elif key in ["nx", "ny", "shape"]:
 				pass
