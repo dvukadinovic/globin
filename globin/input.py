@@ -5,7 +5,7 @@ import re
 import copy
 import subprocess as sp
 from astropy.io import fits
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, splev
 from scipy.integrate import simps
 from scipy.signal import find_peaks
 
@@ -800,7 +800,10 @@ class InputData(object):
 			for i_, val in enumerate(values):
 				if val==60:
 					values[i_] += 1
-			
+
+		if parameter=="temp":
+			values = splev(atmosphere.nodes[parameter], globin.temp_tck)
+
 		matrix[:,:] = copy.deepcopy(values)
 		if parameter=="gamma":
 			matrix *= np.pi/180
