@@ -1,0 +1,72 @@
+# Running mode defines which parameters are neccessary to be read from input
+# file. Mode values: 
+#   0 --> synthesis
+#   1 --> pixel-by-pixel inversion
+#   2 --> PSF coupled inversion (van Noort 2012)
+#   3 --> global inversion (for fitting atomic data and macro velocity)
+# We are using it for sanity check.
+
+#--- General parameters
+n_thread = 8
+interp_degree = 3
+interp_method = spline
+spline_tension = 5
+mode = 1
+
+#--- Spectra to be fitted
+observation = hinode4d.20130912.sample.fits
+obs_format = hinode
+noise = 1e-3
+weights = 1,1,1,1
+vmac = 0
+norm = 3.9894669e-8
+
+#--- observation parameters
+mu = 1.00
+instrumental_profile = hinode_instr_prof.dat
+
+#--- atmospheric parameters: nodes and values
+#initial_atmosphere = runs/m1_QS_spline_instprof_SPINOR_HSRACONT/inverted_atmos_c1.fits
+
+#lines2atm = cog_wfa_lines
+
+init_temp = False
+
+nodes_temp = -2.0, -0.8, 0
+nodes_temp_values = 4600, 5300, 6400
+nodes_temp_vmin = 3200, 4400, 5500
+nodes_temp_vmax = 5500, 6500, 10000
+
+nodes_vz = -2, -0.8, -0
+nodes_vz_values = 0.5, 0.5, 0.5
+
+nodes_mag = -2, -0.8, 0
+nodes_mag_values = 150, 150, 150
+
+nodes_gamma = 0
+nodes_gamma_values = 45
+
+nodes_chi = 0
+nodes_chi_values = 20
+
+#--- wavelength window (in Angstroms)
+linelist = fe6300_spinor
+wave_min = 6300.7
+wave_max = 6303.3
+wave_step = 0.010
+
+#--- Levenberg-Marquardt parameters
+ncycle = 1
+marq_lambda = 1e1
+max_iter = 30
+chi2_tolerance = 1e-3
+
+#--- Line parameters
+#line_parameters = line_pars_dlam
+
+#--- Reference atmosphere (optional)
+reference_atmosphere = /home/dusan/Documents/globin/globin/data/hsrasp_vmic0.dat
+atm_type = spinor
+logtau_top = -4
+
+#range = 1,1,1,1

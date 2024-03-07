@@ -1,0 +1,42 @@
+
+-------------------------- Entering inversion mode 1 ---------------------------
+
+Observations: 5 x 5
+Number of parameters: 11
+Number of degrees of freedom: 437
+
+[2024-03-07 20:30:37] Iteration (min):  1 | per. iter 0.0 min | Finished 0/25
+  chi2 --> 3.077e+03
+[2024-03-07 20:30:54] Iteration (min):  2 | per. iter 0.3 min | Finished 0/25
+  chi2 --> 8.085e+02
+[2024-03-07 20:31:17] Iteration (min):  3 | per. iter 0.4 min | Finished 0/25
+  chi2 --> 2.476e+02
+[2024-03-07 20:31:39] Iteration (min):  4 | per. iter 0.4 min | Finished 0/25
+  chi2 --> 1.862e+02
+[2024-03-07 20:32:01] Iteration (min):  4 | per. iter 0.4 min | Finished 0/25
+  chi2 --> 1.831e+02
+[2024-03-07 20:32:23] Iteration (min):  5 | per. iter 0.4 min | Finished 0/25
+  chi2 --> 1.810e+02
+[2024-03-07 20:32:37] Iteration (min):  5 | per. iter 0.2 min | Finished 0/25
+  chi2 --> 1.691e+02
+[2024-03-07 20:32:51] Iteration (min):  6 | per. iter 0.2 min | Finished 0/25
+  chi2 --> 1.658e+02
+[2024-03-07 20:33:13] Iteration (min):  6 | per. iter 0.4 min | Finished 0/25
+  chi2 --> 1.611e+02
+[2024-03-07 20:33:32] Iteration (min):  7 | per. iter 0.3 min | Finished 0/25
+  chi2 --> 1.606e+02
+[2024-03-07 20:33:47] Iteration (min):  7 | per. iter 0.3 min | Finished 1/25
+  chi2 --> 1.576e+02
+[2024-03-07 20:34:03] Iteration (min):  7 | per. iter 0.3 min | Finished 1/25
+  chi2 --> 1.570e+02
+[2024-03-07 20:34:22] Iteration (min):  7 | per. iter 0.3 min | Finished 1/25
+  chi2 --> 1.561e+02
+[2024-03-07 20:34:35] Iteration (min):  8 | per. iter 0.2 min | Finished 3/25
+  chi2 --> 1.546e+02
+[2024-03-07 20:34:51] Iteration (min):  9 | per. iter 0.3 min | Finished 7/25
+  chi2 --> 1.539e+02
+[2024-03-07 20:35:04] Iteration (min):  9 | per. iter 0.2 min | Finished 7/25
+  chi2 --> 1.537e+02
+[2024-03-07 20:35:19] Iteration (min): 10 | per. iter 0.2 min | Finished 10/25
+  chi2 --> 1.533e+02
+[2024-03-07 20:35:32] Iteration (min): 10 | per. iter 0.2 min | Finished 11/25
