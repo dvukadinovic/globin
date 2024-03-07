@@ -192,6 +192,12 @@ class InputData(object):
 			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
 
+		self.init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", False, conversion=str)
+		if self.init_temp.lower()=="true":
+			self.init_temp = True
+		else:
+			self.init_temp = False
+
 		#----------------------------------------------------------------------
 		# Optional parameters
 		#----------------------------------------------------------------------
@@ -801,7 +807,7 @@ class InputData(object):
 				if val==60:
 					values[i_] += 1
 
-		if parameter=="temp":
+		if parameter=="temp" and self.init_temp:
 			values = splev(atmosphere.nodes[parameter], globin.temp_tck)
 
 		matrix[:,:] = copy.deepcopy(values)
