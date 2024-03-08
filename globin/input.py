@@ -1580,9 +1580,9 @@ class Chi2(object):
 
 		try:
 			self.nx, self.ny,_ = self.chi2.shape
-			self.chi2, _ = self.get_final_chi2()
+			self.chi2, self.last_iter = self.get_final_chi2()
 		except:
-			pass
+			self.last_iter = None
 
 		try:
 			self.full_chi2 = hdu_list[2].data
