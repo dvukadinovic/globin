@@ -360,6 +360,11 @@ class Inverter(InputData):
 				next step parameters.
 				"""
 
+				if self.wavs_weight is not None:
+					Npar = atmos.rf.shape[2]
+					for idp in range(Npar):
+						atmos.rf[:,:,idp] *= self.wavs_weight
+
 				# JT = (nx, ny, npar, 4*nw)
 				JT = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				# J = (nx, ny, 4*nw, npar)
@@ -393,7 +398,7 @@ class Inverter(InputData):
 			# 			print(idx,idy)
 			# 			print(H[idx,idy])
 			# 			print("-----")
-			
+
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 			delta *= delta_scale
@@ -457,7 +462,7 @@ class Inverter(InputData):
 			new_diff /= diff_noise_stokes
 			new_diff *= np.sqrt(2)
 			if self.wavs_weight is not None:
-				diff *= self.wavs_weight
+				new_diff *= self.wavs_weight
 			chi2_new = np.sum(new_diff**2, axis=(2,3))
 			chi2_new /= Ndof
 
@@ -697,6 +702,11 @@ class Inverter(InputData):
 					# print(chi2_reg/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
+				if self.wavs_weight is not None:
+					Npar = atmos.rf.shape[2]
+					for idp in range(Npar):
+						atmos.rf[:,:,idp] *= self.wavs_weight
+
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				tmp = np.swapaxes(tmp, 2, 3)
 				tmp = tmp.reshape(Natmos, 4*Nw, Npar)
