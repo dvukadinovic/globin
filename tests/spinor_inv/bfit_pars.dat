@@ -1,0 +1,104 @@
+  'v2001.5'
+ 
+ ITER     CHISQ      REDCHI
+   30    0.2435E+05   55.71    
+ 
+  'BEGIN'
+#inp
+  'AMINP'     'atoms_fe6300.dat' #atomic data file, laboratory wavelength
+  'OBINP'     'hinode4d.20130912.sample.fits'  #profiles to be fitted
+  'WLBND'     'Y'                #wl-range in sep. file Y/N
+  'FITIC'     'N'                #fit continuum
+  'INORM'     'HSRA'             #cont.norm. ('HSRA':Borrero(Nov08),'1':Unity)
+#preprocessing
+  'ICCOR'       1.0000           #continuum correction
+  'SCLSV'       0.0000           #change sign of V (ZIMPOL)
+  'ROTQU'       0.0000           #rotate Q-U (ZIMPOL)
+  'PPROC'     'N'                #call special preproc. routines
+  'WTFAM'     'N'                #wavelet transformation
+  'WTNCO'     0                  #number of coeff for wavelet trafo
+  'WTTHR'     'S'                #threshold for wavelet trafo
+#form
+  'SFORM'     'C'                #O=Old FTS,N=New FTS,I=IR FTS,S=STOPRO,E=ESO, T=TIP, H=Hinode, X=IMaX
+#out
+  'COOUT'     'N'                #detailed log-file: 'Y'/'N'
+  'OBOUT'     'in_profs.dat'     #profiles being fitted
+  'BFOUT'     'spec.dat'         #best fit stokes profiles
+  'PAOUT'     'bfit_pars.dat'    #best fit parameters
+  'EROUT'     'err_pars.dat'     #estimated error in fitted parameters
+  'FAANS'     'N'                #write ('Y'/'N') final atmosphere
+  'FANAM'     'atmos_bfit'       #filename for final atmosphere
+  'TAANS'     'N'                #write ('A'/'Y'/'N') atmos test out
+  'TANAM'     'atm_test_out.dat' #filename for atmos test out
+  'DYANS'     'N'                #write ('A'/'F'/'N') dyda test out
+  'DYNAM'     'dyda_rf.dat'      #filename for dyda test out
+#core
+  'RTESO'     'H'                #RTE-solver: [D]ELO, [H]ermitian
+  'RFANS'     'N'                #RF-TEST: All derivatives calc. without RFs
+  'LMSVD'     'F'                #SVD method ('F':Marquardt,'G':Goulub&Reinsch)
+  'LMSCL'     'S'                #SVD scaling ('1':none,'S':Marq.,'R':RuizCobo)
+#fit: ittot=-1 <=> STOPRO MODE
+  'ITTOT'    30                  #last iteration number
+  'IT1ST'     1                  #first last iteration number
+  'EMODE'     1                  #DO NOT CHANGE
+  'ALINC'       10.000           #DO NOT CHANGE
+  'ALDEC'      0.10000           #DO NOT CHANGE
+  'RFGRD'     0                  #number of iter for rfgrid update
+  'WTREG'       0.0000           #weight for regularization (0.0=off)
+  'CHMIN'       5.0000           #min. regularizatuion (>=1.0)
+  'SISPL'       5.0000           #tension factor for spline interpolation
+  'EPSVD'      0.10000E-04       #singular value threshold value for SVD
+  'CONFL'      0.68300           #confidence level
+  'KRANS'     '5'                #determine kappa_c ('5':5000,'R':Rosseland)
+  'DLGRP'       10.000           #delta WL for use of same kappa_c
+  'BISEC'       0.0000           #cut-off for chord-levels (0=off)
+#type of model
+  'MODEL'     'B'                #type of model
+  'RTYPE'     '1'                #type of model atmosphere = '1'|'2'|'S'|'3'
+#stokes profiles to be fitted
+  'STOKE'     'IVQU'             #type of Stokes spectra
+#postprocessing
+  'MIRRO'     'N'                #mirror
+  'FNMAC'     'V'                #macro-trb broad V=Vgt,E=Exp,T=rad-Tang,S=Sinc
+  'FNINS'     'F'                #instr. broad. V=Vgt,E=Exp,T=rad-Tang,S=Sinc
+#multi-ray/flux-tube  models
+  'TGEOM'     'C'                #flux tube geometry = 'C'|'S'
+  'NRAYS'     1                  #number of rays
+  'NPLAN'     1                  #number of rays along which the RTE is solved
+  'IRTST'     0                  #test mode for 3D ray code
+  'IPTST'     0                  #test mode for 3D ray code
+#disk integration
+  'NUMMU'     1                  #number of diff. mu-values for disk integr.
+#component, atmospheres
+  'NCOMP'     1                  #number of components
+  'NUMAT'     1                  #list of numbers of model atmospheres
+  'ATNAM'     'hsrasp_vmic0.dat' #list of filenames with tabulated atmospheres
+#-----------------------------------------------------------------------------
+  'PART2'
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+#-----------------------------------------------------------------------------
+  'LTTOP'      -4.0000       0.00       0.00    0    1    0
+  'LTINC'       0.1000       0.00       0.00    0    1    0
+  'LGTRF'      -2.0000      -2.00      -2.00    0    1    0
+  'LGTRF'      -0.8000      -0.80      -0.80    0    1    0
+  'LGTRF'       0.0000       0.00       0.00    0    1    0
+  'TEMPE'    4763.9622    3200.00    5500.00    1    1    0
+  'TEMPE'    5113.0895    4400.00    6500.00    1    1    0
+  'TEMPE'    6400.0305    5500.00   10000.00    1    1    0
+  'BFIEL'      10.0000      10.00   10000.00    1    1    0
+  'BFIEL'      10.0000      10.00   10000.00    1    1    0
+  'BFIEL'      10.0000      10.00   10000.00    1    1    0
+  'GAMMA'      48.2778    -180.00     360.00    1    1    0
+  'AZIMU'     101.2540    -360.00     360.00    1    1    0
+  'VELOS'       0.5780     -10.00      10.00    1    1    0
+  'VELOS'       0.4273     -10.00      10.00    1    1    0
+  'VELOS'       0.2789     -10.00      10.00    1    1    0
+  'KCWLR'    5000.0000       0.00       0.00    0    0    0
+#-----------------------------------------------------------------------------
+  'CLOSE'
+#-----------------------------------------------------------------------------
+ 
+ 
+   APARS        CPARS       AFMIN      AFMAX
+  IFITA ICOMP LINNO

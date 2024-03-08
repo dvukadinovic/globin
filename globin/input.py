@@ -5,7 +5,7 @@ import re
 import copy
 import subprocess as sp
 from astropy.io import fits
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, splev
 from scipy.integrate import simps
 from scipy.signal import find_peaks
 
@@ -191,6 +191,12 @@ class InputData(object):
 			self.of_scatter = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, conversion=int)
 			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
+
+		self.init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", False, conversion=str)
+		if self.init_temp.lower()=="true":
+			self.init_temp = True
+		else:
+			self.init_temp = False
 
 		#----------------------------------------------------------------------
 		# Optional parameters
@@ -800,7 +806,10 @@ class InputData(object):
 			for i_, val in enumerate(values):
 				if val==60:
 					values[i_] += 1
-			
+
+		if parameter=="temp" and self.init_temp:
+			values = splev(atmosphere.nodes[parameter], globin.temp_tck)
+
 		matrix[:,:] = copy.deepcopy(values)
 		if parameter=="gamma":
 			matrix *= np.pi/180

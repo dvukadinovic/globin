@@ -1090,13 +1090,6 @@ class Atmosphere(object):
 		ne = self.ne * 1e6 # [m3]
 		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
 
-		return self.pg
-
-	def get_pe(self):
-		ne = self.ne * 1e6 # [m3]
-		pe = ne*globin.K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
-		return pe
-
 	def get_ne_from_nH(self, scale="tau"):
 		"""
 		Compute the electron concentration using RH from temperature and 

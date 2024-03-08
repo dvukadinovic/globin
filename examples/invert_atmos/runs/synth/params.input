@@ -1,0 +1,94 @@
+# Mode values: 
+#   0 --> synthesis
+#   1 --> pixel-by-pixel inversion (atmosphere only)
+#   2 --> pixel-by-pixel inversion (atmosphere + atoms)
+#   3 --> global inversion (atmosphere + atoms + macro velocity)
+
+#--- General parameters
+n_thread = 2
+interp_deree = 3
+interp_method = bezier
+spline_tension = 0
+mode = 0
+
+#--- Spectra to be fitted
+observation = obs_bezier_Fe630_mu1_abs.fits
+noise = 1e-8
+weights = 1,10,10,7
+vmac = 0
+norm = False
+
+mu = 1.0
+#instrumental_profile = hinode_instr_prof.dat
+
+#stray_factor = 0.03
+#stray_mode = 1
+#stray_type = gray
+
+#--- Output spectra
+spectrum = obs_bezier_Fe630_mu1_abs.fits
+
+#--- atmospheric parameters: nodes and values
+#initial_atmosphere = runs/dummy/inverted_atmos_c1.fits
+
+#spatial_regularization_weight = 1
+
+nodes_temp = -2.2, -1.6, -0.9, 0
+nodes_temp_values = 4400, 5500, 6600, 7800
+#nodes_temp_reg_weight = 1
+
+nodes_vz = -2, -0.5
+nodes_vz_values = 0.5, 0.5
+#nodes_vz_reg_weight = 1
+
+nodes_vmic = 0
+nodes_vmic_values = 0.65
+
+nodes_mag = -2, -0.5
+nodes_mag_values = 300, 300
+#nodes_mag_reg_weight = 1e2
+# weight (float) + type (int)
+#nodes_mag_dd_reg = 1e3, 1
+
+nodes_gamma = 0
+nodes_gamma_values = 45
+
+nodes_chi = 0
+nodes_chi_values = 25
+
+#--- opacity fudge coefficients
+# interpolation degree of OF is determined by the
+# number of points present in the input file
+#
+# fit_mode:
+#  -1 --> do nothing with it
+#   0 --> just apply the OF (no inversion)
+#   1 --> invert the OF coefficients
+of_mode = -1
+of_file = of.data
+of_scatt_flag = 1
+
+#--- wavelength window (in Angstroms)
+#linelist = lines_4016
+#wave_min = 4015
+#wave_max = 4017
+#wave_step = 0.010
+
+linelist = fe6300
+wave_min = 6300.7
+wave_max = 6303.3
+wave_step = 0.010
+
+#--- Levenberg-Marquardt parameters
+ncycle = 1
+marq_lambda = 1e-1
+max_iter = 10
+chi2_tolerance = 1e-3
+
+#--- Line parameters
+#line_parameters = line_pars
+
+#--- Reference atmosphere (optional)
+cube_atmosphere = atmos_bezier.fits
+
+#range = 1,1,1,1

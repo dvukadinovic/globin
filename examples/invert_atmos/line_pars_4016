@@ -1,0 +1,8 @@
+# parID   LineNo   initial   min     max
+loggf      13    -1.535    -2.710    1.000
+loggf       8    -0.712    -2.000    1.000
+loggf      10    -1.328    -5.928    0.928
+dlam       13   -12      -25      25
+dlam       8    -12      -25      25
+dlam       1    -12      -25      25
+dlam       2    -12      -25      25
