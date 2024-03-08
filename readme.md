@@ -38,6 +38,7 @@ description of it.
 
 ## Rewritings
 
+* RH keywords commanded through Python env
 
 ## Comments
 
