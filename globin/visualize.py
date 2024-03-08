@@ -296,7 +296,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		# ax0_SI.set_title("Stokes I")
 		ax0_SI.plot((wavelength - lam0)*10, obs[:,0], "k-", markersize=2, lw=lw, label=labels[0])
 		for idn in range(Ninv):
-			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[(idn-1)%Ncolors], lw=1, label=labels[idn+1])
+			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[(idn-1)%Ncolors], lw=1, label=labels[idn])
 		# ax0_SI.set_ylabel(r"I [10$^8$ W sr$^{-1}$ Hz$^{-1}$ m$^{-2}$]")
 		ax0_SI.set_ylabel(r"Stokes $I$")
 		ax0_SI.set_xlim([-dlam, dlam])

@@ -1,10 +1,11 @@
 import sys
 from astropy.io import fits
 import numpy as np
-from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
 import matplotlib.pyplot as plt
-from scipy.interpolate import splev, splrep, interp1d
 import multiprocessing as mp
+from scipy.ndimage import gaussian_filter, gaussian_filter1d, correlate1d
+from scipy.interpolate import splev, splrep, interp1d
+from scipy.signal import find_peaks
 from sklearn.decomposition import PCA
 
 import globin
@@ -133,12 +134,129 @@ class Spectrum(object):
 		self.spec[...,2] += wavs_dependent_factor * SI_cont_err[...,2]
 		self.spec[...,3] += wavs_dependent_factor * SI_cont_err[...,3]
 
-	def denoise(self, n_components=10):
-		pca = PCA(n_components=n_components)
-		X = self.spec.reshape(self.nx*self.ny, self.nw, 4)
-		X = X.reshape(self.nx*self.ny, 4*self.nw, order="F")
+	def denoise(self, line_locations, width=20):
+		# mean_profile = np.mean(self.I, axis=(0,1))
 
-		# pca.fit_
+		# idx, idy = 0, 0
+		# O = np.empty((4*len(line_locations), width*2 + 1))
+		# wave_inds = np.empty(len(line_locations)*(2*width+1), dtype=np.int32)
+		# low, up = 0, 2*width+1
+		# for idl,line in enumerate(line_locations):
+		# 	_ind0 = np.argmin(np.abs(self.wavelength - line))
+		# 	ind0 = np.argmin(mean_profile[_ind0-width:_ind0+width]) + _ind0 - width
+		# 	wave_inds[low:up] = np.linspace(ind0-width, ind0+width, num=2*width+1, dtype=np.int32)
+		# 	low = up
+		# 	up += 2*width+1
+		# # 	O[idl*4+0] = self.spec[idx,idy, ind0-width:ind0+width+1, 0]
+		# # 	O[idl*4+1] = self.spec[idx,idy, ind0-width:ind0+width+1, 1]
+		# # 	O[idl*4+2] = self.spec[idx,idy, ind0-width:ind0+width+1, 2]
+		# # 	O[idl*4+3] = self.spec[idx,idy, ind0-width:ind0+width+1, 3]
+
+		# _ind0 = np.argmin(np.abs(self.wavelength - line_locations[4]))
+		# ind0 = np.argmin(mean_profile[_ind0-width:_ind0+width]) + _ind0 - width
+		# O = self.spec[:,:20, ind0-width:ind0+width+1,:]
+		
+		O = self.spec[:, :,:,1:]
+		O = np.swapaxes(O, 2, 3)
+		shape = O.shape
+		O = O.reshape(shape[0]*shape[1]*shape[2], O.shape[3], order="F")
+
+		pca = PCA()
+
+		X = np.dot(O.T, O)
+		pca.fit(X)
+		eigen_vectors = pca.components_
+		eigen_values = pca.singular_values_
+		eigen_values_normed = np.cumsum(eigen_values) / np.sum(eigen_values)
+
+		# inds = pca.explained_variance_ratio_*100 > 5e-3
+		# print(pca.explained_variance_ratio_*100)
+
+		# same for random noise		
+		RNG = np.random.default_rng()
+		O_noise = RNG.normal(loc=0, scale=2e-3, size=O.shape)
+		X_noise = np.dot(O_noise.T, O_noise)
+
+		pca.fit(X_noise)
+		_eigen_values = pca.singular_values_
+		_eigen_values_normed = np.cumsum(_eigen_values) / np.sum(_eigen_values)
+
+		eigen_value_ratio = eigen_values_normed/_eigen_values_normed
+
+		inds = eigen_value_ratio > 1.2
+
+		plt.plot(eigen_values_normed)
+		plt.plot(_eigen_values_normed*1.2)
+		
+		# plt.plot(eigen_value_ratio)
+		# plt.axhline(y=1.2)
+		plt.yscale("log")
+		plt.show()
+
+		# plt.plot(eigen_vectors[10:13].T)
+		# plt.show()
+		# return
+
+		# reconstruct
+		# flag = eigen_values_normed > 3*_eigen_values_normed
+		
+		C = np.dot(O, eigen_vectors[:15].T)
+		O_denoised = np.dot(C, eigen_vectors[:15])
+		O_denoised = O_denoised.reshape(*shape, order="F")
+		O_denoised = np.swapaxes(O_denoised, 2, 3)
+		spec_denoised = np.zeros(self.spec.shape)
+		spec_denoised[...,1:] = O_denoised
+		spec_denoised[...,:1] = self.spec[...,:1]
+		# print(eigen_value_ratio[5])
+
+		idx, idy = 200, 50
+		globin.plot_spectra(self.spec[idx,idy], self.wavelength, 
+			inv=[spec_denoised[idx,idy]],
+			aspect=3,
+			norm=True,
+			labels=["original", "denoised"])
+		plt.legend()
+		plt.show()
+
+		# noise estimate
+		# noise = 1e-3
+		# noise_stokes = np.ones(shape)
+		# StokesI_cont = np.quantile(self.I[:,:5], 0.95, axis=2)
+		# noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+		# noise_stokes = np.swapaxes(noise_stokes, 2, 3)
+
+		# weights = np.array([1,7,7,5])
+		# weights = np.array([1,10,10,7])
+
+		# # reconstruct
+		# Nc = 20
+		
+		# O_denoised = np.empty((Nc, *shape))
+		# O_denoised = np.swapaxes(O_denoised, 3, 4)
+		# print(O_denoised.shape)
+
+		# C = np.dot(O, eigen_vectors[:1].T)
+		# _O_denoised = np.dot(C, eigen_vectors[:1])
+		# _O_denoised = _O_denoised.reshape(*shape, order="F")
+		# O_denoised[0] = np.swapaxes(_O_denoised, 2, 3)
+		
+		# chi2 = np.ones(Nc)
+		# for idc in range(1,Nc):
+		# 	C = np.dot(O, eigen_vectors[:idc].T)
+		# 	_O_denoised = np.dot(C, eigen_vectors[:idc])
+		# 	_O_denoised = _O_denoised.reshape(*shape, order="F")
+		# 	O_denoised[idc] = np.swapaxes(_O_denoised, 2, 3)
+			
+		# 	diff = O_denoised[idc] - O_denoised[idc-1]
+		# 	diff *= weights
+		# 	diff /= noise_stokes
+		# 	diff *= np.sqrt(2)
+		# 	chi2[idc] = np.sum(diff**2)/len(O_denoised[idc])
+		# 	if idc>=3:
+		# 		rel = np.abs(chi2[idc]/chi2[idc-1] - 1)
+		# 		print(f"{idc:>2d}  {chi2[idc]:.3e}  {rel:.3f}")
+		# 	else:
+		# 		print(f"{idc:>2d}  {chi2[idc]:.3e}")
 
 	def get_kernel_sigma(self, vmac):
 		"""
@@ -342,7 +460,7 @@ class Spectrum(object):
 		make fits header with additional info
 		"""
 		if spec_type=="globin":
-			data = np.zeros((self.nx, self.ny, len(self.wavelength), 5))
+			data = np.empty((self.nx, self.ny, len(self.wavelength), 5))
 			data[...,0] = self.wavelength
 			data[...,1:] = self.spec
 		elif spec_type=="hinode":
@@ -367,7 +485,7 @@ class Spectrum(object):
 		
 		if self.noise is None:
 			self.noise = -1
-		primary.header["noise"] = ("{:4.3e}".format(self.noise), "assumed noise level; -1 when we do not know")
+		primary.header["noise"] = ("{:4.3e}".format(self.noise), "assumed noise level; -1 when not specified")
 
 		hdulist = fits.HDUList([primary])
 		
@@ -561,7 +679,7 @@ class Observation(Spectrum):
 		hdu = fits.open(fpath)
 
 		if len(hdu)!=3:
-			raise IndexError("Header list contains less than 3 extensions (including primary).")
+			raise IndexError("Wrong number of headers. Header list does not contain 3 extensions (including primary).")
 
 		self.header = hdu[0].header
 
@@ -573,7 +691,8 @@ class Observation(Spectrum):
 		
 		# we assume that wavelength is same for every pixel in observation
 		self.wavelength = hdu[1].data/10 # [A --> nm]
-		data = np.array(hdu[0].data[xmin:xmax,ymin:ymax], dtype=np.float64)
+		# data = np.array(hdu[0].data[xmin:xmax,ymin:ymax], dtype=np.float64)
+		data = hdu[0].data[xmin:xmax, ymin:ymax]
 		
 		# idx, idy = 120, 52
 		# plt.plot(data[idx,idy,0]/self.icont)
@@ -581,7 +700,7 @@ class Observation(Spectrum):
 		# plt.show()
 		
 		nx, ny, ns, nw = data.shape
-		self.spec = np.zeros((nx, ny, nw, ns))
+		self.spec = np.empty((nx, ny, nw, ns), dtype=np.float64)
 		self.spec[...,0] = data[...,0,:]
 		self.spec[...,1] = data[...,1,:]
 		self.spec[...,2] = data[...,2,:]
