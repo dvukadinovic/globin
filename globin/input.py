@@ -192,7 +192,7 @@ class InputData(object):
 			if of_file_path:
 				of_num, of_wave, of_value = read_OF_data(of_file_path)
 
-		self.init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", False, conversion=str)
+		self.init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", "false", conversion=str)
 		if self.init_temp.lower()=="true":
 			self.init_temp = True
 		else:
