@@ -210,11 +210,14 @@ class Spectrum(object):
 		# print(eigen_value_ratio[5])
 
 		idx, idy = 200, 50
-		globin.plot_spectra(self.spec[idx,idy], self.wavelength, 
-			inv=[spec_denoised[idx,idy]],
-			aspect=3,
+		globin.plot_spectra(spec_denoised[idx,idy], self.wavelength, 
 			norm=True,
-			labels=["original", "denoised"])
+			aspect=3)
+		# globin.plot_spectra(self.spec[idx,idy], self.wavelength, 
+		# 	inv=[spec_denoised[idx,idy]],
+		# 	aspect=3,
+		# 	norm=True,
+		# 	labels=["original", "denoised"])
 		plt.legend()
 		plt.show()
 
@@ -325,30 +328,28 @@ class Spectrum(object):
 			results = np.array(results)
 			self.spec[indx,indy] = results
 
-	def add_stray_light(self, mode, stray_light, stray_type="gray", hsra_spec=None):
+	def add_stray_light(self, mode, stray_light, sl_spectrum=None):
 		"""
 		Add the stray light contamination to the spectra.
-
-		If stray_type='hsra' we requiere 'hsra_spec' to not be None.
 		"""
-		if stray_type=="hsra":
-			if hsra_spec is None:
-				raise ValueError("'hsra_spec' can not be None in case of 'hsra' stray-light type.")
+		if sl_spectrum is not None:
+			stray_type = "spectrum"
 
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				if mode==1 or mode==2:
 					stray_factor = stray_light[idx,idy]
 				elif mode==3:
-					if self.invert_stray:
-						stray_factor = stray_light#self.global_pars["stray"]
-					else:
-						stray_factor = stray_light[idx,idy]
+					stray_factor = stray_light
+					# if self.invert_stray:
+					# 	stray_factor = stray_light
+					# else:
+					# 	stray_factor = stray_light[idx,idy]
 				else:
 					raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
 				
-				if stray_type=="hsra":
-					self.spec[idx,idy] = stray_factor * hsra_spec + (1-stray_factor) * self.spec[idx,idy]
+				if stray_type=="spectrum":
+					self.spec[idx,idy] = stray_factor * sl_spectrum + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="gray":
 					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
 					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]

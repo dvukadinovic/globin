@@ -368,8 +368,8 @@ class InputData(object):
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
-			if self.stray_type!="gray" and self.stray_type!="hsra":
-				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray' or 'hsra'.")
+			if self.stray_type not in ["gray", "hsra", "atmos"]:
+				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray', 'hsra' or 'atmos'.")
 
 			# get the mode for stray light (synthesis/inversion)			
 			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
@@ -395,9 +395,19 @@ class InputData(object):
 				else:
 					raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
 
+				if self.stray_mode!=self.mode:
+					raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
+
 			# allocate parameters to atmosphere
 			self.atmosphere.stray_mode = self.stray_mode
 			self.atmosphere.stray_type = self.stray_type
+			if self.atmosphere.stray_type=="atmos":
+				fpath = _find_value_by_key("stray_atmosphere", self.parameters_input, "required")
+				sl_atmosphere = globin.Atmosphere(fpath)
+				sl_atmosphere.wavelength_air = self.atmosphere.wavelength_air
+				sl_atmosphere.wavelength_obs = self.atmosphere.wavelength_obs
+				sl_atmosphere.wavelength_vacuum = self.atmosphere.wavelength_vacuum
+				self.atmosphere.stray_light_spectrum = sl_atmosphere.compute_spectra()
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))

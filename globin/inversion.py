@@ -117,19 +117,6 @@ class Inverter(InputData):
 			
 			#--- add macro-turbulent broadening
 			spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
-
-			#--- add stray light contribution
-			if atmos.add_stray_light:
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						stray_factor = atmos.stray_light[idx,idy]
-						if self.stray_type=="hsra":
-							spec.spec[idx,idy] = stray_factor * atmos.hsra_spec + (1-stray_factor) * spec.spec[idx,idy]
-						if self.stray_type=="gray":
-							spec.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * spec.spec[idx,idy,:,0]
-							spec.spec[idx,idy,:,1] = (1-stray_factor) * spec.spec[idx,idy,:,1]
-							spec.spec[idx,idy,:,2] = (1-stray_factor) * spec.spec[idx,idy,:,2]
-							spec.spec[idx,idy,:,3] = (1-stray_factor) * spec.spec[idx,idy,:,3]
 			
 			#--- add instrument broadening (if applicable)
 			if atmos.instrumental_profile is not None:
@@ -412,9 +399,9 @@ class Inverter(InputData):
 			# 					idx=idx, idy=idy)
 			# 				globin.show()
 
-			#plt.imshow(H[0,0], origin="upper")
-			#plt.colorbar()
-			#plt.show()
+			# plt.imshow(H[0,0], origin="upper")
+			# plt.colorbar()
+			# plt.show()
 			#sys.exit()
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
@@ -449,12 +436,6 @@ class Inverter(InputData):
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
-
-			if atmos.add_stray_light:
-				hsra_spec = None
-				if self.stray_type=="hsra":
-					hsra_spec = atmos.hsra_spec.spec
-				corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -546,12 +527,6 @@ class Inverter(InputData):
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
-
-		if atmos.add_stray_light:
-			hsra_spec = None
-			if self.stray_type=="hsra":
-				hsra_spec = atmos.hsra_spec.spec
-			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 		try:
 			atmos.compute_errors(H, chi2)
@@ -796,7 +771,7 @@ class Inverter(InputData):
 			# plt.show()
 			# plt.close()
 
-			start = time.time()
+			# start = time.time()
 			# proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, M=sp.block_diag(H.diagonal(k=0)))
 			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
@@ -810,7 +785,7 @@ class Inverter(InputData):
 			# rel_err = np.sqrt(np.sum(rel_err)**2)
 			# print(f"[Info] Residual = {residual}.")
 			# print(f"[Info] Relative error = {rel_err}")
-			end = time.time() - start
+			# end = time.time() - start
 			# print(f"[Info] Convergence time {end}s.")
 
 			#--- save the old parameters
@@ -842,13 +817,6 @@ class Inverter(InputData):
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
-
-			# add the stray light contamination
-			if atmos.add_stray_light:
-				hsra_spec = None
-				if self.stray_type=="hsra":
-					hsra_spec = atmos.hsra_spec.spec
-				corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -962,12 +930,6 @@ class Inverter(InputData):
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
-
-		if atmos.add_stray_light:
-			hsra_spec = None
-			if self.stray_type=="hsra":
-				hsra_spec = atmos.hsra_spec.spec
-			corrected_spec.add_stray_light(self.stray_mode, atmos.stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 		try:
 			atmos.compute_errors(H, chi2)
@@ -1327,6 +1289,10 @@ def normalize_hessian(H, atmos, mode):
 				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
 
 				start += N
+			if parameter=="stray":
+				atmos.parameter_scale[parameter] = scales[start]
+				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+				start += 1
 
 		# create the sparse matrix of scales for each parameter combination for every atmosphere
 		l, u = 0, 0
@@ -1354,6 +1320,9 @@ def normalize_hessian(H, atmos, mode):
 					continue
 
 			if parameter=="vmac":
+				N = 1
+
+			if parameter=="stray":
 				N = 1
 
 			for idl in range(N):

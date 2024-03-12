@@ -115,16 +115,16 @@ class Atmosphere(object):
 	#    contributions to have 1s on the Hessian diagonal (before
 	#    adding the Marquardt parameter).
 	parameter_norm = {"temp"  : 5000,			# [K]
-										"vz" 	  : 6,				# [km/s]
-										"vmic"  : 6,				# [km/s]
-										"mag"   : 1000,			# [G]
-										"gamma" : np.pi,		# [rad]
-										"chi"   : np.pi,		# [rad]
-										"of"    : 2,				#
-										"stray" : 0.1,
-										"vmac"  : 2,				# [km/s]
-										"dlam"  : 10,				# [mA]
-										"loggf" : -1.0}			#
+					  "vz" 	  : 6,				# [km/s]
+					  "vmic"  : 6,				# [km/s]
+					  "mag"   : 1000,			# [G]
+					  "gamma" : np.pi,			# [rad]
+					  "chi"   : np.pi,			# [rad]
+					  "of"    : 2,				#
+					  "stray" : 0.1,
+					  "vmac"  : 2,				# [km/s]
+					  "dlam"  : 10,				# [mA]
+					  "loggf" : -1.0}			#
 
 	#--- relative weighting for spatial regularization for each parameter
 	regularization_weight = {"temp"  : 1,
@@ -1819,9 +1819,26 @@ class Atmosphere(object):
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
 		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
-		spectra = Spectrum(self.nx, self.ny, nw, nz=self.nz)
+		spectra = Spectrum(nx=self.nx, ny=self.ny, nw=nw)
 		spectra.wavelength = self.wavelength_air
 		spectra.spec[indx,indy] = spectra_list[:,:,:4]
+
+		#--- add the stray light component:
+		if self.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if self.stray_type=="hsra":
+				sl_spectrum = self.hsra_spec.spec
+			if self.stray_type=="atmos":
+				sl_spectrum = self.stray_light_spectrum.spec
+
+			spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 		self.atomic_rfs = spectra_list[:,:,4:]
 
@@ -1953,7 +1970,9 @@ class Atmosphere(object):
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
-						node_RF = self.hsra_spec - spec.spec
+						diff = self.hsra_spec.spec - spec.spec
+					if self.stray_type=="atmos":
+						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						node_RF = -spec.spec
 				else:
@@ -2018,7 +2037,9 @@ class Atmosphere(object):
 
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
-						diff = self.hsra_spec - spec.spec
+						diff = self.hsra_spec.spec - spec.spec
+					if self.stray_type=="atmos":
+						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						diff = -spec.spec
 					diff *= weights
@@ -2070,21 +2091,6 @@ class Atmosphere(object):
 			# print(self.wavelength_obs)
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
-
-		#--- add the stray light component:
-		if self.add_stray_light:
-			# get the stray light factor(s)
-			if "stray" in self.global_pars:
-				stray_light = self.global_pars["stray"]
-			else:
-				stray_light = self.stray_light
-
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			hsra_spec = None
-			if self.stray_type=="hsra":
-				hsra_spec = self.hsra_spec.spec
-
-			spec.add_stray_light(self.stray_mode, stray_light, self.stray_type, hsra_spec=hsra_spec)
 
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
