@@ -652,7 +652,7 @@ class Observation(Spectrum):
 		self.header = hdu.header
 
 		xmin, xmax, ymin, ymax = obs_range
-		data = np.array(hdu.data[xmin:xmax,ymin:ymax], dtype=np.float64)
+		data = hdu.data[xmin:xmax,ymin:ymax]
 
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = data[0,0,:,0]
@@ -702,11 +702,7 @@ class Observation(Spectrum):
 		# plt.show()
 		
 		nx, ny, ns, nw = data.shape
-		self.spec = np.empty((nx, ny, nw, ns), dtype=np.float64)
-		self.spec[...,0] = data[...,0,:]
-		self.spec[...,1] = data[...,1,:]
-		self.spec[...,2] = data[...,2,:]
-		self.spec[...,3] = data[...,3,:]
+		self.spec = np.swapaxes(data, 2, 3)
 		self.spec /= self.Icont
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
