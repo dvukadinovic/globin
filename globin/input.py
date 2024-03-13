@@ -368,7 +368,7 @@ class InputData(object):
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
-			if self.stray_type not in ["gray", "hsra", "atmos"]:
+			if self.stray_type not in ["gray", "hsra", "atmos", "spec"]:
 				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray', 'hsra' or 'atmos'.")
 
 			# get the mode for stray light (synthesis/inversion)			
@@ -408,6 +408,10 @@ class InputData(object):
 				sl_atmosphere.wavelength_obs = self.atmosphere.wavelength_obs
 				sl_atmosphere.wavelength_vacuum = self.atmosphere.wavelength_vacuum
 				self.atmosphere.stray_light_spectrum = sl_atmosphere.compute_spectra()
+			if self.atmosphere.stray_type=="spec":
+				fpath = _find_value_by_key("stray_spectrum", self.parameters_input, "required")
+				self.atmosphere.stray_light_spectrum = globin.Observation(fpath, spec_type="hinode")
+				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, 1, fill_value="extrapolate")
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))

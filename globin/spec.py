@@ -514,17 +514,17 @@ class Spectrum(object):
 		return
 
 	@globin.utils.timeit
-	def interpolate(self, wave_out, n_thread):
+	def interpolate(self, wave_out, n_thread=1, fill_value="extrapolate"):
 		"""
 		Interpolate the spectrum on given 'wave_out' wavelength grid.
 		"""
-		if wave_out[0]<self.wavelength[0] or wave_out[-1]>self.wavelength[-1]:
-			raise ValueError("Interpolation is outside of the wavelength range.")
+		# if wave_out[0]<self.wavelength[0] or wave_out[-1]>self.wavelength[-1]:
+		# 	raise ValueError("Interpolation is outside of the wavelength range.")
 		
 		# spectra = np.zeros((self.nx, self.ny, len(wave_out), 4))
 		_spec = self.spec.reshape(self.nx*self.ny, self.nw, 4)
 
-		args = zip(_spec, [wave_out]*(self.nx*self.ny))
+		args = zip(_spec, [wave_out]*(self.nx*self.ny), [fill_value]*(self.nx*self.ny))
 
 		with mp.Pool(n_thread) as pool:
 			results = pool.map(func=self._interpolate, iterable=args)
@@ -535,12 +535,12 @@ class Spectrum(object):
 		self.spec = results.reshape(self.nx, self.ny, self.nw, 4)
 
 	def _interpolate(self, args):
-		spec_in, wave_out = args
+		spec_in, wave_out, fill_value = args
 
 		spec_out = np.zeros((len(wave_out), 4))
 
 		for ids in range(4):
-			spec_out[:,ids] = interp1d(self.wavelength, spec_in[:,ids], kind=3)(wave_out)
+			spec_out[:,ids] = interp1d(self.wavelength, spec_in[:,ids], kind=3, fill_value=fill_value)(wave_out)
 
 		return spec_out
 
@@ -633,6 +633,9 @@ class Observation(Spectrum):
 			print("    Supported only is .fits/.fit file format.")
 			sys.exit()
 
+		if ftype=="spec":
+			self.read_1d_spectrum(fpath)
+
 		if ftype=="fits" or ftype=="fit":
 			if spec_type=="globin":
 				self.read_fits(fpath, obs_range)
@@ -708,6 +711,18 @@ class Observation(Spectrum):
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
+
+	def read_1d_spectrum(self, fpath):
+		spectrum = np.loadtxt(fpath)
+		self.wavelength = spectrum[0]
+		self.nw = len(self.wavelength)
+		self.spec = np.zeros((1,1,self.nw,4))
+		self.spec[0,0] = spectrum[1:]
+		self.nx, self.ny = 1, 1
+		self.Ic = self.spec[0,0,0,0]
+		self.Icont = np.zeros((self.nx, self.ny))
+		self.Icont[:,:] = self.Ic
+		self.shape = (self.nx, self.ny, self.nw, 4)
 
 def _broaden_spectra(args):
 	spec, kernel = args

@@ -1823,23 +1823,6 @@ class Atmosphere(object):
 		spectra.wavelength = self.wavelength_air
 		spectra.spec[indx,indy] = spectra_list[:,:,:4]
 
-		#--- add the stray light component:
-		if self.add_stray_light:
-			# get the stray light factor(s)
-			if "stray" in self.global_pars:
-				stray_light = self.global_pars["stray"]
-			else:
-				stray_light = self.stray_light
-
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			sl_spectrum = None
-			if self.stray_type=="hsra":
-				sl_spectrum = self.hsra_spec.spec
-			if self.stray_type=="atmos":
-				sl_spectrum = self.stray_light_spectrum.spec
-
-			spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
-
 		self.atomic_rfs = spectra_list[:,:,4:]
 
 		if self.norm:
@@ -1852,6 +1835,23 @@ class Atmosphere(object):
 				spectra.spec /= Ic
 			else:
 				spectra.spec /= self.norm_level
+
+		#--- add the stray light component:
+		if self.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if self.stray_type=="hsra":
+				sl_spectrum = self.hsra_spec.spec
+			if self.stray_type in ["atmos", "spec"]:
+				sl_spectrum = self.stray_light_spectrum.spec
+
+			spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 		return spectra
 
@@ -1971,7 +1971,7 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
 						diff = self.hsra_spec.spec - spec.spec
-					if self.stray_type=="atmos":
+					if self.stray_type in ["atmos", "spec"]:
 						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						node_RF = -spec.spec
@@ -2038,7 +2038,7 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
 						diff = self.hsra_spec.spec - spec.spec
-					if self.stray_type=="atmos":
+					if self.stray_type in ["atmos", "spec"]:
 						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						diff = -spec.spec
