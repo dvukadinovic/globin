@@ -72,14 +72,14 @@ class Atmosphere(object):
 
 	#--- limit values for atmospheric parameters
 	limit_values = {"temp"  : MinMax(3000, 10000), 				# [K]
-									"vz"    : MinMax(-10, 10),						# [km/s]
-									"vmic"  : MinMax(1e-3, 10),						# [km/s]
-									"mag"   : MinMax(10, 10000),					# [G]
-									"gamma" : MinMax(-np.pi, 2*np.pi),		# [rad]
-									"chi"   : MinMax(-2*np.pi, 2*np.pi),	# [rad]
-									"of"    : [0, 20],										#
-									"stray" : [0, 1],											#
-									"vmac"  : [0, 5]}											# [km/s]
+					"vz"    : MinMax(-10, 10),					# [km/s]
+					"vmic"  : MinMax(1e-3, 10),					# [km/s]
+					"mag"   : MinMax(10, 10000),				# [G]
+					"gamma" : MinMax(-np.pi, 2*np.pi),			# [rad]
+					"chi"   : MinMax(-2*np.pi, 2*np.pi),		# [rad]
+					"of"    : [0, 20],							#
+					"stray" : MinMax(0, 1),						#
+					"vmac"  : [0, 5]}							# [km/s]
 
 	#--- temperature limits in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
 	Tmin = 2800
@@ -1576,7 +1576,7 @@ class Atmosphere(object):
 					self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
-			if parameter=="vmac" or parameter=="stray":
+			if parameter=="vmac":
 				# minimum check
 				if self.global_pars[parameter]<self.limit_values[parameter][0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][0]], dtype=np.float64)
@@ -1586,6 +1586,13 @@ class Atmosphere(object):
 				# get back values into the atmosphere structure
 				if parameter=="vmac":
 					self.vmac = self.global_pars["vmac"]
+			if parameter=="stray":
+				if self.global_pars[parameter]<self.limit_values[parameter].min[0]:
+					self.global_pars[parameter] = np.array([self.limit_values[parameter].min[0]], dtype=np.float64)
+				# maximum check
+				if self.global_pars[parameter]>self.limit_values[parameter].max[0]:
+					self.global_pars[parameter] = np.array([self.limit_values[parameter].max[0]], dtype=np.float64)
+				# get back values into the atmosphere structure
 				if parameter=="stray":
 					self.stray_light = self.global_pars["stray"]
 			else:
