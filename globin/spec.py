@@ -610,6 +610,26 @@ class Spectrum(object):
 		self.shape = self.spec.shape
 		self.nx, self.ny, _, _ = self.spec.shape
 
+	def mask(self, mask):
+		"""
+		Mask the Stokes spectrum at different wavelengths by multiplying them
+		with the mask.
+
+		Preferably, mask should be binary: 0 if not considered and 1 if
+		considered. The masked values are converted to np.nan values.
+
+		Parameters:
+		---------------
+		mask : numpy.ndarray 
+			array of shape (4, nw) containing values 0 and 1 for each Stokes
+			and each wavelength.
+		"""
+
+		for ids in range(4):
+			self.spec[...,ids] *= mask[ids]
+
+		self.spec[self.spec==0] = np.nan
+
 class Observation(Spectrum):
 	"""
 	Class object for storing observations.
