@@ -374,17 +374,10 @@ class PSE(object):
                         "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm"]
 
     def get_element_symbol(self, element_number):
-        symbols = []
-        for number in element_number:
-            symbols.append(self.symbols[int(number-1)])
-
-        return symbols
+        return self.symbols[int(element_number-1)]
 
     def get_element_number(self, element_symbol):
-        element_number = []
-        for symbol in element_symbol:
-            element_number = self.symbols.index(symbol)
-        return np.array(element_number, dtype=np.int32)
+        return self.symbols.index(symbol)+1
 
 if __name__=="__main__":
     lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}
