@@ -78,7 +78,7 @@ class Atmosphere(object):
 					"gamma" : MinMax(-np.pi, 2*np.pi),			# [rad]
 					"chi"   : MinMax(-2*np.pi, 2*np.pi),		# [rad]
 					"of"    : [0, 20],							#
-					"stray" : MinMax(0, 1),						#
+					"stray" : MinMax(1e-3, 0.99),				#
 					"vmac"  : [0, 5]}							# [km/s]
 
 	#--- temperature limits in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
@@ -1977,9 +1977,9 @@ class Atmosphere(object):
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
 					if self.stray_type=="hsra":
-						diff = self.hsra_spec.spec - spec.spec
+						node_RF = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
-						diff = self.stray_light_spectrum.spec - spec.spec
+						node_RF = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						node_RF = -spec.spec
 				else:
