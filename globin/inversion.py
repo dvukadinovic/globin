@@ -1202,6 +1202,9 @@ def normalize_hessian(H, atmos, mode):
 					atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
 
 				scales = 1/scales
+				if any(np.isnan(scales)):
+					print(f"zero scale: ({idx},{idy}) -- {scales:1.5e}")
+					raise ValueError("RF function is zero for a parameter...")
 				RHS_scales[idx,idy] = scales
 				H_scales[idx,idy] = np.outer(scales, scales)
 
