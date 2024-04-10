@@ -395,8 +395,8 @@ class InputData(object):
 				else:
 					raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
 
-				if self.stray_mode!=self.mode:
-					raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
+				# if self.stray_mode!=self.mode:
+				# 	raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
 
 			# allocate parameters to atmosphere
 			self.atmosphere.stray_mode = self.stray_mode
