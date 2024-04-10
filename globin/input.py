@@ -1412,7 +1412,7 @@ def read_OF_data(fpath):
 		of_wave = np.array(of_wave)
 		of_value = np.array(of_value)
 
-	of_wave = globin.rh.write_wavs(of_wave, fname=None)
+	of_wave = globin.utils.write_wavs(of_wave, fname=None)
 
 	return of_num, of_wave, of_value
 

@@ -1742,7 +1742,7 @@ class Atmosphere(object):
 		"""
 		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
 		hsra.wavelength_air = self.wavelength_air
-		hsra.wavelength_vacuum = globin.rh.air_to_vacuum(hsra.wavelength_air)
+		hsra.wavelength_vacuum = globin.utils.air_to_vacuum(hsra.wavelength_air)
 		hsra.cwd = self.cwd
 		hsra.mu = self.mu
 		# just to be sure that we are not normalizing...
@@ -2401,7 +2401,7 @@ class Atmosphere(object):
 			self.wavelength_air /= 10
 
 		self.wavelength_obs = self.wavelength_air
-		self.wavelength_vacuum = globin.rh.air_to_vacuum(self.wavelength_air)
+		self.wavelength_vacuum = globin.utils.air_to_vacuum(self.wavelength_air)
 
 	def add_magnetic_vector(self, B, gamma, chi):
 		"""
@@ -2610,7 +2610,7 @@ def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 	# 	# chi = 4*np.arctan(atm[7])
 	# 	chi = np.arccos(atm[7])
 
-	globin.rh.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
+	globin.utils.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)

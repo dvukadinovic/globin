@@ -446,6 +446,70 @@ def _slice_line(line, dtype=float, separator=" "):
     # return list of values
     return list(lista)
 
+def write_wavs(wavs, fname='wavegrid', transform=True, air2vacuum_limit=199.9352):
+    """
+    Procedure for storing the wavelength grid points. Optionaly it can
+    convert wavelenghts from vacuum to air.
+
+    Transforming wavelengths from air to vacuum. Rewriting air_to_vacuum
+    function from IDL (since for some reason for me it was not running).
+
+    Procedure save the wavelength grid in XDR format ready for input to
+    RH code.
+
+    Parameters:
+    ----------
+    wavs - numpy.ndarray of wavelenght grid [nm]
+    fname - name of the output file
+    transform - boolean flag for transformig wavelengths to air.
+    air2vacuum_limit - value from which to transform wavelenght
+        (default value is 199.9352 = 200nm in vacuum)
+
+    Return:
+    ------
+    XDR file with wavelength grid
+    """
+    if transform:
+        sigma_sq = (1.0e7/wavs)**2
+        fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
+
+        ind = np.argmin(abs(wavs-air2vacuum_limit))
+        fact[:ind] = 1
+
+        wavs = wavs*fact
+
+    nlam = len(wavs)
+    obj = xdrlib.Packer()
+    obj.pack_int(nlam)
+    obj.pack_farray(nlam, wavs.ravel().astype('d', order='C'), obj.pack_double)
+    
+    if fname is not None:
+        out = open(fname,"wb")
+        out.write(obj.get_buffer())
+        out.close()
+
+    return wavs
+
+def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
+    sigma_sq = (1.0e7/wavelength)**2
+    fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
+
+    ind = np.argmin(abs(wavelength-air2vacuum_limit))
+    fact[wavelength<air2vacuum_limit] = 1
+
+    aux = wavelength*fact
+
+    return aux
+
+def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
+    factor = np.ones_like(wavelength)
+    wave2 = 1/wavelength**2
+    factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2) * wave2
+
+    aux = wavelength/factor
+
+    return aux
+
 #--- routines for smoothing out the inversion parameters 
 #    (used for SPINOR; got it from Sebas)
 def sqr(x):
@@ -644,7 +708,6 @@ def get_first_larger_divisor(n, vmin):
         if n % i == 0:
             return i
     return n
-
 
 #--- function performance decorator
 
