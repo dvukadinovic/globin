@@ -29,9 +29,9 @@ description of it.
 
 ## ToDo
 
+* temperature initialization based on relative continuum intensity between pixels ?
 * add covolution with PSF profile
 * add weights for each Stokes that are pixel dependent ?
-* temperature initialization based on relative continuum intensity between pixels ?
 
 * make unit test
 * extend Atmosphere() to hold and AtomicLine() class (?)

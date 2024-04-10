@@ -233,7 +233,7 @@ def init_line_pars(lineNo, RLK_line_list_path, line_pars_path=None, min_max={"lo
                             lines[-1].loggf_max = 1
                         
                         # check if log(gf) is in min/max range
-                        lines[-1].loggf += np.random.normal(0, dpar/5)
+                        # lines[-1].loggf += np.random.normal(0, dpar/5)
                         if lines[-1].loggf > lines[-1].loggf_max:
                             lines[-1].loggf = lines[-1].loggf_max
                         if lines[-1].loggf < lines[-1].loggf_min:
