@@ -17,18 +17,16 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
                        "vmic"  : "Micro-turbulent velocity [km/s]",
                        "mag"   : "Magnetic field [G]",
                        "gamma" : r"Inclination [$^\circ$]",
-                       "chi"   : r"Azimuth [$^\circ$]"}
+                       "chi"   : r"Azimuth [$^\circ$]",
+                       "stray" : "stray light factor"}
 
     nrows = 0
     _parameters = []
     for parameter in parameters:
-        try:
-            n1 = len(atm1.nodes[parameter])
-            n2 = len(atm2.nodes[parameter])
-            nrows = max([nrows, n1, n2])
-            _parameters.append(parameter)
-        except:
-            print(f"Parameter {parameter} not found in inversion parameters.")
+        n1 = len(atm1.nodes[parameter])
+        n2 = len(atm2.nodes[parameter])
+        nrows = max([nrows, n1, n2])
+        _parameters.append(parameter)
     
     ncols = len(_parameters)
     width, height = 3, 2 + 2/3
@@ -112,19 +110,21 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15):
-    cmaps = {"temp" : "plasma", 
-             "vz" : "bwr_r", 
-             "vmic" : "plasma",
-             "mag" : "nipy_spectral", 
-             "gamma" : "nipy_spectral"}
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15, aspect=4/3, grid=False):
+    cmaps = {"temp"  : "plasma", 
+             "vz"    : "bwr_r", 
+             "vmic"  : "plasma",
+             "mag"   : "nipy_spectral", 
+             "gamma" : "nipy_spectral",
+             "stray" : "nipy_spectral"}
 
     parameter_relay = {"temp"  : "Temperature [K]",
                        "vz"    : "LOS velocity [km/s]",
                        "vmic"  : "Micro-turbulent velocity [km/s]",
                        "mag"   : "Magnetic field [G]",
                        "gamma" : r"Inclination [$^\circ$]",
-                       "chi"   : r"Azimuth [$^\circ$]"}
+                       "chi"   : r"Azimuth [$^\circ$]",
+                       "stray" : "stray light factor"}
 
     mpl.rcParams.update({"font.size" : fontsize})
 
@@ -136,17 +136,15 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     nrows = 0
     _parameters = []
     for parameter in parameters:
-        try:
-            n1 = len(atm1.nodes[parameter])
-            if atm2 is not None:
-                n2 = len(atm2.nodes[parameter])
-            nrows = max([nrows, n1, n2])
-            _parameters.append(parameter)
-        except:
-            pass
+        n1 = len(atm1.nodes[parameter])
+        if atm2 is not None:
+            n2 = len(atm2.nodes[parameter])
+        nrows = max([nrows, n1, n2])
+        _parameters.append(parameter)
 
     ncols = len(_parameters)
-    width, height = 3, 2 + 2/3
+    height = 3
+    width = height*aspect
     fig = plt.figure(figsize=(N*width*ncols, height*nrows))
     gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=0.5, hspace=0.1)
 
@@ -210,15 +208,19 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 #     ax2.set_xticklabels([])
                 # ax2.set_yticklabels([])
 
-                ax2.set_xticks([])
-                ax2.set_xticklabels([])
-                ax2.set_yticks([])
-                ax2.set_yticklabels([])
+                # ax2.set_xticks([])
+                # ax2.set_xticklabels([])
+                # ax2.set_yticks([])
+                # ax2.set_yticklabels([])
 
-            ax.set_xticks([])
-            ax.set_xticklabels([])
-            ax.set_yticks([])
-            ax.set_yticklabels([])
+            if grid:
+                ax.grid(which="major", axis="both", lw=0.75, color="gray")
+                ax2.grid(which="major", axis="both", lw=0.75, color="gray")
+
+            # ax.set_xticks([])
+            # ax.set_xticklabels([])
+            # ax.set_yticks([])
+            # ax.set_yticklabels([])
 
         # add parameter wise titles (spanning N columns)
         y0 = 0.91
