@@ -12,8 +12,7 @@ from scipy.signal import find_peaks
 from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
 from .spec import Observation
-from .rh import air_to_vacuum
-from .utils import _slice_line, construct_atmosphere_from_nodes
+from .utils import _slice_line, construct_atmosphere_from_nodes, air_to_vacuum
 
 import globin
 
