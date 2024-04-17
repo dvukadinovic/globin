@@ -1563,6 +1563,8 @@ class Chi2(object):
 			self.chi2 = np.zeros((nx, ny, niter), dtype=np.float64)
 			self.nx, self.ny, self.niter = nx, ny, niter
 
+		self.shape = self.chi2.shape
+
 		self.mode = -1
 		self.Nlocal_par = -1
 		self.Nglobal_par = -1
