@@ -1512,30 +1512,30 @@ def lnprior(local_pars, global_pars, limits):
 					vmax = limits[parameter].max[idn]
 				indx, indy = np.where(local_pars[parameter][...,idn]>vmax)
 				if len(indx)>0:
-					return np.inf
+					return -np.inf
 	
-	# for parameter in global_pars:
-	# 	if parameter=="vmac":
-	# 		if (global_pars[parameter]<limit_values[parameter][0]) or \
-	# 		   (global_pars[parameter]>limit_values[parameter][1]):
-	# 			return np.inf
-	# 	elif parameter=="stray":
-	# 		if (global_pars[parameter]<limit_values[parameter].min[0]) or \
-	# 		   (global_pars[parameter]>limit_values[parameter].max[0]):
-	# 			return np.inf
-	# 	else:
-	# 		Npar = global_pars[parameter].shape[-1]
-	# 		if Npar>0:
-	# 			for idl in range(Npar):
-	# 				# check lower boundary condition
-	# 				indx, indy = np.where(global_pars[parameter][...,idl]<limit_values[parameter][idl,0])
-	# 				if len(indx)>0:
-	# 					return np.inf
+	for parameter in global_pars:
+		if parameter=="vmac":
+			if (global_pars[parameter]<limits[parameter][0]) or \
+			   (global_pars[parameter]>limits[parameter][1]):
+				return -np.inf
+		elif parameter=="stray":
+			if (global_pars[parameter]<limits[parameter].min[0]) or \
+			   (global_pars[parameter]>limits[parameter].max[0]):
+				return -np.inf
+		else:
+			Npar = global_pars[parameter].shape[-1]
+			if Npar>0:
+				for idl in range(Npar):
+					# check lower boundary condition
+					indx, indy = np.where(global_pars[parameter][...,idl]<limits[parameter][idl,0])
+					if len(indx)>0:
+						return -np.inf
 
-	# 				# check upper boundary condition
-	# 				indx, indy = np.where(global_pars[parameter][...,idl]>limit_values[parameter][idl,1])
-	# 				if len(indx)>0:
-	# 					return np.inf					
+					# check upper boundary condition
+					indx, indy = np.where(global_pars[parameter][...,idl]>limits[parameter][idl,1])
+					if len(indx)>0:
+						return -np.inf					
 
 	return 0.0
 
