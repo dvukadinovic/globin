@@ -1448,10 +1448,8 @@ def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
 		obs.wavs_weight = inverter.wavs_weight
 	obs.noise_stokes = noise_stokes
 	obs.weights = inverter.weights
-
-	print(atmos.limit_values)
 	
-	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos, atmos.limit_values], moves=move, pool=pool)
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos], moves=move, pool=pool)
 	sampler.run_mcmc(p0, nsteps, progress=True)
 	try:
 		autocorr_time = sampler.get_autocorr_time(has_walkers=False)
@@ -1564,18 +1562,12 @@ def lnlike(obs, atmos):
 
 	return chi2 * (-0.5)
 
-def log_prob(theta, obs, atmos, limits):
+def log_prob(theta, obs, atmos):
 	"""
 	Compute product of prior and likelihood.
 
 	We need what is needed for prior and likelihood
 	"""
-	print(atmos.limit_values)
-
-	print(limits)
-
-	asds
-
 	Natmos = atmos.nx*atmos.ny
 
 	#--- update parameters
