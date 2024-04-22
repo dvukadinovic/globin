@@ -363,7 +363,7 @@ class InputData(object):
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
 		#--- check the status of stray light factor and if to be inverted; add it to atmosphere
-		if (np.abs(stray_factor)!=0) and ("stray" not in self.atmosphere.global_pars):
+		if np.abs(stray_factor)!=0:
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
@@ -374,28 +374,32 @@ class InputData(object):
 			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
 
 			self.atmosphere.add_stray_light = True
-			ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-			self.atmosphere.stray_light = ones * np.abs(stray_factor)
 			
-			if stray_factor<0:
-				self.atmosphere.invert_stray = True
-				if self.stray_mode==1 or self.stray_mode==2:
-					# we are inverting for stray light factor (pixel-by-pixel mode)
-					self.atmosphere.n_local_pars += 1
-					self.atmosphere.nodes["stray"] = np.array([0])
-					self.atmosphere.values["stray"] = self.atmosphere.stray_light
-					self.atmosphere.parameter_scale["stray"] = ones
-					self.atmosphere.mask["stray"] = np.ones(1)
-				elif self.stray_mode==3:
-					# stray light inversion in global mode
-					self.atmosphere.n_global_pars += 1
-					self.atmosphere.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
-					self.atmosphere.parameter_scale["stray"] = 1.0
-				else:
-					raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
+			if "stray" in self.atmosphere.global_pars:
+				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+				self.atmosphere.stray_light = ones * np.abs(self.atmosphere.global_pars["stray"][0])
+			else:
+				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+				self.atmosphere.stray_light = ones * np.abs(stray_factor)
+				if stray_factor<0:
+					self.atmosphere.invert_stray = True
+					if self.stray_mode==1 or self.stray_mode==2:
+						# we are inverting for stray light factor (pixel-by-pixel mode)
+						self.atmosphere.n_local_pars += 1
+						self.atmosphere.nodes["stray"] = np.array([0])
+						self.atmosphere.values["stray"] = self.atmosphere.stray_light
+						self.atmosphere.parameter_scale["stray"] = ones
+						self.atmosphere.mask["stray"] = np.ones(1)
+					elif self.stray_mode==3:
+						# stray light inversion in global mode
+						self.atmosphere.n_global_pars += 1
+						self.atmosphere.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
+						self.atmosphere.parameter_scale["stray"] = 1.0
+					else:
+						raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
 
-				# if self.stray_mode!=self.mode:
-				# 	raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
+					# if self.stray_mode!=self.mode:
+					# 	raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
 
 			# allocate parameters to atmosphere
 			self.atmosphere.stray_mode = self.stray_mode
