@@ -543,19 +543,28 @@ class Atmosphere(object):
 		self.logtau_bot = self.logtau[-1]
 		self.logtau_step = self.logtau[1] - self.logtau[0]
 		self.header = hdu_list[0].header
+		
+		if self.npar!=14:
+			raise ValueError(f"MULTI atmosphere is not compatible with globin. It has {self.npar} parameters instead of 14.")
 
 		try:
-			self.vmac = self.header["VMAC"]
+			self.vmac = float(self.header["VMAC"])
 		except:
 			pass
 
 		try:
+			self.stray_type = self.header["SL_TYPE"]
+			self.stray_mode = int(self.header["SL_MODE"])
+		except:
+			pass
+
+		if self.stray_mode==3:
+			self.global_pars["stray"] = np.asarray([self.header["STRAY"]])
+		
+		try:
 			self.scale_id = globin.scale_id[self.header["SCALE"].lower()]
 		except:
 			self.scale_id = globin.scale_id["tau"]
-
-		if self.npar!=14:
-			raise ValueError(f"MULTI atmosphere is not compatible with globin. It has {self.npar} parameters instead of 14.")
 
 		self.pg = np.empty((self.nx, self.ny, self.nz))
 		self.rho = np.empty((self.nx, self.ny, self.nz))
@@ -565,7 +574,7 @@ class Atmosphere(object):
 		except:
 			pass
 
-		# check for the parameters from inversion for each parameter
+		#--- check for the local parameters from inversion
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
 			# if parameter=="stray":
 			# 	stray = hdu_list[0].header
@@ -585,6 +594,14 @@ class Atmosphere(object):
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
 			except:
 				pass
+
+		#--- get the number of local parameters
+		self.n_local_pars = 0
+		for parameter in self.nodes:
+			nnodes = len(self.nodes[parameter])
+			self.n_local_pars += nnodes
+
+		self.n_global_pars = 0
 
 		#--- check for the spatial regularization weighting
 		try:
@@ -1669,7 +1686,7 @@ class Atmosphere(object):
 		Computing parameters error. Based on equations from Iniesta (2003) which
 		are originally presented in Sanchez Almeida J. (1997), A&A.
 		"""
-		chi2, _ = chi2.get_final_chi2()
+		# chi2, _ = chi2.get_final_chi2()
 		
 		if self.mode==1 or self.mode==2:
 			pass
