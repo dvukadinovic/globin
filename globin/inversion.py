@@ -10,6 +10,8 @@ import multiprocessing as mp
 import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
 from scipy.interpolate import splrep, splev
+import emcee
+import corner
 
 from tqdm import tqdm, trange
 
@@ -912,7 +914,6 @@ class Inverter(InputData):
 			if break_flag:
 				break
 
-		
 		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
 			atmos.loggf_history = loggf_history
 
@@ -1136,13 +1137,13 @@ def _chi2_convergence(args):
 	"""
 	chi2, flag, itter, updated_pars, max_iter, chi2_tolerance = args
 
-	# we do not check chi2 until the iteration=3
-	if itter<2 and flag!=0:
-		return 1, itter, updated_pars
-	
 	# if we have already converged or max_iter reached
 	if flag==0 or itter==max_iter:
 		return 0, max_iter, 0
+	
+	# we do not check chi2 until the iteration=3
+	if itter<2 and flag!=0:
+		return 1, itter, updated_pars
 
 	# if chi2 is lower than 1
 	if chi2[itter-1]<1:
@@ -1360,57 +1361,189 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-def invert_mcmc(init, save_output, verbose):
-	obs = init.obs
-	atmos = init.atm
+def invert_mcmc(inverter, nsteps=100):
+	RNG = np.random.default_rng()
+	scales = {"temp"  : 50,			# [K]
+			  "vz"    : 0.05,		# [km/s]
+			  "vmic"  : 0.05,		# [km/s]
+			  "mag"   : 50,			# [G]
+			  "gamma" : np.pi/45,	# [rad]
+			  "chi"   : np.pi/45,	# [rad]
+			  "of"    : 0.02,		# 
+			  "stray" : 0.02,		#
+			  "vmac"  : 0.05,		# [km/s]
+			  "loggf" : 0.01,		#
+			  "dlam"  : 1}			#
 
-	atmos.build_from_nodes()
-	spec = atmos.compute_spectra()
+	obs = inverter.observation
+	atmos = inverter.atmosphere
 
-	diff = obs.spec - spec.spec
-	chi2 = np.sum(diff**2 / noise_stokes**2 * init.wavs_weight**2, axis=(2,3)) / dof
+	# atmos.wavelength_air = obs.wavelength
+	# atmos.wavelength_obs = obs.wavelength
+	# atmos.wavelength_vacuum = globin.utils.air_to_vacuum(obs.wavelength)
 
-	def log_prob(x, ivar):
-	    return -0.5 * np.sum(ivar * x ** 2)
+	if atmos.add_stray_light or atmos.norm_level=="hsra":
+		print("[Info] Computing the HSRA spectrum...\n")
+		atmos.get_hsra_cont()
 
-	ndim, nwalkers = 5, 100
-	ivar = 1. / np.random.rand(ndim)
-	p0 = np.random.randn(nwalkers, ndim)
+	Natmos = atmos.nx*atmos.ny
+	obs.Ndof = 4*obs.nw*Natmos - 1
 
-	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[ivar])
-	sampler.run_mcmc(p0, 10000)
+	ndim = Natmos*atmos.n_local_pars + atmos.n_global_pars
+	nwalkers = 2*ndim
+	
+	#--- get parameter vector
+	p0 = np.empty((nwalkers, ndim))
+	
+	# get local parameters
+	up = 0
+	for parameter in atmos.nodes:
+		nnodes = len(atmos.nodes[parameter])
+		low = up
+		up += Natmos*nnodes
+		p0[:, low:up] = RNG.normal(
+				loc=atmos.values[parameter].ravel(order="C"), 
+				scale=scales[parameter], 
+				size=(nwalkers,nnodes*Natmos))
 
-	return atmos, spec
+	# get global parameters
+	for parameter in atmos.global_pars:
+		npars = atmos.global_pars[parameter].shape[-1]
+		if npars>0:
+			low = up
+			up += npars
+			p0[:, low:up] = RNG.normal(
+								loc=atmos.global_pars[parameter].ravel(),
+								scale=scales[parameter],
+								size=(nwalkers,npars))
 
-def lnprior(pars):
+	#--- create moves
+	move = emcee.moves.StretchMove()
+	# cov = [scales["temp"]]*4
+	# move = emcee.moves.GaussianMove(cov, mode="vector")
+
+	noise = 1e-3
+	noise_stokes = np.ones((obs.nx, obs.ny, obs.nw, 4))
+	StokesI_cont = np.quantile(obs.I, 0.9, axis=2)
+	noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+	if inverter.wavs_weight is not None:
+		obs.wavs_weight = inverter.wavs_weight
+	obs.noise_stokes = noise_stokes
+	obs.weights = inverter.weights
+	
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos], moves=move)
+	sampler.run_mcmc(p0, nsteps, progress=True)
+
+	print(sampler.acceptance_fraction)
+	print(np.mean(sampler.acceptance_fraction))
+
+	chains = sampler.get_chain(discard=0, flat=True)
+	print(chains.shape)
+
+	np.save(f"runs/{inverter.run_name}/mcmc_chains.npy", chains, allow_pickle=False)
+
+	# chains = np.load("mcmc_chains.npy")
+
+	# burn = int(0.3*nwalkers*nsteps)
+	# print(np.mean(chains[burn:], axis=0), np.std(chains[burn:], axis=0))
+
+	# corner.corner(chains)
+	# plt.show()
+
+	# plt.hist(chains[:,0].ravel()[burn:], bins=15, histtype="step")
+	# plt.show()
+
+def lnprior(local_pars, global_pars, limits):
 	"""
 	Check if each parameter is in its respective bounds given by globin.limit_values.
 
 	If one fails, return -np.inf, else return 0.
 	"""
-	blos = theta
-	if abs(blos) < 3000:
-		return 0.0
-	return -np.inf
+	
+	#--- inclination is wrapped around [0, 180] interval
+	if "gamma" in local_pars:
+		y = np.cos(local_pars["gamma"])
+		local_pars["gamma"] = np.arccos(y)
+	
+	#--- azimuth is wrapped around [-90, 90] interval
+	if "chi" in local_pars:
+		y = np.sin(local_pars["chi"])
+		local_pars["chi"] = np.arcsin(y)
+	
+	for parameter in local_pars:
+		if parameter not in ["gamma", "chi"]:
+			nnodes = local_pars[parameter].shape[-1]
+			for idn in range(nnodes):
+				#--- check lower boundary condition
+				vmin = limits[parameter].min[0]
+				if limits[parameter].vmin_dim!=1:
+					vmin = limits[parameter].min[idn]
+				indx, indy = np.where(local_pars[parameter][...,idn]<vmin)
+				if len(indx)>0:
+					return -np.inf
 
-def lnlike(theta, x, y, yp, yerr):
-	"""
-	Compute chi2.
+				#--- check upper boundary condition
+				vmax = limits[parameter].max[0]
+				if limits[parameter].vmax_dim!=1:
+					vmax = limits[parameter].max[idn]
+				indx, indy = np.where(local_pars[parameter][...,idn]>vmax)
+				if len(indx)>0:
+					return np.inf
+	
+	for parameter in global_pars:
+		pass
 
-	We need:
-	  -- observations
-	  -- noise
-	  -- parameters to compute spectra
-	"""
-	return -0.5 * np.sum( (y-fn(theta, x, yp))**2 / yerr**2)
+	return 0.0
 
-def log_prob(theta, x, y, yp, yerr):
+def lnlike(obs, atmos):
+	atmos.build_from_nodes()
+	spec = atmos.compute_spectra()
+
+	# #--- downsample the synthetic spectrum to observed wavelength grid
+	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
+
+	# plt.plot(obs.I[0,0])
+	# plt.plot(spec.I[0,0])
+	# plt.show()
+
+	diff = obs.spec - spec.spec
+	diff *= obs.weights
+	diff *= obs.wavs_weight
+	diff /= obs.noise_stokes
+	chi2 = np.sum(diff**2)
+	chi2 /= obs.Ndof
+
+	return chi2 * (-0.5)
+
+def log_prob(theta, obs, atmos):
 	"""
 	Compute product of prior and likelihood.
 
 	We need what is needed for prior and likelihood
 	"""
-	lp = lnprior(theta)
+
+	Natmos = atmos.nx*atmos.ny
+
+	#--- update parameters
+	up = 0
+	for parameter in atmos.nodes:
+		nnodes = len(atmos.nodes[parameter])
+		low = up
+		up += Natmos*nnodes
+		atmos.values[parameter][:,:,:] = theta[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
+
+	for parameter in atmos.global_pars:
+		npars = atmos.global_pars[parameter].shape[-1]
+		if npars>0:
+			low = up
+			up += npars
+			if parameter in ["loggf", "dlam"]:
+				atmos.global_pars[parameter][0,0] = theta[low:up]
+			if parameter=="stray":
+				atmos.global_pars[parameter] = theta[low:up]
+
+	lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values)
 	if not np.isfinite(lp):
 		return -np.inf
-	return lp + lnlike(theta, x, y, yp, yerr)
+	return lp + lnlike(obs, atmos)
