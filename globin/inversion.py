@@ -1361,7 +1361,7 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
+def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True):
 	RNG = np.random.default_rng()
 	scales = {"temp"  : 50,			# [K]
 			  "vz"    : 0.05,		# [km/s]
@@ -1403,7 +1403,8 @@ def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
 	ndim = Natmos*atmos.n_local_pars
 	if not atmos.skip_global_pars:
 		ndim += atmos.n_global_pars
-	nwalkers = 2*ndim
+	if nwalkers<2*ndim:
+		raise ValueError("Number of walkers is less than 2*number_of_parameters. StretchMove() will throw an error.")
 	
 	#--- get parameter vector
 	p0 = np.empty((nwalkers, ndim))
