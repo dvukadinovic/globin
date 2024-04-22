@@ -1361,7 +1361,7 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-def invert_mcmc(inverter, nsteps=100):
+def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
 	RNG = np.random.default_rng()
 	scales = {"temp"  : 50,			# [K]
 			  "vz"    : 0.05,		# [km/s]
@@ -1375,8 +1375,15 @@ def invert_mcmc(inverter, nsteps=100):
 			  "loggf" : 0.01,		#
 			  "dlam"  : 1}			#
 
+	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
+
+	inverter = Inverter(verbose=False)
+	inverter.read_input(run_name=run_name)
+
 	obs = inverter.observation
 	atmos = inverter.atmosphere
+
+	atmos.skip_global_pars = skip_global_pars
 
 	# atmos.wavelength_air = obs.wavelength
 	# atmos.wavelength_obs = obs.wavelength
@@ -1389,12 +1396,14 @@ def invert_mcmc(inverter, nsteps=100):
 	Natmos = atmos.nx*atmos.ny
 	obs.Ndof = 4*obs.nw*Natmos - 1
 
-	ndim = Natmos*atmos.n_local_pars + atmos.n_global_pars
+	ndim = Natmos*atmos.n_local_pars
+	if not atmos.skip_global_pars:
+		ndim += atmos.n_global_pars
 	nwalkers = 2*ndim
 	
 	#--- get parameter vector
 	p0 = np.empty((nwalkers, ndim))
-	
+
 	# get local parameters
 	up = 0
 	for parameter in atmos.nodes:
@@ -1409,7 +1418,7 @@ def invert_mcmc(inverter, nsteps=100):
 	# get global parameters
 	for parameter in atmos.global_pars:
 		npars = atmos.global_pars[parameter].shape[-1]
-		if npars>0:
+		if npars>0 and not atmos.skip_global_pars:
 			low = up
 			up += npars
 			p0[:, low:up] = RNG.normal(
@@ -1417,10 +1426,19 @@ def invert_mcmc(inverter, nsteps=100):
 								scale=scales[parameter],
 								size=(nwalkers,npars))
 
-	#--- create moves
+	#--- create the move
 	move = emcee.moves.StretchMove()
 	# cov = [scales["temp"]]*4
 	# move = emcee.moves.GaussianMove(cov, mode="vector")
+
+	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
+	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
+	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
+	print("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
+	if not atmos.skip_global_pars:
+		print("N_global_pars {:{char}{align}{width}}".format(f" {atmos.n_global_pars}", char=".", align=">", width=20))
+	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
+	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 
 	noise = 1e-3
 	noise_stokes = np.ones((obs.nx, obs.ny, obs.nw, 4))
@@ -1430,36 +1448,44 @@ def invert_mcmc(inverter, nsteps=100):
 		obs.wavs_weight = inverter.wavs_weight
 	obs.noise_stokes = noise_stokes
 	obs.weights = inverter.weights
-	
-	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos], moves=move)
-	sampler.run_mcmc(p0, nsteps, progress=True)
 
-	print(sampler.acceptance_fraction)
-	print(np.mean(sampler.acceptance_fraction))
+	print(atmos.limit_values)
+	
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos, atmos.limit_values], moves=move, pool=pool)
+	sampler.run_mcmc(p0, nsteps, progress=True)
+	try:
+		autocorr_time = sampler.get_autocorr_time(has_walkers=False)
+	except:
+		autocorr_time = None
+
+	print()
+	print("Acceptance fractions:\n", sampler.acceptance_fraction)
+	print(f"<acceptance fraction>: {np.mean(sampler.acceptance_fraction):.3f}")
+	print("Autocorrelation time:\n", autocorr_time)
 
 	chains = sampler.get_chain(discard=0, flat=True)
-	print(chains.shape)
+	log_probabilities = sampler.get_log_prob()
 
-	np.save(f"runs/{inverter.run_name}/mcmc_chains.npy", chains, allow_pickle=False)
+	save_mcmc_results(chains=chains,
+					  acceptance_fraction=np.mean(sampler.acceptance_fraction),
+					  log_probabilities=log_probabilities,
+					  fpath=f"runs/{run_name}/mcmc_results.fits",
+					  nsteps=nsteps,
+					  nwalkers=nwalkers,
+					  move="StretchMove")
+	
+	spec = atmos.compute_spectra()
+	spec.save(f"runs/{run_name}/inverted_spec_mcmc.fits")
 
-	# chains = np.load("mcmc_chains.npy")
-
-	# burn = int(0.3*nwalkers*nsteps)
-	# print(np.mean(chains[burn:], axis=0), np.std(chains[burn:], axis=0))
-
-	# corner.corner(chains)
-	# plt.show()
-
-	# plt.hist(chains[:,0].ravel()[burn:], bins=15, histtype="step")
-	# plt.show()
+	atmos.save_atmosphere(f"runs/{run_name}/inverted_atmos_mcmc.fits")
+	atmos.save_atomic_parameters(f"runs/{run_name}/inverted_atoms_mcmc.fits")
 
 def lnprior(local_pars, global_pars, limits):
 	"""
 	Check if each parameter is in its respective bounds given by globin.limit_values.
 
 	If one fails, return -np.inf, else return 0.
-	"""
-	
+	"""	
 	#--- inclination is wrapped around [0, 180] interval
 	if "gamma" in local_pars:
 		y = np.cos(local_pars["gamma"])
@@ -1490,8 +1516,28 @@ def lnprior(local_pars, global_pars, limits):
 				if len(indx)>0:
 					return np.inf
 	
-	for parameter in global_pars:
-		pass
+	# for parameter in global_pars:
+	# 	if parameter=="vmac":
+	# 		if (global_pars[parameter]<limit_values[parameter][0]) or \
+	# 		   (global_pars[parameter]>limit_values[parameter][1]):
+	# 			return np.inf
+	# 	elif parameter=="stray":
+	# 		if (global_pars[parameter]<limit_values[parameter].min[0]) or \
+	# 		   (global_pars[parameter]>limit_values[parameter].max[0]):
+	# 			return np.inf
+	# 	else:
+	# 		Npar = global_pars[parameter].shape[-1]
+	# 		if Npar>0:
+	# 			for idl in range(Npar):
+	# 				# check lower boundary condition
+	# 				indx, indy = np.where(global_pars[parameter][...,idl]<limit_values[parameter][idl,0])
+	# 				if len(indx)>0:
+	# 					return np.inf
+
+	# 				# check upper boundary condition
+	# 				indx, indy = np.where(global_pars[parameter][...,idl]>limit_values[parameter][idl,1])
+	# 				if len(indx)>0:
+	# 					return np.inf					
 
 	return 0.0
 
@@ -1499,7 +1545,9 @@ def lnlike(obs, atmos):
 	atmos.build_from_nodes()
 	spec = atmos.compute_spectra()
 
-	# #--- downsample the synthetic spectrum to observed wavelength grid
+	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
+
+	#--- downsample the synthetic spectrum to observed wavelength grid
 	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
 
@@ -1516,12 +1564,17 @@ def lnlike(obs, atmos):
 
 	return chi2 * (-0.5)
 
-def log_prob(theta, obs, atmos):
+def log_prob(theta, obs, atmos, limits):
 	"""
 	Compute product of prior and likelihood.
 
 	We need what is needed for prior and likelihood
 	"""
+	print(atmos.limit_values)
+
+	print(limits)
+
+	asds
 
 	Natmos = atmos.nx*atmos.ny
 
@@ -1535,7 +1588,7 @@ def log_prob(theta, obs, atmos):
 
 	for parameter in atmos.global_pars:
 		npars = atmos.global_pars[parameter].shape[-1]
-		if npars>0:
+		if npars>0 and not atmos.skip_global_pars:
 			low = up
 			up += npars
 			if parameter in ["loggf", "dlam"]:
@@ -1546,4 +1599,50 @@ def log_prob(theta, obs, atmos):
 	lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values)
 	if not np.isfinite(lp):
 		return -np.inf
+	
+	# get back values into the atmosphere structure
+	if "vmac" in atmos.global_pars:
+		atmos.vmac = atmos.global_pars["vmac"][0]
+	if "stray" in atmos.global_pars:
+		atmos.stray_light = atmos.global_pars["stray"]
+
 	return lp + lnlike(obs, atmos)
+
+def save_mcmc_results(chains, acceptance_fraction, log_probabilities, fpath="mcmc_results.fits", **kwargs):
+	primary = fits.PrimaryHDU(chains)
+	primary.name = "chains"
+	total_n_steps, ndim = chains.shape
+	primary.header["NAXIS1"] = (ndim, "number of free parameters")
+	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
+	primary.header["MEAN_AF"] = (acceptance_fraction, "average acceptance fraction over all walkers")
+	
+	for key, value in kwargs.items():
+		primary.header[key.upper()] = value
+
+	hdulist = fits.HDUList([primary])
+
+	hdu = fits.ImageHDU(log_probabilities)
+	hdu.name = "probabilities"
+	primary.header["NAXIS1"] = (ndim, "number of free parameters")
+	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
+	hdulist.append(hdu)
+	
+	hdulist.writeto(fpath, overwrite=True)
+
+class Chains(object):
+	def __init__(self, fpath):
+		self.read(fpath)
+
+	def read(self, fpath):
+		hdu = fits.open(fpath)
+
+		self.chains = hdu[0].data
+		self.shape = self.chains.shape
+		self.nwalkers = hdu[0].header["NWALKERS"]
+		self.nsteps = hdu[0].header["NSTEPS"]
+		self.move = hdu[0].header["MOVE"]
+		self.ntotal_samples = self.shape[0]
+
+	def burn_chains(self, burn):
+		idi = int(burn*self.ntotal_samples)
+		return self.chains[idi:]
