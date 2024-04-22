@@ -1485,34 +1485,34 @@ def lnprior(local_pars, global_pars, limits):
 	If one fails, return -np.inf, else return 0.
 	"""	
 	#--- inclination is wrapped around [0, 180] interval
-	if "gamma" in local_pars:
-		y = np.cos(local_pars["gamma"])
-		local_pars["gamma"] = np.arccos(y)
+	# if "gamma" in local_pars:
+	# 	y = np.cos(local_pars["gamma"])
+	# 	local_pars["gamma"] = np.arccos(y)
 	
-	#--- azimuth is wrapped around [-90, 90] interval
-	if "chi" in local_pars:
-		y = np.sin(local_pars["chi"])
-		local_pars["chi"] = np.arcsin(y)
+	# #--- azimuth is wrapped around [-90, 90] interval
+	# if "chi" in local_pars:
+	# 	y = np.sin(local_pars["chi"])
+	# 	local_pars["chi"] = np.arcsin(y)
 	
 	for parameter in local_pars:
-		if parameter not in ["gamma", "chi"]:
-			nnodes = local_pars[parameter].shape[-1]
-			for idn in range(nnodes):
-				#--- check lower boundary condition
-				vmin = limits[parameter].min[0]
-				if limits[parameter].vmin_dim!=1:
-					vmin = limits[parameter].min[idn]
-				indx, indy = np.where(local_pars[parameter][...,idn]<vmin)
-				if len(indx)>0:
-					return -np.inf
+		# if parameter not in ["gamma", "chi"]:
+		nnodes = local_pars[parameter].shape[-1]
+		for idn in range(nnodes):
+			#--- check lower boundary condition
+			vmin = limits[parameter].min[0]
+			if limits[parameter].vmin_dim!=1:
+				vmin = limits[parameter].min[idn]
+			indx, indy = np.where(local_pars[parameter][...,idn]<vmin)
+			if len(indx)>0:
+				return -np.inf
 
-				#--- check upper boundary condition
-				vmax = limits[parameter].max[0]
-				if limits[parameter].vmax_dim!=1:
-					vmax = limits[parameter].max[idn]
-				indx, indy = np.where(local_pars[parameter][...,idn]>vmax)
-				if len(indx)>0:
-					return -np.inf
+			#--- check upper boundary condition
+			vmax = limits[parameter].max[0]
+			if limits[parameter].vmax_dim!=1:
+				vmax = limits[parameter].max[idn]
+			indx, indy = np.where(local_pars[parameter][...,idn]>vmax)
+			if len(indx)>0:
+				return -np.inf
 	
 	for parameter in global_pars:
 		if parameter=="vmac":
