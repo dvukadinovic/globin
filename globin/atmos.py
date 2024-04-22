@@ -291,7 +291,7 @@ class Atmosphere(object):
 				self.idx_meshgrid = self.idx_meshgrid.flatten()
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
 
-		#--- limit values for atmospheric parameters
+		#--- limit values for local and global parameters
 		self.limit_values = {"temp"  : MinMax(3000, 10000), 	# [K]
 							 "vz"    : MinMax(-10, 10),							# [km/s]
 							 "vmic"  : MinMax(1e-3, 10),							# [km/s]
@@ -957,7 +957,7 @@ class Atmosphere(object):
 					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
 				# check if extrapolation at the top atmosphere point goes below the minimum
-				# if does, change the slopte so that at top point we have Tmin (globin.limit_values["temp"][0])
+				# if does, change the slope so that at top point we have Tmin (globin.limit_values["temp"][0])
 				if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 				# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
