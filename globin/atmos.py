@@ -70,19 +70,6 @@ class Atmosphere(object):
 					  "chi"    : 7,
 					  "nH"     : 8}
 
-	#--- limit values for atmospheric parameters
-	limit_values = {"temp"  : MinMax(3000, 10000), 	# [K]
-					"vz"    : MinMax(-10, 10),							# [km/s]
-					"vmic"  : MinMax(1e-3, 10),							# [km/s]
-					"mag"   : MinMax(10, 10000),						# [G]
-					"gamma" : MinMax(-np.pi, 2*np.pi),			# [rad]
-					"chi"   : MinMax(-2*np.pi, 2*np.pi),		# [rad]
-					"of"    : [0, 20],											#
-					"stray" : MinMax(1e-3, 0.99),						#
-					"vmac"  : [0, 5],												# [km/s]
-					"loggf" : [-10,2],											#
-					"dlam"  : [-50,50]}											# [mA]
-
 	#--- temperature limits in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
 	Tmin = 2800
 	Tmax = 10000
@@ -303,6 +290,19 @@ class Atmosphere(object):
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 				self.idx_meshgrid = self.idx_meshgrid.flatten()
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
+
+		#--- limit values for atmospheric parameters
+		self.limit_values = {"temp"  : MinMax(3000, 10000), 	# [K]
+							 "vz"    : MinMax(-10, 10),							# [km/s]
+							 "vmic"  : MinMax(1e-3, 10),							# [km/s]
+							 "mag"   : MinMax(10, 10000),						# [G]
+							 "gamma" : MinMax(-np.pi, 2*np.pi),			# [rad]
+							 "chi"   : MinMax(-2*np.pi, 2*np.pi),		# [rad]
+							 "of"    : [0, 20],											#
+							 "stray" : MinMax(1e-3, 0.99),						#
+							 "vmac"  : [0, 5],												# [km/s]
+							 "loggf" : [-10,2],											#
+							 "dlam"  : [-50,50]}											# [mA]
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
