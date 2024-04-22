@@ -569,6 +569,7 @@ class InputData(object):
 		logtau = np.arange(logtau_top, logtau_bot + logtau_step, logtau_step)
 		logtau = np.round(logtau, decimals=2)
 		self.atmosphere.interpolate_atmosphere(logtau, self.reference_atmosphere.data)
+		self.atmosphere.shape = self.atmosphere.data.shape
 
 		# wavelength dependent weights that are generally defined by the RF's.
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
