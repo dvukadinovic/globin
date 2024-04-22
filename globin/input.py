@@ -363,7 +363,7 @@ class InputData(object):
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
 		#--- check the status of stray light factor and if to be inverted; add it to atmosphere
-		if np.abs(stray_factor)!=0:
+		if (np.abs(stray_factor)!=0) and ("stray" not in self.atmosphere.global_pars):
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
@@ -607,7 +607,7 @@ class InputData(object):
 		if fpath is not None:
 			# read node parameters from .fits file that is inverted atmosphere
 			# from older inversion run
-			self.atmosphere.read_multi_cube(fpath)
+			self.atmosphere.read_multi_cube(fpath, atm_range=atm_range)
 
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
 				print("--> Error in input.read_inverted_atmosphere()")
