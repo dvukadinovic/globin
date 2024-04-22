@@ -1382,7 +1382,7 @@ def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
 
 	obs = inverter.observation
 	atmos = inverter.atmosphere
-
+	
 	atmos.skip_global_pars = skip_global_pars
 
 	# atmos.wavelength_air = obs.wavelength
@@ -1395,6 +1395,10 @@ def invert_mcmc(run_name, nsteps=100, pool=None, skip_global_pars=True):
 
 	Natmos = atmos.nx*atmos.ny
 	obs.Ndof = 4*obs.nw*Natmos - 1
+
+	atmos.n_local_pars = 0
+	for parameter in atmos.nodes:
+		atmos.n_local_pars += len(atmos.nodes[parameter])
 
 	ndim = Natmos*atmos.n_local_pars
 	if not atmos.skip_global_pars:
@@ -1548,10 +1552,6 @@ def lnlike(obs, atmos):
 	#--- downsample the synthetic spectrum to observed wavelength grid
 	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
-
-	# plt.plot(obs.I[0,0])
-	# plt.plot(spec.I[0,0])
-	# plt.show()
 
 	diff = obs.spec - spec.spec
 	diff *= obs.weights
