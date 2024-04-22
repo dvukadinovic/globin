@@ -301,7 +301,7 @@ class Spectrum(object):
 		# (no need to do it in every pixel during inversion if
 		# we have not updated parameters)
 		if flag is None:
-			flag = np.ones((self.nx, self.ny))
+			flag = np.ones((self.nx, self.ny), dtype=np.int32)
 		indx, indy = np.where(flag==1)
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
