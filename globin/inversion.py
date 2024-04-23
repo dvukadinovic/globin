@@ -11,7 +11,6 @@ import scipy.sparse as sp
 from scipy.sparse.linalg import spsolve
 from scipy.interpolate import splrep, splev
 import emcee
-import corner
 
 from tqdm import tqdm, trange
 
