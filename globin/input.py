@@ -624,7 +624,10 @@ class InputData(object):
 		else:
 			# read node parameters from .input file
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-				self.read_node_parameters(parameter, self.parameters_input)
+				self.read_node_parameters(parameter)
+
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+			self.read_node_values_limits(parameter)
 
 		#--- check for spatial regularization of atmospheric parameters
 		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
@@ -779,7 +782,7 @@ class InputData(object):
 		except:
 			pass
 
-	def read_node_parameters(self, parameter, text):
+	def read_node_parameters(self, parameter):
 		"""
 		For a given parameter read from the input file the node positions, the values,
 		the parameter mask (optional), the regularization type(s) and the limits for each node.
@@ -792,6 +795,7 @@ class InputData(object):
 			loaded input file string from which we are searching for the node keywords.
 		"""
 		atmosphere = self.atmosphere
+		text = self.parameters_input
 
 		#--- get inversino parameters
 		nodes = _find_value_by_key(f"nodes_{parameter}", text, "optional")
@@ -800,8 +804,6 @@ class InputData(object):
 
 		values = _find_value_by_key(f"nodes_{parameter}_values", text, "required")
 		mask = _find_value_by_key(f"nodes_{parameter}_mask", text, "optional")
-		min_limits = _find_value_by_key(f"nodes_{parameter}_vmin", text, "optional")
-		max_limits = _find_value_by_key(f"nodes_{parameter}_vmax", text, "optional")
 		# relative weighting for spatial regularization
 		reg_weight = _find_value_by_key(f"nodes_{parameter}_reg_weight", text, "optional", conversion=float)
 		# weighting for the depth-dependent regularization
@@ -844,24 +846,6 @@ class InputData(object):
 			mask = [float(item) for item in mask.split(",")]
 			atmosphere.mask[parameter] = np.array(mask)
 
-		#--- assign the lower limit values for each node
-		if min_limits is not None:
-			vmin = np.array([float(item) for item in min_limits.split(",")])
-			atmosphere.limit_values[parameter].vmin = vmin
-			atmosphere.limit_values[parameter].vmin_dim = len(vmin)
-
-			if len(vmin)!=1 and len(vmin)!=nnodes:
-				raise ValueError(f"Incompatible number of minimum limits for {parameter} and given number of nodes.")
-
-		#--- assign the upper limit values for each node
-		if max_limits is not None:
-			vmax = np.array([float(item) for item in max_limits.split(",")])
-			atmosphere.limit_values[parameter].vmax = vmax
-			atmosphere.limit_values[parameter].vmax_dim = len(vmax)
-
-			if len(vmax)!=1 and len(vmax)!=nnodes:
-					raise ValueError(f"Incompatible number of maximum limits for {parameter} and given number of nodes.")
-
 		#--- assign the relative regularization weight for each parameter
 		if reg_weight is not None:
 			atmosphere.regularization_weight[parameter] = reg_weight
@@ -892,6 +876,39 @@ class InputData(object):
 
 		# set the parameter scale
 		atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
+
+	def read_node_values_limits(self, parameter):
+		"""
+		Get the lmits for each parameter (and for each node for a parameter if specified).
+		"""
+		atmosphere = self.atmosphere
+		text = self.parameters_input
+
+		if parameter not in atmosphere.nodes:
+			return
+
+		nnodes = atmosphere.nodes[parameter].size
+
+		min_limits = _find_value_by_key(f"nodes_{parameter}_vmin", text, "optional")
+		max_limits = _find_value_by_key(f"nodes_{parameter}_vmax", text, "optional")
+
+		#--- assign the lower limit values for each node
+		if min_limits is not None:
+			vmin = np.array([float(item) for item in min_limits.split(",")])
+			atmosphere.limit_values[parameter].vmin = vmin
+			atmosphere.limit_values[parameter].vmin_dim = len(vmin)
+
+			if len(vmin)!=1 and len(vmin)!=nnodes:
+				raise ValueError(f"Incompatible number of minimum limits for {parameter} and given number of nodes.")
+
+		#--- assign the upper limit values for each node
+		if max_limits is not None:
+			vmax = np.array([float(item) for item in max_limits.split(",")])
+			atmosphere.limit_values[parameter].vmax = vmax
+			atmosphere.limit_values[parameter].vmax_dim = len(vmax)
+
+			if len(vmax)!=1 and len(vmax)!=nnodes:
+					raise ValueError(f"Incompatible number of maximum limits for {parameter} and given number of nodes.")
 
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
