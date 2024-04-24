@@ -1505,7 +1505,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	log_prob0[np.isinf(log_prob0)] = np.nan
 	ind_max = np.nanargmax(log_prob0)
 	theta_best = chains[ind_max]
-	print(theta_best)
+	# print(theta_best)
 
 	#--- update parameters
 	up = 0
@@ -1513,7 +1513,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 		nnodes = len(atmos.nodes[parameter])
 		low = up
 		up += Natmos*nnodes
-		atmos.values[parameter][:,:,:] = theta[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
+		atmos.values[parameter][:,:,:] = theta_best[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
 
 	for parameter in atmos.global_pars:
 		npars = atmos.global_pars[parameter].shape[-1]
@@ -1521,9 +1521,9 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 			low = up
 			up += npars
 			if parameter in ["loggf", "dlam"]:
-				atmos.global_pars[parameter][0,0] = theta[low:up]
+				atmos.global_pars[parameter][0,0] = theta_best[low:up]
 			if parameter=="stray":
-				atmos.global_pars[parameter] = theta[low:up]
+				atmos.global_pars[parameter] = theta_best[low:up]
 
 	spec = atmos.compute_spectra()
 	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
