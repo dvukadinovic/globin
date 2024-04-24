@@ -1360,11 +1360,11 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True):
+def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True, move=None):
 	RNG = np.random.default_rng()
 	scales = {"temp"  : 50,			# [K]
-			  "vz"    : 0.05,		# [km/s]
-			  "vmic"  : 0.05,		# [km/s]
+			  "vz"    : 0.1,		# [km/s]
+			  "vmic"  : 0.1,		# [km/s]
 			  "mag"   : 50,			# [G]
 			  "gamma" : np.pi/45,	# [rad]
 			  "chi"   : np.pi/45,	# [rad]
@@ -1381,6 +1381,8 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 
 	obs = inverter.observation
 	atmos = inverter.atmosphere
+
+	# atmos.nodes = {"mag" : atmos.nodes["mag"]}
 	
 	atmos.skip_global_pars = skip_global_pars
 
@@ -1414,6 +1416,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 		nnodes = len(atmos.nodes[parameter])
 		low = up
 		up += Natmos*nnodes
+		print(parameter, atmos.values[parameter])
 		p0[:, low:up] = RNG.normal(
 				loc=atmos.values[parameter].ravel(order="C"), 
 				scale=scales[parameter], 
@@ -1431,9 +1434,8 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 								size=(nwalkers,npars))
 
 	#--- create the move
-	move = emcee.moves.StretchMove()
-	# cov = [scales["temp"]]*4
-	# move = emcee.moves.GaussianMove(cov, mode="vector")
+	if move is None:
+		move = emcee.moves.StretchMove(a=1.5)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
@@ -1450,34 +1452,86 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
 	if inverter.wavs_weight is not None:
 		obs.wavs_weight = inverter.wavs_weight
+	else:
+		obs.wavs_weight = 1
 	obs.noise_stokes = noise_stokes
 	obs.weights = inverter.weights
+
+	filename = f"runs/{run_name}/MCMC_sampler_results.h5"
+	backend = emcee.backends.HDFBackend(filename)
+	backend.reset(nwalkers, ndim)
 	
-	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, args=[obs, atmos], moves=move, pool=pool)
-	sampler.run_mcmc(p0, nsteps, progress=True)
-	try:
-		autocorr_time = sampler.get_autocorr_time(has_walkers=False)
-	except:
-		autocorr_time = None
+	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
+		args=[obs, atmos], 
+		moves=move, 
+		pool=pool,
+		backend=backend)
 
-	print()
-	print("Acceptance fractions:\n", sampler.acceptance_fraction)
-	print(f"<acceptance fraction>: {np.mean(sampler.acceptance_fraction):.3f}")
-	print("Autocorrelation time:\n", autocorr_time)
+	check_every_nth = 100
 
-	chains = sampler.get_chain(discard=0, flat=True)
-	log_probabilities = sampler.get_log_prob()
+	old_tau = np.inf
+	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True):
+		if sampler.iteration%check_every_nth:
+			continue
 
-	save_mcmc_results(chains=chains,
-					  acceptance_fraction=np.mean(sampler.acceptance_fraction),
-					  log_probabilities=log_probabilities,
-					  fpath=f"runs/{run_name}/mcmc_results.fits",
-					  nsteps=nsteps,
-					  nwalkers=nwalkers,
-					  move="StretchMove")
+		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f}")	
+
+		if sampler.iteration%(5*check_every_nth):
+			tau = sampler.get_autocorr_time(has_walkers=False, quiet=True)
+		
+		print()
+
+		# check convergence
+		converged = np.all(tau * 100 < sampler.iteration)
+		converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+		if converged:
+			break
+		old_tau = tau
+
+	# log_probabilities = sampler.get_log_prob()
+
+	# save_mcmc_results(chains=chains,
+	# 				  acceptance_fraction=np.mean(sampler.acceptance_fraction),
+	# 				  log_probabilities=log_probabilities,
+	# 				  fpath=f"runs/{run_name}/mcmc_results.fits",
+	# 				  nsteps=nsteps,
+	# 				  nwalkers=nwalkers,
+	# 				  move="StretchMove")
 	
+	burnin = 0
+	thin = 1
+	chains = sampler.get_chain(discard=burnin, flat=True, thin=thin)
+	log_prob0 = sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
+	log_prob0[np.isinf(log_prob0)] = np.nan
+	ind_max = np.nanargmax(log_prob0)
+	theta_best = chains[ind_max]
+	print(theta_best)
+
+	#--- update parameters
+	up = 0
+	for parameter in atmos.nodes:
+		nnodes = len(atmos.nodes[parameter])
+		low = up
+		up += Natmos*nnodes
+		atmos.values[parameter][:,:,:] = theta[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
+
+	for parameter in atmos.global_pars:
+		npars = atmos.global_pars[parameter].shape[-1]
+		if npars>0 and not atmos.skip_global_pars:
+			low = up
+			up += npars
+			if parameter in ["loggf", "dlam"]:
+				atmos.global_pars[parameter][0,0] = theta[low:up]
+			if parameter=="stray":
+				atmos.global_pars[parameter] = theta[low:up]
+
 	spec = atmos.compute_spectra()
-	spec.save(f"runs/{run_name}/inverted_spec_mcmc.fits")
+	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
+	if atmos.instrumental_profile is not None:
+		inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, n_thread=atmos.n_thread)
+	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
+	spec.save(f"runs/{run_name}/inverted_spectra_cmcmc.fits")
 
 	atmos.save_atmosphere(f"runs/{run_name}/inverted_atmos_mcmc.fits")
 	atmos.save_atomic_parameters(f"runs/{run_name}/inverted_atoms_mcmc.fits")
@@ -1549,9 +1603,18 @@ def lnlike(obs, atmos):
 
 	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
 
+	if atmos.instrumental_profile is not None:
+		inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, n_thread=atmos.n_thread)
+
 	#--- downsample the synthetic spectrum to observed wavelength grid
 	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
+
+	# if atmos.values["vmic"][0,0,0]>0.5:
+	# 	# plt.plot(obs.I[0,0])
+	# 	# plt.plot(spec.I[0,0])
+	# 	plt.plot(diff[0,0,:,0])
+	# 	plt.show()
 
 	diff = obs.spec - spec.spec
 	diff *= obs.weights
@@ -1588,6 +1651,7 @@ def log_prob(theta, obs, atmos):
 			if parameter=="stray":
 				atmos.global_pars[parameter] = theta[low:up]
 
+	#--- compute posterior
 	lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values)
 	if not np.isfinite(lp):
 		return -np.inf
