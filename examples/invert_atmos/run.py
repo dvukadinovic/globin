@@ -6,6 +6,17 @@ import copy
 
 import globin
 
+from schwimmbad import MPIPool
+
+with MPIPool() as pool:
+    globin.inversion.invert_mcmc(run_name="dummy_T_vz_vmic", 
+            nsteps=7000,
+            nwalkers=50,
+            pool=pool, 
+            skip_global_pars=True)
+
+sys.exit()
+
 # obs = globin.Observation("obs_630.fits")
 # for idx in range(obs.nx):
 #     for idy in range(obs.ny):
@@ -45,7 +56,7 @@ inverter = globin.Inverter(verbose=True)
 inverter.read_input(run_name="dummy")
 inv_atmos, inv, chi2 = inverter.run()
 
-sys.exit()
+# sys.exit()
 
 idx, idy = 0,0
 # inv = globin.Observation("runs/dummy/inverted_spectra_c1.fits")
@@ -53,7 +64,7 @@ globin.visualize.plot_spectra(inverter.observation.spec[idx,idy], inverter.obser
     inv=[inv.spec[idx,idy]], 
     labels=["obs", "inv"])
 
-atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[0,1,0,1])
+atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[1,2,2,None])
 # inv_atmos = globin.Atmosphere("runs/dummy/inverted_atmos_c1.fits")
 globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "mag", "gamma", "chi"], reference=atmos)
 globin.show()
