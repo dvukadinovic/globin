@@ -5,14 +5,14 @@ import corner
 import emcee
 import sys
 
-reader = emcee.backends.HDFBackend("runs/dummy/MCMC_sampler_results.h5")
+reader = emcee.backends.HDFBackend("runs/dummy_all/MCMC_sampler_results.h5")
 tau = reader.get_autocorr_time(quiet=True)
-print(tau)
-burnin = int(2 * np.max(tau))
-thin = int(0.5 * np.min(tau))
+# print(tau)
+burnin = 1000#int(2 * np.max(tau))
+thin = int(0.25 * np.min(tau))
 chains = reader.get_chain(discard=burnin, flat=True, thin=thin)
 log_prob = reader.get_log_prob(discard=burnin, flat=True, thin=thin)
-print(log_prob)
+# print(log_prob)
 print(chains.shape)
 
 # print(log_prob.shape)
@@ -24,30 +24,27 @@ print(chains[ind_max])
 # plt.hist(log_prob, bins=14, histtype="step")
 # plt.show()
 
-for idp in range(4):
+for idp in range(chains.shape[1]):
 	mcmc = np.percentile(chains[:, idp], [16, 50, 84])
 	q = np.diff(mcmc)
 	print(mcmc[1], q[0], q[1], np.mean(chains[:,idp]), np.std(chains[:,idp]))
 
 # plt.hist(chains[...,3], bins=15, histtype="step")
 # plt.plot(chains[...,0], c="k", alpha=0.3)
-corner.corner(chains[...,:], 
+corner.corner(chains[...,7:], 
 	show_titles=True,
-	labels=["T1", "T2", "T3", "T4"],
+	# labels=["T1", "T2"],#, "T3", "T4"],
 	quantiles=[0.16, 0.5, 0.8],
-	truths=[4680, 5130, 6080, 7250]
+	# truths=[4680, 5130, 6080, 7250, 3.2, 0.5, 1.5]
 	)
 plt.show()
 
 sys.exit()
 
-wavelength_mask = np.loadtxt("obs/wavelength_mask", unpack=True, usecols=(1,2,3,4))
-_range = [0,1,0,1]
-obs = globin.Observation("runs/m3_20x88_spec_sl_HS/obs_50p_best.fits", obs_range=_range, spec_type="hinode")
-obs.mask(wavelength_mask)
+obs = globin.Observation("obs_630_mu1_abs.fits")
 print(obs.shape)
 
-inv = globin.Observation("runs/errors_estimate_atmos/inverted_spectra_cmcmc.fits")
+inv = globin.Observation("runs/dummy_vz/inverted_spectra_cmcmc.fits")
 inv_LM = globin.Observation("runs/m3_20x88_spec_sl_QS/inverted_spectra_c1.fits", obs_range=_range)
 
 globin.plot_spectra(inv_LM.spec[0,0], inv_LM.wavelength, 

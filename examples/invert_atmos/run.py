@@ -9,9 +9,9 @@ import globin
 from schwimmbad import MPIPool
 
 with MPIPool() as pool:
-    globin.inversion.invert_mcmc(run_name="dummy_T_vz_vmic", 
-            nsteps=7000,
-            nwalkers=50,
+    globin.inversion.invert_mcmc(run_name="dummy_all", 
+            nsteps=8000,
+            nwalkers=70,
             pool=pool, 
             skip_global_pars=True)
 
