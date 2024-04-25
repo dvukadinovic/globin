@@ -5,15 +5,17 @@ import corner
 import emcee
 import sys
 
-reader = emcee.backends.HDFBackend("runs/dummy_all/MCMC_sampler_results.h5")
+reader = emcee.backends.HDFBackend("runs/dummy_all_v2/MCMC_sampler_results.h5", read_only=True)
 tau = reader.get_autocorr_time(quiet=True)
 # print(tau)
-burnin = 1000#int(2 * np.max(tau))
-thin = int(0.25 * np.min(tau))
+burnin = int(2 * np.max(tau))
+thin = 10#int(0.25 * np.min(tau))
 chains = reader.get_chain(discard=burnin, flat=True, thin=thin)
 log_prob = reader.get_log_prob(discard=burnin, flat=True, thin=thin)
 # print(log_prob)
 print(chains.shape)
+
+chains[:, -2:] *= 180/np.pi
 
 # print(log_prob.shape)
 log_prob[np.isinf(log_prob)] = np.nan
@@ -31,11 +33,11 @@ for idp in range(chains.shape[1]):
 
 # plt.hist(chains[...,3], bins=15, histtype="step")
 # plt.plot(chains[...,0], c="k", alpha=0.3)
-corner.corner(chains[...,7:], 
+corner.corner(chains[...,:], 
 	show_titles=True,
-	# labels=["T1", "T2"],#, "T3", "T4"],
+	# labels=["B1", "B2", "Theta", "Phi"],
 	quantiles=[0.16, 0.5, 0.8],
-	# truths=[4680, 5130, 6080, 7250, 3.2, 0.5, 1.5]
+	truths=[4500, 5000, 6150, 7200, 0.75, -0.1, 1.00, 300, 350, 30, 60]
 	)
 plt.show()
 
