@@ -292,16 +292,16 @@ class Atmosphere(object):
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
 
 		#--- limit values for local and global parameters
-		self.limit_values = {"temp"  : MinMax(3000, 10000), 	# [K]
-							 "vz"    : MinMax(-10, 10),							# [km/s]
+		self.limit_values = {"temp"  : MinMax(3000, 10000), # [K]
+							 "vz"    : MinMax(-10, 10),								# [km/s]
 							 "vmic"  : MinMax(1e-3, 10),							# [km/s]
-							 "mag"   : MinMax(10, 10000),						# [G]
-							 "gamma" : MinMax(0, np.pi),			# [rad]
-							 "chi"   : MinMax(-np.pi, np.pi),		# [rad]
-							 "of"    : [0, 20],											#
+							 "mag"   : MinMax(10, 10000),							# [G]
+							 "gamma" : MinMax(0, np.pi),							# [rad]
+							 "chi"   : MinMax(-np.pi/2, np.pi/2),			# [rad]
+							 "of"    : [0, 20],												#
 							 "stray" : MinMax(1e-3, 0.99),						#
 							 "vmac"  : [0, 5],												# [km/s]
-							 "loggf" : [-10,2],											#
+							 "loggf" : [-10,2],												#
 							 "dlam"  : [-50,50]}											# [mA]
 
 	def __str__(self):
