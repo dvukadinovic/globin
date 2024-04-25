@@ -1360,7 +1360,7 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True, move=None):
+def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True, move=None, a=2):
 	RNG = np.random.default_rng()
 	scales = {"temp"  : 50,			# [K]
 			  "vz"    : 0.1,		# [km/s]
@@ -1414,13 +1414,28 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	up = 0
 	for parameter in atmos.nodes:
 		nnodes = len(atmos.nodes[parameter])
-		low = up
-		up += Natmos*nnodes
 		print(parameter, atmos.values[parameter])
-		p0[:, low:up] = RNG.normal(
-				loc=atmos.values[parameter].ravel(order="C"), 
-				scale=scales[parameter], 
-				size=(nwalkers,nnodes*Natmos))
+		for idn in range(nnodes):
+			low = up
+			up += Natmos
+			proposal = RNG.normal(
+					loc=atmos.values[parameter][...,idn].ravel(order="C"), 
+					scale=scales[parameter], 
+					size=(nwalkers,Natmos))
+			
+			# check for lower boundary
+			vmin = atmos.limit_values[parameter].min[0]
+			if atmos.limit_values[parameter].vmin_dim!=1:
+				vmin = atmos.limit_values[parameter].min[idn]
+			proposal[proposal<vmin] = vmin
+			
+			# check for upper boundary
+			vmax = atmos.limit_values[parameter].max[0]
+			if atmos.limit_values[parameter].vmax_dim!=1:
+				vmax = atmos.limit_values[parameter].max[idn]
+			proposal[proposal>vmax] = vmax
+			
+			p0[:, low:up] = proposal
 
 	# get global parameters
 	for parameter in atmos.global_pars:
@@ -1435,7 +1450,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 
 	#--- create the move
 	if move is None:
-		move = emcee.moves.StretchMove(a=1.5)
+		move = emcee.moves.StretchMove(a=a)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
@@ -1470,7 +1485,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	check_every_nth = 100
 
 	old_tau = np.inf
-	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True):
+	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True, store=True):
 		if sampler.iteration%check_every_nth:
 			continue
 
