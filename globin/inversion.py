@@ -1451,6 +1451,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	#--- create the move
 	if move is None:
 		move = emcee.moves.StretchMove(a=a)
+		move = emcee.moves.StretchMove(a=2)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))

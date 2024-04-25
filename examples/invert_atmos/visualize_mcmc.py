@@ -7,7 +7,7 @@ import sys
 
 reader = emcee.backends.HDFBackend("runs/dummy_all_v2/MCMC_sampler_results.h5", read_only=True)
 tau = reader.get_autocorr_time(quiet=True)
-# print(tau)
+print(tau)
 burnin = int(2 * np.max(tau))
 thin = 10#int(0.25 * np.min(tau))
 chains = reader.get_chain(discard=burnin, flat=True, thin=thin)
