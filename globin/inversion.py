@@ -1362,17 +1362,17 @@ def normalize_hessian(H, atmos, mode):
 
 def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=True, move=None, a=2):
 	RNG = np.random.default_rng()
-	scales = {"temp"  : 50,			# [K]
-			  "vz"    : 0.1,		# [km/s]
-			  "vmic"  : 0.1,		# [km/s]
-			  "mag"   : 50,			# [G]
-			  "gamma" : np.pi/45,	# [rad]
-			  "chi"   : np.pi/45,	# [rad]
-			  "of"    : 0.02,		# 
-			  "stray" : 0.02,		#
+	scales = {"temp"  : 10,			# [K]
+			  "vz"    : 0.05,		# [km/s]
+			  "vmic"  : 0.05,		# [km/s]
+			  "mag"   : 10,			# [G]
+			  "gamma" : np.pi/360,	# [rad]
+			  "chi"   : np.pi/360,	# [rad]
+			  "of"    : 0.01,		# 
+			  "stray" : 0.01,		#
 			  "vmac"  : 0.05,		# [km/s]
-			  "loggf" : 0.01,		#
-			  "dlam"  : 1}			#
+			  "loggf" : 0.005,		#
+			  "dlam"  : 0.5}		#
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
@@ -1414,7 +1414,6 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	up = 0
 	for parameter in atmos.nodes:
 		nnodes = len(atmos.nodes[parameter])
-		print(parameter, atmos.values[parameter])
 		for idn in range(nnodes):
 			low = up
 			up += Natmos
@@ -1427,14 +1426,20 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 			vmin = atmos.limit_values[parameter].min[0]
 			if atmos.limit_values[parameter].vmin_dim!=1:
 				vmin = atmos.limit_values[parameter].min[idn]
-			proposal[proposal<vmin] = vmin
+			if parameter not in ["gamma", "chi"]:
+				proposal[proposal<vmin] = vmin
 			
 			# check for upper boundary
 			vmax = atmos.limit_values[parameter].max[0]
 			if atmos.limit_values[parameter].vmax_dim!=1:
 				vmax = atmos.limit_values[parameter].max[idn]
-			proposal[proposal>vmax] = vmax
+			if parameter not in ["gamma", "chi"]:
+				proposal[proposal>vmax] = vmax
 			
+			if parameter=="gamma":
+				proposal = np.cos(proposal)
+			if parameter=="chi":
+				proposal = np.sin(proposal) * np.sin(proposal)
 			p0[:, low:up] = proposal
 
 	# get global parameters
@@ -1451,7 +1456,6 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	#--- create the move
 	if move is None:
 		move = emcee.moves.StretchMove(a=a)
-		move = emcee.moves.StretchMove(a=2)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
@@ -1503,16 +1507,6 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 		if converged:
 			break
 		old_tau = tau
-
-	# log_probabilities = sampler.get_log_prob()
-
-	# save_mcmc_results(chains=chains,
-	# 				  acceptance_fraction=np.mean(sampler.acceptance_fraction),
-	# 				  log_probabilities=log_probabilities,
-	# 				  fpath=f"runs/{run_name}/mcmc_results.fits",
-	# 				  nsteps=nsteps,
-	# 				  nwalkers=nwalkers,
-	# 				  move="StretchMove")
 	
 	burnin = 0
 	thin = 1
@@ -1521,7 +1515,6 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	log_prob0[np.isinf(log_prob0)] = np.nan
 	ind_max = np.nanargmax(log_prob0)
 	theta_best = chains[ind_max]
-	# print(theta_best)
 
 	#--- update parameters
 	up = 0
@@ -1558,16 +1551,6 @@ def lnprior(local_pars, global_pars, limits):
 
 	If one fails, return -np.inf, else return 0.
 	"""	
-	#--- inclination is wrapped around [0, 180] interval
-	# if "gamma" in local_pars:
-	# 	y = np.cos(local_pars["gamma"])
-	# 	local_pars["gamma"] = np.arccos(y)
-	
-	# #--- azimuth is wrapped around [-90, 90] interval
-	# if "chi" in local_pars:
-	# 	y = np.sin(local_pars["chi"])
-	# 	local_pars["chi"] = np.arcsin(y)
-	
 	for parameter in local_pars:
 		# if parameter not in ["gamma", "chi"]:
 		nnodes = local_pars[parameter].shape[-1]
@@ -1677,6 +1660,16 @@ def log_prob(theta, obs, atmos):
 		atmos.vmac = atmos.global_pars["vmac"][0]
 	if "stray" in atmos.global_pars:
 		atmos.stray_light = atmos.global_pars["stray"]
+
+	# compute the azimuth from the sin^2(chi)
+	if "chi" in atmos.nodes:
+		proposal = np.arcsin(np.sqrt(atmos.values["chi"]))
+		atmos.values["chi"][:,:,:] = proposal
+	
+	# compute the inclination from the cos(gamma)
+	if "gamma" in atmos.nodes:
+		proposal = np.arccos(atmos.values["gamma"])
+		atmos.values["gamma"][:,:,:] = proposal
 
 	return lp + lnlike(obs, atmos)
 
