@@ -1987,11 +1987,11 @@ class Atmosphere(object):
 				self.values[parameter][:,:,nodeID] += perturbation
 				if parameter=="of":
 					self.make_OF_table(self.wavelength_vacuum)
-				elif parameter=="stray":
-					pass
 				else:
 					self.build_from_nodes(synthesize, params=parameter)
-				spectra_plus = self.compute_spectra(synthesize)
+
+				if parameter!="stray":
+					spectra_plus = self.compute_spectra(synthesize)
 
 				#--- negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
