@@ -32,6 +32,7 @@ from .input import Chi2
 from .spec import Observation, Spectrum
 from .visualize import show, plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 from .utils import Stats
+from .chi2 import compute_chi2
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
 __name__ = "globin"
