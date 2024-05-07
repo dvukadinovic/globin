@@ -51,6 +51,8 @@ class Spectrum(object):
 		self.xmin, self.xmax = 0, None
 		self.ymin, self.ymax = 0, None
 
+		self.weight_type = None
+
 	@property
 	def I(self):
 		return self.spec[...,0]
@@ -133,6 +135,27 @@ class Spectrum(object):
 		self.spec[...,1] += wavs_dependent_factor * SI_cont_err[...,1]
 		self.spec[...,2] += wavs_dependent_factor * SI_cont_err[...,2]
 		self.spec[...,3] += wavs_dependent_factor * SI_cont_err[...,3]
+
+	def _get_weights_by_noise(self, noise):
+		if noise==0:
+			return np.ones((self.nx, self.ny, self.nw, 4))
+		
+		noise_stokes = np.ones((self.nx, self.ny, self.nw, 4))
+		StokesI_cont = np.quantile(self.I, 0.95, axis=2)
+		noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+
+		return noise_stokes
+
+	def _get_wavelength_weights(self, weight_type="StokesI"):
+		if weight_type=="StokesI":
+			aux = 1/self.I
+			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+			# because they will enter the diff which will be squared in chi^2 computation
+			weights = np.sqrt(weights)
+		else:
+			weights = 1
+
+		return weights
 
 	def denoise(self, line_locations, width=20):
 		# mean_profile = np.mean(self.I, axis=(0,1))
