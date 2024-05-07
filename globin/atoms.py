@@ -71,7 +71,8 @@ class Line(object):
             self._swap()
             self.swapped = True
 
-        self.get_LS_numbers()
+        if (self.config_low is not None) and (self.config_up is not None):
+            self.get_LS_numbers()
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
