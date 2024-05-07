@@ -6,7 +6,7 @@
 .. _Home:
 
 Welcome to the globin's documentation!
-==================================
+======================================
 
 **globin** is a Python package for spectropolarimetric inversion. It is based on the forward modeling by the `RH code <https://www2.hao.ucar.edu/spectropolarimetry/rh>`_ . 
 
@@ -20,6 +20,8 @@ Currently, supported atomic line parameters are transition probability (through 
 
    user/introduction
    user/installation
+   user/keywords
+   user/input_files
 
    changelog
 
