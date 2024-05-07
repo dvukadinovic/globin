@@ -3,16 +3,42 @@ import numpy as np
 
 import globin
 
+def gamma_function(a, b, c):
+    if a==0:
+        return 0
+
+    result = a*(a+1) + b*(b+1) - c*(c+1)
+    result /= 2*a*(a+1)
+
+    return result
+
+def get_JK_Lande(J, K, l, S1, L1, J1):
+    gJK = 1 + gamma_function(J, 1/2, K)
+    gJK += gamma_function(J,K,1/2) * gamma_function(K,J1,l) * gamma_function(J1,S1,L1)
+    return gJK
+
+def get_LS_Lande(S, L, J):
+    gLS = 1 + gamma_function(J, S, L)
+    return gLS
+
+def get_effective_Lande(gLlow, gLup, Jlow, Jup):
+    return 0.5*(gLup+gLlow) + 0.25*(gLlow-gLup) * (Jlow*(Jlow+1.0) - Jup*(Jup+1.0))
+
 class Line(object):
     """
     Class for storing spectral line data.
     """
+    orbitals = {"S": 0, "P": 1, "D": 2, "F": 3, 
+                "G": 4, "H": 5, "I": 6, "J": 7,
+                "K": 8, "L": 9, "M": 10, "N": 11,
+                "O": 12, "Q": 13, "R": 14, "T": 15}
     def __init__(self, lineNo=None, lam0=None,
                     loggf=None, loggf_min=None, loggf_max=None,
                     dlam=None, dlam_min=None, dlam_max=None,
                     ion=None, state=None, elow=None, eup=None,
                     gLlow=None, gLup=None, Jlow=None, Jup=None,
                     Grad=None,
+                    config_low=None, config_up=None,
                     swap=None):
         self.lineNo = lineNo
         self.lam0 = lam0 # [1/nm]
@@ -29,6 +55,9 @@ class Line(object):
         if Grad is not None:
             self.Grad = 10**Grad # [1/s]
 
+        self.config_low = config_low
+        self.config_up = config_up
+
         self.ion = ion
         self.state = state
         self.elow = elow # [eV]
@@ -37,8 +66,12 @@ class Line(object):
         self.gLlow = gLlow
         self.gLup = gLup
 
+        self.swapped = False
         if swap:
             self._swap()
+            self.swapped = True
+
+        self.get_LS_numbers()
 
     def __str__(self):
         return "<LineNo: {}, lam0: {}, loggf: {}\n  loggf_min: {}, loggf_max: {}\n  dlam: {}, dlam_min: {}, dlam_max: {}>".format(self.lineNo, self.lam0, self.loggf, self.loggf_min, self.loggf_max, self.dlam, self.dlam_min, self.dlam_max)
@@ -50,11 +83,83 @@ class Line(object):
         self.Jlow, self.Jup = self.Jup, self.Jlow
         self.elow, self.eup = self.eup, self.elow
         self.gLlow, self.gLup = self.gLup, self.gLlow
+        self.config_low, self.config_up = self.config_up, self.config_low
 
     def get_effective_Lande(self):
-        self.gLeff = 0.5*(self.gLup+self.gLlow) + 0.25*(self.gLup-self.gLlow) * (self.Jup*(self.Jup+1.0) - self.Jlow*(self.Jlow+1.0))
+        self.gLeff = -99
+        if self.LS_line:
+            self.gLeff = 0.5*(self.gLup+self.gLlow) + 0.25*(self.gLup-self.gLlow) * (self.Jup*(self.Jup+1.0) - self.Jlow*(self.Jlow+1.0))
 
         return self.gLeff
+
+    def get_LS_numbers(self):
+        # lower level
+        config_low = self.config_low[-2:]
+        self.term_low = config_low
+            
+        self.has_low_LS_numbers = True
+        try:
+            self.Slow = int(config_low[0]) - 1
+            self.Slow /= 2
+        except:
+            self.Slow = None
+            self.has_low_LS_numbers = False
+        
+        try:   
+            self.Llow = self.orbitals[config_low[1]]
+        except:
+            self.Llow = None
+            self.has_low_LS_numbers = False
+
+        # upper level
+        config_up = self.config_up[-2:]
+        self.term_up = config_up
+        
+        self.has_up_LS_numbers = True
+        try:
+            self.Sup = int(config_up[0]) - 1
+            self.Sup /= 2
+        except:
+            self.Sup = None
+            self.has_up_LS_numbers = False
+        
+        try:   
+            self.Lup = self.orbitals[config_up[1]]
+        except:
+            self.Lup = None
+            self.has_up_LS_numbers = False
+
+        self.LS_line = False
+        if self.has_low_LS_numbers and self.has_up_LS_numbers:
+            self.LS_line = True
+
+    def get_LS_Lande(self):
+        """
+        Compute the Lande factor for each level assuming LS coupling sheme.
+        """
+        if not self.LS_line:
+            return None, None
+
+        gLlow = 0
+        if self.Jlow!=0:
+            gLlow = self.Jlow*(self.Jlow+1) + self.Slow*(self.Slow+1) - self.Llow*(self.Llow+1)
+            gLlow /= 2*self.Jlow*(self.Jlow+1)
+            gLlow += 1
+
+        gLup = 0
+        if self.Jup!=0:
+            gLup = self.Jup*(self.Jup+1) + self.Sup*(self.Sup+1) - self.Lup*(self.Lup+1)
+            gLup /= 2*self.Jup*(self.Jup+1)
+            gLup += 1
+
+        self.gLlow = gLlow
+        self.gLup = gLup
+
+        # print Lande factors in the order of levels as it is in the file
+        # if self.swapped:
+        #     return gLup, gLlow
+
+        # return gLlow, gLup
 
     @property
     def Aji(self):
@@ -118,6 +223,8 @@ def read_RLK_lines(fpath):
         Jlow = float(line[35:40])
         Jup = float(line[63:68])
         Grad = float(line[81:86])
+        config_low = line[42:54].rstrip(" ")
+        config_up = line[70:81].rstrip(" ")
 
         swap = False
         if elow>eup:
@@ -129,6 +236,7 @@ def read_RLK_lines(fpath):
                               gLlow=gLup, gLup=gLlow, 
                               Jlow=Jup, Jup=Jlow,
                               Grad=Grad,
+                              config_low=config_low, config_up=config_up,
                               swap=True))
         # else:
         #     RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
