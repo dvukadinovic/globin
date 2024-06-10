@@ -611,7 +611,8 @@ class InputData(object):
 		if fpath is not None:
 			# read node parameters from .fits file that is inverted atmosphere
 			# from older inversion run
-			self.atmosphere.read_multi_cube(fpath, atm_range=atm_range)
+			# self.atmosphere.read_multi_cube(fpath, atm_range=atm_range)
+			self.atmosphere.read_multi_cube(fpath)
 
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
 				print("--> Error in input.read_inverted_atmosphere()")
