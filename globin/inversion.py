@@ -530,7 +530,7 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		try:
-			atmos.compute_errors(H, chi2)
+			atmos.compute_errors(H, chi2, Ndof/2)
 		except:
 			print("[Info] Could not compute parameters error.")
 
@@ -932,7 +932,34 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		try:
-			atmos.compute_errors(H, chi2)
+			# remove parameter normalization factor from Hessian
+			parameter_norms = []
+			for parameter in atmos.nodes:
+				nnodes = len(atmos.nodes[parameter])
+				parameter_norms += [atmos.parameter_norm[parameter]]*nnodes
+			parameter_norms = np.array(parameter_norms)
+			parameter_norms = np.tile(parameter_norms, atmos.nx*atmos.ny)
+
+			for parameter in atmos.global_pars:
+				Npars = atmos.global_pars[parameter].size
+				if Npars==0:
+					continue
+
+				global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
+				global_parameter_norms = np.array(global_parameter_norms)
+
+				parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
+
+			P = np.outer(parameter_norms, parameter_norms)
+			P /= 2 # we need 1/2 of Hessian
+
+			Hessian = JTJ.multiply(P).tocsc()
+
+			sp.save_npz(f"runs/{self.run_name}/hessian.npz", Hessian)
+
+			# we send Ndof/2 because I added factor of 2 in computation of chi2 (accidently)
+			# it is related to diff variable because it stores gradient of the chi2
+			atmos.compute_errors(Hessian, chi2, Ndof/2)
 		except:
 			print("[Info] Could not compute parameters error.")
 

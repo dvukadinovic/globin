@@ -1662,7 +1662,7 @@ class Atmosphere(object):
 				Ndlam = len(self.line_no[parameter])
 				self.global_pars[parameter][0,0] = median
 
-	def compute_errors(self, H, chi2):
+	def compute_errors(self, H, chi2, Ndof):
 		"""
 		Computing parameters error. Based on equations from Iniesta (2003) which
 		are originally presented in Sanchez Almeida J. (1997), A&A.
@@ -1677,49 +1677,20 @@ class Atmosphere(object):
 		if self.mode==3:
 			invH = sp.linalg.inv(H)
 			diag = invH.diagonal(k=0)
-			diag = np.array(diag)/2
+			diag = np.array(diag)
 
-			# npar = self.n_local_pars + self.n_global_pars
+			total_chi2 = chi2.total()
+			total_chi2 *= Ndof
 
-			self.local_pars_errors = np.zeros((self.nx, self.ny, self.n_local_pars))
-			self.global_pars_errors = np.zeros(self.n_global_pars)
+			Nlocal = self.nx*self.ny*self.n_local_pars
+			Nglobal = self.n_global_pars
+			Npars = Nlocal + Nglobal
 
-			low, up = 0, 0
-			Npassed_nodes = 0
-			for parameter in self.nodes:
-				nnodes = len(self.nodes[parameter])
-				_tmp = np.arange(self.nx*self.ny, dtype=np.int32) * self.n_local_pars
-				_tmp += Npassed_nodes
-				inds = np.copy(_tmp)
-				for idn in range(1, nnodes):
-					_tmp += 1
-					inds = np.vstack((inds, _tmp))
+			parameter_error = diag * total_chi2 / Npars
+			parameter_error = np.sqrt(parameter_error)
 
-				low = up
-				up += self.nx*self.ny*nnodes
-				scale = self.parameter_scale[parameter]
-				invH_diag = diag[inds].reshape(self.nx, self.ny, nnodes)
-				self.local_pars_errors[:,:, Npassed_nodes:Npassed_nodes+nnodes] = np.sqrt(chi2[..., np.newaxis]/1 * invH_diag / scale**2)
-				Npassed_nodes += nnodes
-
-			low, up = None, self.n_local_pars*self.nx*self.ny
-			_low, _up = 0, 0
-			chi2 = np.sum(chi2)
-			for parameter in self.global_pars:
-				if len(self.global_pars[parameter])==0:
-					continue
-
-				scale = self.parameter_scale[parameter]
-				N = scale.size
-				low = up
-				up += N
-				_low = _up
-				_up += N
-				self.global_pars_errors[_low:_up] = np.sqrt(chi2/1 * diag[low:up] / scale**2)
-
-		# print(self.local_pars_errors)
-		# print(self.global_pars_errors)
-		# print("----- \n")
+			self.local_pars_errors = parameter_error[:Nlocal].reshape(self.nx, self.ny, self.n_local_pars)
+			self.global_pars_errors = parameter_error[Nlocal:]
 
 	@globin.utils.timeit
 	def get_hsra_cont(self):
@@ -1915,13 +1886,13 @@ class Atmosphere(object):
 	@globin.utils.timeit
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
+		Compute response functions for atmospheric parameters at given nodes and
+		specified global parameters (atomic line, vmac, stray light).
+
 		Parameters:
 		-----------
-		atmos : Atmosphere() object
-			atmosphere
-
-		rf_noise_scale : ndarray
-			noise
+		rf_noise_scale : int or ndarray
+			noise estimate in observed spectrum
 
 		skip : tuple list
 			list of tuples (idx, idy) for which to skip spectrum synthesis
