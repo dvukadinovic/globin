@@ -418,6 +418,44 @@ def write_line_pars(fpath, loggf=None, loggfID=None, dlam=None, dlamID=None, min
 
     out.close()
 
+def update_line_list(fpath, parameter, line_number, value):
+    """
+    Update the Kurucz line list for the given atomic parameter.
+
+    Parameters:
+    -----------
+    parameter : str 
+        name of the parameter to be updated
+    line_number : list or ndarray
+        the corresponding line number position from line list to be updated. 
+        Counting starts from 1.
+    value : list or ndarray
+        values of atomic parameter to update the Kurucz line list. Needs to be
+        the same dimension as 'line_number'. For 'dlam' parameter values are
+        assumed to be given in mA.
+    """
+    lines = open(fpath, "r").readlines()
+
+    if parameter not in ["loggf", "dlam"]:
+        raise ValueError(f"Currently unsupported parameter type '{parameter}'")
+
+    if len(line_number)!=len(value):
+        raise ValueError("Unequal size of the 'line_number' and 'value' lists.")
+
+    for idl, line_num in enumerate((line_number)):
+        line_num -= 1 # to comply with Python counting
+        kurucz_line = list(lines[line_num])
+        if parameter=="loggf":
+            kurucz_line[10:17] = "{:7.3f}".format(value[idl])
+        if parameter=="dlam":
+            lam0 = float("".join(kurucz_line[0:10]))
+            kurucz_line[0:10] = "{:10.4f}".format(value[idl]/1e4 + lam0)
+        lines[line_num] = "".join(kurucz_line)
+
+    out = open(fpath, "w")
+    out.writelines(lines)
+    out.close()
+
 class AtomPars(object):
     """
     Class storing atomic parameters from inversion for easier access and
