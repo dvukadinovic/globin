@@ -380,30 +380,10 @@ class Inverter(InputData):
 
 			# multiply with LM parameter
 			H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		if np.isnan(H[idx,idy]).any():
-			# 			print(idx,idy)
-			# 			print(H[idx,idy])
-			# 			print("-----")
 
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
 			delta *= delta_scale
-
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		for ids in range(4):
-			# 			flag = np.isnan(spec.spec[idx,idy,:,ids])
-			# 			if any(flag):
-			# 				globin.visualize.plot_atmosphere(atmos, parameters=["temp", "mag", "vz", "vmic", "gamma", "chi", "ne", "nH"],
-			# 					idx=idx, idy=idy)
-			# 				globin.show()
-
-			# plt.imshow(H[0,0], origin="upper")
-			# plt.colorbar()
-			# plt.show()
-			#sys.exit()
 
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, self.n_thread)
