@@ -116,6 +116,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
              "vmic"  : "plasma",
              "mag"   : "nipy_spectral", 
              "gamma" : "nipy_spectral",
+             "chi" : "nipy_spectral",
              "stray" : "nipy_spectral"}
 
     parameter_relay = {"temp"  : "Temperature [K]",
@@ -154,7 +155,11 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
         for idr in range(nnodes):
             ax = fig.add_subplot(gs[idr,N*idc])
             
-            x = atm1.values[parameter][:,:,idr]
+            fact = 1
+            if parameter in ["gamma", "chi"]:
+                fact = 180/np.pi
+
+            x = atm1.values[parameter][:,:,idr] * 180
             mean = np.mean(x)
             std = np.std(x)
             vmin = mean - contrast*std
