@@ -319,7 +319,6 @@ class InputData(object):
 
 		# get the Pg at top of the atmosphere
 		if self.atmosphere.pg_top is None:
-			# self.atmosphere.get_pg_top()
 			self.atmosphere.get_pg()
 
 		#--- if we have more threads than atmospheres, reduce the number of used threads
@@ -414,7 +413,7 @@ class InputData(object):
 			if self.atmosphere.stray_type=="spec":
 				fpath = _find_value_by_key("stray_spectrum", self.parameters_input, "required")
 				self.atmosphere.stray_light_spectrum = globin.Observation(fpath, spec_type="hinode")
-				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, 1, fill_value="extrapolate")
+				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, n_thread=1, fill_value="extrapolate")
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
@@ -722,17 +721,17 @@ class InputData(object):
 			pass
 
 	def read_mode_3(self):
-		#--- Kurucz line list for given spectral region
-		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
-		Nlines = len(self.RLK_lines)
-
+		self.output_frequency = _find_value_by_key("output_frequency", self.parameters_input, "default", self.max_iter[0], int)
+		
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
-		self.output_frequency = _find_value_by_key("output_frequency", self.parameters_input, "default", self.max_iter[0], int)
-
 		if line_pars_path is None:
 			print("[Warning] No atomic parameters to fit. You sure?\n")
 			return
+		
+		#--- Kurucz line list for given spectral region
+		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
+		Nlines = len(self.RLK_lines)
 
 		# if we provided line parameters for fit, read those parameters
 		lines_to_fit = read_init_line_parameters(line_pars_path)
@@ -1576,111 +1575,3 @@ class RF(object):
 		if stokes.lower()=="v":
 			ids = 3
 		return self.rf[...,ids]
-
-class Chi2(object):
-	def __init__(self, fpath=None, nx=None, ny=None, niter=None, chi2=None):
-		if fpath is not None:
-			self.read(fpath)
-		elif (nx is not None) and (ny is not None) and (niter is not None):
-			self.chi2 = np.zeros((nx, ny, niter), dtype=np.float64)
-			self.nx, self.ny, self.niter = nx, ny, niter
-
-		self.shape = self.chi2.shape
-
-		self.mode = -1
-		self.Nlocal_par = -1
-		self.Nglobal_par = -1
-		self.Nw = -1
-
-		# regularization weight
-		self.regularization_weight = 0
-		# value of regularization functional
-		self.regularization = 0
-
-		if chi2 is not None:
-			self.chi2 = chi2
-
-	def read(self, fpath):
-		hdu_list = fits.open(fpath)
-		hdu = hdu_list[0]
-		header = hdu.header
-		self.chi2 = hdu.data
-
-		try:
-			self.mode = header["MODE"]
-			self.Nlocal_par = header["NLOCALP"]
-			self.Nglobal_par = header["NGLOBALP"]
-			self.Nw = header["NW"]
-		except:
-			# for the older outputs
-			pass		
-
-		try:
-			self.nx, self.ny,_ = self.chi2.shape
-			self.chi2, self.last_iter = self.get_final_chi2()
-		except:
-			self.last_iter = None
-
-		try:
-			self.full_chi2 = hdu_list[2].data
-		except:
-			self.full_chi2 = None
-
-		self.nx, self.ny = self.chi2.shape
-
-	def get_final_chi2(self):
-		last_iter = np.zeros((self.nx, self.ny))
-		best_chi2 = np.zeros((self.nx, self.ny))
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				inds_non_zero = np.nonzero(self.chi2[idx,idy])[0]
-				if inds_non_zero.size==0:
-					continue
-				last_iter[idx,idy] = inds_non_zero[-1]
-				best_chi2[idx,idy] = self.chi2[idx,idy,inds_non_zero[-1]]
-
-		return best_chi2, last_iter
-
-	def per_pixel(self, best_chi2, copy=False):
-		if self.mode==1 or self.mode==2:
-			return best_chi2
-
-		Natm = self.nx*self.ny
-		if self.mode==3:
-			Ndof = self.Nw*Natm - self.Nlocal_par*Natm - self.Nglobal_par
-
-		best_chi2 *= Ndof
-		best_chi2 /= (self.Nw - self.Nlocal_par - self.Nglobal_par)
-
-		if copy:
-			self.chi2 = best_chi2
-		else:
-			return best_chi2
-
-	def save(self, fpath="chi2.fits"):
-		# best_chi2, last_iter = self.get_final_chi2()
-		# best_chi2 = self.per_pixel(best_chi2)
-
-		primary = fits.PrimaryHDU(self.chi2)
-		hdulist = fits.HDUList([primary])
-
-		primary.name = "best_chi2"
-		primary.header["NX"] = (self.nx, "number of x atmospheres")
-		primary.header["NY"] = (self.ny, "number of y atmospheres")
-		primary.header["MODE"] = (self.mode, "inversion mode")
-		primary.header["NLOCALP"] = (self.Nlocal_par, "num. of local parameters")
-		primary.header["NGLOBALP"] = (self.Nlocal_par, "num. of global parameters")
-		primary.header["NW"] = (self.Nw, "number of wavelenghts (for full Stokes")
-
-		# container for last iteration number for each pixel
-		# iter_hdu = fits.ImageHDU(last_iter)
-		# iter_hdu.name = "iteration_num"
-		# hdulist.append(iter_hdu)
-
-		# container for all the chi2 values (for every pixel in every iteration)
-		all_hdu = fits.ImageHDU(self.chi2)
-		all_hdu.name = "All chi2 values"
-		hdulist.append(all_hdu)
-
-		# save
-		hdulist.writeto(fpath, overwrite=True)

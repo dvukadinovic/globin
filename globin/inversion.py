@@ -17,7 +17,8 @@ from tqdm import tqdm, trange
 import pyrh
 
 from .spec import Spectrum
-from .input import InputData, Chi2
+from .input import InputData
+from .chi2 import Chi2
 from .visualize import plot_spectra, add_colorbar
 from .utils import pretty_print_parameters
 
