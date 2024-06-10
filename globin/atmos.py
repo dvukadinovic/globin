@@ -1665,14 +1665,24 @@ class Atmosphere(object):
 	def compute_errors(self, H, chi2, Ndof):
 		"""
 		Computing parameters error. Based on equations from Iniesta (2003) which
-		are originally presented in Sanchez Almeida J. (1997), A&A.
+		are originally presented in Sanchez Almeida J. 1997, ApJ, 419.
 		"""
-		# chi2, _ = chi2.get_final_chi2()
-		
 		if self.mode==1 or self.mode==2:
-			pass
-			# self.local_pars_errors = np.zeros((self.nx, self.ny, self.n_local_pars))
-			# self.global_pars_errors = np.zeros(self.n_global_pars)
+			invH = np.linalg.pinv(H, rcond=1e-5, hermitian=True)
+			diag = np.diagonal(invH, offset=0, axis1=2, axis2=3)
+
+			chi2, _ = chi2.get_final_chi2()
+			chi2 *= Ndof
+
+			Nlocal = self.nx*self.ny*self.n_local_pars
+			Nglobal = self.n_global_pars
+			Npars = Nlocal + Nglobal
+
+			parameter_error = diag * chi2 / Npars
+			parameter_error = np.sqrt(parameter_error)
+
+			self.local_pars_errors = parameter_error[:Nlocal].reshape(self.nx, self.ny, self.n_local_pars)
+			self.global_pars_errors = parameter_error[Nlocal:]
 
 		if self.mode==3:
 			invH = sp.linalg.inv(H)
