@@ -1378,13 +1378,7 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_global_pars=Tr
 	obs = inverter.observation
 	atmos = inverter.atmosphere
 
-	# atmos.nodes = {"mag" : atmos.nodes["mag"]}
-	
 	atmos.skip_global_pars = skip_global_pars
-
-	# atmos.wavelength_air = obs.wavelength
-	# atmos.wavelength_obs = obs.wavelength
-	# atmos.wavelength_vacuum = globin.utils.air_to_vacuum(obs.wavelength)
 
 	if atmos.add_stray_light or atmos.norm_level=="hsra":
 		print("[Info] Computing the HSRA spectrum...\n")
