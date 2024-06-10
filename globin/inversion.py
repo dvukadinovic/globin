@@ -730,12 +730,6 @@ class Inverter(InputData):
 				sp_scales, scales = normalize_hessian(JTJ, atmos, mode=3)
 
 			#--- invert Hessian matrix
-
-			# fig = plt.figure()
-			# gs = fig.add_gridspec(nrows=1, ncols=2)
-			# ax1 = fig.add_subplot(gs[0,0])
-			# ax2 = fig.add_subplot(gs[0,1])
-
 			H = JTJ
 			if atmos.spatial_regularization:
 				H += LTL
@@ -743,11 +737,6 @@ class Inverter(InputData):
 				LTLdiag = LTL.diagonal(k=0)
 			
 				eta = LTLdiag/Hdiag
-
-				# plt.plot(eta[:Nlocalpar])
-				# plt.show()
-				# print(eta[:Nlocalpar])
-				# sys.exit()
 
 			H = H.multiply(sp_scales)
 			RHS = deltaSP/scales
@@ -758,36 +747,12 @@ class Inverter(InputData):
 			diagonal = sp.diags(diagonal, offsets=0, format="csc")
 			H += diagonal
 
-			# ax1.set_title("Hessian")
-			# im = ax1.imshow(H.toarray(), origin="upper")
-			# add_colorbar(fig, ax1, im)
-
-			# if atmos.spatial_regularization:
-			# 	tmp = LTL.multiply(sp_scales)
-			# 	# tmp = LTL
-			# 	ax2.set_title("LTL")
-			# 	im = ax2.imshow(tmp.toarray(), origin="upper")
-			# 	add_colorbar(fig, ax2, im)
-
-			# plt.show()
-			# plt.close()
-
-			# start = time.time()
-			# proposed_steps, info = sp.linalg.bicgstab(H, deltaSP, M=sp.block_diag(H.diagonal(k=0)))
 			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
 				print(f"[Warning] Did not converge the solution of Ax=b.")
 			if info<0:
 				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
 				return atmos, spec, chi2
-			# residual = deltaSP - H.dot(proposed_steps)
-			# rel_err = residual/proposed_steps
-			# residual = np.sqrt(np.sum(residual**2))
-			# rel_err = np.sqrt(np.sum(rel_err)**2)
-			# print(f"[Info] Residual = {residual}.")
-			# print(f"[Info] Relative error = {rel_err}")
-			# end = time.time() - start
-			# print(f"[Info] Convergence time {end}s.")
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
