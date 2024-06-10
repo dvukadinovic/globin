@@ -150,7 +150,7 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
 
     atmos.vmac = vmac
     atmos.interpolation_method = intp_method
-    atmos.get_pg_top()
+    atmos.get_pg()
     atmos.build_from_nodes(np.ones((atmos.nx, atmos.ny)))
     atmos.makeHSE()
 

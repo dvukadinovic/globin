@@ -1076,29 +1076,6 @@ class Atmosphere(object):
 
 		return ne
 
-	def get_pg_top(self):
-		"""
-
-		Estimate the gas pressure at the top of the atmosphere from the gas
-		pressure in FAL C atmosphere and the self.logtau_top of the atmosphere.
-
-		If the top of the atmosphere is above the FAL C top, take the gas pressure
-		at the top of FAL C. Otherwise, interpolate.
-
-		The gas pressure at the top is stored in SI units.
-
-		"""
-		top = self.logtau[0]
-		if top<globin.falc.logtau[0]:
-			pg_top = globin.falc.pg[0]
-		elif top>=globin.falc.logtau[0] and top<=globin.falc.logtau[-1]:
-			pg_top = splev(self.logtau[0], globin.pg_tck)
-		else:
-			sys.exit("Top of atmosphere not in range of FAL C log(tau) scale.")
-
-		# convert to SI unit
-		self.pg_top = pg_top/10
-
 	@globin.utils.timeit
 	def get_pg(self):
 		"""
