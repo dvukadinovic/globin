@@ -1702,6 +1702,52 @@ class Atmosphere(object):
 			self.local_pars_errors = parameter_error[:Nlocal].reshape(self.nx, self.ny, self.n_local_pars)
 			self.global_pars_errors = parameter_error[Nlocal:]
 
+	def load_atomic_parameters(self, fpath):
+		atoms = globin.atoms.AtomPars(fpath)
+
+		for parameter in ["loggf", "dlam"]:
+			if atoms.nl[parameter] is None:
+				continue
+
+			self.global_pars[parameter] = atoms.data[parameter][0,0]
+			self.line_no[parameter] = atoms.data[f"{parameter}IDs"]
+
+	def load_errors(self, local_pars=None, global_pars=None):
+		local_errors = np.load(local_pars)
+
+		nx, ny, n_local_pars = local_errors.shape
+
+		if nx!=self.nx or ny!=self.ny:
+			raise ValueError("Incompatible dimension of the atmosphere model and errors array.")
+
+		if n_local_pars!=self.n_local_pars:
+			raise ValueError("Incompatible number of parameters in the atmosphere and in the error arrays.")
+
+		self.errors = {}
+		start = 0
+		end = 0
+		for parameter in self.nodes:
+			Nnodes = len(self.nodes[parameter])
+			start = end
+			end += Nnodes
+			self.errors[parameter] = local_errors[..., start:end]
+
+		if global_pars is None:
+			return
+
+		global_errors = np.load(global_pars)
+
+		start = 0
+		end = 0
+		for parameter in self.global_pars:
+			Npars = self.global_pars[parameter].size
+			if Npars==0:
+				continue
+
+			start = end
+			end += Npars
+			self.errors[parameter] = global_errors[start:end]
+
 	@globin.utils.timeit
 	def get_hsra_cont(self):
 		"""
