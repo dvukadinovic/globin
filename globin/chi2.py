@@ -151,12 +151,11 @@ def compute_chi2(obs, inv, weights=np.array([1,1,1,1]), noise=1e-3, npar=0, tota
 	diff /= noise
 	chi2 = np.sum(diff**2, axis=(2,3))
 
-	Ndof = np.count_nonzero(weights)*obs.nw*obs.nx*obs.ny - npar
+	Ndof = np.count_nonzero(weights)*obs.nw - npar
+	chi2 /= Ndof
 
 	if total:
 		chi2 = np.sum(chi2)
-
-	chi2 /= Ndof
 
 	return chi2
 
