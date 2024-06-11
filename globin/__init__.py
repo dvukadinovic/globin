@@ -106,6 +106,9 @@ falc = Atmosphere(f"{__path__}/data/falc.dat", atm_type="spinor")
 temp_tck = splrep(falc.data[0,0,0], falc.data[0,0,1])
 pg_tck = splrep(falc.data[0,0,0], falc.pg[0,0])
 
+#--- HSRA model
+hsra = Atmosphere(f"{__path__}/data/hsrasp_vmic0.dat", atm_type="spinor")
+
 #--- print log character limit
 NCHAR = 80
 
