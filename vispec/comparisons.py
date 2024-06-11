@@ -110,13 +110,13 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15, aspect=4/3, grid=False):
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15, aspect=4/3, grid=False, show_errors=False):
     cmaps = {"temp"  : "plasma", 
              "vz"    : "bwr_r", 
              "vmic"  : "plasma",
              "mag"   : "nipy_spectral", 
              "gamma" : "nipy_spectral",
-             "chi" : "nipy_spectral",
+             "chi"   : "nipy_spectral",
              "stray" : "nipy_spectral"}
 
     parameter_relay = {"temp"  : "Temperature [K]",
@@ -159,7 +159,11 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             if parameter in ["gamma", "chi"]:
                 fact = 180/np.pi
 
-            x = atm1.values[parameter][:,:,idr] * 180
+            if show_errors:
+                x = atm1.errors[parameter][...,idr].copy()
+            else:
+                x = atm1.values[parameter][:,:,idr].copy()
+            x *= fact
             mean = np.mean(x)
             std = np.std(x)
             vmin = mean - contrast*std
@@ -173,6 +177,8 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             if parameter=="vz":
                 vmax = np.max([np.abs(vmin), np.abs(vmax)])
                 vmin = -vmax
+            if show_errors:
+                vmin = 0
 
             if idr==0:
                 ax.set_title(labels[0], fontsize="large")
@@ -182,7 +188,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             if atm2 is not None:
                 cblabel_2 = cblabel_1
                 cblabel_1 = None
-            
+
             im = ax.imshow(x.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
             if idc==(ncols-1):
                 add_colorbar(fig, ax, im, label=cblabel_1)
@@ -199,8 +205,12 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 ax2 = fig.add_subplot(gs[idr,2*idc+1])
                 
                 # set titles
-                y = atm2.values[parameter][:,:,idr]
-                
+                if show_errors:
+                    y = atm2.errors[parameter][...,idr]
+                else:
+                    y = atm2.values[parameter][:,:,idr]
+                y *= fact
+
                 if idr==0:
                     ax2.set_title(labels[1], fontsize="large")
                 im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
