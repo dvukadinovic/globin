@@ -79,8 +79,7 @@ class Inverter(InputData):
 				elif self.mode==3:
 					atmos, spec, chi2 = self.invert_global(max_iter, marq_lambda)
 				else:
-					print(f"Not supported mode {self.mode}, currently.")
-					return None, None
+					raise ValueError(f"Not supported mode {self.mode}, currently.")
 
 				if self.debug:
 					self.save_debug()
@@ -90,7 +89,7 @@ class Inverter(InputData):
 
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
-					self.atmosphere.smooth_parameters(cycle)
+					self.atmosphere.smooth_parameters(cycle, self.gaussian_smooth_window[cycle], self.gaussian_smooth_std[cycle])
 
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')

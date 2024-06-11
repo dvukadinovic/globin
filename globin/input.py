@@ -494,6 +494,10 @@ class InputData(object):
 		
 		# inversion algorithm specific parameters
 		self.ncycle = _find_value_by_key("ncycle", self.parameters_input, "default", 1, int)
+		window = _find_value_by_key("smooth_window", self.parameters_input, "default", "5", str)
+		self.gaussian_smooth_window = list(map(float, window.split(",")))
+		std = _find_value_by_key("smooth_std", self.parameters_input, "default", "2.5", str)
+		self.gaussian_smooth_std = list(map(float, std.split(",")))
 		self.svd_tolerance = _find_value_by_key("svd_tolerance", self.parameters_input, "default", 1e-5, float)
 		marq_lambda = _find_value_by_key("marq_lambda", self.parameters_input, "default", 1e1, str)
 		tmp = marq_lambda.split(",")
@@ -502,7 +506,7 @@ class InputData(object):
 		tmp = max_iter.split(",")
 		self.max_iter = np.array([int(item) for item in tmp])
 		self.chi2_tolerance = _find_value_by_key("chi2_tolerance", self.parameters_input, "default", 1e-2, float)
-		
+
 		# type of RFs:
 		#   -- node: compute the perturbations only in node
 		#   -- snapi: compute the perturbations in every atmosphere level (Milic and van Noort 2019) [obsolete]
