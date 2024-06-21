@@ -35,7 +35,9 @@ from .utils import Stats
 from .chi2 import compute_chi2
 from .atoms import AtomPars
 
-__all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils"]
+import globin.invert as invert
+
+__all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils", "invert"]
 __name__ = "globin"
 __path__ = os.path.dirname(__file__)
 
