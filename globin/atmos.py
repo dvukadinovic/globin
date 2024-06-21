@@ -1630,17 +1630,9 @@ class Atmosphere(object):
 
 					self.values[parameter][...,idn] = median_filter(aux, size=4)
 		else:
-			size = 11
-			if cycle==1:
-				size = 7
-			if cycle>=2:
-				size = 5
-
-			size = 4
-
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
-					tmp = median_filter(self.values[parameter][...,idn], size=size)
+					tmp = median_filter(self.values[parameter][...,idn], size=num)
 					self.values[parameter][...,idn] = tmp
 
 		for parameter in self.global_pars:
