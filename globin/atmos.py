@@ -2485,6 +2485,37 @@ class Atmosphere(object):
 				idz = np.argmin(np.abs(self.logtau - nodes[parameter][idn]))
 				self.values[parameter][...,idn] = self.data[...,self.par_id[parameter],idz]
 
+	def reshape(self, shape, indx, indy):
+		"""
+		Transform the atmosphere shape. Used to convert the atmosphere structure
+		back to the original shape after performing the inversion of X% of best
+		pixels.
+
+		Parameters:
+		-----------
+		shape : tuple
+			original shape of the atmosphere to which we are casting the atmosphere
+		indx : ndarray
+			x-axis indices of original atmosphere which were selected for inversion
+		indt : ndarray
+			y-axis indices of original atmosphere which were selected for inversion
+
+		"""
+		data = np.empty((shape[0], shape[1], self.npar, self.nz), dtype=np.float64)
+		data.fill(np.nan)
+
+		data[indx,indy] = self.data
+
+		values = {}
+		for parameter in self.nodes:
+			nnodes = self.nodes[parameter].size
+			values[parameter] = np.empty((shape[0], shape[1], nnodes), dtype=np.float64)
+			values[parameter].fill(np.nan)
+			values[parameter][indx,indy] = self.values[parameter]
+
+		self.data = data
+		self.values = values
+
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	nx, ny, npar, nw, ns = rf.shape
 
