@@ -1740,6 +1740,32 @@ class Atmosphere(object):
 			end += Npars
 			self.errors[parameter] = global_errors[start:end]
 
+	def load_errors_fits(self, fpath):
+		hdu = fits.open(fpath)
+		local_errors = hdu[0].data
+
+		self.errors = {}
+		end = 0
+		for parameter in self.nodes:
+			start = end
+			end += len(self.nodes[parameter])
+			self.errors[parameter] = local_errors[..., start:end]
+
+		try:
+			global_errors = hdu[1].data
+		except:
+			return
+
+		end = 0
+		for parameter in self.global_pars:
+			npars = len(self.global_pars[parameter])
+			if npars==0:
+				continue
+
+			start = end
+			end += npars
+			self.errors[parameter] = global_errors[start:end]
+
 	@globin.utils.timeit
 	def get_hsra_cont(self):
 		"""

@@ -536,6 +536,12 @@ class Spectrum(object):
 	def read(self, fpath):
 		return
 
+	def reshape(self, shape, indx, indy):
+		spec = np.empty(shape, dtype=np.float64)
+		spec.fill(np.nan)
+		spec[indx,indy] = self.spec
+		self.spec = spec
+
 	@globin.utils.timeit
 	def interpolate(self, wave_out, n_thread=1, fill_value="extrapolate"):
 		"""
