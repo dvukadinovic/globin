@@ -51,7 +51,7 @@ def show():
 	"""
 	plt.show()
 
-def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", labels=None, reference=None):
+def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", show_errors=False, labels=None, reference=None):
 	colors = ["tab:red", "tab:green", "tab:orange"]
 	Ncolors = len(colors)
 
@@ -108,11 +108,20 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 
 			try:
 				x = atmos.nodes[parameter]
-				y = atmos.values[parameter][idx,idy] * fact[parameter]
-				ax.scatter(x, y, s=20, color=colors[0])
+				y = atmos.values[parameter][idx,idy].copy() * fact[parameter]
+				if show_errors and parameter in ["temp", "vz"]:
+					yerr = atmos.errors[parameter][idx,idy].copy() * fact[parameter]
+					ax.autoscale(False)
+					ax.errorbar(x, y, yerr=yerr, 
+						fmt=".",
+						elinewidth=0.75,
+						color=colors[0])
+				else:
+					ax.scatter(x, y, s=20, color=colors[0])
 			except:
 				pass
 
+			ax.autoscale(True)
 			ax.plot(atmos.data[idx,idy,0], cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
 			if parameter=="ne" or parameter=="nH":
 				ax.set_yscale("log")
@@ -127,8 +136,16 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 					ax.plot(ref.data[idx,idy,0], ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
 					try:
 						x = ref.nodes[parameter]
-						y = ref.values[parameter][idx,idy] * fact[parameter]
-						ax.scatter(x, y, s=20, color=colors[(idr+1)%Ncolors])
+						y = ref.values[parameter][idx,idy].copy() * fact[parameter]
+						if show_errors and parameter in ["temp", "vz"]:
+							yerr = ref.errors[parameter][idx,idy].copy() * fact[parameter]
+							ax.autoscale(False)
+							ax.errorbar(x, y, yerr=yerr, 
+								fmt=".",
+								elinewidth=0.75,
+								color=colors[(idr+1)%Ncolors])
+						else:
+							ax.scatter(x, y, s=20, color=colors[(idr+1)%Ncolors])
 					except:
 						pass
 
@@ -507,7 +524,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 					ax.yaxis.set_major_locator(ticker.MultipleLocator(1))
 					ax.yaxis.set_minor_locator(ticker.MultipleLocator(0.5))
-					ax.grid(which="major", axis="y", lw=0.5)
+					ax.grid(which="both", axis="y", lw=0.5)
 
 			if rf_wave_integrate:	
 				RF = rf_local[idp]
