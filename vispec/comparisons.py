@@ -79,8 +79,8 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
                 ax.yaxis.set_label_position("right")
 
             ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
-            mean = np.mean(x)
-            std = np.std(x)
+            mean = np.nanmean(x)
+            std = np.nanstd(x)
             vmin = mean - 3*std
             vmax = mean + 3*std
             if parameter=="mag":
@@ -164,8 +164,8 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             else:
                 x = atm1.values[parameter][:,:,idr].copy()
             x *= fact
-            mean = np.mean(x)
-            std = np.std(x)
+            mean = np.nanmean(x)
+            std = np.nanstd(x)
             vmin = mean - contrast*std
             vmax = mean + contrast*std
             if parameter=="mag":
@@ -206,9 +206,9 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 
                 # set titles
                 if show_errors:
-                    y = atm2.errors[parameter][...,idr]
+                    y = atm2.errors[parameter][...,idr].copy()
                 else:
-                    y = atm2.values[parameter][:,:,idr]
+                    y = atm2.values[parameter][:,:,idr].copy()
                 y *= fact
 
                 if idr==0:
