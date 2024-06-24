@@ -21,10 +21,9 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import sys
 
-try:
-	import pyrh
-except ImportError:
-	sys.exit("No module 'pyrh'. Install the module first before using 'globin'.")
+import pyrh
+if pyrh.__version__!=0.2:
+	raise ImportError(f"Incompatible version of pyrh module. Found {pyrh.__version__} but expected 0.2. Please install the correct version.")
 
 from .inversion import Inverter
 from .atmos import Atmosphere
