@@ -1304,7 +1304,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 				# find spectral lines
 				peaks, properties = find_peaks(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy],
-					height=(0.2, None), 
+					height=(0.05, None), 
 					width=(1, None),
 					distance=D)
 				
