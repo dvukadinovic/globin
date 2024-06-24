@@ -201,8 +201,8 @@ class Atmosphere(object):
 												"dlam"  : np.array([])}
 
 		# fudge parameters: H-, scatt, metals for each wavelength
-		self.do_fudge = 0
 		self.fudge_lam = None
+		self.fudge = None
 		self.of_scatter = 1
 
 		# flag for computing the atomic parameters RFs (for those in self.global_pars)
@@ -274,7 +274,6 @@ class Atmosphere(object):
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 			self.idx_meshgrid = self.idx_meshgrid.flatten()
 			self.idy_meshgrid = self.idy_meshgrid.flatten()
-			self.fudge = None
 		else:
 			self.data = None
 			self.header = None
@@ -284,7 +283,6 @@ class Atmosphere(object):
 				self.rho = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.fudge = None
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
 				self.idx_meshgrid = self.idx_meshgrid.flatten()
 				self.idy_meshgrid = self.idy_meshgrid.flatten()
@@ -1043,9 +1041,15 @@ class Atmosphere(object):
 		"""
 		idx, idy = arg
 
+		fudge_lam = None
+		fudge_value = None
+		if self.fudge_lam is not None:
+			fudge_lam = self.fudge_lam
+			fudge_value = self.fudge[idx,idy]
+
 		ne, nHtot = pyrh.hse(self.cwd, self.scale_id,
 							 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-							 self.pg[idx,idy,0]/10, self.fudge_lam, self.fudge[idx,idy])
+							 self.pg[idx,idy,0]/10, fudge_lam, fudge_value)
 
 		return np.vstack((ne/1e6, nHtot/1e6))
 
@@ -1886,6 +1890,12 @@ class Atmosphere(object):
 		except:
 			mu = self.mu
 
+		fudge_lam = None
+		fudge_value = None
+		if self.fudge_lam is not None:
+			fudge_lam = self.fudge_lam
+			fudge_value = self.fudge[idx,idy]
+
 		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
 			if self.mode==2:
 				_idx, _idy = idx, idy
@@ -1894,7 +1904,7 @@ class Atmosphere(object):
 			
 			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
-								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  fudge_lam, fudge_value,
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4,
 								  self.get_atomic_rfs)
@@ -1906,7 +1916,7 @@ class Atmosphere(object):
 		else:
 			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
-								  self.do_fudge, self.fudge_lam, self.fudge[idx,idy],
+								  fudge_lam, fudge_value,
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4,
 								  False)
