@@ -22,8 +22,8 @@ import numpy as np
 import sys
 
 import pyrh
-if pyrh.__version__!=0.2:
-	raise ImportError(f"Incompatible version of pyrh module. Found {pyrh.__version__} but expected 0.2. Please install the correct version.")
+if pyrh.__version__!=0.21:
+	raise ImportError(f"Incompatible version of pyrh module. Found {pyrh.__version__} but expected 0.21. Please install the correct version.")
 
 from .inversion import Inverter
 from .atmos import Atmosphere
