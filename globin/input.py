@@ -1312,7 +1312,15 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				# plt.axvline(x=peaks[0], c="k", lw=0.75)
 				# plt.show()
 
-				peaks[0] += ind_min
+				try:
+					peaks[0] += ind_min
+				except:
+					print(idx, idy)
+
+					plt.plot(obs.I[idx,idy].max()/Ic[idx,idy] - obs.I[idx,idy,ind_min:ind_max]/Ic[idx,idy])
+					plt.show()
+
+					raise ValueError("Dumb")
 
 				# top = 0.8
 				# bot = -0.01
@@ -1361,6 +1369,10 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 		atmos.values["vz"] = np.repeat(vlos[..., np.newaxis], len(atmos.nodes["vz"]), axis=-1)
 
+		# plt.imshow(atmos.values["vz"][...,0].T)
+		# plt.colorbar()
+		# plt.show()
+
 	if init_mag:
 		#--- azimuth initialization
 		# if "chi" in atmos.nodes:	
@@ -1393,6 +1405,10 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			b = np.abs(blos) / np.cos(np.pi/3)
 
 			atmos.values["mag"] = np.repeat(b[..., np.newaxis], len(atmos.nodes["mag"]), axis=-1)
+
+			# plt.imshow(atmos.values["mag"][...,0].T)
+			# plt.colorbar()
+			# plt.show()
 
 		#--- inclination initialization
 		# if "gamma" in atmos.nodes:
