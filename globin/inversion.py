@@ -397,7 +397,7 @@ class Inverter(InputData):
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF table after parameters update
-			if atmos.do_fudge==1:
+			if atmos.fudge is not None:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
 			#--- rebuild new atmosphere after parameters update
@@ -447,7 +447,7 @@ class Inverter(InputData):
 			updated_pars[indx,indy] = 0
 
 			#--- remake OF table after check of chi2 convergance
-			if atmos.do_fudge==1:
+			if atmos.fudge is not None:
 				atmos.make_OF_table(self.wavelength_vacuum)
 
 			if self.debug:
@@ -982,7 +982,7 @@ class Inverter(InputData):
 		# 	else:
 		# 		mean_dlam = None
 
-		if atmos.do_fudge==1:
+		if atmos.fudge is not None:
 			atmos.make_OF_table(self.wavelength_vacuum)
 
 		spec.xmin = obs.xmin
