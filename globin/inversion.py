@@ -104,7 +104,10 @@ class Inverter(InputData):
 			
 			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
 
-			spectrum = self.synthesize(self.atmosphere, pool)
+			spectrum = synthesize(self.atmosphere, self.n_thread, pool, self.noise)
+
+			if self.save_output:
+				spectrum.save(self.output_spectra_path, spectrum.wavelength)
 
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')
@@ -120,31 +123,6 @@ class Inverter(InputData):
 			return spectrum
 		else:
 			raise ValueError(f"Unrecognized mode={self.mode} of operation. Check input parameters.")
-
-	def synthesize(self, atmosphere, pool):
-		if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
-			print("[Info] Computing the HSRA spectrum...\n")
-			atmosphere.get_hsra_cont()
-
-		ones = np.ones((atmosphere.nx, atmosphere.ny))
-		spectrum = atmosphere.compute_spectra(pool=pool)
-		
-		#--- add macro-turbulent broadening
-		spectrum.broaden_spectra(atmosphere.vmac, ones, self.n_thread, pool=pool)
-		
-		#--- add instrument broadening (if applicable)
-		if atmosphere.instrumental_profile is not None:
-			spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
-
-		#--- add noise
-		if self.noise!=0:
-			spectrum.add_noise(self.noise)
-
-		#--- save spectra
-		if self.save_output:
-			spectrum.save(self.output_spectra_path, spectrum.wavelength)
-
-		return spectrum
 
 	def _get_Npar(self):
 		# this is the number of local parameters only (we are doing pxl-by-pxl)
@@ -1356,3 +1334,24 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
+
+
+def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
+	if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
+		print("[Info] Computing the HSRA spectrum...\n")
+		atmosphere.get_hsra_cont()
+
+	spectrum = atmosphere.compute_spectra(pool=pool)
+	
+	#--- add macro-turbulent broadening
+	spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
+	
+	#--- add instrument broadening (if applicable)
+	if atmosphere.instrumental_profile is not None:
+		spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
+
+	#--- add noise
+	if noise_level!=0:
+		spectrum.add_noise(noise_level)
+
+	return spectrum
