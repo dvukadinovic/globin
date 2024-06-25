@@ -313,7 +313,7 @@ class Spectrum(object):
 			raise ValueError(f"Kernel order {order} not supported.")
 
 	@globin.utils.timeit
-	def broaden_spectra(self, vmac, flag=None, n_thread=1):
+	def broaden_spectra(self, vmac, flag=None, n_thread=1, pool=None):
 		if vmac==0:
 			return
 
@@ -328,16 +328,19 @@ class Spectrum(object):
 		indx, indy = np.where(flag==1)
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=_broaden_spectra, iterable=args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_broaden_spectra, iterable=args)
+		else:
+			results = pool.map(_broaden_spectra, args)
 
 		results = np.array(results)
 		self.spec[indx, indy] = results
 
-	def instrumental_broadening(self, flag, n_thread, kernel=None, R=None):
+	def instrumental_broadening(self, flag, n_thread, kernel=None, R=None, pool=None):
 		if R is not None:
 			vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
-			self.broaden_spectra(vinst, flag, n_thread)
+			self.broaden_spectra(vinst, flag, n_thread, pool=pool)
 		if kernel is not None:
 			# get only sample of spectra that we want to convolve
 			# (no need to do it in every pixel during inversion if
@@ -345,8 +348,11 @@ class Spectrum(object):
 			indx, indy = np.where(flag==1)
 			args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
-			with mp.Pool(n_thread) as pool:
-				results = pool.map(func=_broaden_spectra, iterable=args)
+			if pool is None:
+				with mp.Pool(n_thread) as pool:
+					results = pool.map(func=_broaden_spectra, iterable=args)
+			else:
+				results = pool.map(_broaden_spectra, args)
 
 			results = np.array(results)
 			self.spec[indx,indy] = results

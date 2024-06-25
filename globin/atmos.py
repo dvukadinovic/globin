@@ -1817,7 +1817,7 @@ class Atmosphere(object):
 		return tau_wlref
 
 	@globin.utils.timeit
-	def compute_spectra(self, synthesize=None):
+	def compute_spectra(self, synthesize=None, pool=None):
 		"""
 		Parameters:
 		-----------
@@ -1835,17 +1835,16 @@ class Atmosphere(object):
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
 
-		start = time.time()
-		with mp.Pool(self.n_thread) as pool:
-			if globin.collect_stats:
-				globin.statistics.add(fun_name="pool_creation", execution_time=time.time() - start)
-			spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+		if pool is None:
+			with mp.Pool(self.n_thread) as pool:
+				spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+		else:
+			spectra_list = pool.map(self._compute_spectra_sequential, args)
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
-		# spectra = Spectrum(self.nx, self.ny, len(self.wavelength_obs), nz=self.nz)
 		spectra = Spectrum(nx=self.nx, ny=self.ny, nw=nw)
 		spectra.wavelength = self.wavelength_air
 		spectra.spec[indx,indy] = spectra_list[:,:,:4]

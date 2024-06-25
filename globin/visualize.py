@@ -240,7 +240,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			else:
 				obs[:,0] += shift
 
-		print(obs.shape)
 		axI.plot((wavelength - lam0)*10, obs[:,0], lw=lw, color="k")
 		# if norm:
 		axI.set_ylabel(r"Stokes I/I$_\mathrm{c}$")
