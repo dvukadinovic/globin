@@ -32,11 +32,9 @@ class Inverter(InputData):
 
 	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
 		if rh_input_name is None:
-			print(f"[Error] There is no path for globin input file.")
-			sys.exit()
-		if globin_input_name is None:
-			print(f"[Error] There is no path for RH input file.")
-			sys.exit()
+			raise ValueError("There is no path to the globin input file.")
+		# if globin_input_name is None:
+		# 	raise ValueError(f"There is no path to the RH input file.")
 
 		# name of the folder in which we will store all synthesis/inversion results
 		self.run_name = run_name

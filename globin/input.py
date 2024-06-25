@@ -40,6 +40,7 @@ class InputData(object):
 
 		# normalization flag (True/False)
 		self.norm = False
+
 		# continuum value ('hsra', 1, float)
 		self.norm_level = None
 
@@ -80,22 +81,6 @@ class InputData(object):
 		sp.run(f"cp *.input {self.cwd}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 
-		#--- get parameters from RH input file
-		text = open(self.rh_input_name, "r").read()
-		self.keyword_input = text
-
-		# wave_file_path = _find_value_by_key("WAVETABLE", self.keyword_input, "required")
-		# wave_file_path = wave_file_path.split("/")[-1]
-		# # obj.rh_spec_name = _find_value_by_key("SPECTRUM_OUTPUT", obj.keyword_input, "default", "spectrum.out")
-		# self.solve_ne = _find_value_by_key("SOLVE_NE", self.keyword_input, "optional")
-		# obj.hydrostatic = _find_value_by_key("HYDROSTATIC", obj.keyword_input, "optional")
-		# obj.kurucz_input_fname = _find_value_by_key("KURUCZ_DATA", obj.keyword_input, "required")
-		# obj.rf_file_path = _find_value_by_key("RF_OUTPUT", obj.keyword_input, "default", "rfs.out")
-		# obj.stokes_mode = _find_value_by_key("STOKES_MODE", obj.keyword_input, "default", "NO_STOKES")
-		# self.of_mode = _find_value_by_key("OPACITY_FUDGE", self.keyword_input, "default", False)
-		# if self.of_mode:
-		# 	self.of_mode = True
-
 		#--- get parameters from globin input file
 		text = open(self.globin_input_name, "r").read()
 		self.parameters_input = text
@@ -106,14 +91,10 @@ class InputData(object):
 
 		# mode of operation
 		#   -- 0: synthesis
-		#   -- 1: pixel-by-pixel inversion of atmospheric parameters (+ stray light)
+		#   -- 1: pixel-by-pixel inversion of atmospheric parameters (including the stray light)
 		#   -- 2: as 1 + pixel-by-pixel inversion of atomic parameters (log(gf) and dlam)
-		#   -- 3: global inversion of atmospheric (+ stray light) and atomic parameters (and macro-velocity)
+		#   -- 3: global inversion of atmospheric (including the stray light) and atomic parameters (and macro-velocity)
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
-		
-		# path to pyrh/ installation; sent to RH to correct that paths of 
-		# atoms/molecules/partition functions/barklem data
-		# self.pyrh_path = _find_value_by_key("pyrh_path", self.parameters_input, "required")
 
 		# get wavelength range for computing the spectrum
 		self.lmin = _find_value_by_key("wave_min", self.parameters_input, "optional", conversion=float)
