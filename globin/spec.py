@@ -337,14 +337,16 @@ class Spectrum(object):
 		results = np.array(results)
 		self.spec[indx, indy] = results
 
-	def instrumental_broadening(self, flag, n_thread, kernel=None, R=None, pool=None):
+	def instrumental_broadening(self, flag=None, n_thread=1, kernel=None, R=None, pool=None):
 		if R is not None:
 			vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
 			self.broaden_spectra(vinst, flag, n_thread, pool=pool)
-		if kernel is not None:
+		elif kernel is not None:
 			# get only sample of spectra that we want to convolve
 			# (no need to do it in every pixel during inversion if
 			# we have not updated parameters)
+			if flag is None:
+				flag = np.ones((self.nx, self.ny), dtype=np.int32)
 			indx, indy = np.where(flag==1)
 			args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
@@ -356,6 +358,8 @@ class Spectrum(object):
 
 			results = np.array(results)
 			self.spec[indx,indy] = results
+		else:
+			raise ValueError("Did not find R or kernel for instrumental broadening.")
 
 	def add_stray_light(self, mode, stray_light, sl_spectrum=None):
 		"""
