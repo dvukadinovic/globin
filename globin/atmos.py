@@ -1904,10 +1904,9 @@ class Atmosphere(object):
 			
 			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
-								  fudge_lam, fudge_value,
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4,
-								  self.get_atomic_rfs)
+								  fudge_lam, fudge_value, self.get_atomic_rfs)
 			if self.get_atomic_rfs:
 				sI, sQ, sU, sV, rh_wave_vac, rf = output
 			else:
@@ -1916,10 +1915,9 @@ class Atmosphere(object):
 		else:
 			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
-								  fudge_lam, fudge_value,
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4,
-								  False)
+								  fudge_lam, fudge_value, False)
 			rf = None
 
 		tck = splrep(rh_wave_vac, sI, k=3)

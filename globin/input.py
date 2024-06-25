@@ -311,11 +311,10 @@ class InputData(object):
 		# we want to have the same or higher number of wavelength points than there
 		# are in the observations.
 		if self.mode>=1:
-			if len(self.observation.wavelength)>len(self.wavelength_air):
-				msg = "  Specified wavelength grid has lower number of points than\n"
-				msg+= "  the observation's wavelength grid. Increase the number of\n"
-				msg+= "  wavelength points to improve the sampling.\n"
-				sys.exit(msg)
+			dlam_obs = self.observation.wavelength[1:] - self.observation.wavelength[:-1]
+			dlam_synth = self.wavelength_air[1:] - self.wavelength_air[:-1]
+			if np.mean(dlam_obs)<np.mean(dlam_synth):
+				raise ValueError("Requested wavelength sampling is smaller than the observed one. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
 
 		# get the Pg at top of the atmosphere
 		if self.atmosphere.pg_top is None:
@@ -530,7 +529,16 @@ class InputData(object):
 		
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
 		self.observation = Observation(path_to_observations, obs_range=atm_range, spec_type=obs_fmt)
-		
+
+		# import matplotlib.pyplot as plt
+
+		# plt.imshow(self.observation.V[...,83])
+		# plt.colorbar()
+		# plt.show()
+
+		# plt.plot(self.observation.I[10,10])
+		# plt.show()
+
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
 		# 	logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)# atm_range=atm_range)
