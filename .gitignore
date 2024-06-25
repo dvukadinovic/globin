@@ -1,6 +1,7 @@
 !globin/data/*.dat
 globin.egg-info/
 globin/__pycache__/
+globin/invert/__pycache__/
 vispec/__pycache__/
 comments
 *.so
