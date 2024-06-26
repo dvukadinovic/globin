@@ -1,15 +1,9 @@
 subprocess
 multiprocessing
 astropy==5.1
-os
-sys
-copy
 numpy==1.23.3
 matplotlib==3.6.3
 scipy==1.9.2
-time
-re
-io
 schwimmbad==0.3.2
-mpi4py==3.1.4
+mpi4py==3.1.6
 Cython==0.29.24
