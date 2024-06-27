@@ -1883,6 +1883,8 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
 
+		start = time.time()
+
 		try:
 			mu = self.mu[idx,idy]
 		except:
@@ -1933,6 +1935,9 @@ class Atmosphere(object):
 				rf[:,idp] = splev(self.wavelength_vacuum, tck, der=0)
 
 			return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
+
+		if self.mode==0:
+			print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
 
 		return np.vstack((sI, sQ, sU, sV))
 
