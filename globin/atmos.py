@@ -1760,6 +1760,7 @@ class Atmosphere(object):
 			spectrum is normalized to the local continuum point (@ first wavelength).
 		"""
 		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+		hsra.mode = 0
 		hsra.wavelength_air = self.wavelength_air
 		hsra.wavelength_vacuum = globin.utils.air_to_vacuum(hsra.wavelength_air)
 		hsra.cwd = self.cwd
