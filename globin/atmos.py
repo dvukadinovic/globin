@@ -1835,6 +1835,9 @@ class Atmosphere(object):
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
 
+		if self.mode==0:
+			self.finished = 0
+
 		if pool is None:
 			with mp.Pool(self.n_thread) as pool:
 				spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
@@ -1878,6 +1881,9 @@ class Atmosphere(object):
 				sl_spectrum = self.stray_light_spectrum.spec
 
 			spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+
+		if self.mode==0:
+			print()
 
 		return spectra
 
@@ -1938,7 +1944,9 @@ class Atmosphere(object):
 			return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
 
 		if self.mode==0:
-			print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
+			# print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
+			self.finished += 1
+			print(f"\r  Finished {self.finished/self.nx/self.ny*100:1.3f}%", end="")
 
 		return np.vstack((sI, sQ, sU, sV))
 
