@@ -1234,11 +1234,11 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 		   lam0, line_dlam = map(float,line)
 		   init_lines[idl] = [lam0, line_dlam/1e4]
 		   mag_line[idl] = False
-		elif len(line)==7:
+		elif len(line)==8:
 			# raise ValueError("We currently do not support intialization of magnetic field vector.")
 			init_mag = True
 			mag_line[idl] = True
-			lam0, line_dlam, geff, gl, gu, Jl, Ju = map(float, line)
+			lam0, line_dlam, geff, gl, gu, Jl, Ju, Bexp = map(float, line)
 			gs = gu + gl
 			gd = gu - gl
 			_s = Ju*(Ju+1) + Jl*(Jl+1)
@@ -1247,7 +1247,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			if geff<0:
 				geff = 1/2*gs + 1/4*gd*_d
 			Geff = geff**2 - delta
-			init_lines[idl] = [lam0, line_dlam/1e4, geff, Geff]
+			init_lines[idl] = [lam0, line_dlam/1e4, geff, Geff, Bexp]
 		else:
 			print("[Error] input.initialize_atmos_pars():")
 			print("  Wrong number of parameters for initializing")
@@ -1264,11 +1264,12 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 	# 	D = np.abs(init_lines[0][0] - init_lines[0][1]) / dlam
 
 	# initialize the arrays to be used
-	x = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	si = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	sq = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	su = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
-	sv = np.zeros((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	x = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	si = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sq = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	su = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	sv = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
+	dIdlam = np.empty((atmos.nx, atmos.ny, N, nl),dtype=np.float64)
 	_lam0 = np.ones((atmos.nx, atmos.ny, nl), dtype=np.float64)
 
 	for idl in range(nl):
@@ -1280,7 +1281,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				if not mag_line[idl]:
 					lam0, line_dlam = line
 				if mag_line[idl]:
-					lam0, line_dlam, geff, Geff = line
+					lam0, line_dlam, geff, Geff, Bexp = line
 
 				lmin = lam0 - line_dlam
 				lmax = lam0 + line_dlam
@@ -1323,10 +1324,15 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				# plt.show()
 
 				# 'width' of the line; we add 20% to be sure that we can catch wings in Stokes V profile
-				w = properties["widths"][0] * 1.2
+				w = properties["widths"][0] * 3
 				w = int(w)
+				# dlamB = 4.6686e-13*(lam0*10)**2 * geff * Bexp * 0.3
+				# print(w)
+				# print(dlamB//dlam)
 				ind_min = peaks[0] - w
 				ind_max = peaks[0] + w
+				if ind_min<0:
+					ind_min = 0
 
 				# get only the line of interest and interpolate it on finner grid
 				tmp_x = obs.wavelength[ind_min:ind_max]
@@ -1334,11 +1340,13 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 				tmp_sq = obs.Q[idx,idy,ind_min:ind_max]/Ic[idx,idy]
 				tmp_su = obs.U[idx,idy,ind_min:ind_max]/Ic[idx,idy]
 				tmp_sv = obs.V[idx,idy,ind_min:ind_max]/Ic[idx,idy]
+
 				x[idx,idy,:,idl] = np.linspace(tmp_x.min(), tmp_x.max(), num=N)
 				si[idx,idy,:,idl] = interp1d(tmp_x, tmp_si, kind=3)(x[idx,idy,:,idl])
 				sq[idx,idy,:,idl] = interp1d(tmp_x, tmp_sq, kind=3)(x[idx,idy,:,idl])
 				su[idx,idy,:,idl] = interp1d(tmp_x, tmp_su, kind=3)(x[idx,idy,:,idl])
 				sv[idx,idy,:,idl] = interp1d(tmp_x, tmp_sv, kind=3)(x[idx,idy,:,idl])
+				dIdlam[idx,idy,:,idl] = splev(x[idx,idy,:,idl], splrep(x[idx,idy,:,idl], si[idx,idy,:,idl]), der=1)
 
 				# mean = x[idx,idy,:,idl].mean()
 				# par, _ = curve_fit(gaussian, x[idx,idy,:,idl], 1-si[idx,idy,:,idl], 
@@ -1378,6 +1386,10 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 			# WF approximation
 			# C = 4.67e-13 * (_lam0*10)**2 * geff
+			# print(C.shape)
+			# aux_1 = np.sum(dIdlam*sv, axis=(2))
+			# aux_2 = np.sum(dIdlam**2, axis=(2))
+			# blos = - 1/C * aux_1/aux_2
 			# blos = (lamp - lamm)*10/2 / C
 			
 			# COG method
