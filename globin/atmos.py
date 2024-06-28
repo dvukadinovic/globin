@@ -22,6 +22,8 @@ from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_p
 from .utils import extend, Planck
 from .makeHSE import makeHSE
 
+finished = 0
+
 class MinMax(object):
 	"""
 	Container for minimum and maximum values of a parameter.
@@ -1887,6 +1889,8 @@ class Atmosphere(object):
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
 
+		global finished
+
 		start = time.time()
 
 		try:
@@ -1942,6 +1946,8 @@ class Atmosphere(object):
 
 		if self.mode==0:
 			print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
+			finished += 1
+			print(finished/self.nx/self.ny * 100)
 
 		return np.vstack((sI, sQ, sU, sV))
 
