@@ -22,8 +22,6 @@ from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_p
 from .utils import extend, Planck
 from .makeHSE import makeHSE
 
-finished = 0
-
 class MinMax(object):
 	"""
 	Container for minimum and maximum values of a parameter.
@@ -1818,6 +1816,10 @@ class Atmosphere(object):
 
 		return tau_wlref
 
+	def progress_report(self, res):
+		self.finished += 1
+		print(f"\r  Finished {self.finished/self.nx/self.ny*100:1.3f}%", end="")
+
 	@globin.utils.timeit
 	def compute_spectra(self, synthesize=None, pool=None):
 		"""
@@ -1832,6 +1834,8 @@ class Atmosphere(object):
 		spectra : globin.Spectrum() object
 			structure containgin all the info regarding the spectrum.
 		"""
+		self.finished = 0
+
 		if synthesize is None:
 			synthesize = np.ones((self.nx, self.ny))
 		indx, indy = np.where(synthesize==1)
@@ -1841,7 +1845,7 @@ class Atmosphere(object):
 			with mp.Pool(self.n_thread) as pool:
 				spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 		else:
-			spectra_list = pool.map(self._compute_spectra_sequential, args)
+			spectra_list = pool.map(self._compute_spectra_sequential, args, callback=self.progress_report)
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
@@ -1888,8 +1892,6 @@ class Atmosphere(object):
 
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
-
-		global finished
 
 		start = time.time()
 
@@ -1944,10 +1946,8 @@ class Atmosphere(object):
 
 			return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
 
-		if self.mode==0:
-			print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
-			finished += 1
-			print(finished/self.nx/self.ny * 100)
+		# if self.mode==0:
+		# 	print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
 
 		return np.vstack((sI, sQ, sU, sV))
 
