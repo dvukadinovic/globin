@@ -180,6 +180,9 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
+		print(atmos.limit_values["gamma"])
+		print(atmos.limit_values["chi"])
+
 		if atmos.add_stray_light or atmos.norm_level=="hsra":
 			print("[Info] Computing the HSRA spectrum...\n")
 			atmos.get_hsra_cont()
