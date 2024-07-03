@@ -1515,7 +1515,6 @@ class Atmosphere(object):
 	@globin.utils.timeit
 	def check_parameter_bounds(self, mode):
 		"""
-
 		After updating the inversion parameters, check if they are inside the
 		defined bounds. If they are not, set the values to the closess boundary
 		(min/max value).
@@ -1526,28 +1525,28 @@ class Atmosphere(object):
 		"""
 		for parameter in self.values:
 			# inclination is wrapped around [0, 180] interval
-			if parameter=="gamma":
-				y = np.cos(self.values[parameter])
-				self.values[parameter] = np.arccos(y)
-			# azimuth is wrapped around [-90, 90] interval
-			elif parameter=="chi":
-				y = np.sin(self.values[parameter])
-				self.values[parameter] = np.arcsin(y)
-			else:
-				for idn in range(len(self.nodes[parameter])):
-					# check lower boundary condition
-					vmin = self.limit_values[parameter].min[0]
-					if self.limit_values[parameter].vmin_dim!=1:
-						vmin = self.limit_values[parameter].min[idn]
-					indx, indy = np.where(self.values[parameter][...,idn]<vmin)
-					self.values[parameter][indx,indy,idn] = vmin
+			# if parameter=="gamma":
+			# 	y = np.cos(self.values[parameter])
+			# 	self.values[parameter] = np.arccos(y)
+			# # azimuth is wrapped around [-90, 90] interval
+			# elif parameter=="chi":
+			# 	y = np.sin(self.values[parameter])
+			# 	self.values[parameter] = np.arcsin(y)
+			# else:
+			for idn in range(len(self.nodes[parameter])):
+				# check lower boundary condition
+				vmin = self.limit_values[parameter].min[0]
+				if self.limit_values[parameter].vmin_dim!=1:
+					vmin = self.limit_values[parameter].min[idn]
+				indx, indy = np.where(self.values[parameter][...,idn]<vmin)
+				self.values[parameter][indx,indy,idn] = vmin
 
-					# check upper boundary condition
-					vmax = self.limit_values[parameter].max[0]
-					if self.limit_values[parameter].vmax_dim!=1:
-						vmax = self.limit_values[parameter].max[idn]
-					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
-					self.values[parameter][indx,indy,idn] = vmax
+				# check upper boundary condition
+				vmax = self.limit_values[parameter].max[0]
+				if self.limit_values[parameter].vmax_dim!=1:
+					vmax = self.limit_values[parameter].max[idn]
+				indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+				self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
