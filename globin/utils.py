@@ -15,6 +15,7 @@ import pstats
 import io
 
 from .makeHSE import makeHSE
+from .chi2 import Chi2
 
 from scipy.constants import m_e, m_p
 from scipy.constants import k as k_b
@@ -50,7 +51,8 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     par_data = hdu.data
 
     # get the chi2 values
-    chi2 = globin.input.Chi2(chi2=par_data[-1])
+    # chi2 = Chi2(chi2=par_data[-1])
+    chi2 = None
 
     read_atmos = False
     try:
@@ -139,6 +141,11 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         obs.spec[...,1] = data[:,:,2]
         obs.spec[...,2] = data[:,:,3]
         obs.spec[...,3] = data[:,:,1]
+
+        wave = fits.open(f"{fpath}/inverted_lam.1.fits")[0]
+        wlref = float(wave.header["WLREF"])
+        obs.wavelength = wave.data[0,0] + wlref
+        obs.wavelength /= 10 # [A --> nm]
 
         return atm, spec, chi2, obs
 
