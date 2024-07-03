@@ -1868,22 +1868,22 @@ class Atmosphere(object):
 			else:
 				spectra.spec /= self.norm_level
 
-		#--- add the stray light component:
-		if self.add_stray_light:
-			# get the stray light factor(s)
-			if "stray" in self.global_pars:
-				stray_light = self.global_pars["stray"]
-			else:
-				stray_light = self.stray_light
+		# #--- add the stray light component:
+		# if self.add_stray_light:
+		# 	# get the stray light factor(s)
+		# 	if "stray" in self.global_pars:
+		# 		stray_light = self.global_pars["stray"]
+		# 	else:
+		# 		stray_light = self.stray_light
 
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			sl_spectrum = None
-			if self.stray_type=="hsra":
-				sl_spectrum = self.hsra_spec.spec
-			if self.stray_type in ["atmos", "spec"]:
-				sl_spectrum = self.stray_light_spectrum.spec
+		# 	# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+		# 	sl_spectrum = None
+		# 	if self.stray_type=="hsra":
+		# 		sl_spectrum = self.hsra_spec.spec
+		# 	if self.stray_type in ["atmos", "spec"]:
+		# 		sl_spectrum = self.stray_light_spectrum.spec
 
-			spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+		# 	spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 		if self.mode==0:
 			print()
@@ -1990,6 +1990,7 @@ class Atmosphere(object):
 
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
+		free_par_ID_stray = -1
 		for parameter in self.nodes:
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
@@ -2013,6 +2014,7 @@ class Atmosphere(object):
 				if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
 					node_RF = (spectra_plus.spec - spec.spec ) / perturbation
 				elif parameter=="stray":
+					free_par_ID_stray = free_par_ID
 					if self.stray_type=="hsra":
 						node_RF = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
@@ -2080,12 +2082,15 @@ class Atmosphere(object):
 					free_par_ID += 1
 
 				elif parameter=="stray":
+					free_par_ID_stray = free_par_ID
+
 					if self.stray_type=="hsra":
 						diff = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
 						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
 						diff = -spec.spec
+
 					diff *= weights
 					diff /= rf_noise_scale
 					diff *= np.sqrt(2)
@@ -2128,7 +2133,35 @@ class Atmosphere(object):
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
-		
+
+		# plt.plot(rf[0,0,3,:,3])
+
+		#--- add the stray light component:
+		if self.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if self.stray_type=="hsra":
+				sl_spectrum = self.hsra_spec.spec
+			if self.stray_type in ["atmos", "spec"]:
+				sl_spectrum = self.stray_light_spectrum.spec
+
+			spec.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+
+			# skip adding the stray light to the RF for stray light
+			for idp in range(Npar):
+				if idp==free_par_ID_stray:
+					continue
+				rf[:,:,idp] *= 1 - stray_light
+
+		# plt.plot(rf[0,0,3,:,3])
+		# plt.show()
+
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			# print(self.wavelength_air)

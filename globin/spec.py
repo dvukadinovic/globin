@@ -382,7 +382,7 @@ class Spectrum(object):
 					raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
 				
 				if stray_type=="spectrum":
-					self.spec[idx,idy] = stray_factor * sl_spectrum + (1-stray_factor) * self.spec[idx,idy]
+					self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="gray":
 					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
 					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
