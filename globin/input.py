@@ -889,6 +889,8 @@ class InputData(object):
 		#--- assign the lower limit values for each node
 		if min_limits is not None:
 			vmin = np.array([float(item) for item in min_limits.split(",")])
+			if parameter in ["gamma", "chi"]:
+				vmin  = np.deg2rad(vmin)
 			atmosphere.limit_values[parameter].vmin = vmin
 			atmosphere.limit_values[parameter].vmin_dim = len(vmin)
 
@@ -898,6 +900,8 @@ class InputData(object):
 		#--- assign the upper limit values for each node
 		if max_limits is not None:
 			vmax = np.array([float(item) for item in max_limits.split(",")])
+			if parameter in ["gamma", "chi"]:
+				vmax  = np.deg2rad(vmax)
 			atmosphere.limit_values[parameter].vmax = vmax
 			atmosphere.limit_values[parameter].vmax_dim = len(vmax)
 
