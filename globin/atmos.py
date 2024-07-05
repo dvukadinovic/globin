@@ -19,7 +19,7 @@ except:
 import globin
 from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_point
-from .utils import extend, Planck
+from .utils import extend, Planck, azismooth, mygsmooth
 from .makeHSE import makeHSE
 
 class MinMax(object):
@@ -1593,15 +1593,15 @@ class Atmosphere(object):
 			for parameter in self.nodes:
 				for idn in range(len(self.nodes[parameter])):
 					if parameter=="chi":
-						aux = globin.utils.azismooth(self.values[parameter][...,idn]*180/np.pi, num)
+						aux = azismooth(self.values[parameter][...,idn]*180/np.pi, num)
 						aux *= np.pi/180
 					elif parameter=="gamma":
-						aux = globin.utils.mygsmooth(self.values[parameter][...,idn]*180/np.pi, num, std)
+						aux = mygsmooth(self.values[parameter][...,idn]*180/np.pi, num, std)
 						aux *= np.pi/180
 					elif parameter=="of":
 						aux = self.values[parameter][...,idn]
 					else:
-						aux = globin.utils.mygsmooth(self.values[parameter][...,idn], num, std)
+						aux = mygsmooth(self.values[parameter][...,idn], num, std)
 
 					self.values[parameter][...,idn] = median_filter(aux, size=4)
 		else:
