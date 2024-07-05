@@ -32,7 +32,8 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
                        "BFIEL" : "mag",
                        "GAMMA" : "gamma",
                        "AZIMU" : "chi",
-                       "LOGGF" : "loggf"}
+                       "LOGGF" : "loggf",
+                       "ALPHA" : "stray"}
     #--- inverted profiles
     inv_spinor = fits.open(f"{fpath}/inverted_profs.1.fits")[0]
     wlref = inv_spinor.header["WLREF"]
@@ -49,6 +50,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     hdu = fits.open(f"{fpath}/inverted_atmos.fits")[0]
     par_header = hdu.header
     par_data = hdu.data
+    print(repr(par_header))
 
     # get the chi2 values
     # chi2 = Chi2(chi2=par_data[-1])
@@ -91,7 +93,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
             nodes = par_data[start:start+max_nodes,0,0]
 
             # add the node values into the atmosphere structure
-            for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU"]:
+            for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU", "ALPHA"]:
                 ind = par_header[f"{parameter}*"]
                 nnodes = len(ind)
                 if nnodes==0:
