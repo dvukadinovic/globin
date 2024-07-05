@@ -958,8 +958,8 @@ class Atmosphere(object):
 				if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 				# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
-				if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
+				# if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+				# 	K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 				
 			elif parameter in ["gamma", "chi"]:
 				if self.interpolation_method=="bezier":
@@ -979,15 +979,15 @@ class Atmosphere(object):
 				
 				# check if extrapolation at the top atmosphere point goes below the minimum
 				# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-				if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
-				elif self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
+				# if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+				# 	K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
+				# elif self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+				# 	K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
 				# similar for the bottom for maximum/min values
 				# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
 				# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-				if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				# if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+				# 	Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if self.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=self.interp_degree, extrapolate=True)
