@@ -1401,8 +1401,6 @@ def normalize_hessian(H, atmos, mode):
 
 		return sp_scale, scales
 
-
-
 def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 	if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
 		print("[Info] Computing the HSRA spectrum...\n")
