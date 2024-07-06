@@ -2156,10 +2156,17 @@ class Atmosphere(object):
 			for idp in range(Npar):
 				if idp==free_par_ID_stray:
 					continue
-				rf[:,:,idp] *= 1 - stray_light
 
-		# plt.plot(rf[0,0,3,:,3])
-		# plt.show()
+				for idx in range(self.nx):
+					for idy in range(self.ny):
+						if self.stray_mode==1 or self.stray_mode==2:
+							stray_factor = stray_light[idx,idy]
+						elif self.stray_mode==3:
+							stray_factor = stray_light
+						else:
+							raise ValueError(f"Unknown mode {self.stray_mode} for stray light contribution. Choose one from 1,2 or 3.")
+						
+						rf[idx,idy,idp] *= 1 - stray_factor
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
