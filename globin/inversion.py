@@ -408,7 +408,7 @@ class Inverter(InputData):
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
-				spec.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+				corrected_spec.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
