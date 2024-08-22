@@ -289,7 +289,7 @@ class Inverter(InputData):
 				#             spec.shape = (nx, ny, Nw, 5)
 				if total!=atmos.nx*atmos.ny:
 					old_spec = copy.deepcopy(spec)
-				
+
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
 				if self.debug and itter[0,0]==0:
@@ -327,7 +327,6 @@ class Inverter(InputData):
 				"""
 
 				if self.wavs_weight is not None:
-					Npar = atmos.rf.shape[2]
 					for idp in range(Npar):
 						atmos.rf[:,:,idp] *= self.wavs_weight
 
@@ -337,9 +336,6 @@ class Inverter(InputData):
 				J = np.moveaxis(JT, 2, 3)
 				# JTJ = (nx, ny, npar, npar)
 				JTJ = np.einsum("...ij,...jk", JT, J)
-				
-				# get diagonal elements from hessian matrix
-				diagonal_elements = np.einsum("...kk->...k", JTJ)
 				
 				# reshaped array of differences between computed and observed spectra
 				# flatted_diff = (nx, ny, 4*Nw)
@@ -352,12 +348,13 @@ class Inverter(InputData):
 				# get scaling of Hessian matrix
 				H_scale, delta_scale = normalize_hessian(JTJ, atmos, mode=self.mode)
 
-			# hessian = (nx, ny, npar, npar)
-			H = JTJ
-			H *= H_scale
+				# hessian = (nx, ny, npar, npar)
+				H = JTJ*H_scale
+				# after scaling the Hessian, it should contian 1s on the diagonal
+				H_diagonal = np.ones((atmos.nx, atmos.ny, Npar))
 
-			# multiply with LM parameter
-			H[X,Y,P,P] = np.einsum("...i,...", diagonal_elements, 1+LM_parameter)
+			# add LM parameter to the diagonal elements
+			H[X,Y,P,P] = np.einsum("...i,...", H_diagonal, 1+LM_parameter)
 
 			# delta = (nx, ny, npar)
 			delta = np.einsum("...pw,...w", JT, flatted_diff)
@@ -386,12 +383,18 @@ class Inverter(InputData):
 
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag)
+			if atmos.sl_atmos is not None:
+				 sl_spec = atmos.sl_atmos.compute_spectra(stop_flag)
 			
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
-				
+				if atmos.sl_atmos is not None:
+					sl_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread)
+
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=stop_flag, n_thread=self.n_thread)
+				if atmos.sl_atmos is not None:
+					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 
 			#--- add the stray light component:
 			if atmos.add_stray_light:
@@ -405,6 +408,8 @@ class Inverter(InputData):
 				sl_spectrum = None
 				if atmos.stray_type=="hsra":
 					sl_spectrum = atmos.hsra_spec.spec
+					if atmos.sl_atmos is not None:
+						sl_spectrum = sl_spec.spec
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
@@ -412,6 +417,7 @@ class Inverter(InputData):
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
+
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -495,11 +501,18 @@ class Inverter(InputData):
 		if atmos.hydrostatic:
 			atmos.makeHSE(updated_pars)
 		inverted_spectra = atmos.compute_spectra(updated_pars)
+		if atmos.sl_atmos is not None:
+			sl_spec = atmos.sl_atmos.compute_spectra(updated_pars)
+
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
+			if atmos.sl_atmos is not None:
+				sl_spec.broaden_spectra(atmos.vmac, updated_pars, self.n_thread)
 		
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
+			if atmos.sl_atmos is not None:
+				sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=updated_pars, n_thread=self.n_thread)
 
 		#--- add the stray light component:
 		if atmos.add_stray_light:
@@ -513,6 +526,8 @@ class Inverter(InputData):
 			sl_spectrum = None
 			if atmos.stray_type=="hsra":
 				sl_spectrum = atmos.hsra_spec.spec
+				if atmos.sl_atmos is not None:
+					sl_spectrum = sl_spec.spec
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
@@ -1238,8 +1253,7 @@ def normalize_hessian(H, atmos, mode):
 				l, u = 0, 0
 				for parameter in atmos.nodes:
 					l, u = u, u + len(atmos.nodes[parameter])
-					atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u]
-					atmos.parameter_scale[parameter][idx,idy,:] *= atmos.parameter_norm[parameter]
+					atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u] * atmos.parameter_norm[parameter]
 
 				scales = 1/scales
 				if any(np.isnan(scales)):
@@ -1407,13 +1421,19 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		atmosphere.get_hsra_cont()
 
 	spectrum = atmosphere.compute_spectra(pool=pool)
+	if atmosphere.sl_atmos is not None:
+		sl_spec = atmosphere.sl_atmos.compute_spectra(pool=pool)
 	
 	#--- add macro-turbulent broadening
 	spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
-	
+	if atmosphere.sl_atmos is not None:
+		sl_spec.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
+
 	#--- add instrument broadening (if applicable)
 	if atmosphere.instrumental_profile is not None:
 		spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
+		if atmosphere.sl_atmos is not None:
+			sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
 
 	#--- add the stray light component:
 	if atmosphere.add_stray_light:
@@ -1427,10 +1447,12 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		sl_spectrum = None
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
+			if atmosphere.sl_atmos is not None:
+				sl_spectrum = sl_spec.spec
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
-		spec.add_stray_light(atmosphere.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+		spectrum.add_stray_light(atmosphere.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 	#--- add noise
 	if noise_level!=0:
