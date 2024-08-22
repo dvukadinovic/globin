@@ -109,6 +109,7 @@ pg_tck = splrep(falc.data[0,0,0], falc.pg[0,0])
 
 #--- HSRA model
 hsra = Atmosphere(f"{__path__}/data/hsrasp_vmic0.dat", atm_type="spinor")
+T0_HSRA = hsra.T[0,0, np.where(hsra.logtau==0)[0][0]]
 
 #--- print log character limit
 NCHAR = 80
