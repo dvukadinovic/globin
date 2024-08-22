@@ -1405,6 +1405,17 @@ class Atmosphere(object):
 
 			hdulist.append(par_hdu)
 
+		if self.sl_atmos is not None:
+			par_hdu = fits.ImageHDU(self.sl_atmos.data)
+			par_hdu.name = "2nd_Atmosphere"
+
+			par_hdu.header.comments["NAXIS1"] = "depth points"
+			par_hdu.header.comments["NAXIS2"] = "number of parameters"
+			par_hdu.header.comments["NAXIS3"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "x-axis atmospheres"
+
+			hdulist.append(par_hdu)
+
 		# save the continuum opacity (if we have it computed)
 		# [22.11.2022.] Obsolete? Maybe we will need it later...
 		if self.chi_c is not None:
