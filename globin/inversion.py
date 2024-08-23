@@ -804,14 +804,20 @@ class Inverter(InputData):
 				atmos.makeHSE(ones)
 
 			corrected_spec = atmos.compute_spectra(ones)
+			if atmos.sl_atmos is not None:
+				 sl_spec = atmos.sl_atmos.compute_spectra(stop_flag)
 			
 			# broaden the corrected spectra by macro velocity
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
+				if atmos.sl_atmos is not None:
+					sl_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 			
 			# convolve profiles with instrumental profile
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+				if atmos.sl_atmos is not None:
+					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 			# add the stray light component:
 			if atmos.add_stray_light:
@@ -825,6 +831,8 @@ class Inverter(InputData):
 				sl_spectrum = None
 				if atmos.stray_type=="hsra":
 					sl_spectrum = atmos.hsra_spec.spec
+					if atmos.sl_atmos is not None:
+						sl_spectrum = sl_spec.spec
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
@@ -935,12 +943,18 @@ class Inverter(InputData):
 		if atmos.hydrostatic:
 			atmos.makeHSE(ones)
 		inverted_spectra = atmos.compute_spectra(ones)
+		if atmos.sl_atmos is not None:
+			sl_spec = atmos.sl_atmos.compute_spectra(ones)
 		
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
+			if atmos.sl_atmos is not None:
+				sl_spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread)
 	
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
+			if atmos.sl_atmos is not None:
+				sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
 		if atmos.add_stray_light:
 			# get the stray light factor(s)
@@ -953,6 +967,8 @@ class Inverter(InputData):
 			sl_spectrum = None
 			if atmos.stray_type=="hsra":
 				sl_spectrum = atmos.hsra_spec.spec
+				if atmos.sl_atmos is not None:
+					sl_spectrum = sl_spec.spec
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
