@@ -861,7 +861,6 @@ class Atmosphere(object):
 
 		return new
 
-	@globin.utils.timeit
 	def build_from_nodes(self, flag=None, params=None):
 		"""
 		Construct the atmosphere from node values for given parameters.
@@ -1065,7 +1064,6 @@ class Atmosphere(object):
 
 		return atmos.data[idx,idy]
 
-	@globin.utils.timeit
 	def makeHSE(self, flag=None):
 		"""
 		For given atmosphere structure (logtau and temperature) compute electron
@@ -1123,7 +1121,6 @@ class Atmosphere(object):
 
 		return np.vstack((ne/1e6, nHtot/1e6))
 
-	@globin.utils.timeit
 	def get_pg(self):
 		"""
 		Compute the gas pressure from total hydrogen density and electron density.
@@ -1198,7 +1195,6 @@ class Atmosphere(object):
 
 		return np.vstack((ne, nH, rho))
 
-	@globin.utils.timeit
 	def interpolate_atmosphere(self, z_new, ref_atm):
 		"""
 		
@@ -1316,7 +1312,6 @@ class Atmosphere(object):
 
 		self.makeHSE()
 
-	@globin.utils.timeit
 	def save_atmosphere(self, fpath="inverted_atmos.fits", kwargs=None):
 		"""
 		Save the atmosphere to a fits file with all the parameters.
@@ -1524,7 +1519,6 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
-	@globin.utils.timeit
 	def update_parameters(self, proposed_steps):
 		"""
 		Change the inversion parameters (local and global) based on the given steps.
@@ -1594,7 +1588,6 @@ class Atmosphere(object):
 						step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 						self.global_pars[parameter] += step
 
-	@globin.utils.timeit
 	def check_parameter_bounds(self, mode):
 		"""
 		After updating the inversion parameters, check if they are inside the
@@ -1823,7 +1816,6 @@ class Atmosphere(object):
 			end += npars
 			self.errors[parameter] = global_errors[start:end]
 
-	@globin.utils.timeit
 	def get_hsra_cont(self):
 		"""
 		Compute the HSRA spectrum for input wavelength grid.
@@ -1904,7 +1896,6 @@ class Atmosphere(object):
 		self.finished += 1
 		print(f"\r  Finished {self.finished/self.nx/self.ny*100:1.3f}%", end="")
 
-	@globin.utils.timeit
 	def compute_spectra(self, synthesize=None, pool=None):
 		"""
 		Parameters:
@@ -2035,7 +2026,6 @@ class Atmosphere(object):
 
 		return np.vstack((sI, sQ, sU, sV))
 
-	@globin.utils.timeit
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
 		"""
 		Compute response functions for atmospheric parameters at given nodes and

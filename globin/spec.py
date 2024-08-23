@@ -312,7 +312,6 @@ class Spectrum(object):
 		else:
 			raise ValueError(f"Kernel order {order} not supported.")
 
-	@globin.utils.timeit
 	def broaden_spectra(self, vmac, flag=None, n_thread=1, pool=None):
 		if vmac==0:
 			return
@@ -466,7 +465,6 @@ class Spectrum(object):
 			self.spec = np.zeros((self.nx, self.ny, self.nw, 4))
 			self.spec[0,0] = mean
 
-	@globin.utils.timeit
 	def save(self, fpath, wavelength=None, spec_type="globin"):
 		"""
 		Get list of spectra computed for every pixel and store them in fits file.
@@ -552,7 +550,6 @@ class Spectrum(object):
 		spec[indx,indy] = self.spec
 		self.spec = spec
 
-	@globin.utils.timeit
 	def interpolate(self, wave_out, n_thread=1, fill_value="extrapolate"):
 		"""
 		Interpolate the spectrum on given 'wave_out' wavelength grid.
@@ -709,7 +706,6 @@ class Observation(Spectrum):
 		else:
 			raise IOError("We cannot recognize the observation file type.")
 
-	@globin.utils.timeit
 	def read_fits(self, fpath, obs_range):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
