@@ -83,7 +83,11 @@ class Atmosphere(object):
 					 "loggf" : 0.001,	#
 					 "dlam"  : 1,			# [mA]
 					 "of"    : 0.001,
-					 "stray" : 0}			# no perturbations (done analytically)
+					 "stray" : 0,		# no perturbations (done analytically)
+					 "sl_temp" : 1,		# [K]
+					 "sl_vz" : 1e-3,	# [km/s]
+					 "sl_vmic" : 1e-3	# [km/s]
+					 }
 
 	#--- full names of parameters (for FITS header)
 	# parameter_name = {"temp"   : "Temperature",
@@ -112,7 +116,11 @@ class Atmosphere(object):
 					  "stray" : 0.1,
 					  "vmac"  : 2,				# [km/s]
 					  "dlam"  : 10,				# [mA]
-					  "loggf" : -1.0}			#
+					  "loggf" : -1.0,			#
+					  "sl_temp" : 5000,			# [K]
+					  "sl_vz" : 6,				# [km/s]
+					  "sl_vmic" : 6				# [km/s]
+					  }
 
 	#--- relative weighting for spatial regularization for each parameter
 	regularization_weight = {"temp"  : 1,
@@ -197,7 +205,7 @@ class Atmosphere(object):
 										"dlam"  : np.array([], dtype=np.int32)}
 		# global parameters: each is given in a list size equal to number of parameters
 		self.global_pars = {"loggf" : np.array([]), 
-												"dlam"  : np.array([])}
+							"dlam"  : np.array([])}
 
 		# fudge parameters: H-, scatt, metals for each wavelength
 		self.fudge_lam = None
@@ -215,6 +223,9 @@ class Atmosphere(object):
 
 		# size of the chunks that are submitted to each process (for multiprocessing map())
 		self.chunk_size = 1
+
+		# 2nd component atmosphere treated as stray light source
+		self.sl_atmos = None
 
 		# container for the RH() class
 		# self.RH = pyrh.RH()
@@ -245,6 +256,10 @@ class Atmosphere(object):
 		self.ny = ny
 		self.nz = nz
 		self.npar = 14
+
+		self.logtau_top = logtau_top
+		self.logtau_bot = logtau_bot
+		self.logtau_step = logtau_step
 		
 		# allocate logtau scale and nz
 		if self.nz is None:
@@ -297,9 +312,13 @@ class Atmosphere(object):
 							 "chi"   : MinMax(0, 1),									# sin^2(chi)
 							 "of"    : [0, 20],												#
 							 "stray" : MinMax(1e-3, 0.99),						#
-							 "vmac"  : [0, 5],												# [km/s]
+							 "vmac"  : [1e-3, 5],												# [km/s]
 							 "loggf" : [-10,2],												#
-							 "dlam"  : [-50,50]}											# [mA]
+							 "dlam"  : [-50,50],					# [mA]
+							 "sl_temp"  : MinMax(3000, 10000), # [K]
+							 "sl_vz"    : MinMax(-10, 10),								# [km/s]
+							 "sl_vmic"  : MinMax(1e-3, 10),							# [km/s]
+							 }
 
 	def __str__(self):
 		_str = "<globin.atmos.Atmosphere():\n"
@@ -863,6 +882,24 @@ class Atmosphere(object):
 			all parameters need to be interpolated. Default is None.
 		
 		"""
+		# interpolate atmosphere which is used as the stray light source (2nd component)
+		if self.sl_atmos is not None:
+			for parameter in self.sl_atmos.nodes:
+				# skip non-fit parameters; we already assigned them on the setup
+				if parameter not in self.nodes:
+					continue
+
+				if parameter=="sl_temp":
+					delta = self.values[parameter] - globin.T0_HSRA
+					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = HSRA_temp + delta
+				else:
+					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = self.values[parameter]
+
+			# stop futher call if we only needed to build the parameter of the 2nd component atmosphere
+			if params in ["sl_temp", "sl_vz", "sl_vmic"]:
+				return			
+
 		if flag is None:
 			flag = np.ones((self.nx, self.ny))
 
@@ -875,6 +912,11 @@ class Atmosphere(object):
 
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
+
+		# # interpolate 2nd atmospheric model
+		# if self.sl_atmos is not None:
+		# 	for parameter in self.sl_atmos.nodes:
+		# 		self.sl_atmos.data[0,0,self.sl_atmos.par_id[parameter]] += self.sl_atmos.values[parameter][0,0]
 
 	def _build_from_nodes(self, args):
 		"""
@@ -923,7 +965,7 @@ class Atmosphere(object):
 
 		for parameter in parameters:
 			# skip over OF and stray light parameters
-			if parameter=="stray" or parameter=="of":
+			if parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
 				continue
 
 			# K0, Kn by default; True for vmic, mag, gamma and chi
@@ -977,17 +1019,18 @@ class Atmosphere(object):
 					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
 					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
-				# check if extrapolation at the top atmosphere point goes below the minimum
-				# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-				# if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-				# 	K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
-				# elif self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-				# 	K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
-				# similar for the bottom for maximum/min values
-				# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-				# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-				# if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-				# 	Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				if parameter=="mag":
+					# check if extrapolation at the top atmosphere point goes below the minimum
+					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
+					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
+					# if self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
+					# similar for the bottom for maximum/min values
+					# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+					# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if self.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=self.interp_degree, extrapolate=True)
@@ -1028,6 +1071,10 @@ class Atmosphere(object):
 
 		self.data[indx,indy,2] = results[:,0,:]
 		self.data[indx,indy,8] = results[:,1,:]
+
+		# solve HSE also for the 2nd atmospheric model
+		if self.sl_atmos is not None:
+			self.sl_atmos.makeHSE()
 
 		# self.data[indx,indy,2] = results[:,0,:]
 		# self.data[indx,indy,8:] = results[:,1:7,:]
@@ -1359,6 +1406,17 @@ class Atmosphere(object):
 
 			hdulist.append(par_hdu)
 
+		if self.sl_atmos is not None:
+			par_hdu = fits.ImageHDU(self.sl_atmos.data)
+			par_hdu.name = "2nd_Atmosphere"
+
+			par_hdu.header.comments["NAXIS1"] = "depth points"
+			par_hdu.header.comments["NAXIS2"] = "number of parameters"
+			par_hdu.header.comments["NAXIS3"] = "y-axis atmospheres"
+			par_hdu.header.comments["NAXIS4"] = "x-axis atmospheres"
+
+			hdulist.append(par_hdu)
+
 		# save the continuum opacity (if we have it computed)
 		# [22.11.2022.] Obsolete? Maybe we will need it later...
 		if self.chi_c is not None:
@@ -1559,7 +1617,7 @@ class Atmosphere(object):
 				# get back values into the atmosphere structure
 				if parameter=="vmac":
 					self.vmac = self.global_pars["vmac"]
-			if parameter=="stray":
+			elif parameter=="stray":
 				if self.global_pars[parameter]<self.limit_values[parameter].min[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].min[0]], dtype=np.float64)
 				# maximum check
@@ -1773,6 +1831,9 @@ class Atmosphere(object):
 
 			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[0]))
 
+		if self.sl_atmos is not None:
+			self.sl_atmos.icont = self.icont
+
 		return self.icont, self.hsra_spec
 
 	def get_hsra_cont_Bezier(self, Nz=200):
@@ -1970,6 +2031,9 @@ class Atmosphere(object):
 		if self.hydrostatic:
 			self.makeHSE(synthesize)
 		spec = self.compute_spectra(synthesize)
+		if self.sl_atmos is not None:
+			sl_spec = self.sl_atmos.compute_spectra(synthesize)
+
 		Nw = len(self.wavelength_air)
 
 		if self.mode==1:
@@ -1990,6 +2054,7 @@ class Atmosphere(object):
 		#--- loop through local (atmospheric) parameters and calculate RFs
 		free_par_ID = 0
 		free_par_ID_stray = -1
+		free_par_ID_sl_pars = []
 		for parameter in self.nodes:
 			nodes = self.nodes[parameter]
 			values = self.values[parameter]
@@ -1997,7 +2062,10 @@ class Atmosphere(object):
 
 			for nodeID in range(len(nodes)):
 				if self.mask[parameter][nodeID]==0:
-					continue			
+					continue
+
+				if "sl_" in parameter:
+					free_par_ID_sl_pars.append(free_par_ID)
 				
 				#--- positive perturbation
 				self.values[parameter][:,:,nodeID] += perturbation
@@ -2006,7 +2074,9 @@ class Atmosphere(object):
 				else:
 					self.build_from_nodes(synthesize, params=parameter)
 
-				if parameter!="stray":
+				if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+					spectra_plus = self.sl_atmos.compute_spectra(synthesize)
+				elif parameter!="stray":
 					spectra_plus = self.compute_spectra(synthesize)
 
 				#--- negative perturbation (except for inclination and azimuth)
@@ -2015,7 +2085,10 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					free_par_ID_stray = free_par_ID
 					if self.stray_type=="hsra":
-						node_RF = self.hsra_spec.spec - spec.spec
+						if self.sl_atmos is not None:
+							node_RF = sl_spec.spec - spec.spec
+						else:
+							node_RF = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
 						node_RF = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
@@ -2026,7 +2099,11 @@ class Atmosphere(object):
 						self.make_OF_table(self.wavelength_vacuum)
 					else:
 						self.build_from_nodes(synthesize, params=parameter)
-					spectra_minus = self.compute_spectra(synthesize)
+
+					if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+						spectra_minus = self.sl_atmos.compute_spectra(synthesize)
+					else:
+						spectra_minus = self.compute_spectra(synthesize)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
@@ -2084,7 +2161,10 @@ class Atmosphere(object):
 					free_par_ID_stray = free_par_ID
 
 					if self.stray_type=="hsra":
-						diff = self.hsra_spec.spec - spec.spec
+						if self.sl_atmos is not None:
+							raise NotImplementedError("Switch to the pixel-by-pixel inversion mode.")
+						else:
+							diff = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
 						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
@@ -2124,6 +2204,8 @@ class Atmosphere(object):
 		#--- broaden the spectra
 		if not mean:
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
+			if self.sl_atmos is not None:
+				sl_spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
 				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread)
@@ -2131,9 +2213,9 @@ class Atmosphere(object):
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			if self.sl_atmos is not None:
+				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
-
-		# plt.plot(rf[0,0,3,:,3])
 
 		#--- add the stray light component:
 		if self.add_stray_light:
@@ -2147,19 +2229,33 @@ class Atmosphere(object):
 			sl_spectrum = None
 			if self.stray_type=="hsra":
 				sl_spectrum = self.hsra_spec.spec
+				if self.sl_atmos is not None:
+					sl_spectrum = sl_spec.spec
 			if self.stray_type in ["atmos", "spec"]:
 				sl_spectrum = self.stray_light_spectrum.spec
 
 			spec.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, inv=[sl_spec.spec[0,0]])
+			# globin.show()
 
 			# skip adding the stray light to the RF for stray light
 			for idp in range(Npar):
 				if idp==free_par_ID_stray:
 					continue
-				rf[:,:,idp] *= 1 - stray_light
 
-		# plt.plot(rf[0,0,3,:,3])
-		# plt.show()
+				for idx in range(self.nx):
+					for idy in range(self.ny):
+						if self.stray_mode==1 or self.stray_mode==2:
+							stray_factor = stray_light[idx,idy]
+						elif self.stray_mode==3:
+							stray_factor = stray_light
+						else:
+							raise ValueError(f"Unknown mode {self.stray_mode} for stray light contribution. Choose one from 1,2 or 3.")
+						
+						if idp in free_par_ID_sl_pars:
+							rf[idx,idy,idp] *= stray_factor
+						else:
+							rf[idx,idy,idp] *= 1 - stray_factor
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
@@ -2168,8 +2264,15 @@ class Atmosphere(object):
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
+		# plt.plot(rf[0,0,0,...,0])
+		# plt.show()
+
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
+
+		# plt.plot(rf[0,0,0,...,3])
+		# plt.plot(rf[0,0,2,...,3])
+		# plt.show()
 
 		# for idp in range(-1):
 		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")

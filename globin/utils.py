@@ -186,8 +186,10 @@ def construct_atmosphere_from_nodes(node_atmosphere_path, atm_range=None, vmac=0
 
     atmos.vmac = vmac
     atmos.interpolation_method = intp_method
-    atmos.get_pg()
-    atmos.build_from_nodes(np.ones((atmos.nx, atmos.ny)))
+    atmos.build_from_nodes()
+    atmos.scale_id = 0
+    atmos.ne[:,:] = interp1d(globin.hsra.logtau, globin.hsra.ne[0,0])(atmos.logtau)
+    atmos.nH[:,:] = interp1d(globin.hsra.logtau, globin.hsra.nH[0,0])(atmos.logtau)
     atmos.makeHSE()
 
     if output_atmos_path is not None:

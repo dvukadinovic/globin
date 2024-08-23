@@ -290,6 +290,9 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		else:
 			ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV = axes
 
+		if not isinstance(inv, list):
+			inv = [inv]
+
 		Ninv = len(inv)
 
 		set_labels = False

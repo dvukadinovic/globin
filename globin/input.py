@@ -341,7 +341,7 @@ class InputData(object):
 				ff = self.filling_factor[0]
 				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
-		#--- check the status of stray light factor and if to be inverted; add it to atmosphere
+		#--- check the status of the stray light factor and if to be inverted; add it to atmosphere
 		if np.abs(stray_factor)!=0:
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
@@ -380,7 +380,7 @@ class InputData(object):
 					# if self.stray_mode!=self.mode:
 					# 	raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
 
-			# allocate parameters to atmosphere
+			# allocate stray parameters to atmosphere
 			self.atmosphere.stray_mode = self.stray_mode
 			self.atmosphere.stray_type = self.stray_type
 			if self.atmosphere.stray_type=="atmos":
@@ -394,6 +394,81 @@ class InputData(object):
 				fpath = _find_value_by_key("stray_spectrum", self.parameters_input, "required")
 				self.atmosphere.stray_light_spectrum = globin.Observation(fpath, spec_type="hinode")
 				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, n_thread=1, fill_value="extrapolate")
+
+			# parameters for the 2nd component atmosphere treated as a stray light source (assumed to be the HSRA atmosphere)
+			sl_temp = _find_value_by_key("sl_temp", self.parameters_input, "optional", None, float)
+			sl_vz = _find_value_by_key("sl_vz", self.parameters_input, "optional", None, float)
+			sl_vmic = _find_value_by_key("sl_vmic", self.parameters_input, "optional", None, float)
+
+			# add 2nd component atmospheres to Atmosphere() model
+			add_2nd_component = False
+			if (sl_temp is not None) or (sl_vz is not None) or (sl_vmic is not None):
+				add_2nd_component = True
+
+			if add_2nd_component and self.stray_type!="hsra":
+				raise ValueError(f"Cannot add 2nd component atmospheric parameters for stray_type={self.stray_type}")
+
+			if add_2nd_component:
+				self.atmosphere.sl_atmos = globin.Atmosphere(nx=self.atmosphere.nx, 
+															 ny=self.atmosphere.ny,
+															 nz=self.atmosphere.nz,
+															 logtau_bot=self.atmosphere.logtau_bot,
+															 logtau_top=self.atmosphere.logtau_top,
+															 logtau_step=self.atmosphere.logtau_step)
+				self.atmosphere.sl_atmos.interpolate_atmosphere(self.atmosphere.logtau, globin.hsra.data)
+				self.atmosphere.sl_atmos.scale_id = self.atmosphere.scale_id
+
+				self.atmosphere.sl_atmos.mode = self.atmosphere.mode
+				self.atmosphere.sl_atmos.mu = self.atmosphere.mu
+				
+				self.atmosphere.sl_atmos.wavelength_air = self.atmosphere.wavelength_air
+				self.atmosphere.sl_atmos.wavelength_obs = self.atmosphere.wavelength_obs
+				self.atmosphere.sl_atmos.wavelength_vacuum = self.atmosphere.wavelength_vacuum
+				
+				self.atmosphere.sl_atmos.norm = self.atmosphere.norm
+				self.atmosphere.sl_atmos.norm_level = self.atmosphere.norm_level
+
+				self.atmosphere.sl_atmos.fudge_lam = self.atmosphere.fudge_lam
+				self.atmosphere.sl_atmos.fudge = self.atmosphere.fudge
+
+				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+
+				if sl_temp is not None:
+					sl_temp_fit = _find_value_by_key("sl_temp_fit", self.parameters_input, "optional", "false", str)
+					if sl_temp_fit.lower()=="true":
+						self.atmosphere.nodes["sl_temp"] = np.array([0])
+						self.atmosphere.values["sl_temp"] = ones * sl_temp
+						self.atmosphere.parameter_scale["sl_temp"] = ones.copy()
+						self.atmosphere.mask["sl_temp"] = np.ones(1)
+						self.atmosphere.n_local_pars += 1
+						self.atmosphere.hydrostatic = True
+					self.atmosphere.sl_atmos.nodes["sl_temp"] = np.array([0])
+					delta = sl_temp - globin.T0_HSRA
+					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.atmosphere.sl_atmos.logtau)
+					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["temp"]] = HSRA_temp + delta
+				if sl_vz is not None:
+					sl_vz_fit = _find_value_by_key("sl_vz_fit", self.parameters_input, "optional", "false", str)
+					if sl_vz_fit.lower()=="true":
+						self.atmosphere.nodes["sl_vz"] = np.array([0])
+						self.atmosphere.values["sl_vz"] = ones * sl_vz
+						self.atmosphere.parameter_scale["sl_vz"] = ones.copy()
+						self.atmosphere.mask["sl_vz"] = np.ones(1)
+						self.atmosphere.n_local_pars += 1
+					self.atmosphere.sl_atmos.nodes["sl_vz"] = np.array([0])
+					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vz"]] = sl_vz
+				if sl_vmic is not None:
+					sl_vmic_fit = _find_value_by_key("sl_vmic_fit", self.parameters_input, "optional", "false", str)
+					if sl_vmic_fit.lower()=="true":
+						self.atmosphere.nodes["sl_vmic"] = np.array([0])
+						self.atmosphere.values["sl_vmic"] = ones * sl_vmic
+						self.atmosphere.parameter_scale["sl_vmic"] = ones.copy()
+						self.atmosphere.mask["sl_vmic"] = np.ones(1)
+						self.atmosphere.n_local_pars += 1
+					self.atmosphere.sl_atmos.nodes["sl_vmic"] = np.array([0])
+					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vmic"]] = sl_vmic
+
+				# initial setting of the 2nd atmosphere in HSE
+				self.atmosphere.sl_atmos.makeHSE()
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
