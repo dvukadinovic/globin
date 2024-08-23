@@ -593,7 +593,7 @@ class Atmosphere(object):
 			pass
 
 		#--- check for the local parameters from inversion
-		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray"]:
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray", "sl_temp", "sl_vz", "sl_vmic"]:
 			# if parameter=="stray":
 			# 	stray = hdu_list[0].header
 			try:
@@ -612,6 +612,30 @@ class Atmosphere(object):
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
 			except:
 				pass
+
+		#--- try to get the second atmosphere
+		try:
+			ind = hdu_list.index_of("2nd_Atmosphere")
+			
+			self.sl_atmos = globin.Atmosphere(nx=self.nx, 
+											 ny=self.ny,
+											 nz=self.nz,
+											 logtau_bot=self.logtau_bot,
+											 logtau_top=self.logtau_top,
+											 logtau_step=self.logtau_step)
+			self.sl_atmos.interpolate_atmosphere(self.logtau, globin.hsra.data)
+			self.sl_atmos.scale_id = self.scale_id
+
+			if "sl_temp" in self.nodes:
+				delta = self.values["sl_temp"] - globin.T0_HSRA
+				HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+				self.sl_atmos.data[:,:,self.par_id["temp"]] = HSRA_temp + delta
+			if "sl_vz" in self.nodes:
+				self.sl_atmos.data[:,:,self.par_id["vz"]] = self.values["sl_vz"]
+			if "sl_vmic" in self.nodes:
+				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
+		except:
+			pass
 
 		#--- get the number of local parameters
 		self.n_local_pars = 0
