@@ -312,7 +312,7 @@ class Atmosphere(object):
 							 "chi"   : MinMax(0, 1),									# sin^2(chi)
 							 "of"    : [0, 20],												#
 							 "stray" : MinMax(1e-3, 0.99),						#
-							 "vmac"  : [0, 5],												# [km/s]
+							 "vmac"  : [1e-3, 5],												# [km/s]
 							 "loggf" : [-10,2],												#
 							 "dlam"  : [-50,50],					# [mA]
 							 "sl_temp"  : MinMax(3000, 10000), # [K]
@@ -1019,17 +1019,18 @@ class Atmosphere(object):
 					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
 					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
-				# check if extrapolation at the top atmosphere point goes below the minimum
-				# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-				if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
-				if self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
-				# similar for the bottom for maximum/min values
-				if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-				if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+				if parameter=="mag":
+					# check if extrapolation at the top atmosphere point goes below the minimum
+					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
+					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
+						K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
+					# if self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
+					# similar for the bottom for maximum/min values
+					# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+					# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
+					if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
+						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
 
 			if self.interpolation_method=="bezier":
 				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=self.interp_degree, extrapolate=True)
@@ -1616,7 +1617,7 @@ class Atmosphere(object):
 				# get back values into the atmosphere structure
 				if parameter=="vmac":
 					self.vmac = self.global_pars["vmac"]
-			if parameter=="stray":
+			elif parameter=="stray":
 				if self.global_pars[parameter]<self.limit_values[parameter].min[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].min[0]], dtype=np.float64)
 				# maximum check
