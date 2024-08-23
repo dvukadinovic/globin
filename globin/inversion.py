@@ -183,6 +183,7 @@ class Inverter(InputData):
 		if atmos.add_stray_light or atmos.norm_level=="hsra":
 			print("[Info] Computing the HSRA spectrum...\n")
 			atmos.get_hsra_cont()
+			atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 		if self.verbose:
 			print("Initial parameters:\n")
@@ -586,6 +587,7 @@ class Inverter(InputData):
 		if atmos.add_stray_light or atmos.norm_level=="hsra":
 			print("[Info] Computing the HSRA spectrum...\n")
 			atmos.get_hsra_cont()
+			atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
