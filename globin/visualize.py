@@ -24,9 +24,12 @@ unit = {"temp"  : "K",
 		"nH"    : r"$1/m^3$"}
 
 pars_symbol = {"temp"  : "T",
+			   "sl_temp" : r"T$^\mathrm{sl}$",
 			   "ne"	   : r"$n_\mathrm{e}$",
 			   "vz"    : r"$v_\mathrm{LOS}$",
+			   "sl_vz" : r"$v_\mathrm{LOS}^\mathrm{sl}$",
 			   "vmic"  : r"$v_\mathrm{mic}$",
+			   "sl_vmic" : r"$v_\mathrm{mic}^\mathrm{sl}$",
 			   "mag"   : "B",
 			   "gamma" : r"$\gamma$",
 			   "chi"   : r"$\phi$",
@@ -96,6 +99,10 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 				continue
 
 			parameter = parameters[k_]
+			in_2nd_component = False
+			if "sl_" in parameter:
+				parameter = parameter.rsplit("_")[1]
+				in_2nd_component = True
 			parID = atmos.par_id[parameter]
 			# if parameter=="chi":
 			# 	y = np.sin(atmos.values[parameter])
@@ -107,9 +114,12 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			ax = fig.add_subplot(gs[i_,j_])
 
 			try:
-				x = atmos.nodes[parameter]
-				y = atmos.values[parameter][idx,idy].copy() * fact[parameter]
-				if show_errors and parameter in ["temp", "vz"]:
+				_parameter = parameter
+				if in_2nd_component:
+					_parameter = f"sl_{parameter}"
+				x = atmos.nodes[_parameter]
+				y = atmos.values[_parameter][idx,idy].copy() * fact[parameter]
+				if show_errors and parameter in ["temp", "vz"] and not in_2nd_component:
 					yerr = atmos.errors[parameter][idx,idy].copy() * fact[parameter]
 					ax.autoscale(False)
 					ax.errorbar(x, y, yerr=yerr, 
@@ -122,14 +132,21 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 				pass
 
 			ax.autoscale(True)
-			ax.plot(atmos.data[idx,idy,0], cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
+			if in_2nd_component:
+				ax.plot(atmos.data[idx,idy,0], atmos.sl_atmos.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
+			else:
+				ax.plot(atmos.data[idx,idy,0], cube[parID]*fact[parameter], ls=ls, lw=lw, color=colors[0], label=labels[0])
 			if parameter=="ne" or parameter=="nH":
 				ax.set_yscale("log")
 
 			ax.set_xlim(atmos.data[idx,idy,0,0], atmos.data[idx,idy,0,-1])
 
 			ax.set_xlabel(r"log$\tau$")
-			ax.set_ylabel(f"{pars_symbol[parameter]} [{unit[parameter]}]")
+			if in_2nd_component:
+				_parameter = f"sl_{parameter}"
+			else:
+				_parameter = parameter
+			ax.set_ylabel(f"{pars_symbol[_parameter]} [{unit[parameter]}]")
 
 			if reference is not None:
 				for idr, ref in enumerate(reference):
