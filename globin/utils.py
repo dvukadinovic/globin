@@ -69,6 +69,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         tmp = np.swapaxes(tmp, 1, 2)
         tmp = np.swapaxes(tmp, 2, 3)
         atm = globin.atmos.spinor2multi(tmp)
+        atm.data[:,:,0,:] = atm.logtau
         read_atmos = True
     except:
         pass
@@ -87,44 +88,71 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     
     # get the nodes for each parameter
     if inversion:
-        max_nodes = len(par_header["LGTRF*"])
-        if max_nodes!=0:
-            start = par_header["LGTRF"]-1
-            nodes = par_data[start:start+max_nodes,0,0]
+        # check if the atmosphere is two-component one
+        comments = par_header.comments["LGTRF*"]
+        max_nodes = {}
+        for idh in range(len(comments)):
+            _min, _max, _fit, _component, _lineno = list(filter(None, comments[idh].split(" ")))
+            _component = int(_component)
+            if _component not in max_nodes:
+                max_nodes[_component] = 1
+            elif _component in max_nodes:
+                max_nodes[_component] += 1
 
-            # add the node values into the atmosphere structure
-            for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU", "ALPHA"]:
-                ind = par_header[f"{parameter}*"]
-                nnodes = len(ind)
-                if nnodes==0:
-                    continue
-                start = ind[0] - 1
-                if nnodes==1:
-                    atm.nodes[parameter_relay[parameter]] = np.array([0])
-                else:
-                    atm.nodes[parameter_relay[parameter]] = nodes
+        ncomponents = len(max_nodes)
+        if ncomponents==2:
+            atm2 = globin.Atmosphere(nx=atm.nx, ny=atm.ny, nz=atm.nz)
+        else:
+            raise ValueError("There is no support for 3+ component atmosphere.")
 
-                fact = 1
-                if parameter=="VELOS":
-                    fact = -1
-                if parameter in ["GAMMA", "AZIMU"]:
-                    fact = np.pi/180
+        nodes_info = par_header["LGTRF*"]
+        start = nodes_info[0]-1
+        nodes = par_data[start:start+max_nodes[1], 0, 0]
+
+        if ncomponents==2:
+            start = nodes_info[max_nodes[1]]-1
+            nodes2 = par_data[start:start+max_nodes[2], 0, 0]
+
+
+        # add the node values into the atmosphere structure
+        for parameter in ["TEMPE", "VELOS", "VMICI", "BFIEL", "GAMMA", "AZIMU", "ALPHA"]:
+            ind = par_header[f"{parameter}*"]
+            _par_comment = par_header.comments[f"{parameter}*"]
+            
+            nnodes = len(ind)
+            if nnodes==0:
+                continue
+
+            # _min, _max, _fit, _component, _lineno = list(filter(None, comments[idh].split(" ")))
+
+            if nnodes==1:
+                atm.nodes[parameter_relay[parameter]] = np.array([0])
+            else:
+                atm.nodes[parameter_relay[parameter]] = nodes
                 
-                atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
-                for idn in range(nnodes):
-                    atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
+            start = ind[0] - 1
 
-            for parameter in ["LOGGF"]:
-                ind = par_header[f"{parameter}*"]
-                nlines = len(ind)
-                if nlines==0:
-                    continue
+            fact = 1
+            if parameter=="VELOS":
+                fact = -1
+            if parameter in ["GAMMA", "AZIMU"]:
+                fact = np.pi/180
+            
+            atm.values[parameter_relay[parameter]] = np.zeros((nx,ny,nnodes))
+            for idn in range(nnodes):
+                atm.values[parameter_relay[parameter]][:,:,idn] = par_data[start+idn] * fact
 
-                start = ind[0] - 1
-                atm.global_pars[parameter_relay[parameter]] = np.empty((atm.nx, atm.ny, nlines))
+        for parameter in ["LOGGF"]:
+            ind = par_header[f"{parameter}*"]
+            nlines = len(ind)
+            if nlines==0:
+                continue
 
-                for idl in range(nlines):
-                    atm.global_pars[parameter_relay[parameter]][:,:,idl] = par_data[start+idl]
+            start = ind[0] - 1
+            atm.global_pars[parameter_relay[parameter]] = np.empty((atm.nx, atm.ny, nlines))
+
+            for idl in range(nlines):
+                atm.global_pars[parameter_relay[parameter]][:,:,idl] = par_data[start+idl]
 
     # create the Spectrum() structure
     spec = globin.Spectrum(nx=nx, ny=ny, nw=nw)
