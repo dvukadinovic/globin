@@ -346,8 +346,8 @@ class InputData(object):
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
-			if self.stray_type not in ["gray", "hsra", "atmos", "spec"]:
-				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray', 'hsra' or 'atmos'.")
+			if self.stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
+				raise ValueError(f"stray_type '{self.stray_type}' is not supported.")
 
 			# get the mode for stray light (synthesis/inversion)			
 			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
@@ -405,8 +405,8 @@ class InputData(object):
 			if (sl_temp is not None) or (sl_vz is not None) or (sl_vmic is not None):
 				add_2nd_component = True
 
-			if add_2nd_component and self.stray_type!="hsra":
-				raise ValueError(f"Cannot add 2nd component atmospheric parameters for stray_type={self.stray_type}")
+			if add_2nd_component and self.stray_type!="2nd_component":
+				raise ValueError(f"Cannot add the 2nd component atmospheric parameters for stray_type={self.stray_type}")
 
 			if add_2nd_component:
 				self.atmosphere.sl_atmos = globin.Atmosphere(nx=self.atmosphere.nx, 
