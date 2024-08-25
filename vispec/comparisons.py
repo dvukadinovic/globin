@@ -8,18 +8,32 @@ from .tools import add_colorbar
 
 alphabet = list(map(chr, range(97, 123)))
 
+cmaps = {"temp"  : "plasma", 
+         "vz"    : "bwr_r", 
+         "vmic"  : "plasma",
+         "mag"   : "nipy_spectral", 
+         "gamma" : "nipy_spectral",
+         "chi"   : "nipy_spectral",
+         "stray" : "nipy_spectral",
+         "sl_temp" : "plasma",
+         "sl_vz" : "bwr_r",
+         "sl_vmic" : "plasma"}
+
+parameter_relay = {"temp"  : "Temperature [K]",
+                   "vz"    : "LOS velocity [km/s]",
+                   "vmic"  : "Micro-turbulent velocity [km/s]",
+                   "mag"   : "Magnetic field [G]",
+                   "gamma" : r"Inclination [$^\circ$]",
+                   "chi"   : r"Azimuth [$^\circ$]",
+                   "stray" : "stray light factor",
+                   "sl_temp" : "2nd Temperature [K]",
+                   "sl_vz" : "2nd LOS velocity [km/s]",
+                   "sl_vmic" : "2nd Micro-turbulent velocity [km/s]"}
+
 def lin(x, a, b):
     return x*a + b
 
 def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False):
-    parameter_relay = {"temp"  : "Temperature [K]",
-                       "vz"    : "LOS velocity [km/s]",
-                       "vmic"  : "Micro-turbulent velocity [km/s]",
-                       "mag"   : "Magnetic field [G]",
-                       "gamma" : r"Inclination [$^\circ$]",
-                       "chi"   : r"Azimuth [$^\circ$]",
-                       "stray" : "stray light factor"}
-
     nrows = 0
     _parameters = []
     for parameter in parameters:
@@ -111,22 +125,6 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     plt.show()
 
 def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15, aspect=4/3, grid=False, show_errors=False):
-    cmaps = {"temp"  : "plasma", 
-             "vz"    : "bwr_r", 
-             "vmic"  : "plasma",
-             "mag"   : "nipy_spectral", 
-             "gamma" : "nipy_spectral",
-             "chi"   : "nipy_spectral",
-             "stray" : "nipy_spectral"}
-
-    parameter_relay = {"temp"  : "Temperature [K]",
-                       "vz"    : "LOS velocity [km/s]",
-                       "vmic"  : "Micro-turbulent velocity [km/s]",
-                       "mag"   : "Magnetic field [G]",
-                       "gamma" : r"Inclination [$^\circ$]",
-                       "chi"   : r"Azimuth [$^\circ$]",
-                       "stray" : "stray light factor"}
-
     mpl.rcParams.update({"font.size" : fontsize})
 
     N = 1
