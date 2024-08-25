@@ -364,13 +364,13 @@ class InputData(object):
 					# check if the minimum value for stray light factor is defined
 					stray_min = _find_value_by_key("stray_factor_vmin", self.parameters_input, "optional", conversion=float)
 					if stray_min is not None:
-						self.atmosphere.limit_values["stray"].vmin = stray_min
+						self.atmosphere.limit_values["stray"].vmin = [stray_min]
 						self.atmosphere.limit_values["stray"].vmin_dim = 1
 
 					# check if the maximum value for stray light factor is defined
 					stray_max = _find_value_by_key("stray_factor_vmax", self.parameters_input, "optional", conversion=float)
 					if stray_max is not None:
-						self.atmosphere.limit_values["stray"].vmax = stray_max
+						self.atmosphere.limit_values["stray"].vmax = [stray_max]
 						self.atmosphere.limit_values["stray"].vmax_dim = 1
 
 					self.atmosphere.invert_stray = True
