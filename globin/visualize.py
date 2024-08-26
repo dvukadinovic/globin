@@ -150,11 +150,17 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 
 			if reference is not None:
 				for idr, ref in enumerate(reference):
-					ax.plot(ref.data[idx,idy,0], ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
+					if in_2nd_component:
+						ax.plot(ref.data[idx,idy,0], ref.sl_atmos.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
+					else:
+						ax.plot(ref.data[idx,idy,0], ref.data[idx,idy,parID]*fact[parameter], ls=ls, lw=lw/2, color=colors[(idr+1)%Ncolors], label=labels[idr+1])
 					try:
-						x = ref.nodes[parameter]
-						y = ref.values[parameter][idx,idy].copy() * fact[parameter]
-						if show_errors and parameter in ["temp", "vz"]:
+						_parameter = parameter
+						if in_2nd_component:
+							_parameter = f"sl_{parameter}"
+						x = ref.nodes[_parameter]
+						y = ref.values[_parameter][idx,idy].copy() * fact[parameter]
+						if show_errors and parameter in ["temp", "vz"] and not in_2nd_component:
 							yerr = ref.errors[parameter][idx,idy].copy() * fact[parameter]
 							ax.autoscale(False)
 							ax.errorbar(x, y, yerr=yerr, 

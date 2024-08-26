@@ -288,7 +288,7 @@ class Inverter(InputData):
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#             spec.shape = (nx, ny, Nw, 5)
 				if total!=atmos.nx*atmos.ny:
-					old_spec = copy.deepcopy(spec)
+					old_spec = copy.deepcopy(spec.spec)
 
 				spec = atmos.compute_rfs(weights=self.weights, rf_noise_scale=rf_noise_stokes, synthesize=updated_pars, rf_type=self.rf_type)
 
@@ -302,7 +302,7 @@ class Inverter(InputData):
 				# copy old spectra into new ones for the new itteration
 				if total!=atmos.nx*atmos.ny:
 					indx, indy = np.where(updated_pars==0)
-					spec.spec[indx,indy] = old_spec.spec[indx, indy]
+					spec.spec[indx,indy] = old_spec[indx, indy]
 
 				# if self.debug:
 				# 	for idx in range(atmos.nx):
@@ -352,17 +352,17 @@ class Inverter(InputData):
 				H = JTJ*H_scale
 				# after scaling the Hessian, it should contian 1s on the diagonal
 				H_diagonal = np.ones((atmos.nx, atmos.ny, Npar))
+				
+				# difference in spectra (O - S); shape = (nx, ny, npar)
+				delta = np.einsum("...pw,...w", JT, flatted_diff)
+				delta *= delta_scale
 
 			# add LM parameter to the diagonal elements
 			H[X,Y,P,P] = np.einsum("...i,...", H_diagonal, 1+LM_parameter)
 
-			# delta = (nx, ny, npar)
-			delta = np.einsum("...pw,...w", JT, flatted_diff)
-			delta *= delta_scale
-
 			#--- invert Hessian matrix using SVD method with specified svd_tolerance
 			proposed_steps = invert_Hessian(H, delta, self.svd_tolerance, stop_flag, self.n_thread)
-
+			
 			#--- save old parameters (atmospheric and atomic)
 			old_atmos_parameters = copy.deepcopy(atmos.values)
 			if self.mode==2:
@@ -408,16 +408,15 @@ class Inverter(InputData):
 				sl_spectrum = None
 				if atmos.stray_type=="hsra":
 					sl_spectrum = atmos.hsra_spec.spec
-					if atmos.sl_atmos is not None:
-						sl_spectrum = sl_spec.spec
+				if atmos.stray_type=="2nd_component":
+					sl_spectrum = sl_spec.spec
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
-				corrected_spec.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+				corrected_spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
-
 
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
@@ -526,12 +525,12 @@ class Inverter(InputData):
 			sl_spectrum = None
 			if atmos.stray_type=="hsra":
 				sl_spectrum = atmos.hsra_spec.spec
-				if atmos.sl_atmos is not None:
-					sl_spectrum = sl_spec.spec
+			if atmos.stray_type=="2nd_component":
+				sl_spectrum = sl_spec.spec
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
-			inverted_spectra.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+			inverted_spectra.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=updated_pars)
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
@@ -803,7 +802,7 @@ class Inverter(InputData):
 
 			corrected_spec = atmos.compute_spectra(ones)
 			if atmos.sl_atmos is not None:
-				 sl_spec = atmos.sl_atmos.compute_spectra(stop_flag)
+				 sl_spec = atmos.sl_atmos.compute_spectra(ones)
 			
 			# broaden the corrected spectra by macro velocity
 			if not self.mean:
@@ -829,12 +828,12 @@ class Inverter(InputData):
 				sl_spectrum = None
 				if atmos.stray_type=="hsra":
 					sl_spectrum = atmos.hsra_spec.spec
-					if atmos.sl_atmos is not None:
-						sl_spectrum = sl_spec.spec
+				if atmos.stray_type=="2nd_component":
+					sl_spectrum = sl_spec.spec
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
-				corrected_spec.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+				corrected_spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
@@ -947,7 +946,7 @@ class Inverter(InputData):
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread)
 			if atmos.sl_atmos is not None:
-				sl_spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread)
+				sl_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
 	
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
@@ -965,12 +964,12 @@ class Inverter(InputData):
 			sl_spectrum = None
 			if atmos.stray_type=="hsra":
 				sl_spectrum = atmos.hsra_spec.spec
-				if atmos.sl_atmos is not None:
-					sl_spectrum = sl_spec.spec
+			if atmos.stray_type=="2nd_component":
+				sl_spectrum = sl_spec.spec
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
-			inverted_spectra.add_stray_light(atmos.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+			inverted_spectra.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
@@ -1130,6 +1129,7 @@ class Inverter(InputData):
 			np.savetxt(fpath, np.vstack((reg_weight, total_chi2, regul_chi2)).T, fmt="%5.4e", header=" alpha  tot_chi2  reg_chi2")
 
 		return reg_weight, total_chi2, regul_chi2
+
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1):
 	nx, ny, Npar, _ = H.shape
 	indx, indy = np.where(stop_flag==1)
@@ -1159,6 +1159,7 @@ def _invert_Hessian(args):
 		print(hessian)
 		print("----")
 		sys.exit()
+
 	steps = np.dot(invH, delta)
 
 	# det = np.linalg.det(hessian)
@@ -1457,12 +1458,12 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		sl_spectrum = None
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
-			if atmosphere.sl_atmos is not None:
-				sl_spectrum = sl_spec.spec
+		if atmos.stray_type=="2nd_component":
+			sl_spectrum = sl_spec.spec
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
-		spectrum.add_stray_light(atmosphere.stray_mode, stray_light, sl_spectrum=sl_spectrum)
+		spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum)
 
 	#--- add noise
 	if noise_level!=0:

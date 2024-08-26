@@ -1086,6 +1086,21 @@ class Atmosphere(object):
 		# obtain new Pg and use it as initial value for the HSE at the top
 		self.get_pg()
 
+		# print(f"HSE 1st... ", self.nH[:,:,:3])
+		flag1 = np.isnan(self.data[0,0])
+		flag2 = np.isnan(self.data[1,0])
+		# if flag1.any():
+		# 	print("1st")
+		# 	print(self.T[0,0])
+		# 	print(self.vz[0,0])
+		# 	print(self.vmic[0,0])
+		# 	print(self.B[0,0])
+		# if flag2.any():
+		# 	print("2nd")
+		# 	print(self.T[1,0])
+		# 	print(self.vz[1,0])
+		# 	print(self.vmic[1,0])
+		# 	print(self.B[1,0])
 		with mp.Pool(self.n_thread) as pool:
 			results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
 
@@ -1096,7 +1111,7 @@ class Atmosphere(object):
 
 		# solve HSE also for the 2nd atmospheric model
 		if self.sl_atmos is not None:
-			self.sl_atmos.makeHSE()
+			self.sl_atmos.makeHSE(flag)
 
 		# self.data[indx,indy,2] = results[:,0,:]
 		# self.data[indx,indy,8:] = results[:,1:7,:]
@@ -1118,6 +1133,7 @@ class Atmosphere(object):
 		ne, nHtot = pyrh.hse(self.cwd, self.scale_id,
 							 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 							 self.pg[idx,idy,0]/10, fudge_lam, fudge_value)
+							 # 0.1, fudge_lam, fudge_value)
 
 		return np.vstack((ne/1e6, nHtot/1e6))
 
@@ -1751,7 +1767,7 @@ class Atmosphere(object):
 			if atoms.nl[parameter] is None:
 				continue
 
-			self.global_pars[parameter] = atoms.data[parameter][0,0]
+			self.global_pars[parameter] = atoms.data[parameter]
 			self.line_no[parameter] = atoms.data[f"{parameter}IDs"]
 
 	def load_errors(self, local_pars=None, global_pars=None):
@@ -2047,7 +2063,7 @@ class Atmosphere(object):
 		spec = self.compute_spectra(synthesize)
 		if self.sl_atmos is not None:
 			sl_spec = self.sl_atmos.compute_spectra(synthesize)
-
+		
 		Nw = len(self.wavelength_air)
 
 		if self.mode==1:
@@ -2099,10 +2115,9 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					free_par_ID_stray = free_par_ID
 					if self.stray_type=="hsra":
-						if self.sl_atmos is not None:
-							node_RF = sl_spec.spec - spec.spec
-						else:
-							node_RF = self.hsra_spec.spec - spec.spec
+						node_RF = self.hsra_spec.spec - spec.spec
+					if self.stray_type=="2nd_component":
+						node_RF = sl_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
 						node_RF = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
@@ -2174,11 +2189,10 @@ class Atmosphere(object):
 				elif parameter=="stray":
 					free_par_ID_stray = free_par_ID
 
+					if self.stray_type=="2nd_component":
+						raise NotImplementedError("Switch to the pixel-by-pixel inversion mode.")
 					if self.stray_type=="hsra":
-						if self.sl_atmos is not None:
-							raise NotImplementedError("Switch to the pixel-by-pixel inversion mode.")
-						else:
-							diff = self.hsra_spec.spec - spec.spec
+						diff = self.hsra_spec.spec - spec.spec
 					if self.stray_type in ["atmos", "spec"]:
 						diff = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
@@ -2243,14 +2257,12 @@ class Atmosphere(object):
 			sl_spectrum = None
 			if self.stray_type=="hsra":
 				sl_spectrum = self.hsra_spec.spec
-				if self.sl_atmos is not None:
-					sl_spectrum = sl_spec.spec
+			if self.stray_type=="2nd_component":
+				sl_spectrum = sl_spec.spec
 			if self.stray_type in ["atmos", "spec"]:
 				sl_spectrum = self.stray_light_spectrum.spec
 
-			spec.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
-			# globin.plot_spectra(spec.spec[0,0], spec.wavelength, inv=[sl_spec.spec[0,0]])
-			# globin.show()
+			spec.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
 
 			# skip adding the stray light to the RF for stray light
 			for idp in range(Npar):
@@ -2273,28 +2285,11 @@ class Atmosphere(object):
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			# print(self.wavelength_air)
-			# print(self.wavelength_obs)
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
-		# plt.plot(rf[0,0,0,...,0])
-		# plt.show()
-
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
-
-		# plt.plot(rf[0,0,0,...,3])
-		# plt.plot(rf[0,0,2,...,3])
-		# plt.show()
-
-		# for idp in range(-1):
-		# 	plt.plot(self.rf[0,0,idp,:,0], label=f"{idp+1}")
-		# plt.legend()
-		# plt.show()
-		# sys.exit()
-
-		# atmos.spec[active_indx, active_indy] = spec.spec[active_indx, active_indy]
 
 		return spec
 

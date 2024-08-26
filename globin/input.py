@@ -346,8 +346,8 @@ class InputData(object):
 			# get the mode of stray light
 			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
 			self.stray_type = self.stray_type.lower()
-			if self.stray_type not in ["gray", "hsra", "atmos", "spec"]:
-				raise ValueError(f"stray_type '{self.stray_type}' is not supported. Only 'gray', 'hsra' or 'atmos'.")
+			if self.stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
+				raise ValueError(f"stray_type '{self.stray_type}' is not supported.")
 
 			# get the mode for stray light (synthesis/inversion)			
 			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
@@ -361,6 +361,18 @@ class InputData(object):
 				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
 				self.atmosphere.stray_light = ones * np.abs(stray_factor)
 				if stray_factor<0:
+					# check if the minimum value for stray light factor is defined
+					stray_min = _find_value_by_key("stray_factor_vmin", self.parameters_input, "optional", conversion=float)
+					if stray_min is not None:
+						self.atmosphere.limit_values["stray"].vmin = [stray_min]
+						self.atmosphere.limit_values["stray"].vmin_dim = 1
+
+					# check if the maximum value for stray light factor is defined
+					stray_max = _find_value_by_key("stray_factor_vmax", self.parameters_input, "optional", conversion=float)
+					if stray_max is not None:
+						self.atmosphere.limit_values["stray"].vmax = [stray_max]
+						self.atmosphere.limit_values["stray"].vmax_dim = 1
+
 					self.atmosphere.invert_stray = True
 					if self.stray_mode==1 or self.stray_mode==2:
 						# we are inverting for stray light factor (pixel-by-pixel mode)
@@ -405,8 +417,8 @@ class InputData(object):
 			if (sl_temp is not None) or (sl_vz is not None) or (sl_vmic is not None):
 				add_2nd_component = True
 
-			if add_2nd_component and self.stray_type!="hsra":
-				raise ValueError(f"Cannot add 2nd component atmospheric parameters for stray_type={self.stray_type}")
+			if add_2nd_component and self.stray_type!="2nd_component":
+				raise ValueError(f"Cannot add the 2nd component atmospheric parameters for stray_type={self.stray_type}")
 
 			if add_2nd_component:
 				self.atmosphere.sl_atmos = globin.Atmosphere(nx=self.atmosphere.nx, 
