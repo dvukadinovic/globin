@@ -457,13 +457,13 @@ class InputData(object):
 						# minimal value
 						sl_temp_vmin = _find_value_by_key("sl_temp_vmin", self.parameters_input, "optional", conversion=float)
 						if sl_temp_vmin is not None:
-							self.atmosphere.limit_values["sl_temp_vmin"].vmin = [sl_temp_vmin]
-							self.atmosphere.limit_values["sl_temp_vmin"].vmin_dim = 1
+							self.atmosphere.limit_values["sl_temp"].vmin = [sl_temp_vmin]
+							self.atmosphere.limit_values["sl_temp"].vmin_dim = 1
 						# maximal value
 						sl_temp_vmax = _find_value_by_key("sl_temp_vmax", self.parameters_input, "optional", conversion=float)
 						if sl_temp_vmax is not None:
-							self.atmosphere.limit_values["sl_temp_vmax"].vmax = [sl_temp_vmax]
-							self.atmosphere.limit_values["sl_temp_vmax"].vmax_dim = 1
+							self.atmosphere.limit_values["sl_temp"].vmax = [sl_temp_vmax]
+							self.atmosphere.limit_values["sl_temp"].vmax_dim = 1
 
 					self.atmosphere.sl_atmos.nodes["sl_temp"] = np.array([0])
 					delta = sl_temp - globin.T0_HSRA
@@ -480,13 +480,13 @@ class InputData(object):
 						# minimal value
 						sl_vz_vmin = _find_value_by_key("sl_vz_vmin", self.parameters_input, "optional", conversion=float)
 						if sl_vz_vmin is not None:
-							self.atmosphere.limit_values["sl_vz_vmin"].vmin = [sl_vz_vmin]
-							self.atmosphere.limit_values["sl_vz_vmin"].vmin_dim = 1
+							self.atmosphere.limit_values["sl_vz"].vmin = [sl_vz_vmin]
+							self.atmosphere.limit_values["sl_vz"].vmin_dim = 1
 						# maximal value
 						sl_vz_vmax = _find_value_by_key("sl_vz_vmax", self.parameters_input, "optional", conversion=float)
 						if sl_vz_vmax is not None:
-							self.atmosphere.limit_values["sl_vz_vmax"].vmax = [sl_vz_vmax]
-							self.atmosphere.limit_values["sl_vz_vmax"].vmax_dim = 1
+							self.atmosphere.limit_values["sl_vz"].vmax = [sl_vz_vmax]
+							self.atmosphere.limit_values["sl_vz"].vmax_dim = 1
 					self.atmosphere.sl_atmos.nodes["sl_vz"] = np.array([0])
 					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vz"]] = sl_vz
 				if sl_vmic is not None:
@@ -500,13 +500,13 @@ class InputData(object):
 						# minimal value
 						sl_vmic_vmin = _find_value_by_key("sl_vmic_vmin", self.parameters_input, "optional", conversion=float)
 						if sl_vmic_vmin is not None:
-							self.atmosphere.limit_values["sl_vmic_vmin"].vmin = [sl_vmic_vmin]
-							self.atmosphere.limit_values["sl_vmic_vmin"].vmin_dim = 1
+							self.atmosphere.limit_values["sl_vmic"].vmin = [sl_vmic_vmin]
+							self.atmosphere.limit_values["sl_vmic"].vmin_dim = 1
 						# maximal value
 						sl_vmic_vmax = _find_value_by_key("sl_vmic_vmax", self.parameters_input, "optional", conversion=float)
 						if sl_vmic_vmax is not None:
-							self.atmosphere.limit_values["sl_vmic_vmax"].vmax = [sl_vmic_vmax]
-							self.atmosphere.limit_values["sl_vmic_vmax"].vmax_dim = 1
+							self.atmosphere.limit_values["sl_vmic"].vmax = [sl_vmic_vmax]
+							self.atmosphere.limit_values["sl_vmic"].vmax_dim = 1
 					self.atmosphere.sl_atmos.nodes["sl_vmic"] = np.array([0])
 					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vmic"]] = sl_vmic
 
