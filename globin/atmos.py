@@ -197,6 +197,9 @@ class Atmosphere(object):
 		self.pg = None
 		self.vmac = 0
 
+		# flag if temperature should only decrease with the height
+		self.decreasing_temperature = False
+
 		# cos(theta) for which we are computing the spectrum
 		self.mu = 1.0
 		
@@ -1086,21 +1089,6 @@ class Atmosphere(object):
 		# obtain new Pg and use it as initial value for the HSE at the top
 		self.get_pg()
 
-		# print(f"HSE 1st... ", self.nH[:,:,:3])
-		flag1 = np.isnan(self.data[0,0])
-		flag2 = np.isnan(self.data[1,0])
-		# if flag1.any():
-		# 	print("1st")
-		# 	print(self.T[0,0])
-		# 	print(self.vz[0,0])
-		# 	print(self.vmic[0,0])
-		# 	print(self.B[0,0])
-		# if flag2.any():
-		# 	print("2nd")
-		# 	print(self.T[1,0])
-		# 	print(self.vz[1,0])
-		# 	print(self.vmic[1,0])
-		# 	print(self.B[1,0])
 		with mp.Pool(self.n_thread) as pool:
 			results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
 
@@ -1636,6 +1624,8 @@ class Atmosphere(object):
 				vmax = self.limit_values[parameter].max[0]
 				if self.limit_values[parameter].vmax_dim!=1:
 					vmax = self.limit_values[parameter].max[idn]
+				if parameter=="temp" and self.decreasing_temperature and (idn+1)!=len(self.nodes[parameter]):
+					vmax = self.values[parameter][...,idn+1]
 				indx, indy = np.where(self.values[parameter][...,idn]>vmax)
 				self.values[parameter][indx,indy,idn] = vmax
 

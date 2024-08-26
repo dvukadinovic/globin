@@ -454,6 +454,17 @@ class InputData(object):
 						self.atmosphere.mask["sl_temp"] = np.ones(1)
 						self.atmosphere.n_local_pars += 1
 						self.atmosphere.hydrostatic = True
+						# minimal value
+						sl_temp_vmin = _find_value_by_key("sl_temp_vmin", self.parameters_input, "optional", conversion=float)
+						if sl_temp_vmin is not None:
+							self.atmosphere.limit_values["sl_temp"].vmin = [sl_temp_vmin]
+							self.atmosphere.limit_values["sl_temp"].vmin_dim = 1
+						# maximal value
+						sl_temp_vmax = _find_value_by_key("sl_temp_vmax", self.parameters_input, "optional", conversion=float)
+						if sl_temp_vmax is not None:
+							self.atmosphere.limit_values["sl_temp"].vmax = [sl_temp_vmax]
+							self.atmosphere.limit_values["sl_temp"].vmax_dim = 1
+
 					self.atmosphere.sl_atmos.nodes["sl_temp"] = np.array([0])
 					delta = sl_temp - globin.T0_HSRA
 					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.atmosphere.sl_atmos.logtau)
@@ -466,6 +477,16 @@ class InputData(object):
 						self.atmosphere.parameter_scale["sl_vz"] = ones.copy()
 						self.atmosphere.mask["sl_vz"] = np.ones(1)
 						self.atmosphere.n_local_pars += 1
+						# minimal value
+						sl_vz_vmin = _find_value_by_key("sl_vz_vmin", self.parameters_input, "optional", conversion=float)
+						if sl_vz_vmin is not None:
+							self.atmosphere.limit_values["sl_vz"].vmin = [sl_vz_vmin]
+							self.atmosphere.limit_values["sl_vz"].vmin_dim = 1
+						# maximal value
+						sl_vz_vmax = _find_value_by_key("sl_vz_vmax", self.parameters_input, "optional", conversion=float)
+						if sl_vz_vmax is not None:
+							self.atmosphere.limit_values["sl_vz"].vmax = [sl_vz_vmax]
+							self.atmosphere.limit_values["sl_vz"].vmax_dim = 1
 					self.atmosphere.sl_atmos.nodes["sl_vz"] = np.array([0])
 					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vz"]] = sl_vz
 				if sl_vmic is not None:
@@ -476,6 +497,16 @@ class InputData(object):
 						self.atmosphere.parameter_scale["sl_vmic"] = ones.copy()
 						self.atmosphere.mask["sl_vmic"] = np.ones(1)
 						self.atmosphere.n_local_pars += 1
+						# minimal value
+						sl_vmic_vmin = _find_value_by_key("sl_vmic_vmin", self.parameters_input, "optional", conversion=float)
+						if sl_vmic_vmin is not None:
+							self.atmosphere.limit_values["sl_vmic"].vmin = [sl_vmic_vmin]
+							self.atmosphere.limit_values["sl_vmic"].vmin_dim = 1
+						# maximal value
+						sl_vmic_vmax = _find_value_by_key("sl_vmic_vmax", self.parameters_input, "optional", conversion=float)
+						if sl_vmic_vmax is not None:
+							self.atmosphere.limit_values["sl_vmic"].vmax = [sl_vmic_vmax]
+							self.atmosphere.limit_values["sl_vmic"].vmax_dim = 1
 					self.atmosphere.sl_atmos.nodes["sl_vmic"] = np.array([0])
 					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vmic"]] = sl_vmic
 
@@ -524,6 +555,13 @@ class InputData(object):
 
 		# current working directory (path that is appended to RH input files before submitting to synthesis)
 		self.atmosphere.cwd = self.cwd
+
+		decreasing_temperature = _find_value_by_key("decreasing_temperature", self.parameters_input, "optional")
+		if decreasing_temperature is not None:
+			if decreasing_temperature.lower()=="false":
+				self.atmosphere.decreasing_temperature = False
+			if decreasing_temperature.lower()=="true":
+				self.atmosphere.decreasing_temperature = True
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
