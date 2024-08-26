@@ -556,6 +556,13 @@ class InputData(object):
 		# current working directory (path that is appended to RH input files before submitting to synthesis)
 		self.atmosphere.cwd = self.cwd
 
+		decreasing_temperature = _find_value_by_key("decreasing_temperature", self.parameters_input, "optional")
+		if decreasing_temperature is not None:
+			if decreasing_temperature.lower()=="false":
+				self.atmosphere.decreasing_temperature = False
+			if decreasing_temperature.lower()=="true":
+				self.atmosphere.decreasing_temperature = True
+
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
 		Get parameters for synthesis: spectra output path and the atmosphere.
