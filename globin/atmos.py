@@ -1086,21 +1086,6 @@ class Atmosphere(object):
 		# obtain new Pg and use it as initial value for the HSE at the top
 		self.get_pg()
 
-		# print(f"HSE 1st... ", self.nH[:,:,:3])
-		flag1 = np.isnan(self.data[0,0])
-		flag2 = np.isnan(self.data[1,0])
-		# if flag1.any():
-		# 	print("1st")
-		# 	print(self.T[0,0])
-		# 	print(self.vz[0,0])
-		# 	print(self.vmic[0,0])
-		# 	print(self.B[0,0])
-		# if flag2.any():
-		# 	print("2nd")
-		# 	print(self.T[1,0])
-		# 	print(self.vz[1,0])
-		# 	print(self.vmic[1,0])
-		# 	print(self.B[1,0])
 		with mp.Pool(self.n_thread) as pool:
 			results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
 
