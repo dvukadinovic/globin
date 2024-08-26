@@ -1715,6 +1715,10 @@ class Atmosphere(object):
 		# 			ny = self.ny
 		# 		# delta = 0.0413 --> 10% relative error in oscillator strength (f)
 		# 		self.global_pars[parameter] += np.random.normal(loc=0, scale=0.0413, size=size*nx*ny).reshape(nx, ny, size)
+			if parameter=="loggf" and self.mode==2:
+				for idl in range(self.line_no[parameter]):
+					aux = mygsmooth(self.global_pars[parameter][...,idl], num, std)
+					self.global_pars[parameter][...,idl] = median_filter(aux, size=4)
 			if parameter=="dlam" and len(self.line_no["dlam"])!=0 and self.mode==3:
 				median = np.median(self.global_pars[parameter])
 				Ndlam = len(self.line_no[parameter])
