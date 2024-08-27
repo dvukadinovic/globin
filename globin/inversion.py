@@ -1224,6 +1224,7 @@ def _chi2_convergence(args):
 
 	# if we still have not converged
 	return 1, itter, updated_pars
+
 def normalize_hessian(H, atmos, mode):
 	"""
 	Normalize Hessian matrix so that diagonal elements are =1.
