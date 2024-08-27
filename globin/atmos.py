@@ -1862,41 +1862,6 @@ class Atmosphere(object):
 
 		return self.icont, self.hsra_spec
 
-	def get_hsra_cont_Bezier(self, Nz=200):
-		atmos = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
-		if atmos.nz!=Nz:
-			atmos.resample(Nz=Nz)
-		atmos.mu = self.mu
-
-		wlref = self.wavelength_vacuum[0]
-		tau = atmos.get_tau(wlref)
-
-		wlref = self.wavelength_obs[0]
-		B = Planck(wlref, atmos.data[0,0,1])
-		C = get_control_point(tau, B, K0=None, Kn=None, degree=2)
-
-		StokesI = np.zeros(atmos.nz)
-		Kn = (B[-1]-B[-2])/(tau[-1]-tau[-2])
-		StokesI[-1] = B[-1] + Kn
-
-		for idz in range(atmos.nz-2,-1,-1):
-			dt = tau[idz+1] - tau[idz]
-			alpha = 2 + dt**2 - 2*dt - 2*np.exp(-dt)
-			alpha /= dt**2
-			beta = 2 - (2 + 2*dt+dt**2)*np.exp(-dt)
-			beta /= dt**2
-			gamma = 2*dt - 4 + (2*dt + 4)*np.exp(-dt)
-			gamma /= dt**2
-
-			StokesI[idz] = StokesI[idz+1]*np.exp(-dt) + alpha*B[idz] + beta*B[idz+1] + gamma*C[idz]
-
-		# nu = globin.LIGHT_SPEED/wlref/1e-9
-		# StokesI *= globin.LIGHT_SPEED/nu**2
-
-		# print(StokesI[0])
-
-		return StokesI[0]
-
 	def get_tau(self, wlref):
 		tau_wlref = pyrh.get_tau(self.cwd, self.mu, 0, self.data[0,0], np.array([wlref]))
 
@@ -1952,23 +1917,6 @@ class Atmosphere(object):
 				spectra.spec /= Ic
 			else:
 				spectra.spec /= self.norm_level
-
-		# #--- add the stray light component:
-		# if self.add_stray_light:
-		# 	# get the stray light factor(s)
-		# 	if "stray" in self.global_pars:
-		# 		stray_light = self.global_pars["stray"]
-		# 	else:
-		# 		stray_light = self.stray_light
-
-		# 	# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		# 	sl_spectrum = None
-		# 	if self.stray_type=="hsra":
-		# 		sl_spectrum = self.hsra_spec.spec
-		# 	if self.stray_type in ["atmos", "spec"]:
-		# 		sl_spectrum = self.stray_light_spectrum.spec
-
-		# 	spectra.add_stray_light(self.stray_mode, stray_light, sl_spectrum=sl_spectrum)
 
 		if self.mode==0:
 			print()
@@ -2057,7 +2005,7 @@ class Atmosphere(object):
 		spec = self.compute_spectra(synthesize)
 		if self.sl_atmos is not None:
 			sl_spec = self.sl_atmos.compute_spectra(synthesize)
-		
+
 		Nw = len(self.wavelength_air)
 
 		if self.mode==1:
