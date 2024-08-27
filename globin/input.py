@@ -407,20 +407,8 @@ class InputData(object):
 				self.atmosphere.stray_light_spectrum = globin.Observation(fpath, spec_type="hinode")
 				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, n_thread=1, fill_value="extrapolate")
 
-			# parameters for the 2nd component atmosphere treated as a stray light source (assumed to be the HSRA atmosphere)
-			sl_temp = _find_value_by_key("sl_temp", self.parameters_input, "optional", None, float)
-			sl_vz = _find_value_by_key("sl_vz", self.parameters_input, "optional", None, float)
-			sl_vmic = _find_value_by_key("sl_vmic", self.parameters_input, "optional", None, float)
-
-			# add 2nd component atmospheres to Atmosphere() model
-			add_2nd_component = False
-			if (sl_temp is not None) or (sl_vz is not None) or (sl_vmic is not None):
-				add_2nd_component = True
-
-			if add_2nd_component and self.stray_type!="2nd_component":
-				raise ValueError(f"Cannot add the 2nd component atmospheric parameters for stray_type={self.stray_type}")
-
-			if add_2nd_component:
+			# add 2nd component atmospheres to Atmosphere() model (its HSRA atmosphere with additional parameters, if specified)
+			if self.stray_type=="2nd_component":
 				self.atmosphere.sl_atmos = globin.Atmosphere(nx=self.atmosphere.nx, 
 															 ny=self.atmosphere.ny,
 															 nz=self.atmosphere.nz,
@@ -444,6 +432,11 @@ class InputData(object):
 				self.atmosphere.sl_atmos.fudge = self.atmosphere.fudge
 
 				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
+
+				# parameters for the 2nd component atmosphere treated as a stray light source (assumed to be the HSRA atmosphere)
+				sl_temp = _find_value_by_key("sl_temp", self.parameters_input, "optional", None, float)
+				sl_vz = _find_value_by_key("sl_vz", self.parameters_input, "optional", None, float)
+				sl_vmic = _find_value_by_key("sl_vmic", self.parameters_input, "optional", None, float)
 
 				if sl_temp is not None:
 					sl_temp_fit = _find_value_by_key("sl_temp_fit", self.parameters_input, "optional", "false", str)
