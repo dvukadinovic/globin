@@ -2006,6 +2006,27 @@ class Atmosphere(object):
 		if self.sl_atmos is not None:
 			sl_spec = self.sl_atmos.compute_spectra(synthesize)
 
+		if self.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if self.stray_type=="hsra":
+				sl_spectrum = self.hsra_spec.spec
+			if self.stray_type=="2nd_component":
+				sl_spectrum = sl_spec.spec
+			if self.stray_type in ["atmos", "spec"]:
+				sl_spectrum = self.stray_light_spectrum.spec
+
+			# total continuum intensity by each component
+			Ic = stray_light[...,0] * sl_spectrum[...,0,0] + (1 - stray_light[...,0]) * spec.spec[...,0,0]
+			brightness_fraction2 = sl_spectrum[...,0,0]/Ic
+			brightness_fraction1 = spec.spec[...,0,0]/Ic
+
 		Nw = len(self.wavelength_air)
 
 		if self.mode==1:
@@ -2059,11 +2080,11 @@ class Atmosphere(object):
 					if self.stray_type=="hsra":
 						node_RF = self.hsra_spec.spec - spec.spec
 					if self.stray_type=="2nd_component":
-						node_RF = sl_spec.spec - spec.spec
+						node_RF = sl_spec.spec * brightness_fraction2 - spec.spec * brightness_fraction2
 					if self.stray_type in ["atmos", "spec"]:
 						node_RF = self.stray_light_spectrum.spec - spec.spec
 					if self.stray_type=="gray":
-						node_RF = -spec.spec
+						node_RF = -spec.spec1				
 				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
 					if parameter=="of":	
@@ -2203,9 +2224,7 @@ class Atmosphere(object):
 				sl_spectrum = sl_spec.spec
 			if self.stray_type in ["atmos", "spec"]:
 				sl_spectrum = self.stray_light_spectrum.spec
-
-			spec.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
-
+			
 			# skip adding the stray light to the RF for stray light
 			for idp in range(Npar):
 				if idp==free_par_ID_stray:
@@ -2220,10 +2239,23 @@ class Atmosphere(object):
 						else:
 							raise ValueError(f"Unknown mode {self.stray_mode} for stray light contribution. Choose one from 1,2 or 3.")
 						
+						total_spec = stray_factor*brightness_fraction2[idx,idy]*sl_spectrum[idx,idy] + (1 - stray_factor)*brightness_fraction1[idx,idy]*spec.spec[idx,idy]
+
+						rf_continuum = rf[idx,idy,idp,0,0]
 						if idp in free_par_ID_sl_pars:
-							rf[idx,idy,idp] *= stray_factor
+							rf[idx,idy,idp] *= stray_factor * brightness_fraction2[idx,idy]
+							rf[idx,idy,idp] += stray_factor * (sl_spectrum[idx,idy] - total_spec) * rf_continuum/Ic[idx,idy]
 						else:
-							rf[idx,idy,idp] *= 1 - stray_factor
+							rf[idx,idy,idp] *= (1 - stray_factor) * brightness_fraction1[idx,idy]
+							rf[idx,idy,idp] += (1 - stray_factor) * (spec.spec[idx,idy] - total_spec) * rf_continuum/Ic[idx,idy]
+
+			spec.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
+
+			# globin.plot_spectra(spec.spec[0,0], spec.wavelength)
+			# globin.show()
+
+		# plt.plot(rf[0,0,2,:,0])
+		# plt.show()
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):

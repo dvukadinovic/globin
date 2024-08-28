@@ -383,9 +383,9 @@ class Spectrum(object):
 					self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="2nd_component":
 					Ic = stray_factor * sl_spectrum[idx,idy,0,0] + (1 - stray_factor) * self.spec[idx,idy,0,0]
-					ff1 = sl_spectrum[idx,idy,0,0]/Ic
-					ff2 = self.spec[idx,idy,0,0]/Ic
-					self.spec[idx,idy] = stray_factor * ff1 * sl_spectrum[idx,idy] + (1-stray_factor) * ff2 * self.spec[idx,idy]
+					brightness_fraction1 = sl_spectrum[idx,idy,0,0]/Ic
+					brightness_fraction2 = self.spec[idx,idy,0,0]/Ic
+					self.spec[idx,idy] = stray_factor * brightness_fraction1 * sl_spectrum[idx,idy] + (1-stray_factor) * brightness_fraction2 * self.spec[idx,idy]
 				if stray_type=="gray":
 					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
 					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
