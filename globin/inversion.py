@@ -179,7 +179,8 @@ class Inverter(InputData):
 		obs = self.observation
 		atmos = self.atmosphere
 
-		if atmos.add_stray_light or atmos.norm_level=="hsra":
+		# if atmos.add_stray_light or atmos.norm_level=="hsra":
+		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
 			print("[Info] Computing the HSRA spectrum...\n")
 			atmos.get_hsra_cont()
 			atmos.hsra_spec.broaden_spectra(atmos.vmac)
@@ -418,6 +419,14 @@ class Inverter(InputData):
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
+			Ic = corrected_spec.I[...,atmos.continuum_idl]
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+			# globin.show()
+
 			#--- compute new chi2 after parameter correction
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
@@ -535,6 +544,11 @@ class Inverter(InputData):
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
+		Ic = inverted_spectra.I[...,atmos.continuum_idl]
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+
 		try:
 			# remove parameter normalization factor from Hessian
 			parameter_norms = []
@@ -581,7 +595,7 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print()
 
-		if atmos.add_stray_light or atmos.norm_level=="hsra":
+		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
 			print("[Info] Computing the HSRA spectrum...\n")
 			atmos.get_hsra_cont()
 			atmos.hsra_spec.broaden_spectra(atmos.vmac)
@@ -838,6 +852,11 @@ class Inverter(InputData):
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
+			Ic = corrected_spec.I[...,atmos.continuum_idl]
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
 			new_diff *= self.weights
@@ -973,6 +992,11 @@ class Inverter(InputData):
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
+
+		Ic = inverted_spectra.I[...,atmos.continuum_idl]
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
 
 		try:
 			# remove parameter normalization factor from Hessian

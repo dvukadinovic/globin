@@ -382,10 +382,11 @@ class Spectrum(object):
 				if stray_type in ["hsra", "atmos", "spec"]:
 					self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="2nd_component":
-					Ic = stray_factor * sl_spectrum[idx,idy,0,0] + (1 - stray_factor) * self.spec[idx,idy,0,0]
-					brightness_fraction1 = sl_spectrum[idx,idy,0,0]/Ic
-					brightness_fraction2 = self.spec[idx,idy,0,0]/Ic
-					self.spec[idx,idy] = stray_factor * brightness_fraction1 * sl_spectrum[idx,idy] + (1-stray_factor) * brightness_fraction2 * self.spec[idx,idy]
+					# Ic = stray_factor * sl_spectrum[idx,idy,0,0] + (1 - stray_factor) * self.spec[idx,idy,0,0]
+					# brightness_fraction1 = sl_spectrum[idx,idy,0,0]/Ic
+					# brightness_fraction2 = self.spec[idx,idy,0,0]/Ic
+					# self.spec[idx,idy] = stray_factor * brightness_fraction1 * sl_spectrum[idx,idy] + (1-stray_factor) * brightness_fraction2 * self.spec[idx,idy]
+					self.spec[idx,idy] = stray_factor * sl_spectrum[idx,idy] + (1-stray_factor) * self.spec[idx,idy]
 				if stray_type=="gray":
 					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
 					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
