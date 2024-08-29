@@ -439,6 +439,13 @@ class InputData(object):
 				self.atmosphere.sl_atmos.fudge_lam = self.atmosphere.fudge_lam
 				self.atmosphere.sl_atmos.fudge = self.atmosphere.fudge
 
+				self.atmosphere.sl_atmos.continuum_idl = self.atmosphere.continuum_idl
+
+				# when we invert global parameters in one atmosphere, we need them also in the second one to compute RFs
+				self.atmosphere.sl_atmos.mode = self.atmosphere.mode
+				self.atmosphere.sl_atmos.global_pars = self.atmosphere.global_pars
+				self.atmosphere.sl_atmos.line_no = self.atmosphere.line_no
+
 				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
 
 				# parameters for the 2nd component atmosphere treated as a stray light source (assumed to be the HSRA atmosphere)
