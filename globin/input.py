@@ -206,6 +206,9 @@ class InputData(object):
 				self.norm = True
 				self.norm_level = float(norm)
 
+		# reference wavelength in the continuum used to normalize synthetic spectra
+		continuum_wavelength = _find_value_by_key("continuum_wavelength", self.parameters_input, "optional", conversion=float)
+
 		# if we want to compute the mean spectrum (from multi-component atmosphere)
 		mean = _find_value_by_key("mean", self.parameters_input, "optional")
 		if mean is not None:
@@ -287,6 +290,11 @@ class InputData(object):
 		
 		self.atmosphere.wavelength_air = self.wavelength_air
 		self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
+
+		# add the wavelength in the continuum used to normalize synthetic spectra
+		if continuum_wavelength is not None:
+			idl = np.argmin(np.abs(self.atmosphere.wavelength_obs-continuum_wavelength/10))
+			self.atmosphere.continuum_idl = idl
 
 		# we do not want to have sparse synthetic spectrum from which we will scale up
 		# we want to have the same or higher number of wavelength points than there

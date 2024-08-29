@@ -239,6 +239,8 @@ class Atmosphere(object):
 		self.norm = False
 		# flag for normalization type
 		self.norm_level = None
+		# index of wavelength in the continuum
+		self.continuum_idl = 0
 
 		# stray-light contamination parameters
 		self.add_stray_light = False
@@ -1851,11 +1853,11 @@ class Atmosphere(object):
 		# just to be sure that we are not normalizing...
 		hsra.norm = False
 		self.hsra_spec = hsra.compute_spectra()
-		self.icont = self.hsra_spec.spec[0,0,0,0]
+		self.icont = self.hsra_spec.I[0,0,self.continuum_idl]
 		if self.norm and self.norm_level=="hsra":
 			self.hsra_spec.spec /= self.icont
 
-			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[0]))
+			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[self.continuum_idl]))
 
 		if self.sl_atmos is not None:
 			self.sl_atmos.icont = self.icont
@@ -1944,7 +1946,7 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-			
+
 			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
