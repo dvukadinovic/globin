@@ -547,12 +547,7 @@ class Atmosphere(object):
 			list containing [xmin, xmax, ymin, ymax] defining the patch from the cube
 			to be read into the memory.
 		"""
-		try:
-			hdu_list = fits.open(fpath)
-		except:
-			print("--> Error in globin.atmos.read_cube()")
-			print(f"    Atmosphere file with path '{fpath}' does not exist.")
-			sys.exit()
+		hdu_list = fits.open(fpath)
 
 		xmin, xmax, ymin, ymax = atm_range
 
