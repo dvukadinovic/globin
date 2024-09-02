@@ -311,10 +311,10 @@ class Atmosphere(object):
 							 "vz"    : MinMax(-10, 10),								# [km/s]
 							 "vmic"  : MinMax(1e-3, 10),							# [km/s]
 							 "mag"   : MinMax(10, 10000),							# [G]
-							 # "gamma" : MinMax(0, np.pi),						# [rad]
-							 "gamma" : MinMax(-1,1),									# cos(gamma)
-							 # "chi"   : MinMax(-np.pi/2, np.pi/2),		# [rad]
-							 "chi"   : MinMax(0, 1),									# sin^2(chi)
+							 "gamma" : MinMax(-np.pi, 2*np.pi),						# [rad]
+							 # "gamma" : MinMax(-1,1),									# cos(gamma)
+							 "chi"   : MinMax(-2*np.pi, 2*np.pi),		# [rad]
+							 # "chi"   : MinMax(0, 1),									# sin^2(chi)
 							 "of"    : [0, 20],												#
 							 "stray" : MinMax(1e-3, 0.99),						#
 							 "vmac"  : [1e-3, 5],												# [km/s]
