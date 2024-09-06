@@ -402,6 +402,7 @@ class Inverter(InputData):
 				# get the stray light factor(s)
 				if "stray" in atmos.global_pars:
 					stray_light = atmos.global_pars["stray"]
+					stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
 				else:
 					stray_light = atmos.stray_light
 
@@ -420,9 +421,10 @@ class Inverter(InputData):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			Ic = corrected_spec.I[...,atmos.continuum_idl]
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+			corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
 
 			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
 			# globin.show()
@@ -527,6 +529,7 @@ class Inverter(InputData):
 			# get the stray light factor(s)
 			if "stray" in atmos.global_pars:
 				stray_light = atmos.global_pars["stray"]
+				stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
 			else:
 				stray_light = atmos.stray_light
 
@@ -545,9 +548,10 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		Ic = inverted_spectra.I[...,atmos.continuum_idl]
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+		# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+		inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
 
 		try:
 			# remove parameter normalization factor from Hessian
@@ -835,6 +839,7 @@ class Inverter(InputData):
 				# get the stray light factor(s)
 				if "stray" in atmos.global_pars:
 					stray_light = atmos.global_pars["stray"]
+					stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
 				else:
 					stray_light = atmos.stray_light
 
@@ -853,9 +858,10 @@ class Inverter(InputData):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			Ic = corrected_spec.I[...,atmos.continuum_idl]
-			for idx in range(atmos.nx):
-				for idy in range(atmos.ny):
-					corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		corrected_spec.spec[idx,idy] /= Ic[idx,idy]
+			corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -976,6 +982,7 @@ class Inverter(InputData):
 			# get the stray light factor(s)
 			if "stray" in atmos.global_pars:
 				stray_light = atmos.global_pars["stray"]
+				stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
 			else:
 				stray_light = atmos.stray_light
 
@@ -994,9 +1001,10 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		Ic = inverted_spectra.I[...,atmos.continuum_idl]
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+		# for idx in range(atmos.nx):
+		# 	for idy in range(atmos.ny):
+		# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+		inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
 
 		try:
 			# remove parameter normalization factor from Hessian
@@ -1476,6 +1484,7 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		# get the stray light factor(s)
 		if "stray" in atmosphere.global_pars:
 			stray_light = atmosphere.global_pars["stray"]
+			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
 		else:
 			stray_light = atmosphere.stray_light
 

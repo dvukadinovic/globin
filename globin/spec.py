@@ -367,31 +367,29 @@ class Spectrum(object):
 		if flag is None:
 			flag = np.ones((self.nx, self.ny), dtype=np.int32)
 
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				if flag[idx,idy]==0:
-					continue
+		# for idx in range(self.nx):
+		# 	for idy in range(self.ny):
+		# 		if flag[idx,idy]==0:
+		# 			continue
 
-				if mode==1 or mode==2:
-					stray_factor = stray_light[idx,idy]
-				elif mode==3:
-					stray_factor = stray_light
-				else:
-					raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
+		# 		if mode==1 or mode==2:
+		# 			stray_factor = stray_light[idx,idy]
+		# 		elif mode==3:
+		# 			stray_factor = stray_light
+		# 		else:
+		# 			raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
 				
-				if stray_type in ["hsra", "atmos", "spec"]:
-					self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
-				if stray_type=="2nd_component":
-					# Ic = stray_factor * sl_spectrum[idx,idy,0,0] + (1 - stray_factor) * self.spec[idx,idy,0,0]
-					# brightness_fraction1 = sl_spectrum[idx,idy,0,0]/Ic
-					# brightness_fraction2 = self.spec[idx,idy,0,0]/Ic
-					# self.spec[idx,idy] = stray_factor * brightness_fraction1 * sl_spectrum[idx,idy] + (1-stray_factor) * brightness_fraction2 * self.spec[idx,idy]
-					self.spec[idx,idy] = stray_factor * sl_spectrum[idx,idy] + (1-stray_factor) * self.spec[idx,idy]
-				if stray_type=="gray":
-					self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
-					self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
-					self.spec[idx,idy,:,2] = (1-stray_factor) * self.spec[idx,idy,:,2]
-					self.spec[idx,idy,:,3] = (1-stray_factor) * self.spec[idx,idy,:,3]
+		if stray_type in ["hsra", "atmos", "spec"]:
+			self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
+		if stray_type=="2nd_component":
+			second_comp = np.einsum("ij,ij...->ij...", stray_light[...,0], sl_spectrum)
+			first_comp = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], self.spec)
+			self.spec = np.einsum("ij,ij...->ij...", flag, second_comp + first_comp)
+		if stray_type=="gray":
+			self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
+			self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
+			self.spec[idx,idy,:,2] = (1-stray_factor) * self.spec[idx,idy,:,2]
+			self.spec[idx,idy,:,3] = (1-stray_factor) * self.spec[idx,idy,:,3]
 
 	def norm(self, degree=7, roi=None):
 		# if (globin.norm) and (globin.Icont is not None):
@@ -748,7 +746,6 @@ class Observation(Spectrum):
 			raise IndexError("Wrong number of headers. Header list does not contain 3 extensions (including primary).")
 
 		self.header = hdu[0].header
-
 		xmin, xmax, ymin, ymax = obs_range
 
 		self.Ic = hdu[2].data

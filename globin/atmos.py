@@ -2003,27 +2003,6 @@ class Atmosphere(object):
 		if self.sl_atmos is not None:
 			sl_spec = self.sl_atmos.compute_spectra(synthesize)
 
-		# if self.add_stray_light:
-		# 	# get the stray light factor(s)
-		# 	if "stray" in self.global_pars:
-		# 		stray_light = self.global_pars["stray"]
-		# 	else:
-		# 		stray_light = self.stray_light
-
-		# 	# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		# 	sl_spectrum = None
-		# 	if self.stray_type=="hsra":
-		# 		sl_spectrum = self.hsra_spec.spec
-		# 	if self.stray_type=="2nd_component":
-		# 		sl_spectrum = sl_spec.spec
-		# 	if self.stray_type in ["atmos", "spec"]:
-		# 		sl_spectrum = self.stray_light_spectrum.spec
-
-		# 	# total continuum intensity by each component
-		# 	Ic = stray_light[...,0] * sl_spectrum[...,0,0] + (1 - stray_light[...,0]) * spec.spec[...,0,0]
-		# 	brightness_fraction2 = sl_spectrum[...,0,0]/Ic
-		# 	brightness_fraction1 = spec.spec[...,0,0]/Ic
-
 		Nw = len(self.wavelength_air)
 
 		if self.mode==1:
@@ -2176,15 +2155,9 @@ class Atmosphere(object):
 						if self.sl_atmos is not None:
 							if "stray" in self.global_pars:
 								stray_light = self.global_pars["stray"]
+								stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
 							else:
 								stray_light = self.stray_light
-
-							stray_factor = stray_light
-
-							# if self.stray_mode==1 or self.stray_mode==2:
-							# 	stray_factor = stray_light[idx,idy]
-							# elif self.stray_mode==3:
-							# 	stray_factor = stray_light
 
 						for idp in range(self.line_no[parameter].size):
 							self.global_pars[parameter][...,idp] += perturbation
@@ -2214,15 +2187,17 @@ class Atmosphere(object):
 								sl_diff /= rf_noise_scale
 								sl_diff *= np.sqrt(2)
 								rf_sl_atom = sl_diff / self.parameter_norm[parameter]
-								for idx in range(self.nx):
-									for idy in range(self.ny):
-										rf[idx,idy,free_par_ID] *= (1 - stray_factor[idx,idy])
-										rf[idx,idy,free_par_ID] += stray_factor[idx,idy] * rf_sl_atom[idx,idy]
+								rf[:,:,free_par_ID] = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], rf[:,:,free_par_ID])
+								aux = np.einsum("ij...,ij->ij...", rf_sl_atom, stray_light[...,0])
+								rf[:,:,free_par_ID] += aux
 
 							free_par_ID_atomic.append(free_par_ID)
 							free_par_ID += 1
 							
 							self.global_pars[parameter][...,idp] += perturbation
+
+				else:
+					raise ValueError(f"Unsupported global parameter {parameter}")
 
 		#--- broaden the spectra
 		if not mean:
@@ -2245,6 +2220,7 @@ class Atmosphere(object):
 			# get the stray light factor(s)
 			if "stray" in self.global_pars:
 				stray_light = self.global_pars["stray"]
+				stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
 			else:
 				stray_light = self.stray_light
 
@@ -2256,7 +2232,9 @@ class Atmosphere(object):
 				sl_spectrum = sl_spec.spec
 			if self.stray_type in ["atmos", "spec"]:
 				sl_spectrum = self.stray_light_spectrum.spec
-			
+
+			spec.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
+
 			# skip adding the stray light to the RF for stray light
 			for idp in range(Npar):
 				# skip the RF to stray light factor
@@ -2266,34 +2244,10 @@ class Atmosphere(object):
 				if idp in free_par_ID_atomic:
 					continue
 
-				for idx in range(self.nx):
-					for idy in range(self.ny):
-						if self.stray_mode==1 or self.stray_mode==2:
-							stray_factor = stray_light[idx,idy]
-						elif self.stray_mode==3:
-							stray_factor = stray_light
-						else:
-							raise ValueError(f"Unknown mode {self.stray_mode} for stray light contribution. Choose one from 1,2 or 3.")
-						
-						# total_spec = stray_factor*brightness_fraction2[idx,idy]*sl_spectrum[idx,idy] + (1 - stray_factor)*brightness_fraction1[idx,idy]*spec.spec[idx,idy]
-
-						# rf_continuum = rf[idx,idy,idp,0,0]
-						if idp in free_par_ID_sl_pars:
-							rf[idx,idy,idp] *= stray_factor
-							# rf[idx,idy,idp] *= stray_factor * brightness_fraction2[idx,idy]
-							# rf[idx,idy,idp] += stray_factor * (sl_spectrum[idx,idy] - total_spec) * rf_continuum/Ic[idx,idy]
-						else:
-							rf[idx,idy,idp] *= (1 - stray_factor)
-							# rf[idx,idy,idp] *= (1 - stray_factor) * brightness_fraction1[idx,idy]
-							# rf[idx,idy,idp] += (1 - stray_factor) * (spec.spec[idx,idy] - total_spec) * rf_continuum/Ic[idx,idy]
-
-			spec.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
-
-			# globin.plot_spectra(spec.spec[0,0], spec.wavelength)
-			# globin.show()
-
-		# plt.plot(rf[0,0,-1,:,0])
-		# plt.show()
+				if idp in free_par_ID_sl_pars:
+					rf[:,:,idp] = np.einsum("ij...,ij->ij...", rf[:,:,idp], stray_light[...,0])
+				else:
+					rf[:,:,idp] = np.einsum("ij...,ij->ij...", rf[:,:,idp], 1 - stray_light[...,0])
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
@@ -2302,17 +2256,15 @@ class Atmosphere(object):
 
 		#--- normalize spectra and RFs
 		Ic = np.copy(spec.I[...,self.continuum_idl])
+		spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+		rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
 		# print(Ic[0,0])
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				spec.spec[idx,idy] /= Ic[idx,idy]
+		# for idx in range(self.nx):
+		# 	for idy in range(self.ny):
+		# 		spec.spec[idx,idy] /= Ic[idx,idy]
+		# 		# print(rf[idx,idy,0,15,0])
+		# 		rf[idx,idy] /= Ic[idx,idy]
 				# print(rf[idx,idy,0,15,0])
-				rf[idx,idy] /= Ic[idx,idy]
-				# print(rf[idx,idy,0,15,0])
-
-		# globin.plot_spectra(spec.spec[0,0], spec.wavelength, norm=True)
-		# plt.plot(rf[0,0,-1,:,0])
-		# globin.show()
 
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
