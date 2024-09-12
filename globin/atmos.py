@@ -618,6 +618,7 @@ class Atmosphere(object):
 		try:
 			ind = hdu_list.index_of("2nd_Atmosphere")
 			
+			self.stray_type = "2nd_comp"
 			self.init_2nd_component()
 			
 			if "sl_temp" in self.nodes:
