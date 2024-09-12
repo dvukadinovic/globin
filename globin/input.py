@@ -13,6 +13,7 @@ from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
 from .spec import Observation
 from .utils import _slice_line, construct_atmosphere_from_nodes, air_to_vacuum
+from .utils import compute_wavelength_grid
 
 import globin
 
@@ -57,7 +58,7 @@ class InputData(object):
 		Commented lines begin with symbol '#'.
 
 		Parameters:
-		---------------
+		-----------
 		globin_input_name : str
 			path to file that contains input parameters for globin
 		rh_input_name : str
@@ -85,55 +86,17 @@ class InputData(object):
 		text = open(self.globin_input_name, "r").read()
 		self.parameters_input = text
 
-		#----------------------------------------------------------------------
-		# Required parameters
-		#----------------------------------------------------------------------
-
-		# mode of operation
-		#   -- 0: synthesis
-		#   -- 1: pixel-by-pixel inversion of atmospheric parameters (including the stray light)
-		#   -- 2: as 1 + pixel-by-pixel inversion of atomic parameters (log(gf) and dlam)
-		#   -- 3: global inversion of atmospheric (including the stray light) and atomic parameters (and macro-velocity)
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 
-		# get wavelength range for computing the spectrum
-		self.lmin = _find_value_by_key("wave_min", self.parameters_input, "optional", conversion=float)
-		self.lmax = _find_value_by_key("wave_max", self.parameters_input, "optional", conversion=float)
-		self.step = _find_value_by_key("wave_step", self.parameters_input, "optional", conversion=float)
-		if (self.step is None) or (self.lmin is None) or (self.lmax is None):
-			wave_grid_path = _find_value_by_key("wave_grid", self.parameters_input, "required")
-			wavetable = np.loadtxt(wave_grid_path)
-			self.lmin = min(wavetable)
-			self.lmax = max(wavetable)
-			self.step = wavetable[1] - wavetable[0]
-		else:
-			self.lmin /= 10
-			self.lmax /= 10
-			self.step /= 10
-			Nw = int((self.lmax - self.lmin)/self.step) + 1
-			wavetable = np.linspace(self.lmin, self.lmax, num=Nw)
-
-		self.wavelength_air = wavetable
-		self.wavelength_vacuum = air_to_vacuum(wavetable)
-
-		#----------------------------------------------------------------------
-		# Default parameters
-		#----------------------------------------------------------------------
-
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
-
-		# angle for the outgoing radiation; forwarded to RH
-		mu = _find_value_by_key("mu", self.parameters_input, "default", 1.0)
-		mu = list(map(float, list(mu.split(","))))
-		if any(mu)>1 or any(mu)<0:
-			raise ValueError(f"Angle mu={mu} for computing the outgoing radiation is out of bounds [0,1].")
 
 		# macro-turbulent velocity
 		vmac = _find_value_by_key("vmac", self.parameters_input, "default", 0, conversion=float)
 		if vmac<0 and self.mode!=3:
 			raise ValueError(f"Cannot invert for 'vmac' in mode={self.mode}. Please use mode=3.")
 		
-		# FOV of atmosphere/observation that we want to synthesize/invert
+		# the FOV of the observation that we want to invert
+		# or the FOV of the cube atmosphere that we want to synthesize spectra for
 		atm_range = get_atmosphere_range(self.parameters_input)
 		
 		# log(tau) scale for inversion atmosphere
@@ -141,42 +104,30 @@ class InputData(object):
 		logtau_bot = _find_value_by_key("logtau_bot", self.parameters_input, "default", 1, conversion=float)
 		logtau_step = _find_value_by_key("logtau_step", self.parameters_input, "default", 0.1, conversion=float)
 		
-		# assumed noise for synthetic spectrum/observations
+		# assumed noise for the synthetic spectrum/observations
 		self.noise = _find_value_by_key("noise", self.parameters_input, "default", 1e-3, conversion=float)
 
 		# type of the input atmosphere ('{reference, cube}_atmosphere')
 		atm_type = _find_value_by_key("atm_type", self.parameters_input, "default", "multi", conversion=str)
 		atm_type = atm_type.lower()
 
-		# scale used to define atmospheric parameters
+		# depth scale used to stratify atmospheric parameters
 		atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", conversion=str)
 
-		# filling-factor for stray light correction
-		stray_factor = _find_value_by_key("stray_factor", self.parameters_input, "default", 0.0, conversion=float)
-		if np.abs(stray_factor)>1:
-			raise ValueError("Stray light factor value above 1.")
-		#if stray_factor<0:
-		#	raise ValueError("Stray light factor value below 0.")
+		# read Opacity Fudge (OF) data
+		opacity_fudge_mode = _find_value_by_key("of_mode", self.parameters_input, "default", -1, conversion=int)
+		add_opacity_fudge = False
+		if opacity_fudge_mode in [0,1]:
+			add_opacity_fudge = True
+			file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, conversion=str)
+			if file_path:
+				opacity_fudge_wavelength, opacity_fudge = read_OF_data(file_path)
+			opacity_fudge_scatter = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, conversion=int)
 
-		#--- read Opacity Fudge (OF) data
-		self.of_mode = _find_value_by_key("of_fit_mode", self.parameters_input, "default", -1, conversion=int)
-		# of_mode:
-		#   0    -- use it only for synthesis
-		#   1    -- invert for it in pixel-by-pixel manner
-		#   else -- OF is not applyed
-		self.do_fudge = False
-		if (self.of_mode==0) or (self.of_mode==1):
-			self.do_fudge = True
-			of_file_path = _find_value_by_key("of_file", self.parameters_input, "default", None, conversion=str)
-			self.of_scatter = _find_value_by_key("of_scatt_flag", self.parameters_input, "default", 0, conversion=int)
-			if of_file_path:
-				of_num, of_wave, of_value = read_OF_data(of_file_path)
-
-		self.init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", "false", conversion=str)
-		if self.init_temp.lower()=="true":
+		init_temp = _find_value_by_key("init_temp", self.parameters_input, "default", "false", conversion=str)
+		self.init_temp = False
+		if init_temp.lower()=="true":
 			self.init_temp = True
-		else:
-			self.init_temp = False
 
 		#----------------------------------------------------------------------
 		# Optional parameters
@@ -185,53 +136,28 @@ class InputData(object):
 		# key used to make debug files/checks during synthesis/inversion
 		debug = _find_value_by_key("debug", self.parameters_input, "optional")
 		if debug is not None:
+			self.debug = False
 			if debug.lower()=="true":
 				self.debug = True
-			elif debug.lower()=="false":
-				self.debug = False
-		
-		# normalization type/factor for synthetic spectra
-		norm = _find_value_by_key("norm", self.parameters_input, "optional")
-		if norm is not None:
-			norm = norm.lower()
-			if norm=="hsra" or norm=="true":
-				self.norm = True
-				self.norm_level = "hsra"
-			elif norm=="1":
-				self.norm = True
-				self.norm_level = 1
-			elif norm=="false":
-				pass
-			else:
-				self.norm = True
-				self.norm_level = float(norm)
-
-		# reference wavelength in the continuum used to normalize synthetic spectra
-		continuum_wavelength = _find_value_by_key("continuum_wavelength", self.parameters_input, "optional", conversion=float)
 
 		# if we want to compute the mean spectrum (from multi-component atmosphere)
-		mean = _find_value_by_key("mean", self.parameters_input, "optional")
-		if mean is not None:
-			if mean.lower()=="true":
-				self.mean = True
-			elif mean.lower()=="false":
-				self.mean = False
-			else:
-				raise ValueError(f"The 'mean' key contains unrecognized value {mean.lower()}.")
+		# mean = _find_value_by_key("mean", self.parameters_input, "optional")
+		# if mean is not None:
+		# 	if mean.lower()=="true":
+		# 		self.mean = True
+		# 	elif mean.lower()=="false":
+		# 		self.mean = False
+		# 	else:
+		# 		raise ValueError(f"The 'mean' key contains unrecognized value {mean.lower()}.")
 
 		# if we are computing the mean spectrum, we need also macro velocity and filling factor
 		# for each atmosphere component. Usefull only when we have 2-3 components, not for whole cube...
-		if self.mean:
-			mac_vel = _find_value_by_key("mac_vel", self.parameters_input, "required")
-			self.mac_vel = [float(item) for item in mac_vel.split(",")]
+		# if self.mean:
+		# 	mac_vel = _find_value_by_key("mac_vel", self.parameters_input, "required")
+		# 	self.mac_vel = [float(item) for item in mac_vel.split(",")]
 
-			items = _find_value_by_key("filling_factor", self.parameters_input, "required")
-			self.filling_factor = [float(item) for item in items.split(",")]
-
-		#----------------------------------------------------------------------
-
-		# get the name of the input line list
-		self.linelist_name = _find_value_by_key("linelist", self.parameters_input, "required")
+		# 	items = _find_value_by_key("filling_factor", self.parameters_input, "required")
+		# 	self.filling_factor = [float(item) for item in items.split(",")]
 
 		#--- read data for different modus operandi
 		if self.mode==0:
@@ -239,7 +165,7 @@ class InputData(object):
 			self.atmosphere.vmac = np.abs(vmac) # [km/s]
 		elif self.mode==-1:
 			# compute the response functions for given parameters in every depth level
-			pass
+			raise NotImplemented(f"The mode={self.mode} is not yet supported.")
 		elif self.mode>=1:
 			self.read_inversion_base(vmac, atm_range, atm_type, logtau_top, logtau_bot, logtau_step)			
 			if self.mode==2:
@@ -247,14 +173,13 @@ class InputData(object):
 			elif self.mode==3:
 				self.read_mode_3()
 
-			#--- determine number of local and global parameters
+			# determine the number of local and global parameters
 			self.atmosphere.n_local_pars = 0
 			for parameter in self.atmosphere.nodes:
 				self.atmosphere.n_local_pars += np.sum(self.atmosphere.mask[parameter], dtype=np.int32)
-				# self.atmosphere.n_local_pars += len(self.atmosphere.nodes[parameter])
 
-			if self.do_fudge and self.of_mode==1:
-				self.atmosphere.n_local_pars += of_num
+			if add_opacity_fudge and opacity_fudge_mode==1:
+				self.atmosphere.n_local_pars += len(opacity_fudge_wavelength)
 
 			self.atmosphere.n_global_pars = 0
 			for parameter in self.atmosphere.global_pars:
@@ -265,261 +190,84 @@ class InputData(object):
 		else:
 			raise ValueError(f"Mode {self.mode} is unsupported.")
 
-		# add angle for which we need to compute spectrum
-		if len(mu)==1:
-			self.atmosphere.mu = mu[0]
-		else:
-			mu = np.array(mu)
-			self.atmosphere.mu = mu.reshape(self.atmosphere.nx, self.atmosphere.ny)
+		# set wordking directory path (necessary for RH calls for reading runs/run_name/*.input files)
+		self.atmosphere.set_cwd(self.cwd)
 
-		# add the mode
-		self.atmosphere.mode = self.mode
+		# get the mu angle
+		mu = load_mu_angle(self.parameters_input)
+		self.atmosphere.set_mu(mu)
+
+		# get the mode of operandi
+		self.atmosphere.set_mode(self.mode)
 
 		# add spectra normalization parmaeters
-		self.atmosphere.norm = self.norm
-		self.atmosphere.norm_level = self.norm_level
+		norm, norm_level = load_spectrum_normalization(self.parameters_input)
+		self.atmosphere.set_spectrum_normalization(self.norm, self.norm_level)
 
-		# add the step size for spectral synthesis
-		# self.atmosphere.step = self.step
-
-		# allocate wavelength grids to atmosphere (for spectrum synthesis)
+		# set the wavelength grid in the atmosphere
+		wavelength_air = load_wavelength_grid(self.parameters_input)
+		self.atmosphere.set_wavelength_grid(wavelength_air)
 		if self.mode>=1:
 			self.atmosphere.wavelength_obs = self.observation.wavelength
-		elif self.mode==0:
-			self.atmosphere.wavelength_obs = self.wavelength_air
-		
-		self.atmosphere.wavelength_air = self.wavelength_air
-		self.atmosphere.wavelength_vacuum = self.wavelength_vacuum
 
 		# add the wavelength in the continuum used to normalize synthetic spectra
+		continuum_wavelength = _find_value_by_key("continuum_wavelength", self.parameters_input, "optional", conversion=float)
 		if continuum_wavelength is not None:
 			idl = np.argmin(np.abs(self.atmosphere.wavelength_obs-continuum_wavelength/10))
 			self.atmosphere.continuum_idl = idl
 
-		# we do not want to have sparse synthetic spectrum from which we will scale up
-		# we want to have the same or higher number of wavelength points than there
-		# are in the observations.
+		# compare the wavelength sampling in the observations and in the synthetic spectrum
 		if self.mode>=1:
 			dlam_obs = self.observation.wavelength[1:] - self.observation.wavelength[:-1]
-			dlam_synth = self.wavelength_air[1:] - self.wavelength_air[:-1]
+			dlam_synth = wavelength_air[1:] - wavelength_air[:-1]
 			if np.mean(dlam_obs)<np.mean(dlam_synth):
 				raise ValueError("Requested wavelength sampling is smaller than the observed one. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
 
-		# get the Pg at top of the atmosphere
-		if self.atmosphere.pg_top is None:
-			self.atmosphere.get_pg()
-
-		#--- if we have more threads than atmospheres, reduce the number of used threads
+		# if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
 			print(f"[Warning] Reduced the number of threads to {self.n_thread}.")
-		self.atmosphere.n_thread = self.n_thread
-		self.atmosphere.chunk_size = (self.atmosphere.nx * self.atmosphere.ny) // self.n_thread + 1
+		self.atmosphere.set_n_thread(self.n_thread)
+		self.atmosphere.set_chunk_size()
 
-		#--- set OF data in atmosphere
-		if self.do_fudge:
+		# set the OF values in atmosphere
+		if add_opacity_fudge:
 			# if we have 1D OF values, set equal values in all pixels
-			if of_value.ndim==1:
-				of_value = np.repeat(of_value[np.newaxis, :], self.atmosphere.nx, axis=0)
-				of_value = np.repeat(of_value[:, np.newaxis, :], self.atmosphere.ny, axis=1)
+			if opacity_fudge.ndim==1:
+				opacity_fudge = np.ones((self.atmosphere.nx, self.atmosphere.ny)) * opacity_fudge[0]
 
-			self.atmosphere.do_fudge = 1
-			self.atmosphere.of_num = of_num
-			self.atmosphere.of_mode = self.of_mode
-			if self.of_mode==1:
-				self.atmosphere.nodes["of"] = of_wave
-				self.atmosphere.values["of"] = of_value
-				self.atmosphere.parameter_scale["of"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, self.atmosphere.of_num))
-				self.atmosphere.mask["of"] = np.ones(self.atmosphere.of_num)
-			else:
-				self.atmosphere.of_wave = of_wave
-				self.atmosphere.of_values = of_value
-
-			# create arrays to be passed to RH for synthesis
-			self.atmosphere.of_scatter = self.of_scatter
-			self.atmosphere.make_OF_table(self.wavelength_vacuum)
+			self.atmosphere.set_opacity_fudge(opacity_fudge_mode, opacity_fudge_wavelength, opacity_fudge, opacity_fudge_scatter)
 
 		#--- set the vmac_vel and ff for every atmosphere
 		# [19.12.2022] DV: this does not make sense...
-		if self.mean:
-			if len(self.mac_vel)==1:
-				_vmac = self.mac_vel[0]
-				self.mac_vel = np.ones(self.atmosphere.nx * self.atmosphere.ny) * _vmac
+		# if self.mean:
+		# 	if len(self.mac_vel)==1:
+		# 		_vmac = self.mac_vel[0]
+		# 		self.mac_vel = np.ones(self.atmosphere.nx * self.atmosphere.ny) * _vmac
 
-				ff = self.filling_factor[0]
-				self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
+		# 		ff = self.filling_factor[0]
+		# 		self.filling_factor = np.ones(self.atmosphere.nx * self.atmosphere.ny) * ff
 
-		#--- check the status of the stray light factor and if to be inverted; add it to atmosphere
-		if np.abs(stray_factor)!=0:
-			# get the mode of stray light
-			self.stray_type = _find_value_by_key("stray_type", self.parameters_input, "default", "gray", str)
-			self.stray_type = self.stray_type.lower()
-			if self.stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
-				raise ValueError(f"stray_type '{self.stray_type}' is not supported.")
+		# load stray light parameters
+		sl_data = load_stray_light_parameters(self.parameters_input)
+		self.atmosphere.set_stray_light_parameters(sl_data)
 
-			# get the mode for stray light (synthesis/inversion)			
-			self.stray_mode = _find_value_by_key("stray_mode", self.parameters_input, "default", 3, int)
+		if sl_data is not None:
+			sl_type = sl_data[2]
 
-			self.atmosphere.add_stray_light = True
-			
-			if "stray" in self.atmosphere.global_pars:
-				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-				self.atmosphere.stray_light = ones * np.abs(self.atmosphere.global_pars["stray"][0])
-			else:
-				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-				self.atmosphere.stray_light = ones * np.abs(stray_factor)
-				if stray_factor<0:
-					# check if the minimum value for stray light factor is defined
-					stray_min = _find_value_by_key("stray_factor_vmin", self.parameters_input, "optional", conversion=float)
-					if stray_min is not None:
-						self.atmosphere.limit_values["stray"].vmin = [stray_min]
-						self.atmosphere.limit_values["stray"].vmin_dim = 1
+			if sl_type=="2nd_component":
+				self.atmosphere.init_2nd_component()
 
-					# check if the maximum value for stray light factor is defined
-					stray_max = _find_value_by_key("stray_factor_vmax", self.parameters_input, "optional", conversion=float)
-					if stray_max is not None:
-						self.atmosphere.limit_values["stray"].vmax = [stray_max]
-						self.atmosphere.limit_values["stray"].vmax_dim = 1
+				for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+					values = load_2nd_component_parameters(parameter, self.parameters_input)
+					self.atmosphere.set_2nd_component_parameter(parameter, values)
 
-					self.atmosphere.invert_stray = True
-					if self.stray_mode==1 or self.stray_mode==2:
-						# we are inverting for stray light factor (pixel-by-pixel mode)
-						self.atmosphere.n_local_pars += 1
-						self.atmosphere.nodes["stray"] = np.array([0])
-						self.atmosphere.values["stray"] = self.atmosphere.stray_light
-						self.atmosphere.parameter_scale["stray"] = ones
-						self.atmosphere.mask["stray"] = np.ones(1)
-					elif self.stray_mode==3:
-						# stray light inversion in global mode
-						self.atmosphere.n_global_pars += 1
-						self.atmosphere.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
-						self.atmosphere.parameter_scale["stray"] = 1.0
-					else:
-						raise ValueError(f"Stray light set to be fit, but the mode {self.stray_mode} is not supported.")
-
-					# if self.stray_mode!=self.mode:
-					# 	raise ValueError("Inversion mode of stray light factor is not the same as the main inversino mode.")
-
-			# allocate stray parameters to atmosphere
-			self.atmosphere.stray_mode = self.stray_mode
-			self.atmosphere.stray_type = self.stray_type
-			if self.atmosphere.stray_type=="atmos":
-				fpath = _find_value_by_key("stray_atmosphere", self.parameters_input, "required")
-				sl_atmosphere = globin.Atmosphere(fpath)
-				sl_atmosphere.wavelength_air = self.atmosphere.wavelength_air
-				sl_atmosphere.wavelength_obs = self.atmosphere.wavelength_obs
-				sl_atmosphere.wavelength_vacuum = self.atmosphere.wavelength_vacuum
-				self.atmosphere.stray_light_spectrum = sl_atmosphere.compute_spectra()
-			if self.atmosphere.stray_type=="spec":
-				fpath = _find_value_by_key("stray_spectrum", self.parameters_input, "required")
-				self.atmosphere.stray_light_spectrum = globin.Observation(fpath, spec_type="hinode")
-				self.atmosphere.stray_light_spectrum.interpolate(self.atmosphere.wavelength_air, n_thread=1, fill_value="extrapolate")
-
-			# add 2nd component atmospheres to Atmosphere() model (its HSRA atmosphere with additional parameters, if specified)
-			if self.stray_type=="2nd_component":
-				self.atmosphere.sl_atmos = globin.Atmosphere(nx=self.atmosphere.nx, 
-															 ny=self.atmosphere.ny,
-															 nz=self.atmosphere.nz,
-															 logtau_bot=self.atmosphere.logtau_bot,
-															 logtau_top=self.atmosphere.logtau_top,
-															 logtau_step=self.atmosphere.logtau_step)
-				self.atmosphere.sl_atmos.interpolate_atmosphere(self.atmosphere.logtau, globin.hsra.data)
-				self.atmosphere.sl_atmos.scale_id = self.atmosphere.scale_id
-
-				self.atmosphere.sl_atmos.mode = self.atmosphere.mode
-				self.atmosphere.sl_atmos.mu = self.atmosphere.mu
-				
-				self.atmosphere.sl_atmos.wavelength_air = self.atmosphere.wavelength_air
-				self.atmosphere.sl_atmos.wavelength_obs = self.atmosphere.wavelength_obs
-				self.atmosphere.sl_atmos.wavelength_vacuum = self.atmosphere.wavelength_vacuum
-				
-				self.atmosphere.sl_atmos.norm = self.atmosphere.norm
-				self.atmosphere.sl_atmos.norm_level = self.atmosphere.norm_level
-
-				self.atmosphere.sl_atmos.fudge_lam = self.atmosphere.fudge_lam
-				self.atmosphere.sl_atmos.fudge = self.atmosphere.fudge
-
-				self.atmosphere.sl_atmos.continuum_idl = self.atmosphere.continuum_idl
-
-				# when we invert global parameters in one atmosphere, we need them also in the second one to compute RFs
-				self.atmosphere.sl_atmos.mode = self.atmosphere.mode
-				self.atmosphere.sl_atmos.global_pars = self.atmosphere.global_pars
-				self.atmosphere.sl_atmos.line_no = self.atmosphere.line_no
-
-				ones = np.ones((self.atmosphere.nx, self.atmosphere.ny, 1))
-
-				# parameters for the 2nd component atmosphere treated as a stray light source (assumed to be the HSRA atmosphere)
-				sl_temp = _find_value_by_key("sl_temp", self.parameters_input, "optional", None, float)
-				sl_vz = _find_value_by_key("sl_vz", self.parameters_input, "optional", None, float)
-				sl_vmic = _find_value_by_key("sl_vmic", self.parameters_input, "optional", None, float)
-
-				if sl_temp is not None:
-					sl_temp_fit = _find_value_by_key("sl_temp_fit", self.parameters_input, "optional", "false", str)
-					if sl_temp_fit.lower()=="true":
-						self.atmosphere.nodes["sl_temp"] = np.array([0])
-						self.atmosphere.values["sl_temp"] = ones * sl_temp
-						self.atmosphere.parameter_scale["sl_temp"] = ones.copy()
-						self.atmosphere.mask["sl_temp"] = np.ones(1)
-						self.atmosphere.n_local_pars += 1
-						self.atmosphere.hydrostatic = True
-						# minimal value
-						sl_temp_vmin = _find_value_by_key("sl_temp_vmin", self.parameters_input, "optional", conversion=float)
-						if sl_temp_vmin is not None:
-							self.atmosphere.limit_values["sl_temp"].vmin = [sl_temp_vmin]
-							self.atmosphere.limit_values["sl_temp"].vmin_dim = 1
-						# maximal value
-						sl_temp_vmax = _find_value_by_key("sl_temp_vmax", self.parameters_input, "optional", conversion=float)
-						if sl_temp_vmax is not None:
-							self.atmosphere.limit_values["sl_temp"].vmax = [sl_temp_vmax]
-							self.atmosphere.limit_values["sl_temp"].vmax_dim = 1
-
-					self.atmosphere.sl_atmos.nodes["sl_temp"] = np.array([0])
-					delta = sl_temp - globin.T0_HSRA
-					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.atmosphere.sl_atmos.logtau)
-					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["temp"]] = HSRA_temp + delta
-				if sl_vz is not None:
-					sl_vz_fit = _find_value_by_key("sl_vz_fit", self.parameters_input, "optional", "false", str)
-					if sl_vz_fit.lower()=="true":
-						self.atmosphere.nodes["sl_vz"] = np.array([0])
-						self.atmosphere.values["sl_vz"] = ones * sl_vz
-						self.atmosphere.parameter_scale["sl_vz"] = ones.copy()
-						self.atmosphere.mask["sl_vz"] = np.ones(1)
-						self.atmosphere.n_local_pars += 1
-						# minimal value
-						sl_vz_vmin = _find_value_by_key("sl_vz_vmin", self.parameters_input, "optional", conversion=float)
-						if sl_vz_vmin is not None:
-							self.atmosphere.limit_values["sl_vz"].vmin = [sl_vz_vmin]
-							self.atmosphere.limit_values["sl_vz"].vmin_dim = 1
-						# maximal value
-						sl_vz_vmax = _find_value_by_key("sl_vz_vmax", self.parameters_input, "optional", conversion=float)
-						if sl_vz_vmax is not None:
-							self.atmosphere.limit_values["sl_vz"].vmax = [sl_vz_vmax]
-							self.atmosphere.limit_values["sl_vz"].vmax_dim = 1
-					self.atmosphere.sl_atmos.nodes["sl_vz"] = np.array([0])
-					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vz"]] = sl_vz
-				if sl_vmic is not None:
-					sl_vmic_fit = _find_value_by_key("sl_vmic_fit", self.parameters_input, "optional", "false", str)
-					if sl_vmic_fit.lower()=="true":
-						self.atmosphere.nodes["sl_vmic"] = np.array([0])
-						self.atmosphere.values["sl_vmic"] = ones * sl_vmic
-						self.atmosphere.parameter_scale["sl_vmic"] = ones.copy()
-						self.atmosphere.mask["sl_vmic"] = np.ones(1)
-						self.atmosphere.n_local_pars += 1
-						# minimal value
-						sl_vmic_vmin = _find_value_by_key("sl_vmic_vmin", self.parameters_input, "optional", conversion=float)
-						if sl_vmic_vmin is not None:
-							self.atmosphere.limit_values["sl_vmic"].vmin = [sl_vmic_vmin]
-							self.atmosphere.limit_values["sl_vmic"].vmin_dim = 1
-						# maximal value
-						sl_vmic_vmax = _find_value_by_key("sl_vmic_vmax", self.parameters_input, "optional", conversion=float)
-						if sl_vmic_vmax is not None:
-							self.atmosphere.limit_values["sl_vmic"].vmax = [sl_vmic_vmax]
-							self.atmosphere.limit_values["sl_vmic"].vmax_dim = 1
-					self.atmosphere.sl_atmos.nodes["sl_vmic"] = np.array([0])
-					self.atmosphere.sl_atmos.data[:,:,self.atmosphere.par_id["vmic"]] = sl_vmic
-
-				# initial setting of the 2nd atmosphere in HSE
 				self.atmosphere.sl_atmos.makeHSE()
+
+			elif sl_type=="atmos":
+				raise NotImplemented()
+			elif sl_type=="spec":
+				raise NotImplemented()
 
 		#--- meshgrid of pixels for computation optimization
 		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
@@ -539,37 +287,19 @@ class InputData(object):
 				self.atmos_debug = dict(elements)
 
 		#--- resample and normalize the instrumental profile to specified wavelength grid
-		instrumental_profile_path = _find_value_by_key("instrumental_profile", self.parameters_input, "optional", None, str)
-		if instrumental_profile_path is not None:
-			instrumental_wave, instrumental_profile = np.loadtxt(instrumental_profile_path, unpack=True)
-			fun = interp1d(instrumental_wave/10, instrumental_profile, kind=3, fill_value=0)
-			# if self.mode>=1:
-			# 	dlam = self.observation.wavelength[1] - self.observation.wavelength[0]
-			# else:
-			dlam = self.step
-			N = (instrumental_wave.max()/10 - instrumental_wave.min()/10) / (dlam)
-			M = np.ceil(N)//2
-			M = int(M)
-			xnew = np.linspace(0, (M-1)*dlam, num=M)
-			aux = np.linspace(-(M-1)*dlam, -dlam, num=M-1)
-			xnew = np.append(aux, xnew)
-			aux = fun(xnew)
-			self.atmosphere.instrumental_profile = aux/np.sum(aux)
+		file_path = _find_value_by_key("instrumental_profile", self.parameters_input, "optional", None, str)
+		if file_path is not None:
+			instrumental_wave, instrumental_profile = np.loadtxt(file_path, unpack=True)
+			instrumental_wave /= 10 # [A to nm]
 
-			# plt.plot(instrumental_wave/10, instrumental_profile)
-			# plt.plot(xnew, aux)
-			# plt.show()
-			# sys.exit()
+			self.atmosphere.set_instrumental_profile(instrumental_wave, instrumental_profile)
 
-		# current working directory (path that is appended to RH input files before submitting to synthesis)
-		self.atmosphere.cwd = self.cwd
-
-		decreasing_temperature = _find_value_by_key("decreasing_temperature", self.parameters_input, "optional")
-		if decreasing_temperature is not None:
-			if decreasing_temperature.lower()=="false":
-				self.atmosphere.decreasing_temperature = False
-			if decreasing_temperature.lower()=="true":
-				self.atmosphere.decreasing_temperature = True
+		# decreasing_temperature = _find_value_by_key("decreasing_temperature", self.parameters_input, "optional")
+		# if decreasing_temperature is not None:
+		# 	if decreasing_temperature.lower()=="false":
+		# 		self.atmosphere.decreasing_temperature = False
+		# 	if decreasing_temperature.lower()=="true":
+		# 		self.atmosphere.decreasing_temperature = True
 
 	def read_mode_0(self, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		""" 
@@ -792,10 +522,6 @@ class InputData(object):
 			initialize_atmos_pars(self.atmosphere, self.observation, fpath, norm=False)
 
 	def read_mode_2(self):
-		#--- Kurucz line list for given spectral region
-		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
-		Nlines = len(self.RLK_lines)
-
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
 
@@ -834,20 +560,6 @@ class InputData(object):
 		self.atmosphere.global_pars["dlam"][:,:] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
-		try:
-			id_max = np.max(self.atmosphere.line_no["loggf"])
-			if id_max>Nlines:
-				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
-		except:
-			pass
-
-		try:
-			id_max = np.max(self.atmosphere.line_no["dlam"])
-			if id_max>Nlines:
-				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
-		except:
-			pass
-
 	def read_mode_3(self):
 		self.output_frequency = _find_value_by_key("output_frequency", self.parameters_input, "default", self.max_iter[0], int)
 		
@@ -856,10 +568,6 @@ class InputData(object):
 		if line_pars_path is None:
 			print("[Warning] No atomic parameters to fit. You sure?\n")
 			return
-		
-		#--- Kurucz line list for given spectral region
-		self.RLK_lines_text, self.RLK_lines = read_RLK_lines(self.linelist_name)
-		Nlines = len(self.RLK_lines)
 
 		# if we provided line parameters for fit, read those parameters
 		lines_to_fit = read_init_line_parameters(line_pars_path)
@@ -894,20 +602,6 @@ class InputData(object):
 
 		self.atmosphere.global_pars["dlam"][0,0] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
-
-		try:
-			id_max = np.max(self.atmosphere.line_no["loggf"])
-			if id_max>Nlines:
-				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
-		except:
-			pass
-
-		try:
-			id_max = np.max(self.atmosphere.line_no["dlam"])
-			if id_max>Nlines:
-				raise ValueError(f"Read less spectral lines than the max line number from '{line_pars_path}'")
-		except:
-			pass
 
 	def read_node_parameters(self, parameter):
 		"""
@@ -1041,6 +735,123 @@ class InputData(object):
 			if len(vmax)!=1 and len(vmax)!=nnodes:
 					raise ValueError(f"Incompatible number of maximum limits for {parameter} and given number of nodes.")
 
+def load_wavelength_grid(input_text):
+	"""
+	Create the wavelength grid from provided keywords. We first search
+	for 'wave_min', 'wave_max', 'wave_step' in units of Angstrom.
+	If these are not found, we expect that the wavelength grid is
+	provided in a single file in units of nanometers.
+
+	Parameter:
+	----------
+	input_text : str
+		text string of the input file.
+
+	Return:
+	-------
+	wavelength_air : ndarray
+		wavelength grid in units of nanometer in the air.
+	"""
+	lmin = _find_value_by_key("wave_min", input_text, "optional", conversion=float)
+	lmax = _find_value_by_key("wave_max", input_text, "optional", conversion=float)
+	step = _find_value_by_key("wave_step", input_text, "optional", conversion=float)
+	
+	if (step is None) or (lmin is None) or (lmax is None):
+		wave_grid_path = _find_value_by_key("wave_grid", input_text, "required")
+		wavelength_air = np.loadtxt(wave_grid_path)
+	else:
+		wavelength_air = compute_wavelength_grid(lmin=lmin, lmax=lmax, dlam=step, unit="A")
+
+	return wavelength_air
+
+def load_mu_angle(input_text):
+	"""
+	Load the mu angle from input file
+
+	Parameter:
+	----------
+	input_text : str
+		text string of the input file.
+
+	Return:
+	-------
+	mu : list
+		list of mu angles for which we need to compute spectra
+	"""
+	# heliocentric angle for the outgoing radiation; forwarded to RH
+	mu = _find_value_by_key("mu", input_text, "default", 1.0)
+	mu = list(map(float, list(mu.split(","))))
+	if any(mu)>1 or any(mu)<0:
+		raise ValueError(f"Angle mu={mu} for computing the outgoing radiation is out of bounds [0,1].")
+
+	return mu
+
+def load_spectrum_normalization(input_text):
+	# normalization type/factor for synthetic spectra
+	_norm = _find_value_by_key("norm", input_text, "optional")
+	
+	norm = False
+	norm_level = "absolute"
+	
+	if _norm is not None:	
+		_norm = _norm.lower()
+		if _norm in ["hsra", "true"]:
+			norm = True
+			norm_level = "hsra"
+		elif _norm=="1":
+			norm = True
+			norm_level = 1
+		elif _norm=="false":
+			pass
+		else:
+			norm = True
+			norm_level = float(_norm)
+
+	return norm, norm_level
+
+def load_stray_light_parameters(input_text):
+	stray_factor = _find_value_by_key("stray_factor", input_text, "default", 0.0, conversion=float)
+	if np.abs(stray_factor)>1:
+		raise ValueError("Stray light factor value above 1.")
+
+	if np.abs(stray_factor)==0:
+		return
+	
+	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 1, int)
+	if stray_mode==0:
+		print("[Warning] We are ignoring the stray light contribution.")
+		return
+
+	if stray_mode not in [1,2,3]:
+		raise ValueError(f"Stray mode {stray_mode} is not supported.")
+
+	stray_type = _find_value_by_key("stray_type", input_text, "default", "gray", str)
+	stray_type = stray_type.lower()
+	# if stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
+	if stray_type not in ["gray", "2nd_component", "hsra"]:
+		raise ValueError(f"Stray light type '{stray_type}' is not supported.")
+
+	stray_min = _find_value_by_key("stray_factor_vmin", input_text, "optional", conversion=float)
+	stray_max = _find_value_by_key("stray_factor_vmax", input_text, "optional", conversion=float)
+
+	return stray_mode, stray_factor, stray_type, stray_min, stray_max
+
+def load_2nd_component_parameters(parameter, input_text):
+	"""
+	Read in the parameters for the second component.
+	"""
+	value = _find_value_by_key(f"{parameter}", input_text, "optional", None, float)
+	fit_flag = _find_value_by_key(f"{parameter}_fit", input_text, "optional", "false", str)
+	if fit_flag is not None:
+		if fit_flag.lower()=="true":
+			fit_flag = True
+		else:
+			fit_flag = False
+	vmin = _find_value_by_key(f"{parameter}_vmin", input_text, "optional", conversion=float)
+	vmax = _find_value_by_key(f"{parameter}_vmax", input_text, "optional", conversion=float)
+
+	return value, fit_flag, vmin, vmax
+
 #--- pattern search with regular expressions
 pattern = lambda keyword: re.compile(f"^[^#\n]*({keyword})\s*=\s*(.*)", re.MULTILINE)
 
@@ -1083,8 +894,7 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 		return conversion(value)
 	else:
 		if key_type=="required":
-			print("--> Error in input.read_input_files()")
-			print(f"    We are missing keyword '{key}' in input file.")
+			raise ValueError(f"Keyword {key} is not found in the input file.")
 			sys.exit()
 		elif key_type=="default":
 			return default_val
@@ -1121,6 +931,7 @@ def get_atmosphere_range(parameters_input):
 			sys.exit()
 	else:
 		atm_range = aux
+	
 	# we count from zero, but let user count from 1
 	atm_range[0] -= 1
 	atm_range[2] -= 1
@@ -1575,26 +1386,17 @@ def read_OF_data(fpath):
 		hdu = fits.open(fpath)
 		of_wave = hdu[0].data
 		of_value = hdu[1].data
-		of_num = len(globin.of_wave)
 	except:
-		lines = open(fpath, "r").readlines()
+		of_wave, of_value = np.loadtxt(fpath, unpack=True)
+		# convert single number to array
+		if not isinstance(of_wave, np.ndarray):
+			of_wave = np.array([of_wave])
+			of_value = np.array([of_value])
 
-		of_wave, of_value = [], []
-		of_num = 0
+	# RH assumes that the wavelength for OF coefficients is in vacuum units
+	of_wave = globin.utils.air_to_vacuum(of_wave)
 
-		for line in lines:
-			if "#" not in line:
-				lam, fudge = _slice_line(line)
-				of_wave.append(lam)
-				of_value.append(fudge)
-				of_num += 1
-
-		of_wave = np.array(of_wave)
-		of_value = np.array(of_value)
-
-	of_wave = globin.utils.write_wavs(of_wave, fname=None)
-
-	return of_num, of_wave, of_value
+	return of_wave, of_value
 
 class RF(object):
 	def __init__(self, fpath=None):

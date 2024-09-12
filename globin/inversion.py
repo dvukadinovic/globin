@@ -43,9 +43,6 @@ class Inverter(InputData):
 		self.read_input_files(globin_input_name, rh_input_name)
 
 	def run(self, pool=None):
-		# if self.atmosphere.spectra is None:
-		# 		self.atmosphere.spectra = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.wavelength_vacuum))
-
 		if self.mode>=1:
 			start = time.time()
 
@@ -374,8 +371,8 @@ class Inverter(InputData):
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF table after parameters update
-			if atmos.fudge is not None:
-				atmos.make_OF_table(self.wavelength_vacuum)
+			if atmos.add_fudge:
+				atmos.make_OF_table()
 
 			#--- rebuild new atmosphere after parameters update
 			atmos.build_from_nodes(stop_flag)
@@ -459,8 +456,8 @@ class Inverter(InputData):
 			updated_pars[indx,indy] = 0
 
 			#--- remake OF table after check of chi2 convergance
-			if atmos.fudge is not None:
-				atmos.make_OF_table(self.wavelength_vacuum)
+			if atmos.add_fudge:
+				atmos.make_OF_table()
 
 			if self.debug:
 				for parameter in atmos.nodes:
@@ -810,8 +807,8 @@ class Inverter(InputData):
 			atmos.check_parameter_bounds(self.mode)
 
 			#--- set OF data (if we are inverting for them)
-			if self.do_fudge==1:
-				atmos.make_OF_table(self.wavelength_vacuum)
+			if atmos.add_fudge:
+				atmos.make_OF_table()
 
 			#--- rebuild the atmosphere and compute new spectrum
 			atmos.build_from_nodes(ones)
@@ -885,8 +882,8 @@ class Inverter(InputData):
 				atmos.values = old_local_parameters
 				atmos.global_pars = old_global_pars
 				# when we fail, we must revert the OF parameters
-				if self.do_fudge==1:
-					atmos.make_OF_table(self.wavelength_vacuum)
+				if atmos.add_fudge:
+					atmos.make_OF_table()
 				updated_parameters = False
 				num_failed += 1
 			else:
@@ -1089,8 +1086,8 @@ class Inverter(InputData):
 		# 	else:
 		# 		mean_dlam = None
 
-		if atmos.fudge is not None:
-			atmos.make_OF_table(self.wavelength_vacuum)
+		if atmos.add_fudge:
+			atmos.make_OF_table()
 
 		spec.xmin = obs.xmin
 		spec.xmax = obs.xmax

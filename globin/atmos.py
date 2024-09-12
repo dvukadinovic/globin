@@ -19,7 +19,7 @@ except:
 import globin
 from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_point
-from .utils import extend, Planck, azismooth, mygsmooth
+from .utils import extend, Planck, azismooth, mygsmooth, air_to_vacuum
 from .makeHSE import makeHSE
 
 class MinMax(object):
@@ -211,6 +211,7 @@ class Atmosphere(object):
 							"dlam"  : np.array([])}
 
 		# fudge parameters: H-, scatt, metals for each wavelength
+		self.add_fudge = False
 		self.fudge_lam = None
 		self.fudge = None
 		self.of_scatter = 1
@@ -617,23 +618,20 @@ class Atmosphere(object):
 		try:
 			ind = hdu_list.index_of("2nd_Atmosphere")
 			
-			self.sl_atmos = globin.Atmosphere(nx=self.nx, 
-											 ny=self.ny,
-											 nz=self.nz,
-											 logtau_bot=self.logtau_bot,
-											 logtau_top=self.logtau_top,
-											 logtau_step=self.logtau_step)
-			self.sl_atmos.interpolate_atmosphere(self.logtau, globin.hsra.data)
-			self.sl_atmos.scale_id = self.scale_id
-
+			self.init_2nd_component()
+			
 			if "sl_temp" in self.nodes:
 				delta = self.values["sl_temp"] - globin.T0_HSRA
 				HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
 				self.sl_atmos.data[:,:,self.par_id["temp"]] = HSRA_temp + delta
+				self.sl_atmos.hydrostatic = True
 			if "sl_vz" in self.nodes:
 				self.sl_atmos.data[:,:,self.par_id["vz"]] = self.values["sl_vz"]
 			if "sl_vmic" in self.nodes:
 				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
+
+			if self.sl_atmos.hydrostatic:
+				self.sl_atmos.makeHSE()
 		except:
 			pass
 
@@ -1118,7 +1116,6 @@ class Atmosphere(object):
 		ne, nHtot = pyrh.hse(self.cwd, self.scale_id,
 							 self.data[idx, idy, 0], self.data[idx, idy, 1], 
 							 self.pg[idx,idy,0]/10, fudge_lam, fudge_value)
-							 # 0.1, fudge_lam, fudge_value)
 
 		return np.vstack((ne/1e6, nHtot/1e6))
 
@@ -1128,7 +1125,6 @@ class Atmosphere(object):
 
 		Units dyn/cm2 (CGS).
 		"""
-		# nH = np.sum(self.data[...,8:,:], axis=2) * 1e6 # [m3]
 		nH = self.nH * 1e6 # [m3]
 		ne = self.ne * 1e6 # [m3]
 		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
@@ -1171,30 +1167,6 @@ class Atmosphere(object):
 		pyrh.get_ne_from_nH(self.cwd, self.scale_type, self.scale[idx,idy], self.data[idx,idy])
 
 		return self.data[idx,idy,2]
-
-	def makeHSE_old(self):
-		"""
-		Old routine for HSE which is an implementation from Gray 2005. Used to
-		verify the RH's HSE routine. I am keepeing it for any case now.
-		"""
-		for idx in range(self.nx):
-			for idy in range(self.ny):
-				pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top)
-				self.data[idx,idy,2] = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6
-				self.data[idx,idy,8:] = distribute_hydrogen(self.data[idx,idy,1], pg, pe)
-				self.rho[idx,idy] = rho
-
-	def _makeHSE_old(self, arg):
-		"""
-		Made for parallelized call to Gray's HSE routine.
-		"""
-		idx, idy = arg
-		pg, pe, _, rho = makeHSE(5000, self.logtau, self.data[idx,idy,1], self.pg_top*10)
-
-		ne = pe/10/globin.K_BOLTZMAN/self.data[idx,idy,1] / 1e6 # [1/cm3]
-		nH = distribute_hydrogen(self.data[idx,idy,1], pg, pe) # [1/cm3]
-
-		return np.vstack((ne, nH, rho))
 
 	def interpolate_atmosphere(self, z_new, ref_atm):
 		"""
@@ -1842,7 +1814,7 @@ class Atmosphere(object):
 		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
 		hsra.mode = 0
 		hsra.wavelength_air = self.wavelength_air
-		hsra.wavelength_vacuum = globin.utils.air_to_vacuum(hsra.wavelength_air)
+		hsra.wavelength_vacuum = air_to_vacuum(hsra.wavelength_air)
 		hsra.cwd = self.cwd
 		hsra.mu = self.mu
 		# just to be sure that we are not normalizing...
@@ -1864,10 +1836,6 @@ class Atmosphere(object):
 
 		return tau_wlref
 
-	def progress_report(self, res):
-		self.finished += 1
-		print(f"\r  Finished {self.finished/self.nx/self.ny*100:1.3f}%", end="")
-
 	def compute_spectra(self, synthesize=None, pool=None):
 		"""
 		Parameters:
@@ -1881,8 +1849,6 @@ class Atmosphere(object):
 		spectra : globin.Spectrum() object
 			structure containgin all the info regarding the spectrum.
 		"""
-		self.finished = 0
-
 		if synthesize is None:
 			synthesize = np.ones((self.nx, self.ny))
 		indx, indy = np.where(synthesize==1)
@@ -1892,7 +1858,7 @@ class Atmosphere(object):
 			with mp.Pool(self.n_thread) as pool:
 				spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 		else:
-			spectra_list = pool.map(self._compute_spectra_sequential, args, callback=self.progress_report)
+			spectra_list = pool.map(self._compute_spectra_sequential, args)
 
 		spectra_list = np.array(spectra_list)
 		natm, ns, nw = spectra_list.shape
@@ -2039,7 +2005,7 @@ class Atmosphere(object):
 				#--- positive perturbation
 				self.values[parameter][:,:,nodeID] += perturbation
 				if parameter=="of":
-					self.make_OF_table(self.wavelength_vacuum)
+					self.make_OF_table()
 				else:
 					self.build_from_nodes(synthesize, params=parameter)
 
@@ -2065,7 +2031,7 @@ class Atmosphere(object):
 				else:
 					self.values[parameter][:,:,nodeID] -= 2*perturbation
 					if parameter=="of":	
-						self.make_OF_table(self.wavelength_vacuum)
+						self.make_OF_table()
 					else:
 						self.build_from_nodes(synthesize, params=parameter)
 
@@ -2088,7 +2054,7 @@ class Atmosphere(object):
 				#--- return back perturbations (node way)
 				if parameter=="of":	
 					self.values[parameter][:,:,nodeID] += perturbation
-					self.make_OF_table(self.wavelength_vacuum)
+					self.make_OF_table()
 				elif parameter=="stray":
 					pass
 				else:
@@ -2418,7 +2384,7 @@ class Atmosphere(object):
 				_L *= np.sqrt(self.dd_regularization_weight[parameter])
 				print(_L)
 
-	def make_OF_table(self, wavelength_vacuum):
+	def make_OF_table(self):
 		if self.of_mode==0:
 			nodes = self.of_wave
 			values = self.of_values
@@ -2428,40 +2394,43 @@ class Atmosphere(object):
 		else:
 			raise ValueError("Unsupported of_mode value. Choose eighter 0 or 1 to apply the fudging.")
 
-		if wavelength_vacuum[0]<=210:
+		if self.wavelength_vacuum[0]<=210:
 			print("  Sorry, but OF is not properly implemented for wavelengths")
 			print("    belowe 210 nm. You have to wait for newer version of globin.")
 			sys.exit()
+
+		of_num = len(nodes)
 		
-		if self.of_num==1:
+		if of_num==1:
 			print("This is not checked yet... Do not trust results...")
 			self.fudge_lam = np.zeros(4, dtype=np.float64)
 			self.fudge = np.ones((self.nx, self.ny, 3,4), dtype=np.float64)
 
 			# first point outside of interval (must be =1)
-			self.fudge_lam[0] = wavelength_vacuum[0] - 0.0002
+			self.fudge_lam[0] = self.wavelength_vacuum[0] - 0.0002
 			self.fudge[...,0] = 1
 
 			# left edge of wavelength interval
-			self.fudge_lam[1] = wavelength_vacuum[0] - 0.0001
+			self.fudge_lam[1] = self.wavelength_vacuum[0] - 0.0001
 			self.fudge[...,0,1] = self.values["of"][...,0]
 			if self.of_scatter:	
 				self.fudge[...,1,1] = self.values["of"][...,0]
 			self.fudge[...,2,1] = 1
 
 			# right edge of wavelength interval
-			self.fudge_lam[2] = wavelength_vacuum[-1] + 0.0001
+			self.fudge_lam[2] = self.wavelength_vacuum[-1] + 0.0001
 			self.fudge[...,0,2] = self.values["of"][...,0]
 			if self.of_scatter:
 				self.fudge[...,1,2] = self.values["of"][...,0]
 			self.fudge[...,2,1] = 1		
 
 			# last point outside of interval (must be =1)
-			self.fudge_lam[3] = wavelength_vacuum[-1] + 0.0002
+			self.fudge_lam[3] = self.wavelength_vacuum[-1] + 0.0002
 			self.fudge[...,3] = 1
+
 		#--- for multi-wavelength OF correction
 		else:
-			Nof = self.of_num + 2
+			Nof = of_num + 2
 
 			self.fudge_lam = np.zeros(Nof, dtype=np.float64)
 			self.fudge = np.ones((self.nx, self.ny, 3, Nof), dtype=np.float64)
@@ -2470,12 +2439,12 @@ class Atmosphere(object):
 			self.fudge_lam[0] = nodes[0] - 0.0002
 			self.fudge[...,0] = 1
 
-			for idf in range(self.of_num):
+			for idf in range(of_num):
 				# mid points
 				shift = 0
 				if idf==0:
 					shift = -0.0001
-				if idf==self.of_num-1:
+				if idf==of_num-1:
 					shift = 0.0001
 				self.fudge_lam[idf+1] = nodes[idf] + shift
 				self.fudge[...,0,idf+1] = values[...,idf]
@@ -2514,53 +2483,191 @@ class Atmosphere(object):
 			self.global_pars["dlam"][...,idl] = 0
 			self.line_no["dlam"][idl] = RLK_lines[idl].lineNo - 1 # we count from 0
 
-	def set_wavelength(self, lmin=None, lmax=None, nwl=None, dlam=None, fpath=None, unit="A"):
+	def set_wavelength_grid(self, wavelength):
+		self.wavelength_air = wavelength
+		self.wavelength_obs = wavelength
+		self.wavelength_vacuum = air_to_vacuum(wavelength)
+
+	def set_mu(self, mu):
 		"""
-		Create the wavelength vector in Angstroms. Transform the values to vacuume one for 
-		synthesis in RH.
-
-		If 'fpath' is provided, we first read the wavelengths from this file.
-
-		One of 'nwl' and 'dlam' must be provided to be able to compute the wavelength 
-		vector. Otherwise, an error is thrown.
-
-		Parameters:
-		-----------
-		lmin : float (optional)
-			lower limit of wavelength vector.
-		lmax : float (optional)
-			upper limit of wavelength vector.
-		nwl : float (optional)
-			number of wavelength points between 'lmin' and 'lmax'.
-		dlam : float (optional)
-			spacing in wavelength vector between 'lmin' and 'lamx'.
-		fpath : str (optinoal)
-			a path to a text file containing the wavelength vector. If it is 
-			provided, if has priority over manual specification of wavelength
-			vector.
-
-		Error:
-		------
-		If neighter of 'nwl' and 'dlam' is provided when no fpath, an error is thrown.
+		Assign the mu angle for which we want to synthesize spectra.
 		"""
+		if not isinstance(mu, list):
+			mu = [mu]
 
-		if fpath is not None:
-			self.wavelength_air = np.loadtxt(fpath)
+		if len(mu)==1:
+			self.mu = mu[0]
 		else:
-			if nwl is not None:
-				self.wavelength_air = np.linspace(lmin, lmax, num=nwl)
-			elif dlam is not None:
-				nwl = int((lmax - lmin)/dlam) + 1
-				self.wavelength_air = np.linspace(lmin, lmax, num=nwl)
-			else:
-				sys.exit("globin.atmos.Atmosphere.set_wavelength():\n  Neighter the number of wavelenths or spacing has been provided.")
+			mu = np.array(mu)
+			self.mu = mu.reshape(self.nx, self.ny)
 
-		# transform values to nm and compute the wavelengths in vacuume
-		if unit=="A":
-			self.wavelength_air /= 10
+	def set_n_thread(self, n_thread):
+		"""
+		Set the number of threads used for parallelized to call to methods (uses multiprocessing module)
+		"""
+		self.n_thread = n_thread
 
-		self.wavelength_obs = self.wavelength_air
-		self.wavelength_vacuum = globin.utils.air_to_vacuum(self.wavelength_air)
+	def set_chunk_size(self):
+		"""
+		Sets the amount of pixels sent to each thread for parallelised computation.
+		"""
+		self.chunk_size = (self.nx * self.ny) // self.n_thread + 1
+
+	def set_mode(self, mode):
+		if mode not in [0, 1, 2, 3]:
+			raise ValueError(f"Cannot set the mode to {mode}.")
+		
+		self.mode = mode
+
+	def set_cwd(self, cwd):
+		"""
+		Working directory of the inversion run located in "./runs/run_name".
+
+		Its passed to pyrh.compute1d() to update the path to *.input files
+		necessary for the RH call.
+		"""
+		self.cwd = cwd
+
+	def set_spectrum_normalization(self, norm, norm_level):
+		self.norm = norm
+		self.norm_level = norm_level
+
+	def set_opacity_fudge(self, mode, wavelength, value, scatter_flag):
+		self.add_fudge = True
+		self.of_mode = mode
+		if self.of_mode==1:
+			self.nodes["of"] = wavelength
+			self.values["of"] = value
+			self.parameter_scale["of"] = np.ones((self.nx, self.ny, len(wavelength)))
+			self.mask["of"] = np.ones(len(wavelength))
+		else:
+			self.of_wave = wavelength
+			self.of_values = value
+
+		# create arrays to be passed to RH for synthesis
+		self.of_scatter = scatter_flag
+		self.make_OF_table()
+
+	def set_instrumental_profile(self, wave, profile):
+		dlam = self.wavelength_air[1] - self.wavelength_air[0]
+		N = (wave.max() - wave.min()) / (dlam)
+		M = np.ceil(N)//2
+		M = int(M)
+		xnew = np.linspace(0, (M-1)*dlam, num=M)
+		aux = np.linspace(-(M-1)*dlam, -dlam, num=M-1)
+		xnew = np.append(aux, xnew)
+		
+		aux = interp1d(wave, profile, kind=3, fill_value=0)(xnew)
+		profile = aux/np.sum(aux)
+
+		self.atmosphere.instrumental_profile = profile
+
+	def set_stray_light_parameters(self, sl_data):
+		if sl_data is None:
+			return
+
+		# we skip adding stray light parmaeter if its already present in the atmosphere;
+		# this is the case when we initialize inversion from the previous run
+		if "stray" in self.nodes:
+			return
+
+		stray_mode, stray_factor, stray_type, stray_min, stray_max = sl_data
+
+		self.stray_mode = stray_mode
+		self.stray_light = np.ones((self.nx, self.ny)) * np.abs(stray_factor)
+		self.stray_type = stray_type
+
+		# if the factor is inverted
+		if stray_factor<0:
+			self.invert_stray = True
+
+			if stray_min is not None:
+				self.limit_values["stray"].vmin = [stray_min]
+				self.limit_values["stray"].vmin_dim = 1
+
+			if stray_max is not None:
+				self.limit_values["stray"].vmax = [stray_max]
+				self.limit_values["stray"].vmax_dim = 1
+
+			if self.stray_mode in [1,2]:
+				self.n_local_pars += 1
+				self.nodes["stray"] = np.array([0])
+				self.values["stray"] = self.stray_light
+				self.parameter_scale["stray"] = np.ones((self.nx, self.ny))
+				self.mask["stray"] = np.ones(1)
+			elif self.stray_mode==3:
+				self.n_global_pars += 1
+				self.global_pars["stray"] = np.array([np.abs(stray_factor)], dtype=np.float64)
+				self.parameter_scale["stray"] = 1.0
+
+	def set_2nd_component_parameter(self, parameter, values):
+		if len(values)==0:
+			return
+
+		if parameter in self.nodes:
+			return
+
+		value, fit_it, vmin, vmax = values
+
+		if value is None:
+			return
+
+		ones = np.ones((self.nx, self.ny, 1))
+		
+		if fit_it:
+			self.nodes[parameter] = np.array([0])
+			self.values[parameter] = ones * value
+			self.parameter_scale[parameter] = ones.copy()
+			self.mask[parameter] = np.ones(1)
+			self.n_local_pars += 1
+			if parameter=="sl_temp":
+				self.hydrostatic = True
+				self.sl_atmos.hydrostatic = True
+
+			if vmin is not None:
+				self.limit_values[parameter].vmin = [vmin]
+				self.limit_values[parameter].vmin_dim = 1
+
+			if vmax is not None:
+				self.limit_values[parameter].vmax = [vmax]
+				self.limit_values[parameter].vmax_dim = 1
+
+		self.sl_atmos.nodes[parameter] = np.array([0])
+		if parameter=="sl_temp":
+			delta = value - globin.T0_HSRA
+			HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+			value = HSRA_temp + delta
+
+		self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = value
+
+	def init_2nd_component(self):
+		self.sl_atmos = globin.Atmosphere(nx=self.nx, 
+										 ny=self.ny,
+										 nz=self.nz,
+										 logtau_bot=self.logtau_bot,
+										 logtau_top=self.logtau_top,
+										 logtau_step=self.logtau_step)
+		self.sl_atmos.interpolate_atmosphere(self.logtau, globin.hsra.data)
+		self.sl_atmos.scale_id = self.scale_id
+
+		self.sl_atmos.set_mode(self.mode)
+		self.sl_atmos.set_mu(self.mu)
+		
+		self.sl_atmos.wavelength_air = self.wavelength_air
+		self.sl_atmos.wavelength_obs = self.wavelength_obs
+		self.sl_atmos.wavelength_vacuum = self.wavelength_vacuum
+		
+		self.sl_atmos.norm = self.norm
+		self.sl_atmos.norm_level = self.norm_level
+
+		self.sl_atmos.fudge_lam = self.fudge_lam
+		self.sl_atmos.fudge = self.fudge
+
+		self.sl_atmos.continuum_idl = self.continuum_idl
+
+		# when we invert global parameters in one, we need them also in the second one to compute RFs
+		self.sl_atmos.global_pars = self.global_pars
+		self.sl_atmos.line_no = self.line_no
 
 	def add_magnetic_vector(self, B, gamma, chi):
 		"""
