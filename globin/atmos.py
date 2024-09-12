@@ -595,8 +595,6 @@ class Atmosphere(object):
 
 		#--- check for the local parameters from inversion
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray", "sl_temp", "sl_vz", "sl_vmic"]:
-			# if parameter=="stray":
-			# 	stray = hdu_list[0].header
 			try:
 				ind = hdu_list.index_of(parameter)
 				data = hdu_list[ind].data[xmin:xmax, ymin:ymax, :]
@@ -608,6 +606,8 @@ class Atmosphere(object):
 					self.nodes[parameter][idn] = node
 
 				self.values[parameter] = data
+				if parameter=="stray":
+					self.stray_light = data
 				self.mask[parameter] = np.ones(len(self.nodes[parameter]))
 
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
@@ -618,7 +618,7 @@ class Atmosphere(object):
 		try:
 			ind = hdu_list.index_of("2nd_Atmosphere")
 			
-			self.stray_type = "2nd_comp"
+			self.stray_type = "2nd_component"
 			self.init_2nd_component()
 			
 			if "sl_temp" in self.nodes:
