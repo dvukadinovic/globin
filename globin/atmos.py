@@ -2594,7 +2594,7 @@ class Atmosphere(object):
 				self.n_local_pars += 1
 				self.nodes["stray"] = np.array([0])
 				self.values["stray"] = self.stray_light
-				self.parameter_scale["stray"] = np.ones((self.nx, self.ny))
+				self.parameter_scale["stray"] = np.ones((self.nx, self.ny, 1))
 				self.mask["stray"] = np.ones(1)
 			elif self.stray_mode==3:
 				self.n_global_pars += 1
