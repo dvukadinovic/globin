@@ -2575,7 +2575,7 @@ class Atmosphere(object):
 		stray_mode, stray_factor, stray_type, stray_min, stray_max = sl_data
 
 		self.stray_mode = stray_mode
-		self.stray_light = np.ones((self.nx, self.ny)) * np.abs(stray_factor)
+		self.stray_light = np.ones((self.nx, self.ny, 1)) * np.abs(stray_factor)
 		self.stray_type = stray_type
 
 		# if the factor is inverted
