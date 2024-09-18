@@ -2743,6 +2743,29 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	
 	return pops
 
+def distribute_H(nHtot, temp, ne):
+	Ej = 13.59844
+	eV = globin.ELECTRON_CHARGE
+
+	lth = globin.PLANCK / np.sqrt(2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN*temp)
+	Saha = 2/ne/1e6 * 1/lth**3
+	Saha *= np.exp(-Ej*eV/globin.K_BOLTZMAN/temp)
+	Saha *= 2/1
+
+	nH0 = nHtot / (1 + Saha)
+
+	pops = np.zeros((6, len(temp)))
+	
+	# proton number
+	pops[-1] = nHtot / (1 + 1/Saha)
+
+	for idl in range(5):
+		E = Ej*(1-1/(idl+1)**2)
+		g = 2*(idl+1)**2
+		pops[idl] = nH0 * g/1 * np.exp(-E*globin.ELECTRON_CHARGE/globin.K_BOLTZMAN/temp)
+
+	return pops
+
 def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 	# write atmosphere 'atm' of MULTI type
 	# into separate file and store them at 'fpath'.
@@ -2789,23 +2812,32 @@ def write_multi_atmosphere(atm, fpath, atm_scale="tau"):
 	out.close()
 
 	# store magnetic field vector
-	
-	gamma = atm[6]
-	# if "gamma" in globin.atm.nodes:
-		# gamma = 2*np.arctan(atm[6])
-		# gamma = np.arccos(atm[6])
-
-	chi = atm[7]
-	# if "chi" in globin.atm.nodes:
-	# 	# chi = 4*np.arctan(atm[7])
-	# 	chi = np.arccos(atm[7])
-
-	globin.utils.write_B(f"{fpath}.B", atm[5]/1e4, gamma, chi)
+	write_B(f"{fpath}.B", atm[5]/1e4, atm[6], atm[7])
 
 	if np.isnan(np.sum(atm)):
 		print(fpath)
 		print("We have NaN in atomic structure!\n")
 		sys.exit()
+
+def write_B(outfile, B, gamma_B, chi_B):
+    ''' Writes a RH magnetic field file. Input B arrays can be any rank, as
+        they will be flattened before write. Bx, By, Bz units should be T.'''
+    if (B.shape != gamma_B.shape) or (gamma_B.shape != chi_B.shape):
+        raise TypeError('writeB: B arrays have different shapes!')
+    n = np.prod(B.shape)
+    
+    import xdrlib
+
+    # Pack as double
+    p = xdrlib.Packer()
+    p.pack_farray(n, B.ravel().astype('d'), p.pack_double)
+    p.pack_farray(n, gamma_B.ravel().astype('d'), p.pack_double)
+    p.pack_farray(n, chi_B.ravel().astype('d'), p.pack_double)
+    # Write to file
+    f = open(outfile, 'wb')
+    f.write(p.get_buffer())
+    f.close()
+    return
 
 def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=None):
 	if (local_pars is None) and (global_pars is None):
