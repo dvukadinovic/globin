@@ -516,6 +516,8 @@ def write_wavs(wavs, fname='wavegrid', transform=True, air2vacuum_limit=199.9352
 
         wavs = wavs*fact
 
+    import xdrlib
+
     nlam = len(wavs)
     obj = xdrlib.Packer()
     obj.pack_int(nlam)
