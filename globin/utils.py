@@ -550,6 +550,48 @@ def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
 
     return aux
 
+def compute_wavelength_grid(lmin, lmax, nwl=None, dlam=None, unit="A"):
+    """
+    Create the wavelength grid in nanometers in the air.
+
+    One of 'nwl' and 'dlam' must be provided to be able to compute the wavelength 
+    vector. Otherwise, an error is thrown.
+
+    Parameters:
+    -----------
+    lmin : float
+        lower limit of wavelength vector.
+    lmax : float
+        upper limit of wavelength vector.
+    nwl : float (optional)
+        number of wavelength points between 'lmin' and 'lmax'.
+    dlam : float (optional)
+        spacing in wavelength vector between 'lmin' and 'lamx'.
+
+    Return:
+    -------
+    wavelength : ndarray
+        wavelength grid
+
+    Error:
+    ------
+    If neighter of 'nwl' and 'dlam' is provided.
+    """
+
+    if nwl is not None:
+        wavelength_air = np.linspace(lmin, lmax, num=nwl)
+    elif dlam is not None:
+        nwl = int((lmax - lmin)/dlam) + 1
+        wavelength_air = np.linspace(lmin, lmax, num=nwl)
+    else:
+        raise ValueError("Neighter the number of wavelenths nor spacing has been provided.")
+
+    # transform values to nm and compute the wavelengths in vacuume
+    if unit=="A":
+        wavelength_air /= 10
+
+    return wavelength_air
+
 #--- routines for smoothing out the inversion parameters 
 #    (used for SPINOR; got it from Sebas)
 def sqr(x):
