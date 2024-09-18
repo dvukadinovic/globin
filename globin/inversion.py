@@ -398,6 +398,8 @@ class Inverter(InputData):
 				if "stray" in atmos.global_pars:
 					stray_light = atmos.global_pars["stray"]
 					stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+				elif "stray" in atmos.values:
+					stray_light = atmos.values["stray"]
 				else:
 					stray_light = atmos.stray_light
 
@@ -523,6 +525,8 @@ class Inverter(InputData):
 			if "stray" in atmos.global_pars:
 				stray_light = atmos.global_pars["stray"]
 				stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+			elif "stray" in atmos.values:
+				stray_light = atmos.values["stray"]
 			else:
 				stray_light = atmos.stray_light
 
@@ -795,7 +799,9 @@ class Inverter(InputData):
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
 			old_global_pars = copy.deepcopy(atmos.global_pars)
-			
+			if atmos.sl_atmos is not None:
+				old_global_pars_sl_atmos = copy.deepcopy(atmos.sl_atmos.global_pars)
+
 			#--- update and check boundaries for new parameter values
 			atmos.update_parameters(proposed_steps)
 			atmos.check_parameter_bounds(self.mode)
@@ -825,12 +831,15 @@ class Inverter(InputData):
 				if atmos.sl_atmos is not None:
 					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 
+
 			# add the stray light component:
 			if atmos.add_stray_light:
 				# get the stray light factor(s)
 				if "stray" in atmos.global_pars:
 					stray_light = atmos.global_pars["stray"]
 					stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+				elif "stray" in atmos.values:
+					stray_light = atmos.values["stray"]
 				else:
 					stray_light = atmos.stray_light
 
@@ -848,11 +857,12 @@ class Inverter(InputData):
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
-			Ic = corrected_spec.I[...,atmos.continuum_idl]
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		corrected_spec.spec[idx,idy] /= Ic[idx,idy]
-			corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+			if atmos.norm:
+				Ic = corrected_spec.I[...,atmos.continuum_idl]
+				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+
+		# 	globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+		# 	globin.show()
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec
@@ -875,6 +885,8 @@ class Inverter(InputData):
 				LM_parameter *= 10
 				atmos.values = old_local_parameters
 				atmos.global_pars = old_global_pars
+				if atmos.sl_atmos is not None:
+					atmos.sl_atmos.global_pars = old_global_pars_sl_atmos
 				# when we fail, we must revert the OF parameters
 				if atmos.add_fudge:
 					atmos.make_OF_table()
@@ -901,7 +913,7 @@ class Inverter(InputData):
 			if LM_parameter<=1e-5:
 				LM_parameter = 1e-5
 			if LM_parameter>=1e5:
-				print("Upper limit in LM_parameter. We break\n")
+				print("\nUpper limit in LM_parameter. We break\n")
 				break_flag = True
 
 			if updated_parameters:
@@ -935,9 +947,9 @@ class Inverter(InputData):
 					pass
 
 			#--- break if we could not adjust Marquardt parameter more than 6 times
-			if (num_failed==6 and itter>=2):
-				print("Failed 6 times to fix the LM parameter. We break.\n")
-				break_flag = True
+			# if (num_failed==6 and itter>=2):
+			# 	print("Failed 6 times to fix the LM parameter. We break.\n")
+			# 	break_flag = True
 
 			#--- save intermediate results every 'output_frequency' iteration
 			if self.output_frequency!=max_iter:
@@ -974,6 +986,8 @@ class Inverter(InputData):
 			if "stray" in atmos.global_pars:
 				stray_light = atmos.global_pars["stray"]
 				stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+			elif "stray" in atmos.values:
+				stray_light = atmos.values["stray"]
 			else:
 				stray_light = atmos.stray_light
 
@@ -991,11 +1005,12 @@ class Inverter(InputData):
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
-		Ic = inverted_spectra.I[...,atmos.continuum_idl]
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-		# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
-		inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+		if atmos.norm:
+			Ic = inverted_spectra.I[...,atmos.continuum_idl]
+			# for idx in range(atmos.nx):
+			# 	for idy in range(atmos.ny):
+			# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
+			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
 
 		try:
 			# remove parameter normalization factor from Hessian

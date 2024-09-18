@@ -1526,6 +1526,8 @@ class Atmosphere(object):
 					up_ind += self.line_no[parameter].size
 					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
 					self.global_pars[parameter] += step
+					if self.sl_atmos is not None:
+						self.sl_atmos.global_pars[parameter] += step
 
 		if self.mode==3:
 			Natmos = self.nx*self.ny
@@ -1562,6 +1564,8 @@ class Atmosphere(object):
 						up_ind += Nlines
 						step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
 						self.global_pars[parameter] += step
+						if self.sl_atmos is not None:
+							self.sl_atmos.global_pars[parameter] += step
 
 	def check_parameter_bounds(self, mode):
 		"""
@@ -1609,8 +1613,8 @@ class Atmosphere(object):
 				if self.global_pars[parameter]>self.limit_values[parameter][1]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]], dtype=np.float64)
 				# get back values into the atmosphere structure
-				if parameter=="vmac":
-					self.vmac = self.global_pars["vmac"]
+				# if parameter=="vmac":
+				self.vmac = self.global_pars["vmac"]
 			elif parameter=="stray":
 				if self.global_pars[parameter]<self.limit_values[parameter].min[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].min[0]], dtype=np.float64)
@@ -1618,8 +1622,8 @@ class Atmosphere(object):
 				if self.global_pars[parameter]>self.limit_values[parameter].max[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].max[0]], dtype=np.float64)
 				# get back values into the atmosphere structure
-				if parameter=="stray":
-					self.stray_light = self.global_pars["stray"]
+				# if parameter=="stray":
+				self.stray_light = self.global_pars["stray"]
 			else:
 				Npar = self.line_no[parameter].size
 				if Npar > 0:
@@ -1627,10 +1631,14 @@ class Atmosphere(object):
 						# check lower boundary condition
 						indx, indy = np.where(self.global_pars[parameter][...,idl]<self.limit_values[parameter][idl,0])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
+						if self.sl_atmos is not None:
+							self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
 
 						# check upper boundary condition
 						indx, indy = np.where(self.global_pars[parameter][...,idl]>self.limit_values[parameter][idl,1])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
+						if self.sl_atmos is not None:
+							self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
 	def smooth_parameters(self, cycle, num=5, std=2.5):
 		"""
@@ -1669,6 +1677,8 @@ class Atmosphere(object):
 				weights /= np.sum(weights)
 				mean_values = np.average(self.loggf_history, axis=0, weights=weights)
 				self.global_pars[parameter][0,0] = mean_values
+				if self.sl_atmos is not None:
+					self.sl_atmos.global_pars[parameter][0,0] = copy.deepcopy(mean_values)
 		# 		size = self.line_no[parameter].size
 		# 		nx, ny = 1, 1	
 		# 		if self.mode==2:
@@ -1680,10 +1690,14 @@ class Atmosphere(object):
 				for idl in range(len(self.line_no[parameter])):
 					aux = mygsmooth(self.global_pars[parameter][...,idl], num, std)
 					self.global_pars[parameter][...,idl] = median_filter(aux, size=4)
+					if self.sl_atmos is not None:
+						self.sl_atmos.global_pars[parameter][...,idl] = copy.deepcopy(self.global_pars[parameter][...,idl])
 			if parameter=="dlam" and len(self.line_no["dlam"])!=0 and self.mode==3:
 				median = np.median(self.global_pars[parameter])
 				Ndlam = len(self.line_no[parameter])
 				self.global_pars[parameter][0,0] = median
+				if self.sl_atmos is not None:
+					self.sl_atmos.global_pars[parameter][0,0] = copy.deepcopy(median)
 
 	def compute_errors(self, H, chi2, Ndof):
 		"""
@@ -2044,11 +2058,12 @@ class Atmosphere(object):
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
+
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
 				node_RF *= np.sqrt(2)
-				
+
 				#--- set RFs value
 				rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
 				free_par_ID += 1
@@ -2099,7 +2114,6 @@ class Atmosphere(object):
 					free_par_ID_stray = free_par_ID
 
 					if self.stray_type=="2nd_component":
-						# raise NotImplementedError("Switch to the pixel-by-pixel inversion mode.")
 						diff = sl_spec.spec - spec.spec
 					if self.stray_type=="hsra":
 						diff = self.hsra_spec.spec - spec.spec
@@ -2144,7 +2158,7 @@ class Atmosphere(object):
 								diff = (spec_plus.spec - spec.spec) / perturbation
 								if self.sl_atmos is not None:
 									sl_diff = (sl_plus.spec - sl_spec.spec) / perturbation
-							
+
 							diff *= weights
 							diff /= rf_noise_scale
 							diff *= np.sqrt(2)
@@ -2189,6 +2203,8 @@ class Atmosphere(object):
 			if "stray" in self.global_pars:
 				stray_light = self.global_pars["stray"]
 				stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
+			elif "stray" in self.values:
+					stray_light = self.values["stray"]
 			else:
 				stray_light = self.stray_light
 
@@ -2227,13 +2243,6 @@ class Atmosphere(object):
 			Ic = np.copy(spec.I[...,self.continuum_idl])
 			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
 			rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
-		# print(Ic[0,0])
-		# for idx in range(self.nx):
-		# 	for idy in range(self.ny):
-		# 		spec.spec[idx,idy] /= Ic[idx,idy]
-		# 		# print(rf[idx,idy,0,15,0])
-		# 		rf[idx,idy] /= Ic[idx,idy]
-				# print(rf[idx,idy,0,15,0])
 
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
@@ -2574,6 +2583,8 @@ class Atmosphere(object):
 		if "stray" in self.nodes:
 			return
 
+		self.add_stray_light = True
+
 		stray_mode, stray_factor, stray_type, stray_min, stray_max = sl_data
 
 		self.stray_mode = stray_mode
@@ -2653,6 +2664,8 @@ class Atmosphere(object):
 		self.sl_atmos.interpolate_atmosphere(self.logtau, globin.hsra.data)
 		self.sl_atmos.scale_id = self.scale_id
 
+		self.sl_atmos.shape = self.sl_atmos.data.shape
+
 		self.sl_atmos.set_mode(self.mode)
 		self.sl_atmos.set_mu(self.mu)
 		
@@ -2669,7 +2682,7 @@ class Atmosphere(object):
 		self.sl_atmos.continuum_idl = self.continuum_idl
 
 		# when we invert global parameters in one, we need them also in the second one to compute RFs
-		self.sl_atmos.global_pars = self.global_pars
+		self.sl_atmos.global_pars = copy.deepcopy(self.global_pars)
 		self.sl_atmos.line_no = self.line_no
 
 	def add_magnetic_vector(self, B, gamma, chi):
