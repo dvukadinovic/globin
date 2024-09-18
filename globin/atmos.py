@@ -247,6 +247,7 @@ class Atmosphere(object):
 		self.add_stray_light = False
 		self.invert_stray = False
 		self.stray_mode = -1
+		self.stray_type = None
 
 		# instrumental profile
 		self.instrumental_profile = None
@@ -2222,9 +2223,10 @@ class Atmosphere(object):
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
 		#--- normalize spectra and RFs
-		Ic = np.copy(spec.I[...,self.continuum_idl])
-		spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
-		rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
+		if self.norm:
+			Ic = np.copy(spec.I[...,self.continuum_idl])
+			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+			rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
 		# print(Ic[0,0])
 		# for idx in range(self.nx):
 		# 	for idy in range(self.ny):

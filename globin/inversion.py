@@ -135,10 +135,8 @@ class Inverter(InputData):
 		return Npar
 
 	def _estimate_noise_level(self, nx, ny, nw, weights=False):
-		if self.noise==0:
-			# noise = 1e-4
-			return np.ones((nx, ny, nw, 4))
-		else:
+		noise = 1e-4
+		if self.noise!=0:
 			noise = self.noise
 		
 		noise_stokes = np.ones((nx, ny, nw, 4))
@@ -417,11 +415,9 @@ class Inverter(InputData):
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
-			Ic = corrected_spec.I[...,atmos.continuum_idl]
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		corrected_spec.spec[idx,idy] /= Ic[idx,idy]
-			corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+			if atmos.norm:
+				Ic = corrected_spec.I[...,atmos.continuum_idl]
+				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
 
 			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
 			# globin.show()
@@ -544,11 +540,9 @@ class Inverter(InputData):
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
-		Ic = inverted_spectra.I[...,atmos.continuum_idl]
-		# for idx in range(atmos.nx):
-		# 	for idy in range(atmos.ny):
-		# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
-		inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+		if atmos.norm:
+			Ic = inverted_spectra.I[...,atmos.continuum_idl]
+			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
 
 		try:
 			# remove parameter normalization factor from Hessian
