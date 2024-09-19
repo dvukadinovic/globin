@@ -817,8 +817,8 @@ class Inverter(InputData):
 
 			corrected_spec = atmos.compute_spectra(ones)
 			if atmos.sl_atmos is not None:
-				 sl_spec = atmos.sl_atmos.compute_spectra(ones)
-			
+				sl_spec = atmos.sl_atmos.compute_spectra(ones)
+
 			# broaden the corrected spectra by macro velocity
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread)
@@ -830,7 +830,6 @@ class Inverter(InputData):
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
 				if atmos.sl_atmos is not None:
 					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread)
-
 
 			# add the stray light component:
 			if atmos.add_stray_light:
@@ -861,8 +860,8 @@ class Inverter(InputData):
 				Ic = corrected_spec.I[...,atmos.continuum_idl]
 				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
 
-		# 	globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
-		# 	globin.show()
+			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+			# globin.show()
 
 			#--- compute new chi2 value
 			new_diff = obs.spec - corrected_spec.spec

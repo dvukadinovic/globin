@@ -1632,13 +1632,13 @@ class Atmosphere(object):
 						indx, indy = np.where(self.global_pars[parameter][...,idl]<self.limit_values[parameter][idl,0])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
 						if self.sl_atmos is not None:
-							self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
+							self.sl_atmos.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,0]
 
 						# check upper boundary condition
 						indx, indy = np.where(self.global_pars[parameter][...,idl]>self.limit_values[parameter][idl,1])
 						self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 						if self.sl_atmos is not None:
-							self.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
+							self.sl_atmos.global_pars[parameter][...,idl][indx,indy] = self.limit_values[parameter][idl,1]
 
 	def smooth_parameters(self, cycle, num=5, std=2.5):
 		"""

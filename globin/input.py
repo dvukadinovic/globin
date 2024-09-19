@@ -573,7 +573,9 @@ class InputData(object):
 		lines_to_fit = read_init_line_parameters(line_pars_path)
 
 		if len(lines_to_fit)==0:
-			raise ValueError(f"'{line_pars_path}' does not contain line parameters.")
+			print("[Warning] Did not find atomic parameters to fit. You sure?\n")
+			return
+			# raise ValueError(f"'{line_pars_path}' does not contain line parameters.")
 
 		# get log(gf) parameters from line list
 		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
