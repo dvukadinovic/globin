@@ -40,13 +40,13 @@ class InputData(object):
 		self.debug = False
 
 		# normalization flag (True/False)
-		self.norm = False
+		# self.norm = False
 
 		# continuum value ('hsra', 1, float)
-		self.norm_level = None
+		# self.norm_level = None
 
 		# flag for computing the mean spectrum
-		self.mean = False	
+		self.mean = False
 
 	def read_input_files(self, globin_input_name, rh_input_name):
 		"""
@@ -202,7 +202,7 @@ class InputData(object):
 
 		# add spectra normalization parmaeters
 		norm, norm_level = load_spectrum_normalization(self.parameters_input)
-		self.atmosphere.set_spectrum_normalization(self.norm, self.norm_level)
+		self.atmosphere.set_spectrum_normalization(norm, norm_level)
 
 		# set the wavelength grid in the atmosphere
 		wavelength_air = load_wavelength_grid(self.parameters_input)
