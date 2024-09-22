@@ -22,5 +22,5 @@ globin.visualize.plot_spectra(inverter.observation.spec[idx,idy], inverter.obser
 
 atmos = globin.Atmosphere("atmos_bezier.fits", atm_range=[1,2,0,1])
 # inv_atmos = globin.Atmosphere("runs/dummy/inverted_atmos_c1.fits")
-globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "mag", "gamma", "chi"], reference=atmos)
+globin.visualize.plot_atmosphere(inv_atmos, parameters=["temp", "vz", "mag", "vmic", "gamma", "chi"], reference=atmos)
 globin.show()

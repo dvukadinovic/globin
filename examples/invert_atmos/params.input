@@ -5,17 +5,18 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 6
+n_thread = 10
 interp_deree = 3
 interp_method = bezier
 spline_tension = 0
-mode = 1
+mode = 0
 debug = False
 
 #--- Spectra to be fitted
 observation = obs_630_mu1_abs_LTE_20240918.fits
 #observation = obs_4016_vmac1.fits
-noise = 1e-5
+noise = 0
+1e-5
 #weights = 1,5,5,3
 weights = 1,1,1,1
 #vmac = 1
@@ -38,10 +39,10 @@ mu = 1.0
 
 #lines2atm = cog_wfa_lines
 
-nodes_temp = -2.2, -1.6, -0.9, 0
+#nodes_temp = -2.2, -1.6, -0.9, 0
 #nodes_temp_values = 4400, 5400, 6200, 7200
 #nodes_temp_values = 4400, 5400, 5900, 7500
-nodes_temp_values = 5200, 5400, 5900, 7800
+#nodes_temp_values = 5200, 5400, 5900, 7800
 
 nodes_vz = -2, -0.5
 #nodes_vz_values = -2.1, 1.5
@@ -49,6 +50,7 @@ nodes_vz_values = 0, 0
 
 #nodes_vmic = 0
 #nodes_vmic_values = 1
+#nodes_vmic_values = 2
 
 #nodes_mag = -2, -0.5
 #nodes_mag_values = 200, 500
@@ -95,5 +97,5 @@ chi2_tolerance = 1e-3
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos_bezier_20240918.fits
 
-range = 2,2,1,1
+range = 1,1,1,1
 #range = 2,2,2,2
