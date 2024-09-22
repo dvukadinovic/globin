@@ -810,12 +810,16 @@ def load_spectrum_normalization(input_text):
 	return norm, norm_level
 
 def load_stray_light_parameters(input_text):
-	stray_factor = _find_value_by_key("stray_factor", input_text, "default", 0.0, conversion=float)
-	if np.abs(stray_factor)>1:
-		raise ValueError("Stray light factor value above 1.")
+	stray_factor = _find_value_by_key("stray_factor", input_text, "default", "0.0", conversion=str)
+	if ".fits" in stray_factor:
+		stray_factor = fits.open(stray_factor)[0].data
+	else:
+		stray_factor = float(stray_factor)
+		if np.abs(stray_factor)>1:
+			raise ValueError("Stray light factor value above 1.")
 
-	if np.abs(stray_factor)==0:
-		return
+		if np.abs(stray_factor)==0:
+			return
 	
 	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 1, int)
 	if stray_mode==0:
@@ -840,7 +844,12 @@ def load_2nd_component_parameters(parameter, input_text):
 	"""
 	Read in the parameters for the second component.
 	"""
-	value = _find_value_by_key(f"{parameter}", input_text, "optional", None, float)
+	value = _find_value_by_key(f"{parameter}", input_text, "optional", None, str)
+	if value is not None:
+		if ".fits" in value:
+			value = fits.open(value)[0].data
+		else:
+				value = float(value)
 	fit_flag = _find_value_by_key(f"{parameter}_fit", input_text, "optional", "false", str)
 	if fit_flag is not None:
 		if fit_flag.lower()=="true":

@@ -50,7 +50,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
     hdu = fits.open(f"{fpath}/inverted_atmos.fits")[0]
     par_header = hdu.header
     par_data = hdu.data
-    print(repr(par_header))
+    # print(repr(par_header))
 
     # get the chi2 values
     # chi2 = Chi2(chi2=par_data[-1])

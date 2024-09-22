@@ -2577,8 +2577,13 @@ class Atmosphere(object):
 		stray_mode, stray_factor, stray_type, stray_min, stray_max = sl_data
 
 		self.stray_mode = stray_mode
-		self.stray_light = np.ones((self.nx, self.ny, 1)) * np.abs(stray_factor)
 		self.stray_type = stray_type
+		self.stray_light = np.ones((self.nx, self.ny, 1))
+		if np.asarray(stray_factor).ndim==2:
+			self.stray_light[...,0] = stray_factor
+			return
+		elif np.asarray(stray_factor).ndim==0:
+			self.stray_light *= np.abs(stray_factor)
 
 		# if the factor is inverted
 		if stray_factor<0:
@@ -2641,7 +2646,11 @@ class Atmosphere(object):
 			HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
 			value = HSRA_temp + delta
 
-		self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = value
+		if np.asarray(value).ndim==0:
+			self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = value
+		else:
+			value = np.repeat(value[:,:,np.newaxis], self.nz).reshape(self.nx, self.ny, self.nz)
+			self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = value
 
 	def init_2nd_component(self):
 		self.sl_atmos = globin.Atmosphere(nx=self.nx, 
