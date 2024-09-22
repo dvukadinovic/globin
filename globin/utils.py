@@ -244,6 +244,8 @@ def pretty_print_parameters(atmos, flag):
                         indx, indy = 0, 0
                     print(parameter)
                     print(atmos.global_pars[parameter][indx,indy])
+                    if atmos.sl_atmos is not None:
+                        print(atmos.sl_atmos.global_pars[parameter][indx,indy])
 
 def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     spinor_atm = np.zeros((12, atmos.nx, atmos.ny, atmos.nz))

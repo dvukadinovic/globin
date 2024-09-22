@@ -30,7 +30,8 @@ import matplotlib.pyplot as plt
 # sys.exit()
 
 atmos = globin.utils.construct_atmosphere_from_nodes("node_atmosphere", 
-	vmac=0, output_atmos_path=None)
+	vmac=0, output_atmos_path="atmos_bezier_20240918.fits")
+sys.exit()
 # globin.falc.wavelength_air = np.array([451.0])
 # globin.falc.wavelength_obs = np.array([451.0])
 # globin.falc.wavelength_vacuum = np.array([451.0])

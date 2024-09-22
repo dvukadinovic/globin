@@ -5,7 +5,7 @@
 #   3 --> global inversion (atmosphere + atoms + macro velocity)
 
 #--- General parameters
-n_thread = 1
+n_thread = 6
 interp_deree = 3
 interp_method = bezier
 spline_tension = 0
@@ -13,7 +13,7 @@ mode = 1
 debug = False
 
 #--- Spectra to be fitted
-observation = obs_630_mu1_abs.fits
+observation = obs_630_mu1_abs_LTE_20240918.fits
 #observation = obs_4016_vmac1.fits
 noise = 1e-5
 #weights = 1,5,5,3
@@ -29,7 +29,7 @@ mu = 1.0
 #stray_type = hsra
 
 #--- Output spectra
-#spectrum = obs_630_mu1_abs.fits
+#spectrum = obs_630_mu1_abs_LTE_20240918.fits
 
 #--- atmospheric parameters: nodes and values
 #initial_atmosphere = runs/dummy/inverted_atmos_c1.fits
@@ -40,25 +40,25 @@ mu = 1.0
 
 nodes_temp = -2.2, -1.6, -0.9, 0
 #nodes_temp_values = 4400, 5400, 6200, 7200
-nodes_temp_values = 4400, 5400, 5900, 7500
-#nodes_temp_values = 5200, 5400, 5900, 7800
+#nodes_temp_values = 4400, 5400, 5900, 7500
+nodes_temp_values = 5200, 5400, 5900, 7800
 
 nodes_vz = -2, -0.5
 #nodes_vz_values = -2.1, 1.5
 nodes_vz_values = 0, 0
 
-nodes_vmic = 0
-nodes_vmic_values = 1
+#nodes_vmic = 0
+#nodes_vmic_values = 1
 
-nodes_mag = -2, -0.5
+#nodes_mag = -2, -0.5
 #nodes_mag_values = 200, 500
-nodes_mag_values = 500, 500
+#nodes_mag_values = 500, 500
 
-nodes_gamma = 0
-nodes_gamma_values = 45
+#nodes_gamma = 0
+#nodes_gamma_values = 45
 
-nodes_chi = 0
-nodes_chi_values = 25
+#nodes_chi = 0
+#nodes_chi_values = 25
 
 #--- opacity fudge coefficients
 # interpolation degree of OF is determined by the
@@ -93,7 +93,7 @@ chi2_tolerance = 1e-3
 #line_parameters = line_pars_4016
 
 #--- Reference atmosphere (optional)
-cube_atmosphere = atmos_bezier.fits
+cube_atmosphere = atmos_bezier_20240918.fits
 
 range = 2,2,1,1
 #range = 2,2,2,2
