@@ -33,7 +33,7 @@ parameter_relay = {"temp"  : "Temperature [K]",
 def lin(x, a, b):
     return x*a + b
 
-def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False):
+def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False, show_errors=False):
     nrows = 0
     _parameters = []
     for parameter in parameters:
@@ -63,6 +63,15 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
             ax = fig.add_subplot(gs[idr,idc])
             x = atm1.values[parameter][:,:,idr].ravel()
             y = atm2.values[parameter][:,:,idr].ravel()
+            if show_errors:
+                try:
+                    xerr = atm1.errors[parameter][...,idr].ravel()
+                except:
+                    xerr = None
+                try:
+                    yerr = atm2.errors[parameter][...,idr].ravel()
+                except:
+                    yerr = None
 
             if statistics:
                 R = pearsonr(x, y)
@@ -92,7 +101,10 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
                 ax.set_ylabel(r"$\log\tau = {:3.2f}$".format(atm2.nodes[parameter][idr]))
                 ax.yaxis.set_label_position("right")
 
-            ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
+            if show_errors:
+                ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt="o", markeredgecolor="k", ecolor="k", alpha=0.7, fillstyle="none")
+            else:
+                ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
             mean = np.nanmean(x)
             std = np.nanstd(x)
             vmin = mean - 3*std

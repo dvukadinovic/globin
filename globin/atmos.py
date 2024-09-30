@@ -1886,20 +1886,6 @@ class Atmosphere(object):
 
 		self.atomic_rfs = spectra_list[:,:,4:]
 
-		# if self.norm:
-		# 	if self.norm_level=="hsra":
-		# 		spectra.spec /= self.icont
-		# 	elif self.norm_level==1:
-		# 		Ic = spectra.spec[:,:,0,self.continuum_idl]
-		# 		Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[2], axis=-1)
-		# 		Ic = np.repeat(Ic[...,np.newaxis], spectra.spec.shape[3], axis=-1)
-		# 		spectra.spec /= Ic
-		# 	else:
-		# 		spectra.spec /= self.norm_level
-
-		if self.mode==0:
-			print()
-
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
@@ -2239,10 +2225,22 @@ class Atmosphere(object):
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
 
 		#--- normalize spectra and RFs
+		# if self.norm:
+		# 	Ic = np.copy(spec.I[...,self.continuum_idl])
+		# 	spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+		# 	rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
+
 		if self.norm:
-			Ic = np.copy(spec.I[...,self.continuum_idl])
-			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
-			rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
+			if self.norm_level==1:
+				Ic = spec.I[...,self.continuum_idl]
+				spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+				rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
+			elif self.norm_level=="hsra":
+				spec.spec /= self.icont
+				rf /= self.icont
+			else:
+				spec.spec /= self.norm_level
+				rf /= self.norm_level
 
 		# update the RFs for those pixels that have updated parameters
 		self.rf[active_indx, active_indy] = rf[active_indx, active_indy]
@@ -2500,6 +2498,9 @@ class Atmosphere(object):
 		self.wavelength_obs = wavelength
 		self.wavelength_vacuum = air_to_vacuum(wavelength)
 
+		if self.sl_atmos is not None:
+			self.sl_atmos.set_wavelength_grid(wavelength)
+
 	def set_mu(self, mu):
 		"""
 		Assign the mu angle for which we want to synthesize spectra.
@@ -2512,6 +2513,9 @@ class Atmosphere(object):
 		else:
 			mu = np.array(mu)
 			self.mu = mu.reshape(self.nx, self.ny)
+
+	def set_vmac(self, vmac):
+		self.vmac = vmac
 
 	def set_n_thread(self, n_thread):
 		"""
@@ -2578,7 +2582,7 @@ class Atmosphere(object):
 		if sl_data is None:
 			return
 
-		# we skip adding stray light parmaeter if its already present in the atmosphere;
+		# we skip adding stray light parameter if its already present in the atmosphere;
 		# this is the case when we initialize inversion from the previous run
 		if "stray" in self.nodes:
 			return
@@ -2677,6 +2681,7 @@ class Atmosphere(object):
 
 		self.sl_atmos.set_mode(self.mode)
 		self.sl_atmos.set_mu(self.mu)
+		self.sl_atmos.set_n_thread(self.n_thread)
 		
 		self.sl_atmos.wavelength_air = self.wavelength_air
 		self.sl_atmos.wavelength_obs = self.wavelength_obs
