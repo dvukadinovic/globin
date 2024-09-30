@@ -443,7 +443,7 @@ def update_line_list(fpath, parameter, line_number, value):
         raise ValueError("Unequal size of the 'line_number' and 'value' lists.")
 
     for idl, line_num in enumerate((line_number)):
-        line_num -= 1 # to comply with Python counting
+        # line_num -= 1 # to comply with Python counting
         kurucz_line = list(lines[line_num])
         if parameter=="loggf":
             kurucz_line[10:17] = "{:7.3f}".format(value[idl])

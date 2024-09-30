@@ -176,9 +176,10 @@ class Inverter(InputData):
 
 		# if atmos.add_stray_light or atmos.norm_level=="hsra":
 		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-			print("[Info] Computing the HSRA spectrum...\n")
+			# print("[Info] Computing the HSRA spectrum...")
 			atmos.get_hsra_cont()
-			atmos.hsra_spec.broaden_spectra(atmos.vmac)
+			if atmos.stray_type=="hsra":
+				atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 		if self.verbose:
 			print("Initial parameters:\n")
@@ -418,8 +419,13 @@ class Inverter(InputData):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			if atmos.norm:
-				Ic = corrected_spec.I[...,atmos.continuum_idl]
-				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+				if atmos.norm_level==1:
+					Ic = corrected_spec.I[...,atmos.continuum_idl]
+					corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+				elif atmos.norm_level=="hsra":
+					corrected_spec.spec /= atmos.icont
+				else:
+					corrected_spec.spec /= atmos.norm_level
 
 			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
 			# globin.show()
@@ -545,8 +551,13 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		if atmos.norm:
-			Ic = inverted_spectra.I[...,atmos.continuum_idl]
-			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+			if atmos.norm_level==1:
+				Ic = inverted_spectra.I[...,atmos.continuum_idl]
+				inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+			elif atmos.norm_level=="hsra":
+				inverted_spectra.spec /= atmos.icont
+			else:
+				inverted_spectra.spec /= atmos.norm_level
 
 		try:
 			# remove parameter normalization factor from Hessian
@@ -557,15 +568,15 @@ class Inverter(InputData):
 			parameter_norms = np.array(parameter_norms)
 			parameter_norms = np.tile(parameter_norms, atmos.nx*atmos.ny)
 
-			for parameter in atmos.global_pars:
-				Npars = atmos.global_pars[parameter].size
-				if Npars==0:
-					continue
+			# for parameter in atmos.global_pars:
+			# 	Npars = atmos.global_pars[parameter].size
+			# 	if Npars==0:
+			# 		continue
 
-				global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
-				global_parameter_norms = np.array(global_parameter_norms)
+			# 	global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
+			# 	global_parameter_norms = np.array(global_parameter_norms)
 
-				parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
+			# 	parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
 
 			P = np.outer(parameter_norms, parameter_norms)
 			P /= 2 # we need 1/2 of Hessian
@@ -595,9 +606,10 @@ class Inverter(InputData):
 			print()
 
 		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-			print("[Info] Computing the HSRA spectrum...\n")
+			# print("[Info] Computing the HSRA spectrum...")
 			atmos.get_hsra_cont()
-			atmos.hsra_spec.broaden_spectra(atmos.vmac)
+			if atmos.stray_type=="hsra":
+				atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
@@ -857,8 +869,13 @@ class Inverter(InputData):
 				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread)
 
 			if atmos.norm:
-				Ic = corrected_spec.I[...,atmos.continuum_idl]
-				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+				if atmos.norm_level==1:
+					Ic = corrected_spec.I[...,atmos.continuum_idl]
+					corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+				elif atmos.norm_level=="hsra":
+					corrected_spec.spec /= atmos.icont
+				else:
+					corrected_spec.spec /= atmos.norm_level
 
 			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
 			# globin.show()
@@ -1005,11 +1022,13 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		if atmos.norm:
-			Ic = inverted_spectra.I[...,atmos.continuum_idl]
-			# for idx in range(atmos.nx):
-			# 	for idy in range(atmos.ny):
-			# 		inverted_spectra.spec[idx,idy] /= Ic[idx,idy]
-			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+				if atmos.norm_level==1:
+					Ic = inverted_spectra.I[...,atmos.continuum_idl]
+					inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+				elif atmos.norm_level=="hsra":
+					inverted_spectra.spec /= atmos.icont
+				else:
+					inverted_spectra.spec /= atmos.norm_level
 
 		try:
 			# remove parameter normalization factor from Hessian
@@ -1466,9 +1485,10 @@ def normalize_hessian(H, atmos, mode):
 
 def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 	if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
-		print("[Info] Computing the HSRA spectrum...\n")
+		# print("[Info] Computing the HSRA spectrum...")
 		atmosphere.get_hsra_cont()
 
+	start = time.time()
 	spectrum = atmosphere.compute_spectra(pool=pool)
 	if atmosphere.sl_atmos is not None:
 		sl_spec = atmosphere.sl_atmos.compute_spectra(pool=pool)
@@ -1489,7 +1509,9 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		# get the stray light factor(s)
 		if "stray" in atmosphere.global_pars:
 			stray_light = atmosphere.global_pars["stray"]
-			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+			stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
+		elif "stray" in atmosphere.values:
+				stray_light = atmosphere.values["stray"]
 		else:
 			stray_light = atmosphere.stray_light
 
@@ -1497,12 +1519,22 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		sl_spectrum = None
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
-		if atmos.stray_type=="2nd_component":
+		if atmosphere.stray_type=="2nd_component":
 			sl_spectrum = sl_spec.spec
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
 		spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum)
+
+	#--- norm spectra
+	if atmosphere.norm:
+		if atmosphere.norm_level==1:
+			Ic = spectrum.I[...,atmosphere.continuum_idl]
+			spectrum.spec = np.einsum("ij...,ij->ij...", spectrum.spec, 1/Ic)
+		elif atmosphere.norm_level=="hsra":
+			spectrum.spec /= atmosphere.icont
+		else:
+			spectrum.spec /= atmosphere.norm_level
 
 	#--- add noise
 	if noise_level!=0:

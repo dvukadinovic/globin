@@ -1,5 +1,5 @@
 # parID   LineNo   initial   min     max
-loggf       1    -0.652    -3.000    1.00
+#loggf       1    -0.652    -3.000    1.00
 loggf       2    -1.242    -3.000    1.00
 #loggf      10    -1.328    -5.928    0.928
 #loggf      13    -1.535    -2.710    1.00

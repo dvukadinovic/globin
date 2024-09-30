@@ -9,7 +9,11 @@ n_thread = 10
 interp_deree = 3
 interp_method = bezier
 spline_tension = 0
+<<<<<<< Updated upstream
 mode = 0
+=======
+mode = 3
+>>>>>>> Stashed changes
 debug = False
 
 #--- Spectra to be fitted
@@ -25,9 +29,10 @@ norm = False
 mu = 1.0
 #instrumental_profile = hinode_instr_prof.dat
 
-#stray_factor = 0.03
-#stray_mode = 1
-#stray_type = hsra
+stray_factor = -0.34
+stray_factor_vmin = 0
+stray_mode = 1
+stray_type = 2nd_component
 
 #--- Output spectra
 #spectrum = obs_630_mu1_abs_LTE_20240918.fits
@@ -44,9 +49,9 @@ mu = 1.0
 #nodes_temp_values = 4400, 5400, 5900, 7500
 #nodes_temp_values = 5200, 5400, 5900, 7800
 
-nodes_vz = -2, -0.5
+#nodes_vz = -2, -0.5
 #nodes_vz_values = -2.1, 1.5
-nodes_vz_values = 0, 0
+#nodes_vz_values = 0, 0
 
 #nodes_vmic = 0
 #nodes_vmic_values = 1
@@ -92,7 +97,7 @@ max_iter = 30
 chi2_tolerance = 1e-3
 
 #--- Line parameters
-#line_parameters = line_pars_4016
+#line_parameters = line_pars_fe6300
 
 #--- Reference atmosphere (optional)
 cube_atmosphere = atmos_bezier_20240918.fits
