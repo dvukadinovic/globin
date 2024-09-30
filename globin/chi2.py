@@ -149,21 +149,24 @@ def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, npar=0, total=False, p
 	if isinstance(weights, list):
 		weights = np.array(weights)
 
-	if total and per_stokes:
-		raise ValueError("Cannot compute chi2 for each Stokes component and the total value simultaneously.")
+	# if total and per_stokes:
+	# 	raise ValueError("Cannot compute chi2 for each Stokes component and the total value simultaneously.")
 
 	diff = obs.spec - inv.spec
 	diff *= weights
 	diff /= noise
-	chi2 = np.sum(diff**2, axis=(2,3))
 	if per_stokes:
 		chi2 = np.sum(diff**2, axis=(2))
+	else:
+		chi2 = np.sum(diff**2, axis=(2,3))
 
 	Ndof = np.count_nonzero(weights)*obs.nw - npar
 	chi2 /= Ndof
 
-	if total:
+	if total and not per_stokes:
 		chi2 = np.sum(chi2)
+	if total and per_stokes:
+		chi2 = np.sum(chi2, axis=(0,1))
 
 	return chi2
 
