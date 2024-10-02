@@ -2044,7 +2044,6 @@ class Atmosphere(object):
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
-
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
@@ -2770,7 +2769,12 @@ class Atmosphere(object):
 		self.values = values
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
-	nx, ny, npar, nw, ns = rf.shape
+	try:
+		full = False
+		nx, ny, npar, nw, ns = rf.shape
+	except:
+		full = True
+		nx, ny, npar, nz, nw, ns = rf.shape
 
 	indp = np.arange(npar, dtype=np.int32)
 	if skip_par!=-1:
@@ -2782,20 +2786,33 @@ def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	if len(indp)==0:
 		return rf
 
-	_rf = rf[:,:,indp,:,:].reshape(nx*ny, npar, nw, ns)
-	_rf = _rf.reshape(nx*ny*npar, nw, ns)
+	if not full:
+		_rf = rf[:,:,indp,:,:].reshape(nx*ny, npar, nw, ns)
+		_rf = _rf.reshape(nx*ny*npar, nw, ns)
+	else:
+		_rf = rf[:,:,indp,:,:].reshape(nx*ny, npar, nz, nw, ns)
+		_rf = _rf.reshape(nx*ny*npar, nz, nw, ns)
+		_rf = _rf.reshape(nx*ny*npar*nz, nw, ns)
 	
 	_flag = flag.reshape(nx*ny)
-	_flag = np.repeat(_flag, npar)
-
-	args = zip(_rf, [kernel]*nx*ny*npar, _flag)
+	if not full:
+		_flag = np.repeat(_flag, npar)
+		args = zip(_rf, [kernel]*nx*ny*npar, _flag)
+	else:
+		_flag = np.repeat(_flag, npar*nz)
+		args = zip(_rf, [kernel]*nx*ny*npar*nz, _flag)
 
 	with mp.Pool(n_thread) as pool:
 		results = pool.map(func=_broaden_rfs, iterable=args)
 
 	results = np.array(results)
-	results = results.reshape(nx*ny, npar, nw, ns)
-	rf[:,:,indp,:,:] = results.reshape(nx, ny, npar, nw, ns)
+	if not full:
+		results = results.reshape(nx*ny, npar, nw, ns)
+		rf[:,:,indp,:,:] = results.reshape(nx, ny, npar, nw, ns)
+	else:
+		results = results.reshape(nx*ny*npar, nz, nw, ns)
+		results = results.reshape(nx*ny, npar, nz, nw, ns)
+		rf[:,:,indp] = results.reshape(nx, ny, npar, nz, nw, ns)
 
 	return rf
 
@@ -2991,21 +3008,15 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 		spec = atmos.compute_spectra()
 	
 	# compute the total number of free parameters (have to sum atomic for each line)
+	n_local = 0
+	if local_pars is not None:
+		n_local = len(local_pars)
+		rf_local = np.zeros((atmos.nx, atmos.ny, n_local, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
+	
 	n_global = 0
 	if global_pars is not None:
 		for parameter in global_pars:
 			n_global += atmos.line_no[parameter].size
-	
-	n_local = 0
-	if local_pars is not None:
-		n_local = len(local_pars)
-	
-	n_pars = n_local + n_global
-	
-	# rf = np.zeros((atmos.nx, atmos.ny, n_pars, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
-	if n_local>0:
-		rf_local = np.zeros((atmos.nx, atmos.ny, n_local, atmos.nz, len(atmos.wavelength_air), 4), dtype=np.float64)
-	if n_global>0:
 		rf_global = np.zeros((atmos.nx, atmos.ny, n_global, len(atmos.wavelength_air), 4), dtype=np.float64)
 
 	free_par_ID = 0
@@ -3017,10 +3028,15 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 			for idz in tqdm(range(atmos.nz), desc=parameter):
 				atmos.data[:,:,parID,idz] += perturbation
 				spec_plus = atmos.compute_spectra()
+				# if atmos.sl_atmos is not None:
+				# 	spec_plus_sl = atmos.sl_atmos.compute_spectra()
 
 				if atmos.rf_der_type=="central":
 					atmos.data[:,:,parID,idz] -= 2*perturbation
 					spec_minus = atmos.compute_spectra()
+					# if atmos.sl_atmos is not None:
+					# 	spec_minus_sl = atmos.sl_atmos.compute_spectra()
+
 					diff = spec_plus.spec - spec_minus.spec
 					rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
 				elif atmos.rf_der_type=="forward":
@@ -3091,6 +3107,30 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 			else:
 				print(f"Parameter {parameter} not yet Supported.\n")
+
+	# macro-turbulent broadening
+	if atmos.vmac!=0:
+		kernel = globin.utils.get_kernel(atmos.vmac, atmos.wavelength_air, order=0)
+		if n_local>0:
+			rf_local = broaden_rfs(rf_local, kernel, np.ones((atmos.nx, atmos.ny)), -1, atmos.n_thread)
+		if n_global>0:
+			rf_global = broaden_rfs(rf_global, kernel, np.ones((atmos.nx, atmos.ny)), -1, atmos.n_thread)
+
+	# stray light contamination
+	if atmos.add_stray_light:
+		# get the stray light factor(s)
+		if "stray" in atmos.global_pars:
+			stray_light = atmos.global_pars["stray"]
+			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+		elif "stray" in atmos.values:
+				stray_light = atmos.values["stray"]
+		else:
+			stray_light = atmos.stray_light
+
+		for idp  in range(n_local):
+			rf_local[:,:,idp] = np.einsum("ij...,ij->ij...", rf_local[:,:,idp], 1 - stray_light[...,0])
+		for idp  in range(n_global):
+			rf_global[:,:,idp] = np.einsum("ij...,ij->ij...", rf_global[:,:,idp], 1 - stray_light[...,0])
 
 	# if we have provided the path, save the RFs
 	if fpath is not None:

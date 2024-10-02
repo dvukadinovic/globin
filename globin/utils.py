@@ -594,6 +594,34 @@ def compute_wavelength_grid(lmin, lmax, nwl=None, dlam=None, unit="A"):
 
     return wavelength_air
 
+def get_kernel_sigma(vmac, wavelength):
+    """
+    Get Gaussian kernel standard deviation based on given macro-turbulent velocity (in km/s).
+    """
+    step = wavelength[1] - wavelength[0]
+    return vmac*1e3 / globin.LIGHT_SPEED * (wavelength[0] + wavelength[-1])*0.5 / step
+
+def get_kernel(vmac, wavelength, order=0):
+    # we assume equidistant seprataion in wavelength grid
+    kernel_sigma = get_kernel_sigma(vmac, wavelength)
+    radius = int(4*kernel_sigma + 0.5)
+    x = np.arange(-radius, radius+1)
+    phi = np.exp(-x**2/kernel_sigma**2)
+
+    if order==0:
+        # Gaussian kernel
+        kernel = phi/phi.sum()
+        return kernel
+    elif order==1:
+        # first derivative of Gaussian kernel with respect to standard deviation
+        # kernel = phi/phi.sum() * 2 * x**2/kernel_sigma**3
+        kernel = phi/phi.sum()
+        step = wavelength[1] - wavelength[0]
+        kernel *= (2*x**2/kernel_sigma**2 - 1) * 1 / kernel_sigma / step
+        return kernel
+    else:
+        raise ValueError(f"Kernel order {order} not supported.")
+
 #--- routines for smoothing out the inversion parameters 
 #    (used for SPINOR; got it from Sebas)
 def sqr(x):
