@@ -30,10 +30,19 @@ parameter_relay = {"temp"  : "Temperature [K]",
                    "sl_vz" : "2nd LOS velocity [km/s]",
                    "sl_vmic" : "2nd Micro-turbulent velocity [km/s]"}
 
+bands = {"temp"  : [100, 200],
+         "vz"    : [0.2, 0.5],
+         "vmic"  : [0.2, 0.5],
+         "mag"   : [100, 250],
+         "stray" : [0.01, 0.05],
+         "sl_temp" : [100, 200],
+         "sl_vz" : [0.2, 0.5],
+         "sl_vmic" : [0.2, 0.5]}
+
 def lin(x, a, b):
     return x*a + b
 
-def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False, show_errors=False):
+def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False, show_bands=False, show_errors=False):
     nrows = 0
     _parameters = []
     for parameter in parameters:
@@ -122,6 +131,10 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
             ax.plot([vmin, vmax], [vmin, vmax], c="tab:red")
             ax.set_xlim([vmin, vmax])
             ax.set_ylim([vmin, vmax])
+            if show_bands:
+                x = np.array([vmin, vmax]) 
+                ax.fill_between(x, x-bands[parameter][0], x+bands[parameter][0], alpha=0.3, color="tab:green")
+                ax.fill_between(x, x-bands[parameter][1], x+bands[parameter][1], alpha=0.3, color="tab:orange")
 
             # if statistics:
             #     x = np.array([vmin, vmax])
