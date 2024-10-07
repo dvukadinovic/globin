@@ -197,7 +197,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             if parameter=="vmic":
                 if vmin<1e-3:
                     vmin = 1e-3
-            if parameter=="vz":
+            if parameter in ["vz", "sl_vz"]:
                 vmax = np.max([np.abs(vmin), np.abs(vmax)])
                 vmin = -vmax
             if show_errors:

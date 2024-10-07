@@ -506,8 +506,8 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 		NW = 5
 
 	width, height = 3, 2+2/3
-	fig = plt.figure(figsize=(width*ncols, height*nrows))
-	gs = fig.add_gridspec(nrows=nrows, ncols=ncols, wspace=0.5, hspace=0.4)
+	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=True)
+	fig.subplots_adjust(wspace=0.5, hspace=0.4)
 
 	if rf_local is not None:
 		for i_, parameter in enumerate(local_parameters):
@@ -519,7 +519,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 			if not rf_wave_integrate:
 				for j_, ids in enumerate(stokes_range):
-					ax = fig.add_subplot(gs[i_,j_])
+					ax = axs[i_,j_]
 					if i_==0:
 						ax.set_title(stokes_labels[j_], fontsize=fontsize)
 					if j_==0:
@@ -559,7 +559,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 				vmin = np.min(integratedRF)*1.05
 
 				for j_, ids in enumerate(stokes_range):
-					ax = fig.add_subplot(gs[i_,j_])
+					ax = axs[i_,j_]
 					if i_==0:
 						ax.set_title(stokes_labels[j_])
 
@@ -582,10 +582,10 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 			continue
 
 		for j_, ids in enumerate(stokes_range):
-			ax = fig.add_subplot(gs[i_,j_])
+			ax = axs[i_,j_]
 			ax.set_xlabel(r"$\lambda [\AA{}]$", fontsize=fontsize)
 			for idl in idp:
-				ax.plot(wavs, rf_global[idl,:,ids], c=global_pars_colors[idl])#*parameter_norm[parameter])
+				ax.plot(wavs, rf_global[idl,:,ids], c=f"C{idl+1}")#*parameter_norm[parameter])
 				ax.set_xlim([wavs[0], wavs[-1]])
 
 		ax.yaxis.set_label_position("right")
