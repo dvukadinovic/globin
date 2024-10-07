@@ -609,6 +609,7 @@ class Atmosphere(object):
 				self.values[parameter] = data
 				if parameter=="stray":
 					self.stray_light = data
+					self.add_stray_light = True
 				self.mask[parameter] = np.ones(len(self.nodes[parameter]))
 
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
