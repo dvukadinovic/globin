@@ -1,8 +1,48 @@
-class RHAtoms(object):
-    pass
+class AtoMol(object):
+    def __init__(self, name, state="PASSIVE", initial_population="LTE_POPULATIONS"):
+        self.name = name
+        self.state = state
+        self.initial_population = initial_population
+        self.output_file = f"pops.{name}.out"
 
-class RHMolecules(object):
-    pass
+class RHAtomsMolecules(object):
+    def __init__(self):
+        self.atoms = []
+        self.molecules = []
+
+    def add_atom(self, atom):
+        self.atoms.append(atom)
+
+    def add_molecule(self, molecule):
+        self.molecules.append(molecule)
+
+    def create_list(self, fpath, type):
+        out = open(fpath, "w")
+
+        if type=="atoms":
+            values = self.atoms
+        if type=="molecules":
+            values = self.molecules
+        
+        N = len(values)
+
+        out.write(f"  {N}\n\n")
+
+        for atomol in values:
+            out.write(f"  {atomol.name:10s}    {atomol.state:7s}    {atomol.initial_population:18s}")
+            if type=="atoms":
+                out.write(f"    {atomol.output_file:20s}\n")
+            if type=="molecules":
+                out.write("\n")
+
+        out.write("\n")
+        out.close()
+
+    def crate_atoms_list(self, fpath="atoms.input"):
+        self.create_list(fpath, "atoms")
+
+    def crate_molecules_list(self, fpath="molecules.input"):
+        self.create_list(fpath, "molecules")
 
 class RHKeywords(object):
     def __init__(self, keywor_input=None):

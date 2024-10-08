@@ -33,6 +33,7 @@ from .visualize import show, plot_atmosphere, plot_spectra, plot_rf, plot_chi2
 from .utils import Stats
 from .chi2 import compute_chi2
 from .atoms import AtomPars
+from .rh import *
 
 import globin.invert as invert
 
