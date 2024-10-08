@@ -7,17 +7,17 @@ import globin
 from globin.inversion import Inverter
 
 RNG = np.random.default_rng()
-scales = {"temp"  : 10,			# [K]
-		  "vz"    : 0.05,		# [km/s]
-		  "vmic"  : 0.05,		# [km/s]
-		  "mag"   : 10,			# [G]
-		  "gamma" : np.pi/360,	# [rad]
-		  "chi"   : np.pi/360,	# [rad]
-		  "of"    : 0.01,		# 
-		  "stray" : 0.01,		#
-		  "vmac"  : 0.05,		# [km/s]
-		  "loggf" : 0.01,		#
-		  "dlam"  : 2}			#
+scales = {"temp"  : 1,			# [K]
+		  "vz"    : 1e-3,		# [km/s]
+		  "vmic"  : 1e-3,		# [km/s]
+		  "mag"   : 1,			# [G]
+		  "gamma" : 1e-2*np.pi/360,	# [rad]
+		  "chi"   : 1e-2*np.pi/360,	# [rad]
+		  "of"    : 1e-3,		# 
+		  "stray" : 1e-3,		#
+		  "vmac"  : 1e-3,		# [km/s]
+		  "loggf" : 0.001,		#
+		  "dlam"  : 0.1}		#
 
 def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=False, skip_global_pars=True, move=None, a=2):
 
