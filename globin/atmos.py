@@ -1602,8 +1602,11 @@ class Atmosphere(object):
 					vmax = self.limit_values[parameter].max[idn]
 				if parameter=="temp" and self.decreasing_temperature and (idn+1)!=len(self.nodes[parameter]):
 					vmax = self.values[parameter][...,idn+1]
-				indx, indy = np.where(self.values[parameter][...,idn]>vmax)
-				self.values[parameter][indx,indy,idn] = vmax
+					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+					self.values[parameter][indx,indy,idn] = vmax[indx,indy]
+				else:
+					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+					self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
 			if parameter=="vmac":
