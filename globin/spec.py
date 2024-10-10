@@ -20,7 +20,7 @@ class Spectrum(object):
 	class.
 	"""
 	def __init__(self, nx=None, ny=None, nw=None, spec=None, wave=None, fpath=None, nz=None):
-		self.Icont = None
+		self.Icont = 1
 
 		self.nx = nx
 		self.ny = ny
