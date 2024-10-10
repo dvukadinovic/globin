@@ -104,7 +104,7 @@ class Inverter(InputData):
 			spectrum = synthesize(self.atmosphere, self.n_thread, pool, self.noise)
 
 			if self.save_output:
-				spectrum.save(self.output_spectra_path, spectrum.wavelength)
+				spectrum.save(self.output_spectra_path, spec_type="hinode")
 
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')
@@ -1535,6 +1535,8 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 			spectrum.spec /= atmosphere.icont
 		else:
 			spectrum.spec /= atmosphere.norm_level
+
+	spectrum.Ic = spectrum.I[...,atmosphere.continuum_idl]
 
 	#--- add noise
 	if noise_level!=0:
