@@ -812,6 +812,14 @@ def load_spectrum_normalization(input_text):
 	return norm, norm_level
 
 def load_stray_light_parameters(input_text):
+	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 0, int)
+	if stray_mode==0:
+		print("[Warning] We are ignoring the stray light contribution.")
+		return
+
+	if stray_mode not in [1,2,3]:
+		raise ValueError(f"Stray mode {stray_mode} is not supported.")
+
 	stray_factor = _find_value_by_key("stray_factor", input_text, "default", "0.0", conversion=str)
 	if ".fits" in stray_factor:
 		stray_factor = fits.open(stray_factor)[0].data
@@ -823,14 +831,6 @@ def load_stray_light_parameters(input_text):
 		if np.abs(stray_factor)==0:
 			return
 	
-	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 1, int)
-	if stray_mode==0:
-		print("[Warning] We are ignoring the stray light contribution.")
-		return
-
-	if stray_mode not in [1,2,3]:
-		raise ValueError(f"Stray mode {stray_mode} is not supported.")
-
 	stray_type = _find_value_by_key("stray_type", input_text, "default", "gray", str)
 	stray_type = stray_type.lower()
 	# if stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
