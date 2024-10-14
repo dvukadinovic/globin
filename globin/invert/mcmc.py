@@ -19,7 +19,7 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
-def invert_mcmc(obs, atmos, move, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
@@ -50,7 +50,7 @@ def invert_mcmc(obs, atmos, move, weights=np.array([1,1,1,1]), noise=1e-3, nstep
 	p0 = initialize_walker_states(nwalkers, ndim, atmos)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
-	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
+	print("run_name {:{char}{align}{width}}".format(f" {cwd}", char=".", align=">", width=20))
 	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
 		print("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
@@ -59,7 +59,7 @@ def invert_mcmc(obs, atmos, move, weights=np.array([1,1,1,1]), noise=1e-3, nstep
 	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
 	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 
-	filename = f"runs/{run_name}/MCMC_sampler_results.h5"
+	filename = f"runs/{cwd}/MCMC_sampler_results.h5"
 	backend = emcee.backends.HDFBackend(filename)
 	backend.reset(nwalkers, ndim)
 	
