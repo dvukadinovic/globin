@@ -816,6 +816,9 @@ class Atmosphere(object):
 				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 				new_atmos.logtau = self.logtau[idz_min:idz_max]
 				new_atmos.height = self.height[idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+				idx, idy = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
+				new_atmos.idx_meshgrid = idx.ravel()
+				new_atmos.idy_meshgrid = idy.ravel()
 				for parameter in self.nodes:
 					new_atmos.nodes[parameter] = self.nodes[parameter]
 					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
@@ -936,11 +939,6 @@ class Atmosphere(object):
 
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
-
-		# # interpolate 2nd atmospheric model
-		# if self.sl_atmos is not None:
-		# 	for parameter in self.sl_atmos.nodes:
-		# 		self.sl_atmos.data[0,0,self.sl_atmos.par_id[parameter]] += self.sl_atmos.values[parameter][0,0]
 
 	def _build_from_nodes(self, args):
 		"""
