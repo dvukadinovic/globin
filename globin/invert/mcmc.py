@@ -19,7 +19,7 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
-def invert_mcmc(obs, atmos, move, backend, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
@@ -58,6 +58,9 @@ def invert_mcmc(obs, atmos, move, backend, weights=np.array([1,1,1,1]), noise=1e
 	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
 	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 	
+	if reset_backend:
+		backend.reset(nwalkers, ndim)
+
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos], 
 		moves=move, 
@@ -69,10 +72,10 @@ def invert_mcmc(obs, atmos, move, backend, weights=np.array([1,1,1,1]), noise=1e
 		if sampler.iteration%progress_frequency:
 			continue
 
-		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f}")	
-
 		if sampler.iteration%(5*progress_frequency):
 			tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
+
+		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f}")
 
 		# check convergence
 		converged = np.all(tau * 100 < sampler.iteration)
