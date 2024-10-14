@@ -179,10 +179,10 @@ H2O = AtoMol("H2O.molecule")
 
 atmols = RHAtomsMolecules()
 
-atoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]
-for atom in atoms:
+RHatoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]
+for atom in RHatoms:
     atmols.add_atom(atom)
 
-molecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
-for molecule in molecules:
+RHmolecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
+for molecule in RHmolecules:
     atmols.add_molecule(molecule)
