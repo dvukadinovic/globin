@@ -179,47 +179,15 @@ def lnprior(local_pars, global_pars, limits):
 	return 0.0
 
 def lnlike(obs, atmos):
-	atmos.build_from_nodes()
-	spec = atmos.compute_spectra()
+	if not atmos.skip_local_pars:
+		params = list(atmos.nodes.keys())
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				args = atmos, 1, idx, idy, params
+				result = atmos._build_from_nodes(args)
+				atmos.data[idx,idy] = result
 
-	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
-
-	if atmos.instrumental_profile is not None:
-		inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, n_thread=atmos.n_thread)
-
-	if atmos.add_stray_light:
-		# get the stray light factor(s)
-		if "stray" in atmos.global_pars:
-			stray_light = atmos.global_pars["stray"]
-			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
-		elif "stray" in atmos.values:
-				stray_light = atmos.values["stray"]
-		else:
-			stray_light = atmos.stray_light
-
-		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		sl_spectrum = None
-		if atmos.stray_type=="hsra":
-			sl_spectrum = atmos.hsra_spec.spec
-		if atmos.stray_type=="2nd_component":
-			sl_spectrum = obs.sl_spec.spec
-		if atmos.stray_type in ["atmos", "spec"]:
-			sl_spectrum = atmos.stray_light_spectrum.spec
-
-		spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
-
-	if atmos.norm:
-		if atmos.norm_level==1:
-			Ic = spec.I[...,atmos.continuum_idl]
-			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
-		elif atmos.norm_level=="hsra":
-			spec.spec /= atmos.icont
-		else:
-			spec.spec /= atmos.norm_level
-
-	#--- downsample the synthetic spectrum to observed wavelength grid
-	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
+	spec = sequential_synthesize(obs, atmos)
 
 	# if atmos.values["vmic"][0,0,0]>0.5:
 	# plt.plot(obs.I[0,0])
@@ -291,6 +259,63 @@ def log_prob(theta, obs, atmos):
 			atmos.values["gamma"][:,:,:] = proposal
 
 	return lp + lnlike(obs, atmos)
+
+def sequential_synthesize(obs, atmos):
+	# compute spectra
+	nw = len(atmos.wavelength_vacuum)
+	spec = globin.spec.Spectrum(nx=atmos.nx, ny=atmos.ny, nw=nw)
+	spec.wavelength = atmos.wavelength_air
+
+	if atmos.vmac!=0:
+		kernel = spec.get_kernel(atmos.vmac, order=0)
+	
+	for idx in range(atmos.nx):
+		for idy in range(atmos.ny):
+			stokes_vector = atmos._compute_spectra_sequential((idx,idy)).T
+			if atmos.vmac!=0:	
+				stokes_vector = globin.spec._broaden_spectra((stokes_vector, kernel))
+			if atmos.instrumental_profile is not None:
+				stokes_vector = globin.spec._broaden_spectra((stokes_vector, atmos.instrumental_profile))
+			spec.spec[idx,idy] = stokes_vector
+
+	if atmos.add_stray_light:
+		# get the stray light factor(s)
+		if "stray" in atmos.global_pars:
+			stray_light = atmos.global_pars["stray"]
+			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+		elif "stray" in atmos.values:
+				stray_light = atmos.values["stray"]
+		else:
+			stray_light = atmos.stray_light
+
+		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+		sl_spectrum = None
+		if atmos.stray_type=="hsra":
+			sl_spectrum = atmos.hsra_spec.spec
+		if atmos.stray_type=="2nd_component":
+			sl_spectrum = obs.sl_spec.spec
+		if atmos.stray_type in ["atmos", "spec"]:
+			sl_spectrum = atmos.stray_light_spectrum.spec
+
+		spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
+
+	if atmos.norm:
+		if atmos.norm_level==1:
+			Ic = spec.I[...,atmos.continuum_idl]
+			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+		elif atmos.norm_level=="hsra":
+			spec.spec /= atmos.icont
+		else:
+			spec.spec /= atmos.norm_level
+
+	#--- downsample the synthetic spectrum to observed wavelength grid
+	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
+		for idx in range(atmos.nx):
+			for idy in range(atmos.ny):
+				args = spec.spec[idx,idy], atmos.wavelength_obs, "extrapolate"
+				spec.spec[idx,idy] = spec._interpolate(args)
+
+	return spec
 
 def initialize_walker_states(nwalkers, ndim, atmos):
 	#--- get parameter vector
