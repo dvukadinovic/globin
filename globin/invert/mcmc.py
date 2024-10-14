@@ -19,15 +19,9 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
-def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=False, skip_global_pars=True, move=None, a=2):
+def invert_mcmc(obs, atmos, move, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
-
-	inverter = Inverter(verbose=False)
-	inverter.read_input(run_name=run_name)
-
-	obs = inverter.observation
-	atmos = inverter.atmosphere
 
 	if atmos.sl_atmos is not None:
 		obs.sl_spec = atmos.sl_atmos.compute_spectra()
@@ -35,19 +29,12 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=Fal
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
 	atmos.limit_values["chi"] = globin.atmos.MinMax(0,1)
 
-	atmos.skip_local_pars = skip_local_pars
-	atmos.skip_global_pars = skip_global_pars
-
-	if atmos.skip_local_pars and atmos.skip_global_pars:
-		raise ValueError("Niether local nor global parameters will be inferred. Change one of the flags.")
-
 	if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
 		atmos.get_hsra_cont()
 		if atmos.stray_type=="hsra":
 			atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 	Natmos = atmos.nx*atmos.ny
-	obs.Ndof = 4*obs.nw*Natmos - 1
 
 	atmos.n_local_pars = 0
 	if not atmos.skip_local_pars:
@@ -57,14 +44,10 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=Fal
 	ndim = Natmos*atmos.n_local_pars
 	if not atmos.skip_global_pars:
 		ndim += atmos.n_global_pars
-	if nwalkers<2*ndim:
-		raise ValueError("Number of walkers is less than 2*number_of_parameters. StretchMove() will throw an error.")
 	
-	p0 = initialize_walker_states(nwalkers, ndim, atmos)
+	obs.Ndof = np.count_nonzero(obs.weights)*obs.nw*Natmos - ndim
 
-	#--- create the move
-	if move is None:
-		move = emcee.moves.StretchMove(a=a)
+	p0 = initialize_walker_states(nwalkers, ndim, atmos)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("run_name {:{char}{align}{width}}".format(f" {run_name}", char=".", align=">", width=20))
@@ -76,17 +59,6 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=Fal
 	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
 	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 
-	noise = 1e-3
-	noise_stokes = np.ones((obs.nx, obs.ny, obs.nw, 4))
-	StokesI_cont = np.quantile(obs.I, 0.9, axis=2)
-	noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
-	if inverter.wavs_weight is not None:
-		obs.wavs_weight = inverter.wavs_weight
-	else:
-		obs.wavs_weight = 1
-	obs.noise_stokes = noise_stokes
-	obs.weights = inverter.weights
-
 	filename = f"runs/{run_name}/MCMC_sampler_results.h5"
 	backend = emcee.backends.HDFBackend(filename)
 	backend.reset(nwalkers, ndim)
@@ -97,16 +69,14 @@ def invert_mcmc(run_name, nsteps=100, nwalkers=2, pool=None, skip_local_pars=Fal
 		pool=pool,
 		backend=backend)
 
-	check_every_nth = 100
-
 	old_tau = np.inf
 	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True, store=True):
-		if sampler.iteration%check_every_nth:
+		if sampler.iteration%progress_frequency:
 			continue
 
 		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f}")	
 
-		if sampler.iteration%(5*check_every_nth):
+		if sampler.iteration%(5*progress_frequency):
 			tau = sampler.get_autocorr_time(has_walkers=False, quiet=True)
 		
 		print()
