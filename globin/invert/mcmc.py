@@ -19,7 +19,7 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
-def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, backend, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
@@ -50,7 +50,6 @@ def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, 
 	p0 = initialize_walker_states(nwalkers, ndim, atmos)
 
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
-	print("run_name {:{char}{align}{width}}".format(f" {cwd}", char=".", align=">", width=20))
 	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
 		print("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
@@ -58,10 +57,6 @@ def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, 
 		print("N_global_pars {:{char}{align}{width}}".format(f" {atmos.n_global_pars}", char=".", align=">", width=20))
 	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
 	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
-
-	filename = f"runs/{cwd}/MCMC_sampler_results.h5"
-	backend = emcee.backends.HDFBackend(filename)
-	backend.reset(nwalkers, ndim)
 	
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos], 
@@ -77,7 +72,7 @@ def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, 
 		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f}")	
 
 		if sampler.iteration%(5*progress_frequency):
-			tau = sampler.get_autocorr_time(has_walkers=False, quiet=True)
+			tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
 		
 		print()
 
@@ -115,16 +110,9 @@ def invert_mcmc(obs, atmos, move, cwd, weights=np.array([1,1,1,1]), noise=1e-3, 
 			if parameter=="stray":
 				atmos.global_pars[parameter] = theta_best[low:up]
 
-	spec = atmos.compute_spectra()
-	spec.broaden_spectra(vmac=atmos.vmac, n_thread=atmos.n_thread)
-	if atmos.instrumental_profile is not None:
-		inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, n_thread=atmos.n_thread)
-	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-		spec.interpolate(atmos.wavelength_obs, atmos.n_thread)
-	spec.save(f"runs/{run_name}/inverted_spectra_cmcmc.fits")
+	spec = sequential_synthesize(obs, atmos)
 
-	atmos.save_atmosphere(f"runs/{run_name}/inverted_atmos_mcmc.fits")
-	atmos.save_atomic_parameters(f"runs/{run_name}/inverted_atoms_mcmc.fits")
+	return atmos, spec
 
 def lnprior(local_pars, global_pars, limits):
 	"""
