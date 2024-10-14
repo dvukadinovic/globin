@@ -1171,6 +1171,28 @@ class Atmosphere(object):
 
 		return self.data[idx,idy,2]
 
+	def get_scales(self, referent_wavelength):
+		tau = np.empty((self.nx, self.ny, self.nz))
+		height = np.empty((self.nx, self.ny, self.nz))
+		cmass = np.empty((self.nx, self.ny, self.nz))
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				tau[idx,idy], height[idx,idy], cmass[idx,idy] = pyrh.get_scales(self.cwd,
+																					  						 self.scale_id, self.data[idx,idy,0],
+																					  						 self.data[idx,idy],
+																					  						 referent_wavelength)
+
+		if self.scale_id==0:
+			tau = 10**self.data[:,:,0]
+		if self.scale_id==1:
+			cmass = 10**self.data[:,:,0]
+		if self.scale_id==2:
+			height = self.data[:,:,0]*1e3
+
+		return np.log10(tau), height/1e3, np.log10(cmass)
+		# return tau, height, cmass
+
 	def interpolate_atmosphere(self, z_new, ref_atm):
 		"""
 		
