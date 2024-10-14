@@ -73,8 +73,6 @@ def invert_mcmc(obs, atmos, move, backend, weights=np.array([1,1,1,1]), noise=1e
 
 		if sampler.iteration%(5*progress_frequency):
 			tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
-		
-		print()
 
 		# check convergence
 		converged = np.all(tau * 100 < sampler.iteration)
