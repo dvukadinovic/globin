@@ -366,18 +366,6 @@ class Spectrum(object):
 		"""
 		if flag is None:
 			flag = np.ones((self.nx, self.ny), dtype=np.int32)
-
-		# for idx in range(self.nx):
-		# 	for idy in range(self.ny):
-		# 		if flag[idx,idy]==0:
-		# 			continue
-
-		# 		if mode==1 or mode==2:
-		# 			stray_factor = stray_light[idx,idy]
-		# 		elif mode==3:
-		# 			stray_factor = stray_light
-		# 		else:
-		# 			raise ValueError(f"Unknown mode {mode} for stray light contribution. Choose one from 1,2 or 3.")
 				
 		if stray_type in ["hsra", "atmos", "spec"]:
 			self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
