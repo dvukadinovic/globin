@@ -2759,9 +2759,14 @@ class Atmosphere(object):
 			self.nodes[parameter] = nodes[parameter]
 			nnodes = len(nodes[parameter])
 			self.values[parameter] = np.zeros((self.nx, self.ny, nnodes))
-			for idn in range(nnodes):
-				idz = np.argmin(np.abs(self.logtau - nodes[parameter][idn]))
-				self.values[parameter][...,idn] = self.data[...,self.par_id[parameter],idz]
+			if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+				self.values[parameter] = self.sl_atmos.data[...,self.par_id[parameter.split("_")[1]],:]
+			elif parameter=="stray":
+				self.values[parameter] = self.stray_light
+			else:
+				for idn in range(nnodes):
+					idz = np.argmin(np.abs(self.logtau - nodes[parameter][idn]))
+					self.values[parameter][...,idn] = self.data[...,self.par_id[parameter],idz]
 
 	def reshape(self, shape, indx, indy):
 		"""
