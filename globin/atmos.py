@@ -816,7 +816,7 @@ class Atmosphere(object):
 				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 				new_atmos.logtau = self.logtau[idz_min:idz_max]
 				new_atmos.height = self.height[idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
-				idx, idy = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
+				idx, idy = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny))
 				new_atmos.idx_meshgrid = idx.ravel()
 				new_atmos.idy_meshgrid = idy.ravel()
 				for parameter in self.nodes:
