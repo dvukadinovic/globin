@@ -17,16 +17,6 @@ from .utils import compute_wavelength_grid
 
 import globin
 
-class RHInput(object):
-	"""
-	Container for RH input fields and methods.
-	"""
-	def __init__(self):
-		pass
-
-	def set_keyword(self, key):
-		pass
-
 class InputData(object):
 	def __init__(self):
 		# number of threads to be used for parallel computing
@@ -78,13 +68,20 @@ class InputData(object):
 		if not os.path.exists(self.cwd):
 			os.mkdir(self.cwd)
 
-		# copy all input files into 'run_name' directory
-		sp.run(f"cp *.input {self.cwd}",
+		# copy input files into 'run_name' directory
+		sp.run(f"cp {globin_input_name} {rh_input_name} {self.cwd}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
+
+		# create atoms and molecules RH input files 
+		globin.rh.atmols.create_atoms_list(f"{self.cwd}/atoms.input")
+		globin.rh.atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 
 		#--- get parameters from globin input file
 		text = open(self.globin_input_name, "r").read()
 		self.parameters_input = text
+
+		line_list = _find_value_by_key("line_list", self.parameters_input, "required")
+		globin.rh.create_kurucz_input(line_list, f"{self.cwd}/kurucz.input")
 
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 
@@ -905,7 +902,7 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 		return conversion(value)
 	else:
 		if key_type=="required":
-			raise ValueError(f"Keyword {key} is not found in the input file.")
+			raise ValueError(f"Keyword '{key}' is not found in the input file.")
 			sys.exit()
 		elif key_type=="default":
 			return default_val

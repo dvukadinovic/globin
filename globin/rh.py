@@ -1,9 +1,21 @@
+def create_kurucz_input(line_list_name, fpath):
+    out = open(fpath, "w")
+
+    out.write(f"{line_list_name}\n")
+    out.close()
+
 class AtoMol(object):
     def __init__(self, name, state="PASSIVE", initial_population="LTE_POPULATIONS"):
         self.name = name
         self.state = state
         self.initial_population = initial_population
         self.output_file = f"pops.{name}.out"
+
+    def __str__(self):
+        return f"AtoMol(name='{self.name}', state={self.state}, initial_population={self.initial_population})"
+
+    def __repr__(self):
+        return self.__str__()
 
 class RHAtomsMolecules(object):
     def __init__(self):
@@ -38,10 +50,10 @@ class RHAtomsMolecules(object):
         out.write("\n")
         out.close()
 
-    def crate_atoms_list(self, fpath="atoms.input"):
+    def create_atoms_list(self, fpath="atoms.input"):
         self.create_list(fpath, "atoms")
 
-    def crate_molecules_list(self, fpath="molecules.input"):
+    def create_molecules_list(self, fpath="molecules.input"):
         self.create_list(fpath, "molecules")
 
 class RHKeywords(object):
@@ -137,3 +149,40 @@ class RHKeywords(object):
                     value = str(keywords[key])
                 file.write(f"{prefix}  {key} = {value}\n")
                 prefix = ""
+
+# atoms
+H_6 = AtoMol("H_6.atom")
+He = AtoMol("He.atom")
+C = AtoMol("C.atom")
+N = AtoMol("N.atom")
+O = AtoMol("O.atom")
+S = AtoMol("S.atom")
+Fe = AtoMol("Fe.atom")
+Si = AtoMol("Si.atom")
+Al = AtoMol("Al.atom")
+Na = AtoMol("Na.atom")
+Mg = AtoMol("Mg.atom")
+
+# molecules
+H2 = AtoMol("H2.molecule")
+H2p = AtoMol("H2+.molecule")
+C2 = AtoMol("C2.molecule")
+N2 = AtoMol("N2.molecule")
+O2 = AtoMol("O2.molecule")
+CH = AtoMol("CH.molecule")
+CO = AtoMol("CO.molecule")
+CN = AtoMol("CN.molecule")
+NH = AtoMol("NH.molecule")
+NO = AtoMol("NO.molecule")
+OH = AtoMol("OH.molecule")
+H2O = AtoMol("H2O.molecule")
+
+atmols = RHAtomsMolecules()
+
+atoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]
+for atom in atoms:
+    atmols.add_atom(atom)
+
+molecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
+for molecule in molecules:
+    atmols.add_molecule(molecule)
