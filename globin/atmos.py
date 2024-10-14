@@ -1610,7 +1610,7 @@ class Atmosphere(object):
 			# 	y = np.sin(self.values[parameter])
 			# 	self.values[parameter] = np.arcsin(y)
 			# else:
-			for idn in range(len(self.nodes[parameter])):
+			for idn in range(len(self.nodes[parameter])-1, -1, -1):
 				# check lower boundary condition
 				vmin = self.limit_values[parameter].min[0]
 				if self.limit_values[parameter].vmin_dim!=1:
