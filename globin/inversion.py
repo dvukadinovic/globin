@@ -487,8 +487,9 @@ class Inverter(InputData):
 				idx, idy = np.where(stop_flag==1)
 				print(LM_parameter[idx,idy])
 
-			best_chi2,_ = chi2.get_final_chi2()
-			print("  chi2 --> {:4.3e}".format(np.sum(best_chi2)/Natmos))
+			if np.sum(updated_pars)!=0:
+				best_chi2,_ = chi2.get_final_chi2()
+				print("  chi2 --> {:4.3e}".format(np.sum(best_chi2)/Natmos))
 
 			#--- check the convergence only for pixels whose iteration number is larger than 2
 			stop_flag, itter, updated_pars = chi2_convergence(chi2.chi2, itter, stop_flag, updated_pars, self.n_thread, max_iter, self.chi2_tolerance)
@@ -606,7 +607,6 @@ class Inverter(InputData):
 			print()
 
 		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-			# print("[Info] Computing the HSRA spectrum...")
 			atmos.get_hsra_cont()
 			if atmos.stray_type=="hsra":
 				atmos.hsra_spec.broaden_spectra(atmos.vmac)
@@ -710,17 +710,13 @@ class Inverter(InputData):
 				# plt.show()
 
 				if self.debug:
-					# for idx in range(atmos.nx):
-					# 	for idy in range(atmos.ny):
-					# 		self.rf_debug[idx,idy,itter] = rf[idx,idy]
-					self.rf_debug[:,:,itter] = rf
+					self.rf_debug[:,:,itter] = atmos.rf
 
 				#--- calculate chi2
 				diff = obs.spec - spec.spec
 				diff *= self.weights
 				diff /= diff_noise_stokes
 				diff *= np.sqrt(2)
-				# diff /= np.sqrt(Ndof)
 				if self.wavs_weight is not None:
 					diff *= self.wavs_weight
 				
