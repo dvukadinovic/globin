@@ -738,7 +738,10 @@ class Observation(Spectrum):
 
 		self.Ic = hdu[2].data
 
-		self.Icont = float(hdu[2].header["IC_HSRA"])
+		try:	
+			self.Icont = float(hdu[2].header["IC_HSRA"])
+		except:
+			self.Icont = 1
 		
 		# we assume that wavelength is same for every pixel in observation
 		self.wavelength = hdu[1].data/10 # [A --> nm]
