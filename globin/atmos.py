@@ -622,7 +622,7 @@ class Atmosphere(object):
 			
 			self.stray_type = "2nd_component"
 			self.init_2nd_component()
-			
+
 			if "sl_temp" in self.nodes:
 				delta = self.values["sl_temp"] - globin.T0_HSRA
 				HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
@@ -1041,7 +1041,7 @@ class Atmosphere(object):
 					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
 					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
 				
-				if parameter=="mag":
+				if parameter in ["mag", "vmic"]:
 					# check if extrapolation at the top atmosphere point goes below the minimum
 					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
 					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
@@ -2701,15 +2701,19 @@ class Atmosphere(object):
 		self.sl_atmos.scale_id = self.scale_id
 
 		self.sl_atmos.shape = self.sl_atmos.data.shape
-
-		self.sl_atmos.set_mode(self.mode)
+		
 		self.sl_atmos.set_mu(self.mu)
 		self.sl_atmos.set_n_thread(self.n_thread)
-		
-		self.sl_atmos.wavelength_air = self.wavelength_air
-		self.sl_atmos.wavelength_obs = self.wavelength_obs
-		self.sl_atmos.wavelength_vacuum = self.wavelength_vacuum
-		
+
+		try:
+			self.sl_atmos.set_mode(self.mode)
+			
+			self.sl_atmos.wavelength_air = self.wavelength_air
+			self.sl_atmos.wavelength_obs = self.wavelength_obs
+			self.sl_atmos.wavelength_vacuum = self.wavelength_vacuum
+		except:
+			pass
+
 		self.sl_atmos.norm = self.norm
 		self.sl_atmos.norm_level = self.norm_level
 
