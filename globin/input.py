@@ -256,13 +256,17 @@ class InputData(object):
 			sl_type = sl_data[2]
 
 			if sl_type=="2nd_component":
-				self.atmosphere.init_2nd_component()
+				if self.atmosphere.sl_atmos is not None:
+					self.atmosphere.sl_atmos.global_pars = copy.deepcopy(self.atmosphere.global_pars)
+					self.atmosphere.sl_atmos.line_no = self.atmosphere.line_no
+				else:
+					self.atmosphere.init_2nd_component()
 
-				for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
-					values = load_2nd_component_parameters(parameter, self.parameters_input)
-					self.atmosphere.set_2nd_component_parameter(parameter, values)
+					for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+						values = load_2nd_component_parameters(parameter, self.parameters_input)
+						self.atmosphere.set_2nd_component_parameter(parameter, values)
 
-				self.atmosphere.sl_atmos.makeHSE()
+					self.atmosphere.sl_atmos.makeHSE()
 
 			elif sl_type=="atmos":
 				raise NotImplemented()
@@ -468,7 +472,6 @@ class InputData(object):
 		if fpath is not None:
 			# read node parameters from .fits file that is inverted atmosphere
 			# from older inversion run
-			# self.atmosphere.read_multi_cube(fpath, atm_range=atm_range)
 			self.atmosphere.read_multi_cube(fpath)
 
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
@@ -483,7 +486,7 @@ class InputData(object):
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter)
 
-		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "stray_factor", "sl_temp", "sl_vz", "sl_vmic"]:
 			self.read_node_values_limits(parameter)
 
 		#--- check for spatial regularization of atmospheric parameters

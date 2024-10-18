@@ -21,6 +21,7 @@ from .spec import Spectrum
 from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_point
 from .utils import extend, Planck, azismooth, mygsmooth, air_to_vacuum
 from .makeHSE import makeHSE
+from .rh import atmols, create_kurucz_input
 
 class MinMax(object):
 	"""
@@ -203,6 +204,7 @@ class Atmosphere(object):
 		# cos(theta) for which we are computing the spectrum
 		self.mu = 1.0
 		
+		self.line_list = None
 		# line number in list of lines for which we are inverting atomic data
 		self.line_no = {"loggf" : np.array([], dtype=np.int32), 
 										"dlam"  : np.array([], dtype=np.int32)}
@@ -230,9 +232,6 @@ class Atmosphere(object):
 
 		# 2nd component atmosphere treated as stray light source
 		self.sl_atmos = None
-
-		# container for the RH() class
-		# self.RH = pyrh.RH()
 
 		# continuum intensity
 		self.icont = None
@@ -624,13 +623,19 @@ class Atmosphere(object):
 			self.init_2nd_component()
 
 			if "sl_temp" in self.nodes:
+				self.sl_atmos.nodes["sl_temp"] = self.nodes["sl_temp"]
+				self.sl_atmos.values["sl_temp"] = self.values["sl_temp"]
 				delta = self.values["sl_temp"] - globin.T0_HSRA
 				HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
 				self.sl_atmos.data[:,:,self.par_id["temp"]] = HSRA_temp + delta
 				self.sl_atmos.hydrostatic = True
 			if "sl_vz" in self.nodes:
+				self.sl_atmos.nodes["sl_vz"] = self.nodes["sl_vz"]
+				self.sl_atmos.values["sl_vz"] = self.values["sl_vz"]
 				self.sl_atmos.data[:,:,self.par_id["vz"]] = self.values["sl_vz"]
 			if "sl_vmic" in self.nodes:
+				self.sl_atmos.nodes["sl_vmic"] = self.nodes["sl_vmic"]
+				self.sl_atmos.values["sl_vmic"] = self.values["sl_vmic"]
 				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
 
 			if self.sl_atmos.hydrostatic:
@@ -2537,14 +2542,21 @@ class Atmosphere(object):
 			mu = np.array(mu)
 			self.mu = mu.reshape(self.nx, self.ny)
 
+		if self.sl_atmos is not None:
+			self.sl_atmos.mu = self.mu
+
 	def set_vmac(self, vmac):
 		self.vmac = vmac
+		if self.sl_atmos is not None:
+			self.sl_atmos.set_vmac(vmac)
 
 	def set_n_thread(self, n_thread):
 		"""
 		Set the number of threads used for parallelized to call to methods (uses multiprocessing module)
 		"""
 		self.n_thread = n_thread
+		if self.sl_atmos is not None:
+			self.sl_atmos.n_thread = n_thread
 
 	def set_chunk_size(self):
 		"""
@@ -2557,6 +2569,8 @@ class Atmosphere(object):
 			raise ValueError(f"Cannot set the mode to {mode}.")
 		
 		self.mode = mode
+		if self.sl_atmos is not None:
+			self.sl_atmos.mode = mode
 
 	def set_cwd(self, cwd):
 		"""
@@ -2566,6 +2580,8 @@ class Atmosphere(object):
 		necessary for the RH call.
 		"""
 		self.cwd = cwd
+		if self.sl_atmos is not None:
+			self.sl_atmos.cwd = cwd
 
 	def set_spectrum_normalization(self, norm, norm_level):
 		self.norm = norm
@@ -2800,6 +2816,12 @@ class Atmosphere(object):
 
 		self.data = data
 		self.values = values
+
+	def create_input_files(self):
+		atmols.create_atoms_list(f"{self.cwd}/atoms.input")
+		atmols.create_molecules_list(f"{self.cwd}/molecules.input")
+		if self.line_list is not None:
+			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 	try:
