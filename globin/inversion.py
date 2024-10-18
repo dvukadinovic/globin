@@ -1201,8 +1201,8 @@ def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1):
 def _invert_Hessian(args):
 	hessian, delta, svd_tolerance = args
 	
-	Npar = delta.shape
-	one = np.ones(Npar)
+	# Npar = delta.shape
+	# one = np.ones(Npar)
 
 	# steps = np.linalg.solve(hessian, delta)
 	try:
