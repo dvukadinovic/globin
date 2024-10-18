@@ -67,6 +67,8 @@ class InputData(object):
 		# make directory for specified run with provided 'run_name'
 		if not os.path.exists(self.cwd):
 			os.mkdir(self.cwd)
+		# else:
+			# sp.run(f"rm {self.cwd}/*.input", shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 
 		# copy input files into 'run_name' directory
 		sp.run(f"cp {globin_input_name} {rh_input_name} {self.cwd}",
@@ -208,10 +210,11 @@ class InputData(object):
 			self.atmosphere.wavelength_obs = self.observation.wavelength
 
 		# add the wavelength in the continuum used to normalize synthetic spectra
-		continuum_wavelength = _find_value_by_key("continuum_wavelength", self.parameters_input, "optional", conversion=float)
-		if continuum_wavelength is not None:
-			idl = np.argmin(np.abs(self.atmosphere.wavelength_obs-continuum_wavelength/10))
-			self.atmosphere.continuum_idl = idl
+		if norm:
+			continuum_wavelength = _find_value_by_key("continuum_wavelength", self.parameters_input, "optional", conversion=float)
+			if continuum_wavelength is not None:
+				idl = np.argmin(np.abs(self.atmosphere.wavelength_obs-continuum_wavelength/10))
+				self.atmosphere.continuum_idl = idl
 
 		# compare the wavelength sampling in the observations and in the synthetic spectrum
 		if self.mode>=1:
