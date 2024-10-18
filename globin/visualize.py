@@ -82,10 +82,11 @@ def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:re
 			Nref = 1
 			reference = [reference]
 
-	if Nref<=3:
-		legend_ncols = Nref+1
-	else:
-		legend_ncols = 3
+	# if Nref<=3:
+	# 	legend_ncols = Nref+1
+	# else:
+	# 	legend_ncols = 3
+	legend_ncols = 1
 
 	if labels is None:
 		labels = ["inverted"]
@@ -234,9 +235,6 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		# for ids in range(4):
 		# 	obs[:,ids] /= Icont
 
-	if title:
-		fig.suptitle(title)
-
 	if inv is None:
 		if axes is None:
 			height = 6
@@ -300,16 +298,16 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			gs = fig.add_gridspec(nrows=2, ncols=2, wspace=0.40, hspace=0.15)
 			gsSI = gs[0,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
 			ax0_SI = fig.add_subplot(gsSI[0,0])
-			ax1_SI = fig.add_subplot((gsSI[1,0]))
+			ax1_SI = fig.add_subplot(gsSI[1,0], sharex=ax0_SI)
 			gsSQ = gs[0,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-			ax0_SQ = fig.add_subplot(gsSQ[0,0])
-			ax1_SQ = fig.add_subplot((gsSQ[1,0]))
+			ax0_SQ = fig.add_subplot(gsSQ[0,0], sharex=ax0_SI)
+			ax1_SQ = fig.add_subplot(gsSQ[1,0], sharex=ax0_SI)
 			gsSU = gs[1,0].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-			ax0_SU = fig.add_subplot(gsSU[0,0])
-			ax1_SU = fig.add_subplot((gsSU[1,0]))
+			ax0_SU = fig.add_subplot(gsSU[0,0], sharex=ax0_SI)
+			ax1_SU = fig.add_subplot(gsSU[1,0], sharex=ax0_SI)
 			gsSV = gs[1,1].subgridspec(nrows=2, ncols=1, height_ratios=[4,1], hspace=0)
-			ax0_SV = fig.add_subplot(gsSV[0,0])
-			ax1_SV = fig.add_subplot((gsSV[1,0]))
+			ax0_SV = fig.add_subplot(gsSV[0,0], sharex=ax0_SI)
+			ax1_SV = fig.add_subplot(gsSV[1,0], sharex=ax0_SI)
 		else:
 			ax0_SI, ax1_SI, ax0_SQ, ax1_SQ, ax0_SU, ax1_SU, ax0_SV, ax1_SV = axes
 
