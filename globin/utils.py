@@ -177,6 +177,8 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         obs.wavelength = wave.data[0,0] + wlref
         obs.wavelength /= 10 # [A --> nm]
 
+        spec.interpolate(obs.wavelength)
+
         return atm, spec, chi2, obs
 
     return atm, spec, chi2
