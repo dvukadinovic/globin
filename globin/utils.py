@@ -624,6 +624,17 @@ def get_kernel(vmac, wavelength, order=0):
     else:
         raise ValueError(f"Kernel order {order} not supported.")
 
+def get_vinst(fwhm, lam_ref):
+    """
+    For a given Full Width Half Maximum value and the reference wavelength
+    (both in the same unit), compute the instrumental broadening in km/s.
+    """
+    vinst = fwhm/lam_ref
+    vinst *= np.sqrt(2*np.log(2))/2
+    vinst *= globin.LIGHT_SPEED
+
+    return vinst/1e3
+
 #--- routines for smoothing out the inversion parameters 
 #    (used for SPINOR; got it from Sebas)
 def sqr(x):
