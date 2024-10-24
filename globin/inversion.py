@@ -62,8 +62,8 @@ class Inverter(InputData):
 				else:
 					max_iter = self.max_iter[cycle]
 
-				# if the cycle number is larger than the number of given max iterations
-				# take the last given number of max iterations
+				# if the cycle number is larger than the number of given Marquardt parameters
+				# take the last given number of Marquardt parameters
 				if len(self.marq_lambda)<cycle+1:
 					marq_lambda = self.marq_lambda[-1]
 				else:
@@ -85,6 +85,9 @@ class Inverter(InputData):
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
 					self.atmosphere.smooth_parameters(cycle, self.gaussian_smooth_window[cycle], self.gaussian_smooth_std[cycle])
+					# rest atomic line parameters to the initial ones
+					if self.reset_atomic_values:
+						self.read_mode_3()
 
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')
