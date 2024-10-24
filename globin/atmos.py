@@ -729,6 +729,12 @@ class Atmosphere(object):
 	def scale(self):
 		return list(globin.scale_id.keys())[self.scale_id].upper()
 
+	def _remove_local_pars(self):
+		self.nodes = {}
+		self.values = {}
+		self.n_local_pars = 0
+		self.hydrostatic = False
+
 	def is_valid(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
