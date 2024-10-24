@@ -625,14 +625,14 @@ class Spectrum(object):
 		if binning==1:
 			return
 
-		if binning<0:
-			raise ValueError("globin.spec.wavelength_rebinning :: Binning factor must be larger than 0.")
+		if binning<=0:
+			raise ValueError("Binning factor must be larger than 0.")
 
 		old_spec = np.copy(self.spec)
-		self.spec = np.empty((self.nx//2, self.ny//2, self.nw, 4), dtype=np.float64)
+		self.spec = np.empty((self.nx//binning, self.ny//binning, self.nw, 4), dtype=np.float64)
 		for idw in range(self.nw):
 			for ids in range(4):
-				self.spec[:,:,idw,ids] = congrid(old_spec[:,:,idw,ids], [self.nx//2, self.ny//2], method="linear", centre=True)
+				self.spec[:,:,idw,ids] = congrid(old_spec[:,:,idw,ids], [self.nx//binning, self.ny//binning], method="linear", centre=True)
 
 		self.shape = self.spec.shape
 		self.nx, self.ny, _, _ = self.spec.shape
