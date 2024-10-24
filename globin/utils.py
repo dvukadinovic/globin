@@ -102,7 +102,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         ncomponents = len(max_nodes)
         if ncomponents==2:
             atm2 = globin.Atmosphere(nx=atm.nx, ny=atm.ny, nz=atm.nz)
-        else:
+        if ncomponents>=3:
             raise ValueError("There is no support for 3+ component atmosphere.")
 
         nodes_info = par_header["LGTRF*"]
