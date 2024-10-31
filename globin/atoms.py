@@ -473,6 +473,10 @@ class AtomPars(object):
         self.header = {"loggf"  : None,
                        "dlam"   : None}
 
+        self.limit_values = {"loggf" : None,
+                             "dlam"  : None}
+
+        self.mode = 0
         self.nx, self.ny = None, None
         self.nl = {"loggf" : None,
                    "dlam"  : None}
@@ -491,6 +495,11 @@ class AtomPars(object):
     def read_atom_pars(self, fpath):
         hdu = fits.open(fpath)
 
+        try:
+            self.mode = hdu[0].header["MODE"]
+        except:
+            pass
+
         pars = ["loggf", "dlam"]
         hdu_ind = []
         for parameter in pars:
@@ -504,6 +513,12 @@ class AtomPars(object):
             except Exception as e:
                 print(parameter)
                 print(e)
+
+            try:
+                ind = hdu.index_of(f"MINMAX_{parameter}")
+                self.limit_values[parameter] = hdu[ind].data
+            except:
+                print(f"[Info] Did not found boundary values for {parameter}.")
 
 class PSE(object):
     def __init__(self):

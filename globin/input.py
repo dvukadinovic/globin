@@ -331,6 +331,11 @@ class InputData(object):
 							logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 
 	def read_inversion_base(self, vmac, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
+		reset_atomic_values = _find_value_by_key("reset_atomic_values", self.parameters_input, "optional", conversion=str)
+		self.reset_atomic_values = False
+		if reset_atomic_values.lower()=="true":
+			self.reset_atomic_values = True
+
 		# parameters for atmosphere interpolation between nodes
 		interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
 		interpolation_method = _find_value_by_key("interp_method", self.parameters_input, "default", "bezier", str)
@@ -578,7 +583,6 @@ class InputData(object):
 		if len(lines_to_fit)==0:
 			print("[Warning] Did not find atomic parameters to fit. You sure?\n")
 			return
-			# raise ValueError(f"'{line_pars_path}' does not contain line parameters.")
 
 		# get log(gf) parameters from line list
 		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]

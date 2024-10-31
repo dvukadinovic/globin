@@ -102,7 +102,7 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         ncomponents = len(max_nodes)
         if ncomponents==2:
             atm2 = globin.Atmosphere(nx=atm.nx, ny=atm.ny, nz=atm.nz)
-        else:
+        if ncomponents>=3:
             raise ValueError("There is no support for 3+ component atmosphere.")
 
         nodes_info = par_header["LGTRF*"]
@@ -176,6 +176,8 @@ def convert_spinor_inversion(fpath, get_obs=False, inversion=True):
         wlref = float(wave.header["WLREF"])
         obs.wavelength = wave.data[0,0] + wlref
         obs.wavelength /= 10 # [A --> nm]
+
+        spec.interpolate(obs.wavelength)
 
         return atm, spec, chi2, obs
 
@@ -621,6 +623,17 @@ def get_kernel(vmac, wavelength, order=0):
         return kernel
     else:
         raise ValueError(f"Kernel order {order} not supported.")
+
+def get_vinst(fwhm, lam_ref):
+    """
+    For a given Full Width Half Maximum value and the reference wavelength
+    (both in the same unit), compute the instrumental broadening in km/s.
+    """
+    vinst = fwhm/lam_ref
+    vinst *= np.sqrt(2*np.log(2))/2
+    vinst *= globin.LIGHT_SPEED
+
+    return vinst/1e3
 
 #--- routines for smoothing out the inversion parameters 
 #    (used for SPINOR; got it from Sebas)

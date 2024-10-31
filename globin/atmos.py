@@ -729,6 +729,12 @@ class Atmosphere(object):
 	def scale(self):
 		return list(globin.scale_id.keys())[self.scale_id].upper()
 
+	def _remove_local_pars(self):
+		self.nodes = {}
+		self.values = {}
+		self.n_local_pars = 0
+		self.hydrostatic = False
+
 	def is_valid(self):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
@@ -1485,14 +1491,13 @@ class Atmosphere(object):
 		kwargs : dict, optional
 			additional values that we want to save in header.
 		"""
-		pars = list(self.global_pars.keys())
-
 		primary = fits.PrimaryHDU()
 		hdulist = fits.HDUList([primary])
 		
-		for parameter in pars:
+		for parameter in self.global_pars:
 			if parameter=="vmac" or parameter=="stray":
 				primary.header[parameter] = self.global_pars[parameter][0]
+				primary.header["MODE"] = self.mode
 				continue
 
 			if self.mode==2:
@@ -1515,6 +1520,12 @@ class Atmosphere(object):
 			if kwargs:
 				for key in kwargs:
 					par_hdu.header[key] = kwargs[key]
+
+			hdulist.append(par_hdu)
+
+			# boundary values for each line
+			par_hdu = fits.ImageHDU(self.limit_values[parameter])
+			par_hdu.name = f"MINMAX_{parameter}"
 
 			hdulist.append(par_hdu)
 
