@@ -2159,6 +2159,7 @@ class Atmosphere(object):
 							self.global_pars[parameter][...,idp] += perturbation
 							spec_plus = self.compute_spectra(synthesize)
 							if self.sl_atmos is not None:
+								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
 								sl_plus = self.sl_atmos.compute_spectra(synthesize)
 
 							if self.rf_der_type=="central":
@@ -2166,6 +2167,7 @@ class Atmosphere(object):
 								spec_minus = self.compute_spectra(synthesize)
 								diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 								if self.sl_atmos is not None:
+									self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
 									sl_minus = self.sl_atmos.compute_spectra(synthesize)
 									sl_diff = (sl_plus.spec - sl_minus.spec) / 2 / perturbation
 							if self.rf_der_type=="forward":
@@ -2191,6 +2193,8 @@ class Atmosphere(object):
 							free_par_ID += 1
 							
 							self.global_pars[parameter][...,idp] += perturbation
+							if self.sl_atmos is not None:
+								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
 
 				else:
 					raise ValueError(f"Unsupported global parameter {parameter}")
@@ -2251,12 +2255,6 @@ class Atmosphere(object):
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
 			spec.interpolate(self.wavelength_obs, self.n_thread)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
-
-		#--- normalize spectra and RFs
-		# if self.norm:
-		# 	Ic = np.copy(spec.I[...,self.continuum_idl])
-		# 	spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
-		# 	rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
 
 		if self.norm:
 			if self.norm_level==1:
