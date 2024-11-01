@@ -333,8 +333,9 @@ class InputData(object):
 	def read_inversion_base(self, vmac, atm_range, atm_type, logtau_top, logtau_bot, logtau_step):
 		reset_atomic_values = _find_value_by_key("reset_atomic_values", self.parameters_input, "optional", conversion=str)
 		self.reset_atomic_values = False
-		if reset_atomic_values.lower()=="true":
-			self.reset_atomic_values = True
+		if reset_atomic_values is not None:
+			if reset_atomic_values.lower()=="true":
+				self.reset_atomic_values = True
 
 		# parameters for atmosphere interpolation between nodes
 		interp_degree = _find_value_by_key("interp_degree", self.parameters_input, "default", 3, int)
