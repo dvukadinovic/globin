@@ -60,6 +60,8 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	
 	if reset_backend:
 		backend.reset(nwalkers, ndim)
+	else:
+		p0 = None
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos], 
