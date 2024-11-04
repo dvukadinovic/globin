@@ -569,6 +569,11 @@ class InputData(object):
 		self.atmosphere.global_pars["dlam"][:,:] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
+		#---
+		if self.atmosphere.sl_atmos is not None:
+			self.atmosphere.sl_atmos.global_pars = copy.deepcopy(self.atmosphere.global_pars)
+			self.atmosphere.sl_atmos.line_no = self.atmosphere.line_no
+
 	def read_mode_3(self):
 		self.output_frequency = _find_value_by_key("output_frequency", self.parameters_input, "default", self.max_iter[0], int)
 		
@@ -612,6 +617,11 @@ class InputData(object):
 
 		self.atmosphere.global_pars["dlam"][0,0] = aux_values
 		self.atmosphere.line_no["dlam"][:] = aux_lineNo
+
+		#---
+		if self.atmosphere.sl_atmos is not None:
+			self.atmosphere.sl_atmos.global_pars = copy.deepcopy(self.atmosphere.global_pars)
+			self.atmosphere.sl_atmos.line_no = self.atmosphere.line_no
 
 	def read_node_parameters(self, parameter):
 		"""
