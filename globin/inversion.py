@@ -982,6 +982,7 @@ class Inverter(InputData):
 		atmos.build_from_nodes(ones)
 		if atmos.hydrostatic:
 			atmos.makeHSE(ones)
+
 		inverted_spectra = atmos.compute_spectra(ones)
 		if atmos.sl_atmos is not None:
 			sl_spec = atmos.sl_atmos.compute_spectra(ones)
@@ -1021,13 +1022,13 @@ class Inverter(InputData):
 			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread)
 
 		if atmos.norm:
-				if atmos.norm_level==1:
-					Ic = inverted_spectra.I[...,atmos.continuum_idl]
-					inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
-				elif atmos.norm_level=="hsra":
-					inverted_spectra.spec /= atmos.icont
-				else:
-					inverted_spectra.spec /= atmos.norm_level
+			if atmos.norm_level==1:
+				Ic = inverted_spectra.I[...,atmos.continuum_idl]
+				inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+			elif atmos.norm_level=="hsra":
+				inverted_spectra.spec /= atmos.icont
+			else:
+				inverted_spectra.spec /= atmos.norm_level
 
 		try:
 			# remove parameter normalization factor from Hessian
