@@ -932,38 +932,38 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 
 def get_atmosphere_range(parameters_input):
 	#--- determine which observations from cube to take into consideration
-	aux = _find_value_by_key("range", parameters_input, "default", [1,None,1,None])
-	atm_range = []
-	if type(aux)==str:
-		for item in aux.split(","):
-			if item is None or int(item)==-1:
-				atm_range.append(None)
-			elif item is not None:
-				atm_range.append(int(item))
-		if atm_range[1] is not None:
-			if atm_range[1]<atm_range[0]:
-				print("--> Error in input.read_input_files()")
-				print("    xmax smaller than xmin.")
-				sys.exit()
-		if atm_range[3] is not None:
-			if atm_range[3]<atm_range[2]:
-				print("--> Error in input.read_input_files()")
-				print("    ymax smaller than ymin.")
-				sys.exit()
-		if atm_range[0]<1:
-			print("--> Error in input.read_input_files()")
-			print("    xmin is lower than 1.")
-			sys.exit()
-		if atm_range[2]<1:
-			print("--> Error in input.read_input_files()")
-			print("    ymin is lower than 1.")
-			sys.exit()
-	else:
-		atm_range = aux
+	aux = _find_value_by_key("range", parameters_input, "default", [0,None,0,None])
 	
-	# we count from zero, but let user count from 1
-	atm_range[0] -= 1
-	atm_range[2] -= 1
+	atm_range = aux
+
+	if type(aux)==str:
+		split = aux.split(",")
+		if len(split)==1:
+			atm_range = np.loadtxt(split[0], dtype=np.int32).T
+		elif len(split)==4:
+			atm_range = []
+			for item in split:
+				if item is None or int(item)==-1:
+					atm_range.append(None)
+				elif item is not None:
+					atm_range.append(int(item))
+
+			if atm_range[1] is not None:
+				if atm_range[1]<atm_range[0]:
+					raise ValueError("'xmax' is smaller than 'xmin' in 'range'.")
+			if atm_range[3] is not None:
+				if atm_range[3]<atm_range[2]:
+					raise ValueError("'ymax' is smaller than 'ymin' in 'range'.")
+			if atm_range[0]<1:
+				raise ValueError("'xmin' in 'range' is lower than 1.")
+			if atm_range[2]<1:
+				raise ValueError("'ymin' in 'range' is lower than 1.")
+			
+			# we count from zero, but let user count from 1
+			atm_range[0] -= 1
+			atm_range[2] -= 1
+		else:
+			raise ValueError("Unsupported format of 'range'.")
 
 	return atm_range
 

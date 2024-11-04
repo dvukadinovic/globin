@@ -374,10 +374,12 @@ class Spectrum(object):
 			first_comp = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], self.spec)
 			self.spec = np.einsum("ij,ij...->ij...", flag, second_comp + first_comp)
 		if stray_type=="gray":
-			self.spec[idx,idy,:,0] = stray_factor + (1-stray_factor) * self.spec[idx,idy,:,0]
-			self.spec[idx,idy,:,1] = (1-stray_factor) * self.spec[idx,idy,:,1]
-			self.spec[idx,idy,:,2] = (1-stray_factor) * self.spec[idx,idy,:,2]
-			self.spec[idx,idy,:,3] = (1-stray_factor) * self.spec[idx,idy,:,3]
+			# self.spec[:,:,:,0] = stray_light + (1-stray_light) * self.spec[:,:,:,0]
+			self.spec[...,0] = np.einsum("ij...,ij->ij...", self.spec[...,0], 1-stray_light)
+			self.spec[...,0] += stray_light[...,np.newaxis]
+			self.spec[...,1] = np.einsum("ij...,ij->ij...", self.spec[...,1], 1-stray_light)
+			self.spec[...,2] = np.einsum("ij...,ij->ij...", self.spec[...,2], 1-stray_light)
+			self.spec[...,3] = np.einsum("ij...,ij->ij...", self.spec[...,3], 1-stray_light)
 
 	def norm(self, degree=7, roi=None):
 		# if (globin.norm) and (globin.Icont is not None):
@@ -670,10 +672,11 @@ class Observation(Spectrum):
 		super().__init__()
 		ftype = fpath.split(".")[-1]
 
-		self.xmin = obs_range[0]
-		self.xmax = obs_range[1]
-		self.ymin = obs_range[2]
-		self.ymax = obs_range[3]
+		if isinstance(obs_range, list):
+			self.xmin = obs_range[0]
+			self.xmax = obs_range[1]
+			self.ymin = obs_range[2]
+			self.ymax = obs_range[3]
 
 		if ftype=="txt" or ftype=="dat":
 			print("  Currently unsupported type of observation file.")
@@ -701,8 +704,14 @@ class Observation(Spectrum):
 		hdu = fits.open(fpath)[0]
 		self.header = hdu.header
 
-		xmin, xmax, ymin, ymax = obs_range
-		data = hdu.data[xmin:xmax,ymin:ymax]
+		# xmin, xmax, ymin, ymax = obs_range
+		# data = hdu.data[xmin:xmax,ymin:ymax]
+		if isinstance(obs_range, list):
+			xmin, xmax, ymin, ymax = obs_range
+			data = hdu.data[xmin:xmax, ymin:ymax]
+		if isinstance(obs_range, np.ndarray):
+			data = hdu.data[obs_range[0],obs_range[1]]
+			data = data[np.newaxis,:]
 
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = data[0,0,:,0]
@@ -734,7 +743,6 @@ class Observation(Spectrum):
 			raise IndexError("Wrong number of headers. Header list does not contain 3 extensions (including primary).")
 
 		self.header = hdu[0].header
-		xmin, xmax, ymin, ymax = obs_range
 
 		self.Ic = hdu[2].data
 
@@ -745,13 +753,13 @@ class Observation(Spectrum):
 		
 		# we assume that wavelength is same for every pixel in observation
 		self.wavelength = hdu[1].data/10 # [A --> nm]
-		# data = np.array(hdu[0].data[xmin:xmax,ymin:ymax], dtype=np.float64)
-		data = hdu[0].data[xmin:xmax, ymin:ymax]
 		
-		# idx, idy = 120, 52
-		# plt.plot(data[idx,idy,0]/self.icont)
-		# plt.axhline(y=hdu[2].data[idx,idy]/self.icont)
-		# plt.show()
+		if isinstance(obs_range, list):
+			xmin, xmax, ymin, ymax = obs_range
+			data = hdu[0].data[xmin:xmax, ymin:ymax]
+		if isinstance(obs_range, np.ndarray):
+			data = hdu[0].data[obs_range[0],obs_range[1]]
+			data = data[np.newaxis,:]
 		
 		nx, ny, ns, nw = data.shape
 		self.spec = np.swapaxes(data, 2, 3)
