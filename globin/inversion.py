@@ -956,7 +956,7 @@ class Inverter(InputData):
 					print("\nchi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
-					print("\nMaximum number of iteratinos reached.\n")
+					print("\nMaximum number of iterations reached.\n")
 					break_flag = True
 				else:
 					pass
