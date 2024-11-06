@@ -539,35 +539,38 @@ class InputData(object):
 			return
 
 		# read line parameters
-		lines_to_fit = read_init_line_parameters(line_pars_path)
+		if line_pars_path.split(".")[-1]=="fits":
+			self.atmosphere.load_atomic_parameters(line_pars_path)
+		else:
+			lines_to_fit = read_init_line_parameters(line_pars_path)
 
-		# get log(gf) parameters from line list
-		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
-		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
-		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
-		self.atmosphere.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-		self.atmosphere.parameter_scale["loggf"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)))
+			# get log(gf) parameters from line list
+			aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+			loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+			loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+			self.atmosphere.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+			self.atmosphere.parameter_scale["loggf"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)))
 
-		self.atmosphere.global_pars["loggf"] = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)), dtype=np.float64)
-		self.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
+			self.atmosphere.global_pars["loggf"] = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)), dtype=np.float64)
+			self.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
 
-		self.atmosphere.global_pars["loggf"][:,:] = aux_values
-		self.atmosphere.line_no["loggf"][:] = aux_lineNo
+			self.atmosphere.global_pars["loggf"][:,:] = aux_values
+			self.atmosphere.line_no["loggf"][:] = aux_lineNo
 
-		# get dlam parameters from lines list
-		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
-		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
-		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
-		self.atmosphere.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-		self.atmosphere.parameter_scale["dlam"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)))
+			# get dlam parameters from lines list
+			aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+			dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+			dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+			self.atmosphere.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+			self.atmosphere.parameter_scale["dlam"] = np.ones((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)))
 
-		self.atmosphere.global_pars["dlam"] = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)), dtype=np.float64)
-		self.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
+			self.atmosphere.global_pars["dlam"] = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(aux_values)), dtype=np.float64)
+			self.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
 
-		self.atmosphere.global_pars["dlam"][:,:] = aux_values
-		self.atmosphere.line_no["dlam"][:] = aux_lineNo
+			self.atmosphere.global_pars["dlam"][:,:] = aux_values
+			self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
 		#---
 		if self.atmosphere.sl_atmos is not None:
@@ -584,39 +587,42 @@ class InputData(object):
 			return
 
 		# if we provided line parameters for fit, read those parameters
-		lines_to_fit = read_init_line_parameters(line_pars_path)
+		if line_pars_path.split(".")[-1]=="fits":
+			self.atmosphere.load_atomic_parameters(line_pars_path)
+		else:
+			lines_to_fit = read_init_line_parameters(line_pars_path)
 
-		if len(lines_to_fit)==0:
-			print("[Warning] Did not find atomic parameters to fit. You sure?\n")
-			return
+			if len(lines_to_fit)==0:
+				print("[Warning] Did not find atomic parameters to fit. You sure?\n")
+				return
 
-		# get log(gf) parameters from line list
-		aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
-		loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
-		loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
-		self.atmosphere.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
-		self.atmosphere.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
+			# get log(gf) parameters from line list
+			aux_values = [line.loggf for line in lines_to_fit if line.loggf is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.loggf is not None]
+			loggf_min = [line.loggf_min for line in lines_to_fit if line.loggf is not None]
+			loggf_max = [line.loggf_max for line in lines_to_fit if line.loggf is not None]
+			self.atmosphere.limit_values["loggf"] = np.vstack((loggf_min, loggf_max)).T
+			self.atmosphere.parameter_scale["loggf"] = np.ones((1,1,len(aux_values)))
 
-		self.atmosphere.global_pars["loggf"] = np.zeros((1,1,len(aux_values)), dtype=np.float64)
-		self.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
+			self.atmosphere.global_pars["loggf"] = np.zeros((1,1,len(aux_values)), dtype=np.float64)
+			self.atmosphere.line_no["loggf"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
 
-		self.atmosphere.global_pars["loggf"][0,0] = aux_values
-		self.atmosphere.line_no["loggf"][:] = aux_lineNo
+			self.atmosphere.global_pars["loggf"][0,0] = aux_values
+			self.atmosphere.line_no["loggf"][:] = aux_lineNo
 
-		# get dlam parameters from lines list
-		aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
-		aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
-		dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
-		dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
-		self.atmosphere.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
-		self.atmosphere.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
+			# get dlam parameters from lines list
+			aux_values = [line.dlam for line in lines_to_fit if line.dlam is not None]
+			aux_lineNo = [line.lineNo for line in lines_to_fit if line.dlam is not None]
+			dlam_min = [line.dlam_min for line in lines_to_fit if line.dlam is not None]
+			dlam_max = [line.dlam_max for line in lines_to_fit if line.dlam is not None]
+			self.atmosphere.limit_values["dlam"] = np.vstack((dlam_min, dlam_max)).T
+			self.atmosphere.parameter_scale["dlam"] = np.ones((1,1,len(aux_values)))
 
-		self.atmosphere.global_pars["dlam"] = np.zeros((1,1,len(aux_values)), dtype=np.float64)
-		self.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
+			self.atmosphere.global_pars["dlam"] = np.zeros((1,1,len(aux_values)), dtype=np.float64)
+			self.atmosphere.line_no["dlam"] = np.zeros((len(aux_lineNo)), dtype=np.int32)
 
-		self.atmosphere.global_pars["dlam"][0,0] = aux_values
-		self.atmosphere.line_no["dlam"][:] = aux_lineNo
+			self.atmosphere.global_pars["dlam"][0,0] = aux_values
+			self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
 		#---
 		if self.atmosphere.sl_atmos is not None:
