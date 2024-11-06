@@ -991,7 +991,10 @@ class Atmosphere(object):
 
 		parameters = self.nodes
 		if params is not None:
-			parameters = [params]
+			if not isinstance(params, list):
+				parameters = [params]
+			else:
+				parameters = params
 
 		if flag==0:
 			return atmos.data[idx,idy]
@@ -1949,7 +1952,7 @@ class Atmosphere(object):
 				_idx, _idy = idx, idy
 			elif self.mode==3:
 				_idx, _idy = 0, 0
-
+			
 			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
