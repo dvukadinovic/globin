@@ -1357,14 +1357,14 @@ class Atmosphere(object):
 		primary.header.comments["NAXIS3"] = "y-axis atmospheres"
 		primary.header.comments["NAXIS4"] = "x-axis atmospheres"
 
-		primary.header["XMIN"] = f"{self.xmin+1}"
-		if self.xmax is None:
-			self.xmax = self.nx
-		primary.header["XMAX"] = f"{self.xmax}"
-		primary.header["YMIN"] = f"{self.ymin+1}"
-		if self.ymax is None:
-			self.ymax = self.ny
-		primary.header["YMAX"] = f"{self.ymax}"
+		# primary.header["XMIN"] = f"{self.xmin+1}"
+		# if self.xmax is None:
+		# 	self.xmax = self.nx
+		# primary.header["XMAX"] = f"{self.xmax}"
+		# primary.header["YMIN"] = f"{self.ymin+1}"
+		# if self.ymax is None:
+		# 	self.ymax = self.ny
+		# primary.header["YMAX"] = f"{self.ymax}"
 
 		primary.header["NX"] = self.nx
 		primary.header["NY"] = self.ny
