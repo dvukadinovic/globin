@@ -368,7 +368,9 @@ class Spectrum(object):
 			flag = np.ones((self.nx, self.ny), dtype=np.int32)
 				
 		if stray_type in ["hsra", "atmos", "spec"]:
-			self.spec[idx,idy] = stray_factor * sl_spectrum[0,0] + (1-stray_factor) * self.spec[idx,idy]
+			for idx in range(self.nx):
+				for idy in range(self.ny):
+					self.spec[idx,idy] = stray_light[idx,idy,0] * sl_spectrum[0,0] + (1-stray_light[idx,idy,0]) * self.spec[idx,idy]
 		if stray_type=="2nd_component":
 			second_comp = np.einsum("ij,ij...->ij...", stray_light[...,0], sl_spectrum)
 			first_comp = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], self.spec)
