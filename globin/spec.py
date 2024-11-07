@@ -753,13 +753,15 @@ class Observation(Spectrum):
 		
 		# we assume that wavelength is same for every pixel in observation
 		self.wavelength = hdu[1].data/10 # [A --> nm]
-		
+
 		if isinstance(obs_range, list):
 			xmin, xmax, ymin, ymax = obs_range
 			data = hdu[0].data[xmin:xmax, ymin:ymax]
-		if isinstance(obs_range, np.ndarray):
+		elif isinstance(obs_range, np.ndarray):
 			data = hdu[0].data[obs_range[0],obs_range[1]]
-			data = data[np.newaxis,:]
+			data = data[np.newaxis,...]
+		else:
+			raise ValueError("Unrecognized type of 'atm_range'.")
 		
 		nx, ny, ns, nw = data.shape
 		self.spec = np.swapaxes(data, 2, 3)

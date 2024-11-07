@@ -11,8 +11,8 @@ scales = {"temp"  : 1,			# [K]
 		  "vz"    : 1e-3,		# [km/s]
 		  "vmic"  : 1e-3,		# [km/s]
 		  "mag"   : 1,			# [G]
-		  "gamma" : 1e-2*np.pi/360,	# [rad]
-		  "chi"   : 1e-2*np.pi/360,	# [rad]
+		  "gamma" : 0.01,#1e-2*np.pi/360,	# [rad]
+		  "chi"   : 0.01,#1e-2*np.pi/360,	# [rad]
 		  "of"    : 1e-3,		# 
 		  "stray" : 1e-3,		#
 		  "vmac"  : 1e-3,		# [km/s]
@@ -27,7 +27,7 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		obs.sl_spec = atmos.sl_atmos.compute_spectra()
 
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
-	atmos.limit_values["chi"] = globin.atmos.MinMax(0,1)
+	atmos.limit_values["chi"] = globin.atmos.MinMax(-1,1)
 
 	if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
 		atmos.get_hsra_cont()
@@ -183,7 +183,11 @@ def lnlike(obs, atmos):
 	# if atmos.values["vmic"][0,0,0]>0.5:
 	# plt.plot(obs.I[0,0])
 	# plt.plot(spec.I[0,0])
-	# # 	plt.plot(diff[0,0,:,0])
+	# # # 	plt.plot(diff[0,0,:,0])
+	# plt.show()
+
+	# plt.plot(obs.V[0,0])
+	# plt.plot(spec.V[0,0])
 	# plt.show()
 
 	diff = obs.spec - spec.spec
@@ -241,7 +245,8 @@ def log_prob(theta, obs, atmos):
 	# compute the azimuth from the sin^2(chi)
 	if not atmos.skip_local_pars:
 		if "chi" in atmos.nodes:
-			proposal = np.arcsin(np.sqrt(atmos.values["chi"]))
+			# proposal = np.arcsin(np.sqrt(atmos.values["chi"]))
+			proposal = np.arcsin(atmos.values["chi"])
 			atmos.values["chi"][:,:,:] = proposal
 		
 		# compute the inclination from the cos(gamma)
@@ -343,7 +348,7 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 				if parameter=="gamma":
 					proposal = np.cos(proposal)
 				if parameter=="chi":
-					proposal = np.sin(proposal) * np.sin(proposal)
+					proposal = np.sin(proposal)#* np.sin(proposal)
 				p0[:, low:up] = proposal
 
 	# get global parameters

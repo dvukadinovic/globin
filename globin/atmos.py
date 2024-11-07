@@ -252,10 +252,10 @@ class Atmosphere(object):
 		self.instrumental_profile = None
 
 		# slices dimension from inputed cube
-		self.xmin = atm_range[0]
-		self.xmax = atm_range[1]
-		self.ymin = atm_range[2]
-		self.ymax = atm_range[3]
+		# self.xmin = atm_range[0]
+		# self.xmax = atm_range[1]
+		# self.ymin = atm_range[2]
+		# self.ymax = atm_range[3]
 
 		# atmosphere dimensions
 		self.nx = nx
@@ -550,9 +550,13 @@ class Atmosphere(object):
 		"""
 		hdu_list = fits.open(fpath)
 
-		xmin, xmax, ymin, ymax = atm_range
-
-		data = hdu_list[0].data[xmin:xmax, ymin:ymax]
+		if isinstance(atm_range, list):
+			xmin, xmax, ymin, ymax = atm_range
+			data = hdu_list[0].data[xmin:xmax, ymin:ymax]
+		elif isinstance(atm_range, np.ndarray):
+			data = hdu_list[0].data[atm_range[0],atm_range[1]][np.newaxis,...]
+		else:
+			raise ValueError("Unrecognized type of 'atm_range'.")
 		
 		self.data = data.astype(np.float64, order="C", copy=True) # because of the pyrh module
 		self.nx, self.ny, self.npar, self.nz = self.data.shape
@@ -597,7 +601,10 @@ class Atmosphere(object):
 		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "of", "stray", "sl_temp", "sl_vz", "sl_vmic"]:
 			try:
 				ind = hdu_list.index_of(parameter)
-				data = hdu_list[ind].data[xmin:xmax, ymin:ymax, :]
+				if isinstance(atm_range, list):
+					data = hdu_list[ind].data[xmin:xmax, ymin:ymax, :]
+				if isinstance(atm_range, np.ndarray):
+					data = hdu_list[ind].data[atm_range[0], atm_range[1]][np.newaxis,...]
 				nx, ny, nnodes = data.shape
 
 				self.nodes[parameter] = np.zeros(nnodes)
@@ -991,7 +998,10 @@ class Atmosphere(object):
 
 		parameters = self.nodes
 		if params is not None:
-			parameters = [params]
+			if not isinstance(params, list):
+				parameters = [params]
+			else:
+				parameters = params
 
 		if flag==0:
 			return atmos.data[idx,idy]
