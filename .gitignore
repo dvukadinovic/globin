@@ -6,3 +6,4 @@ vispec/__pycache__/
 comments
 *.so
 tests/*/runs/*
+examples/
