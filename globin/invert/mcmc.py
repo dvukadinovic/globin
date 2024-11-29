@@ -2,6 +2,7 @@ import numpy as np
 import emcee
 from astropy.io import fits
 import matplotlib.pyplot as plt
+from time import time
 
 import globin
 from globin.inversion import Inverter
@@ -19,12 +20,14 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
-def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
-	if atmos.sl_atmos is not None:
-		obs.sl_spec = atmos.sl_atmos.compute_spectra()
+	# if atmos.sl_atmos is not None:
+	# 	# start = time()
+	# 	obs.sl_spec = atmos.sl_atmos.compute_spectra(pool=pool)
+	# 	# print(time() - start)
 
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
 	atmos.limit_values["chi"] = globin.atmos.MinMax(-1,1)
@@ -60,13 +63,11 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	
 	if reset_backend:
 		backend.reset(nwalkers, ndim)
-	else:
-		p0 = None
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
-		args=[obs, atmos], 
+		args=[obs, atmos, None if sequential else pool], 
 		moves=move, 
-		pool=pool,
+		pool=pool if sequential else None,
 		backend=backend)
 
 	old_tau = np.inf
@@ -85,37 +86,6 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		if converged:
 			break
 		old_tau = tau
-	
-	burnin = 0
-	thin = 1
-	chains = sampler.get_chain(discard=burnin, flat=True, thin=thin)
-	log_prob0 = sampler.get_log_prob(discard=burnin, flat=True, thin=thin)
-	log_prob0[np.isinf(log_prob0)] = np.nan
-	ind_max = np.nanargmax(log_prob0)
-	theta_best = chains[ind_max]
-
-	#--- update parameters
-	up = 0
-	if not atmos.skip_local_pars:
-		for parameter in atmos.nodes:
-			nnodes = len(atmos.nodes[parameter])
-			low = up
-			up += Natmos*nnodes
-			atmos.values[parameter][:,:,:] = theta_best[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
-
-	for parameter in atmos.global_pars:
-		npars = atmos.global_pars[parameter].shape[-1]
-		if npars>0 and not atmos.skip_global_pars:
-			low = up
-			up += npars
-			if parameter in ["loggf", "dlam"]:
-				atmos.global_pars[parameter][0,0] = theta_best[low:up]
-			if parameter=="stray":
-				atmos.global_pars[parameter] = theta_best[low:up]
-
-	spec = sequential_synthesize(obs, atmos)
-
-	return atmos, spec
 
 def lnprior(local_pars, global_pars, limits):
 	"""
@@ -155,39 +125,40 @@ def lnprior(local_pars, global_pars, limits):
 					return -np.inf
 			else:
 				Npar = global_pars[parameter].shape[-1]
+				limit = limits[parameter]
 				if Npar>0:
 					for idl in range(Npar):
+						# if limits[parameter].ndim==2:
+						# 	limit = limits[parameter][idl]
 						#--- check lower boundary condition
-						indx, indy = np.where(global_pars[parameter][...,idl]<limits[parameter][idl,0])
+
+						indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
 						if len(indx)>0:
 							return -np.inf
 
 						#--- check upper boundary condition
-						indx, indy = np.where(global_pars[parameter][...,idl]>limits[parameter][idl,1])
+						indx, indy = np.where(global_pars[parameter][...,idl]>limit[1])
 						if len(indx)>0:
 							return -np.inf					
 
 	return 0.0
 
-def lnlike(obs, atmos):
-	if not atmos.skip_local_pars:
-		params = list(atmos.nodes.keys())
-		for idx in range(atmos.nx):
-			for idy in range(atmos.ny):
-				args = atmos, 1, idx, idy, params
-				result = atmos._build_from_nodes(args)
-				atmos.data[idx,idy] = result
+def lnlike(obs, atmos, pool):
+	if pool is None:
+		if not atmos.skip_local_pars:
+			params = list(atmos.nodes.keys())
+			for idx in range(atmos.nx):
+				for idy in range(atmos.ny):
+					args = atmos, 1, idx, idy, params
+					result = atmos._build_from_nodes(args)
+					atmos.data[idx,idy] = result
 
-	spec = sequential_synthesize(obs, atmos)
+		spec = sequential_synthesize(obs, atmos)
+	else:
+		spec = mpi_synthesize(obs, atmos, pool)
 
-	# if atmos.values["vmic"][0,0,0]>0.5:
 	# plt.plot(obs.I[0,0])
 	# plt.plot(spec.I[0,0])
-	# # # 	plt.plot(diff[0,0,:,0])
-	# plt.show()
-
-	# plt.plot(obs.V[0,0])
-	# plt.plot(spec.V[0,0])
 	# plt.show()
 
 	diff = obs.spec - spec.spec
@@ -199,7 +170,7 @@ def lnlike(obs, atmos):
 
 	return chi2 * (-0.5)
 
-def log_prob(theta, obs, atmos):
+def log_prob(theta, obs, atmos, pool):
 	"""
 	Compute product of prior and likelihood.
 
@@ -223,6 +194,8 @@ def log_prob(theta, obs, atmos):
 			up += npars
 			if parameter in ["loggf", "dlam"]:
 				atmos.global_pars[parameter][0,0] = theta[low:up]
+				if atmos.sl_atmos is not None:
+					atmos.sl_atmos.global_pars[parameter][0,0] = theta[low:up]
 			if parameter=="stray":
 				atmos.global_pars[parameter] = theta[low:up]
 
@@ -254,7 +227,7 @@ def log_prob(theta, obs, atmos):
 			proposal = np.arccos(atmos.values["gamma"])
 			atmos.values["gamma"][:,:,:] = proposal
 
-	return lp + lnlike(obs, atmos)
+	return lp + lnlike(obs, atmos, pool)
 
 def sequential_synthesize(obs, atmos):
 	# compute spectra
@@ -313,6 +286,57 @@ def sequential_synthesize(obs, atmos):
 
 	return spec
 
+def mpi_synthesize(obs, atmos, pool):
+	atmos.build_from_nodes(pool=pool)
+	
+	spec = atmos.compute_spectra(pool=pool)
+	if atmos.sl_atmos is not None:
+		sl_spec = atmos.sl_atmos.compute_spectra(pool=pool)
+
+	spec.broaden_spectra(atmos.vmac, pool=pool)
+	if atmos.sl_atmos is not None:
+		sl_spec.broaden_spectra(atmos.vmac, pool=pool)
+
+	#--- add instrument broadening (if applicable)
+	if atmos.instrumental_profile is not None:
+		spec.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
+		if atmos.sl_atmos is not None:
+			sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
+
+	#--- add the stray light component:
+	if atmos.add_stray_light:
+		# get the stray light factor(s)
+		if "stray" in atmos.global_pars:
+			stray_light = atmos.global_pars["stray"]
+			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
+		elif "stray" in atmos.values:
+			stray_light = atmos.values["stray"]
+		else:
+			stray_light = atmos.stray_light
+
+		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+		sl_spectrum = None
+		if atmos.stray_type=="hsra":
+			sl_spectrum = atmos.hsra_spec.spec
+		if atmos.stray_type=="2nd_component":
+			sl_spectrum = sl_spec.spec
+		if atmos.stray_type in ["atmos", "spec"]:
+			sl_spectrum = atmos.stray_light_spectrum.spec
+
+		spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
+
+	#--- norm spectra
+	if atmos.norm:
+		if atmos.norm_level==1:
+			Ic = spec.I[...,atmos.continuum_idl]
+			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+		elif atmos.norm_level=="hsra":
+			spec.spec /= atmos.icont
+		else:
+			spec.spec /= atmos.norm_level
+
+	return spec
+
 def initialize_walker_states(nwalkers, ndim, atmos):
 	#--- get parameter vector
 	p0 = np.empty((nwalkers, ndim))
@@ -357,10 +381,11 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 		if npars>0 and not atmos.skip_global_pars:
 			low = up
 			up += npars
-			p0[:, low:up] = RNG.normal(
-								loc=atmos.global_pars[parameter].ravel(),
+			proposal = RNG.normal(
+								loc=atmos.global_pars[parameter][0,0].ravel(order="C"),
 								scale=scales[parameter],
 								size=(nwalkers,npars))
+			p0[:, low:up] = proposal
 
 	return p0
 

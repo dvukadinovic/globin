@@ -319,7 +319,7 @@ class Atmosphere(object):
 							 "of"    : [0, 20],												#
 							 "stray" : MinMax(1e-3, 0.99),						#
 							 "vmac"  : [1e-3, 5],												# [km/s]
-							 "loggf" : [-10,2],												#
+							 "loggf" : [-10,4],												#
 							 "dlam"  : [-50,50],					# [mA]
 							 "sl_temp"  : MinMax(3000, 10000), # [K]
 							 "sl_vz"    : MinMax(-10, 10),								# [km/s]
@@ -883,7 +883,7 @@ class Atmosphere(object):
 
 		return new
 
-	def build_from_nodes(self, flag=None, params=None):
+	def build_from_nodes(self, flag=None, params=None, pool=None):
 		"""
 		Construct the atmosphere from node values for given parameters.
 
@@ -952,8 +952,11 @@ class Atmosphere(object):
 		params = [params]*(self.nx*self.ny)
 		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid, params)
 
-		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+		if pool is None:
+			with mp.Pool(self.n_thread) as pool:
+				results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+		else:
+			results = pool.map(self._build_from_nodes, args)
 
 		results = np.array(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
