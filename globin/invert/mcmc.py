@@ -50,8 +50,6 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	
 	obs.Ndof = np.count_nonzero(obs.weights)*obs.nw*Natmos - ndim
 
-	p0 = initialize_walker_states(nwalkers, ndim, atmos)
-
 	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
 	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
@@ -63,6 +61,9 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	
 	if reset_backend:
 		backend.reset(nwalkers, ndim)
+		p0 = initialize_walker_states(nwalkers, ndim, atmos)
+	else:
+		p0 = backend.get_last_sample()
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos, None if sequential else pool], 
