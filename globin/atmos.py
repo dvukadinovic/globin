@@ -1087,7 +1087,7 @@ class Atmosphere(object):
 
 		return atmos.data[idx,idy]
 
-	def makeHSE(self, flag=None):
+	def makeHSE(self, flag=None, pool=None):
 		"""
 		For given atmosphere structure (logtau and temperature) compute electron
 		and hydrogen populations assuming hydrostatic equilibrium, LTE and ideal
@@ -1109,8 +1109,11 @@ class Atmosphere(object):
 		# obtain new Pg and use it as initial value for the HSE at the top
 		self.get_pg()
 
-		with mp.Pool(self.n_thread) as pool:
-			results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+		if pool is None:
+			with mp.Pool(self.n_thread) as pool:
+				results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+		else:
+			results = pool.map(self._makeHSE, args)
 
 		results = np.array(results)
 
@@ -1119,7 +1122,7 @@ class Atmosphere(object):
 
 		# solve HSE also for the 2nd atmospheric model
 		if self.sl_atmos is not None:
-			self.sl_atmos.makeHSE(flag)
+			self.sl_atmos.makeHSE(flag, pool=pool)
 
 		# self.data[indx,indy,2] = results[:,0,:]
 		# self.data[indx,indy,8:] = results[:,1:7,:]
@@ -2002,7 +2005,7 @@ class Atmosphere(object):
 
 		return np.vstack((sI, sQ, sU, sV))
 
-	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
 		Compute response functions for atmospheric parameters at given nodes and
 		specified global parameters (atomic line, vmac, stray light).
@@ -2017,12 +2020,12 @@ class Atmosphere(object):
 
 		old_rf : ndarray
 		"""
-		self.build_from_nodes(synthesize)
+		self.build_from_nodes(synthesize, pool=pool)
 		if self.hydrostatic:
-			self.makeHSE(synthesize)
-		spec = self.compute_spectra(synthesize)
+			self.makeHSE(synthesize, pool=pool)
+		spec = self.compute_spectra(synthesize, pool=pool)
 		if self.sl_atmos is not None:
-			sl_spec = self.sl_atmos.compute_spectra(synthesize)
+			sl_spec = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 
 		Nw = len(self.wavelength_air)
 
@@ -2062,12 +2065,12 @@ class Atmosphere(object):
 				if parameter=="of":
 					self.make_OF_table()
 				else:
-					self.build_from_nodes(synthesize, params=parameter)
+					self.build_from_nodes(synthesize, params=parameter, pool=pool)
 
 				if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
-					spectra_plus = self.sl_atmos.compute_spectra(synthesize)
+					spectra_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 				elif parameter!="stray":
-					spectra_plus = self.compute_spectra(synthesize)
+					spectra_plus = self.compute_spectra(synthesize, pool=pool)
 
 				#--- negative perturbation (except for inclination and azimuth)
 				if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
@@ -2088,12 +2091,12 @@ class Atmosphere(object):
 					if parameter=="of":	
 						self.make_OF_table()
 					else:
-						self.build_from_nodes(synthesize, params=parameter)
+						self.build_from_nodes(synthesize, params=parameter, pool=pool)
 
 					if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
-						spectra_minus = self.sl_atmos.compute_spectra(synthesize)
+						spectra_minus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 					else:
-						spectra_minus = self.compute_spectra(synthesize)
+						spectra_minus = self.compute_spectra(synthesize, pool=pool)
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
@@ -2117,7 +2120,7 @@ class Atmosphere(object):
 						self.values[parameter][:,:,nodeID] -= perturbation
 					else:
 						self.values[parameter][:,:,nodeID] += perturbation
-					self.build_from_nodes(synthesize, params=parameter)
+					self.build_from_nodes(synthesize, params=parameter, pool=pool)
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -2181,18 +2184,18 @@ class Atmosphere(object):
 
 						for idp in range(self.line_no[parameter].size):
 							self.global_pars[parameter][...,idp] += perturbation
-							spec_plus = self.compute_spectra(synthesize)
+							spec_plus = self.compute_spectra(synthesize, pool=pool)
 							if self.sl_atmos is not None:
 								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
-								sl_plus = self.sl_atmos.compute_spectra(synthesize)
+								sl_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 
 							if self.rf_der_type=="central":
 								self.global_pars[parameter][...,idp] -= 2*perturbation
-								spec_minus = self.compute_spectra(synthesize)
+								spec_minus = self.compute_spectra(synthesize, pool=pool)
 								diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 								if self.sl_atmos is not None:
 									self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
-									sl_minus = self.sl_atmos.compute_spectra(synthesize)
+									sl_minus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 									sl_diff = (sl_plus.spec - sl_minus.spec) / 2 / perturbation
 							if self.rf_der_type=="forward":
 								diff = (spec_plus.spec - spec.spec) / perturbation
@@ -2225,19 +2228,19 @@ class Atmosphere(object):
 
 		#--- broaden the spectra
 		if not mean:
-			spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
+			spec.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
 			if self.sl_atmos is not None:
-				sl_spec.broaden_spectra(self.vmac, synthesize, self.n_thread)
+				sl_spec.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
-				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread)
+				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread, pool=pool)
 		
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
-			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
+			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
 			if self.sl_atmos is not None:
-				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread)
-			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread)
+				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
+			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread, pool=pool)
 
 		#--- add the stray light component:
 		if self.add_stray_light:
@@ -2277,8 +2280,8 @@ class Atmosphere(object):
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			spec.interpolate(self.wavelength_obs, self.n_thread)
-			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread)
+			spec.interpolate(self.wavelength_obs, self.n_thread, pool=pool)
+			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread, pool=pool)
 
 		if self.norm:
 			if self.norm_level==1:
@@ -2845,7 +2848,7 @@ class Atmosphere(object):
 		if self.line_list is not None:
 			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
 
-def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
+def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
 	try:
 		full = False
 		nx, ny, npar, nw, ns = rf.shape
@@ -2879,8 +2882,11 @@ def broaden_rfs(rf, kernel, flag, skip_par, n_thread):
 		_flag = np.repeat(_flag, npar*nz)
 		args = zip(_rf, [kernel]*nx*ny*npar*nz, _flag)
 
-	with mp.Pool(n_thread) as pool:
-		results = pool.map(func=_broaden_rfs, iterable=args)
+	if pool is None:
+		with mp.Pool(n_thread) as pool:
+			results = pool.map(func=_broaden_rfs, iterable=args)
+	else:
+		results = pool.map(_broaden_rfs, args)
 
 	results = np.array(results)
 	if not full:
@@ -2916,15 +2922,18 @@ def _compute_vmac_RF(args):
 
 	return spec
 
-def interpolate_rf(rf_in, wave_in, wave_out, n_thread):
+def interpolate_rf(rf_in, wave_in, wave_out, n_thread, pool=None):
 	nx, ny, npar, nw, ns = rf_in.shape
 
 	_rf = rf_in.reshape(nx*ny, npar, nw, ns)
 
 	args = zip(_rf, [wave_in]*(nx*ny), [wave_out]*(nx*ny))
 
-	with mp.Pool(n_thread) as pool:
-		results = pool.map(func=_interpolate_rf, iterable=args)
+	if pool is None:
+		with mp.Pool(n_thread) as pool:
+			results = pool.map(func=_interpolate_rf, iterable=args)
+	else:
+		results = pool.map(_interpolate_rf, args)
 
 	results = np.array(results)
 	rf_out = results.reshape(nx, ny, npar, len(wave_out), ns)

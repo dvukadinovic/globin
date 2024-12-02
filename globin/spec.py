@@ -545,7 +545,7 @@ class Spectrum(object):
 		spec[indx,indy] = self.spec
 		self.spec = spec
 
-	def interpolate(self, wave_out, n_thread=1, fill_value="extrapolate"):
+	def interpolate(self, wave_out, n_thread=1, fill_value="extrapolate", pool=None):
 		"""
 		Interpolate the spectrum on given 'wave_out' wavelength grid.
 		"""
@@ -557,8 +557,11 @@ class Spectrum(object):
 
 		args = zip(_spec, [wave_out]*(self.nx*self.ny), [fill_value]*(self.nx*self.ny))
 
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=self._interpolate, iterable=args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=self._interpolate, iterable=args)
+		else:
+			results = pool.map(self._interpolate, args)
 
 		results = np.array(results)
 		self.nw = len(wave_out)
