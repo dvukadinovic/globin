@@ -1112,6 +1112,7 @@ class Atmosphere(object):
 		if pool is None:
 			with mp.Pool(self.n_thread) as pool:
 				results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+			pool = None
 		else:
 			results = pool.map(self._makeHSE, args)
 
