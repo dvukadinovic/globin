@@ -21,7 +21,6 @@ scales = {"temp"  : 1,			# [K]
 		  "dlam"  : 0.1}		#
 
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
-
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
 
 	# if atmos.sl_atmos is not None:
@@ -81,11 +80,11 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f}")
 
 		# check convergence
-		converged = np.all(tau * 100 < sampler.iteration)
-		converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-		if converged:
-			break
-		old_tau = tau
+		# converged = np.all(tau * 100 < sampler.iteration)
+		# converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+		# if converged:
+		# 	break
+		# old_tau = tau
 
 def lnprior(local_pars, global_pars, limits):
 	"""
@@ -128,8 +127,8 @@ def lnprior(local_pars, global_pars, limits):
 				limit = limits[parameter]
 				if Npar>0:
 					for idl in range(Npar):
-						# if limits[parameter].ndim==2:
-						# 	limit = limits[parameter][idl]
+						if limits[parameter].ndim==2:
+							limit = limits[parameter][idl]
 						#--- check lower boundary condition
 
 						indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
@@ -153,7 +152,7 @@ def lnlike(obs, atmos, pool):
 					result = atmos._build_from_nodes(args)
 					atmos.data[idx,idy] = result
 
-		spec = sequential_synthesize(obs, atmos)
+		spec = sequential_synthesize(atmos)
 	else:
 		spec = mpi_synthesize(obs, atmos, pool)
 
@@ -229,11 +228,15 @@ def log_prob(theta, obs, atmos, pool):
 
 	return lp + lnlike(obs, atmos, pool)
 
-def sequential_synthesize(obs, atmos):
+def sequential_synthesize(atmos):
 	# compute spectra
 	nw = len(atmos.wavelength_vacuum)
 	spec = globin.spec.Spectrum(nx=atmos.nx, ny=atmos.ny, nw=nw)
 	spec.wavelength = atmos.wavelength_air
+
+	if atmos.sl_atmos is not None:
+		sl_spec = globin.spec.Spectrum(nx=atmos.nx, ny=atmos.ny, nw=nw)
+		sl_spec.wavelength = atmos.wavelength_air
 
 	if atmos.vmac!=0:
 		kernel = spec.get_kernel(atmos.vmac, order=0)
@@ -241,11 +244,19 @@ def sequential_synthesize(obs, atmos):
 	for idx in range(atmos.nx):
 		for idy in range(atmos.ny):
 			stokes_vector = atmos._compute_spectra_sequential((idx,idy)).T
+			if atmos.sl_atmos is not None:
+				_sl_spec = atmos._compute_spectra_sequential((idx,idy)).T
 			if atmos.vmac!=0:	
 				stokes_vector = globin.spec._broaden_spectra((stokes_vector, kernel))
+				if atmos.sl_atmos is not None:
+					_sl_spec = globin.spec._broaden_spectra((_sl_spec, kernel))
 			if atmos.instrumental_profile is not None:
 				stokes_vector = globin.spec._broaden_spectra((stokes_vector, atmos.instrumental_profile))
+				if atmos.sl_atmos is not None:
+					_sl_spec = globin.spec._broaden_spectra((_sl_spec, atmos.instrumental_profile))
 			spec.spec[idx,idy] = stokes_vector
+			if atmos.sl_atmos is not None:
+				sl_spec.spec[idx,idy] = _sl_spec
 
 	if atmos.add_stray_light:
 		# get the stray light factor(s)
@@ -262,7 +273,7 @@ def sequential_synthesize(obs, atmos):
 		if atmos.stray_type=="hsra":
 			sl_spectrum = atmos.hsra_spec.spec
 		if atmos.stray_type=="2nd_component":
-			sl_spectrum = obs.sl_spec.spec
+			sl_spectrum = sl_spec.spec
 		if atmos.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmos.stray_light_spectrum.spec
 
