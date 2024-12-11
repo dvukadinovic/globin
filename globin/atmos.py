@@ -2643,7 +2643,7 @@ class Atmosphere(object):
 		aux = interp1d(wave, profile, kind=3, fill_value=0)(xnew)
 		profile = aux/np.sum(aux)
 
-		self.atmosphere.instrumental_profile = profile
+		self.instrumental_profile = profile
 
 	def set_stray_light_parameters(self, sl_data):
 		if sl_data is None:
