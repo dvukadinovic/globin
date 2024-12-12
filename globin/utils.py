@@ -690,7 +690,7 @@ def mysmooth(a, num):
     # standard deviation of this patch
     return rv, sd
     
-def azismooth(tmp,num):
+def azismooth(tmp, num):
     """
     Smoothing out the azimuth. Must be taken care separately 
     because of the ambiguity and switches between pixels.

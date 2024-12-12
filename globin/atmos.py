@@ -1638,8 +1638,10 @@ class Atmosphere(object):
 			# 	self.values[parameter] = np.arccos(y)
 			# # azimuth is wrapped around [-90, 90] interval
 			# elif parameter=="chi":
-			# 	y = np.sin(self.values[parameter])
-			# 	self.values[parameter] = np.arcsin(y)
+			# 	# y = np.sin(self.values[parameter])
+			# 	# self.values[parameter] = np.arcsin(y)
+			# 	y = np.where(self.values[parameter]<0, self.values[parameter]+360, self.values[parameter])
+			# 	self.values[parameter] = y%180
 			# else:
 			for idn in range(len(self.nodes[parameter])-1, -1, -1):
 				# check lower boundary condition
