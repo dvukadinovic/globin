@@ -296,8 +296,10 @@ class Inverter(InputData):
 					self.spec_debug[0] = spec.spec
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength)
+				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
 				# globin.show()
+
+				# raise ValueError()
 
 				# copy old spectra into new ones for the new itteration
 				if total!=atmos.nx*atmos.ny:
@@ -710,7 +712,8 @@ class Inverter(InputData):
 					# Gamma *= np.sqrt(reg_weight)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]])
-				# plt.show()
+				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength, center_wavelength_grid=False)
+				# globin.show()
 
 				if self.debug:
 					self.rf_debug[:,:,itter] = atmos.rf
@@ -1199,6 +1202,9 @@ def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 
 	steps = np.zeros((nx, ny, Npar))
 
+	if np.isnan(results).any():
+		raise ValueError("Found NaN values in the Hessian matrix. Could not invert the Hessian matrix.")
+
 	results = np.array(results)
 	natm, npar = results.shape
 	steps[indx, indy] = results.reshape(natm, npar)
@@ -1208,29 +1214,15 @@ def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 def _invert_Hessian(args):
 	hessian, delta, svd_tolerance = args
 	
-	# Npar = delta.shape
-	# one = np.ones(Npar)
-
-	# steps = np.linalg.solve(hessian, delta)
 	try:
 		invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
 	except:
-		print(hessian)
-		print("----")
-		sys.exit()
+		# print(hessian)
+		# print("----")
+		# raise ValueError()
+		return np.ones(hessian.shape[0])*np.nan
 
 	steps = np.dot(invH, delta)
-
-	# det = np.linalg.det(hessian)
-	# if det==0:
-	# u, eigen_vals, vh = np.linalg.svd(hessian, full_matrices=True, hermitian=True)
-	# vmax = svd_tolerance*np.max(eigen_vals)
-	# inv_eigen_vals = np.divide(one, eigen_vals, out=np.zeros_like(eigen_vals), where=eigen_vals>vmax)
-	# Gamma_inv = np.diag(inv_eigen_vals)
-	# invHess = np.dot(u, np.dot(Gamma_inv, vh))
-	# steps = np.dot(invHess, delta)
-	# else:
-	# 	steps = np.linalg.solve(hessian, delta)
 
 	return steps
 
