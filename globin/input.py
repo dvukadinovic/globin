@@ -221,7 +221,7 @@ class InputData(object):
 			dlam_obs = self.observation.wavelength[1:] - self.observation.wavelength[:-1]
 			dlam_synth = wavelength_air[1:] - wavelength_air[:-1]
 			if np.mean(dlam_obs)<np.mean(dlam_synth):
-				raise ValueError("Requested wavelength sampling is smaller than the observed one. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
+				raise ValueError(f"Requested wavelength sampling {np.mean(dlam_synth):.4f} is smaller than the observed one {np.mean(dlam_obs):.4f}. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
 
 		# if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
