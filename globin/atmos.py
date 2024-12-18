@@ -2750,6 +2750,7 @@ class Atmosphere(object):
 		
 		self.sl_atmos.set_mu(self.mu)
 		self.sl_atmos.set_n_thread(self.n_thread)
+		self.sl_atmos.set_cwd(self.cwd)
 
 		try:
 			self.sl_atmos.set_mode(self.mode)
