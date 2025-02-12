@@ -221,10 +221,10 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 	dlam = (lmax - lam0) * 10
 	lmin *= 10
 	lmax *= 10
-	if not center_wavelength_grid:
-		lam0 = 0
-	else:
+	if center_wavelength_grid:
 		lmin, lmax = -dlam, dlam
+	else:
+		lam0 = 0
 
 	fact = 1
 	if norm:
@@ -328,7 +328,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			ax0_SI.plot((wavelength - lam0)*10, inv[idn][:,0], color=colors[(idn)%Ncolors], lw=1, label=labels[idn+1])
 		ax0_SI.set_ylabel(r"Stokes $I$")
 		ax0_SI.set_xlim([lmin, lmax])
-		ax0_SI.set_xticklabels([])
+		# ax0_SI.set_xticklabels([])
 
 		# plot legend
 		if set_labels:
@@ -356,7 +356,7 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			ax0_SQ.plot((wavelength - lam0)*10, inv[idn][:,1]*100, color=colors[(idn)%Ncolors], lw=1)
 		ax0_SQ.set_ylabel(r"Stokes $Q/I_c$ [\%]")
 		ax0_SQ.set_xlim([lmin, lmax])
-		ax0_SQ.set_xticklabels([])
+		# ax0_SQ.set_xticklabels([])
 
 		ax1_SQ.plot([lmin, lmax], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):
@@ -372,15 +372,15 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			ax0_SU.plot((wavelength - lam0)*10, inv[idn][:,2]*100, color=colors[(idn)%Ncolors], lw=1)
 		ax0_SU.set_ylabel(r"Stokes $U/I_c$ [\%]")
 		ax0_SU.set_xlim([lmin, lmax])
-		ax0_SU.set_xticklabels([])
+		# ax0_SU.set_xticklabels([])
 
 		ax1_SU.plot([lmin, lmax], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):
 			difference = obs[:,2] - inv[idn][:,2]
 			ax1_SU.plot((wavelength - lam0)*10, difference*100, color=colors[(idn)%Ncolors], lw=1)
-		ax1_SU.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
-		if not center_wavelength_grid:
-			ax1_SU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		ax1_SU.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		if center_wavelength_grid:
+			ax1_SU.set_xlabel(fr"${lam0*10:.3f} + \Delta \lambda$ [$\mathrm{{\AA}}$]")
 		ax1_SU.set_ylabel(r"$\Delta U$")
 		ax1_SU.set_xlim([lmin, lmax])
 		ax1_SU.minorticks_off()
@@ -391,15 +391,15 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 			ax0_SV.plot((wavelength - lam0)*10, inv[idn][:,3]*100, color=colors[(idn)%Ncolors], lw=1)
 		ax0_SV.set_ylabel(r"Stokes $V/I_c$ [\%]")
 		ax0_SV.set_xlim([lmin, lmax])
-		ax0_SV.set_xticklabels([])
+		# ax0_SV.set_xticklabels([])
 
 		ax1_SV.plot([lmin, lmax], [0,0], color="k", lw=0.5)
 		for idn in range(Ninv):	
 			difference = obs[:,3] - inv[idn][:,3]
 			ax1_SV.plot((wavelength - lam0)*10, difference*100, color=colors[(idn)%Ncolors], lw=1)
-		ax1_SV.set_xlabel(r"$\Delta \lambda$ [$\mathrm{\AA}$]")
-		if not center_wavelength_grid:
-			ax1_SV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		ax1_SV.set_xlabel(r"$\lambda$ [$\mathrm{\AA}$]")
+		if center_wavelength_grid:
+			ax1_SV.set_xlabel(fr"${lam0*10:.3f} + \Delta \lambda$ [$\mathrm{{\AA}}$]")
 		ax1_SV.set_ylabel(r"$\Delta V$")
 		ax1_SV.set_xlim([lmin, lmax])
 		ax1_SV.minorticks_off()
