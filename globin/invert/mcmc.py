@@ -16,6 +16,8 @@ scales = {"temp"  : 1,			# [K]
 		  "chi"   : 0.01,#1e-2*np.pi/360,	# [rad]
 		  "of"    : 1e-3,		# 
 		  "stray" : 1e-3,		#
+		  "sl_vz" : 1e-3,       # [km/s]
+		  "sl_vmic": 1e-3,      # [km/s]
 		  "vmac"  : 1e-3,		# [km/s]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
@@ -156,8 +158,8 @@ def lnlike(obs, atmos, pool):
 	else:
 		spec = mpi_synthesize(obs, atmos, pool)
 
-	# plt.plot(obs.I[0,0])
-	# plt.plot(spec.I[0,0])
+	# plt.plot(obs.wavelength, obs.I[0,0])
+	# plt.plot(spec.wavelength, spec.I[0,0])
 	# plt.show()
 
 	diff = obs.spec - spec.spec
