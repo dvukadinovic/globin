@@ -1807,8 +1807,15 @@ class Atmosphere(object):
 
 			self.global_pars[parameter] = atoms.data[parameter]
 			self.line_no[parameter] = atoms.data[f"{parameter}IDs"]
+			self.parameter_scale[parameter] = np.ones((1, 1, self.global_pars[parameter].shape[-1]))
 			if atoms.limit_values[parameter] is not None:
 				self.limit_values[parameter] = atoms.limit_values[parameter]
+
+			if self.sl_atmos is not None:
+				self.sl_atmos.global_pars[parameter] = self.global_pars[parameter]
+				self.sl_atmos.line_no[parameter] = self.line_no[parameter]
+				self.sl_atmos.parameter_scale[parameter] = self.parameter_scale[parameter]
+				self.sl_atmos.limit_values[parameter] = self.limit_values[parameter]
 
 	def load_errors(self, local_pars=None, global_pars=None):
 		local_errors = np.load(local_pars)
