@@ -39,7 +39,7 @@ class Line(object):
                     gLlow=None, gLup=None, Jlow=None, Jup=None,
                     Grad=None,
                     config_low=None, config_up=None,
-                    swap=None):
+                    swap=False):
         self.lineNo = lineNo
         self.lam0 = lam0 # [1/nm]
         self.loggf = loggf
@@ -66,10 +66,9 @@ class Line(object):
         self.gLlow = gLlow
         self.gLup = gLup
 
-        self.swapped = False
+        self.swapped = swap
         if swap:
             self._swap()
-            self.swapped = True
 
         if (self.config_low is not None) and (self.config_up is not None):
             self.get_LS_numbers()
@@ -87,9 +86,7 @@ class Line(object):
         self.config_low, self.config_up = self.config_up, self.config_low
 
     def get_effective_Lande(self):
-        self.gLeff = -99
-        if self.LS_line:
-            self.gLeff = 0.5*(self.gLup+self.gLlow) + 0.25*(self.gLup-self.gLlow) * (self.Jup*(self.Jup+1.0) - self.Jlow*(self.Jlow+1.0))
+        self.gLeff = 0.5*(self.gLup + self.gLlow) + 0.25*(self.gLup - self.gLlow) * (self.Jup*(self.Jup + 1.0) - self.Jlow*(self.Jlow + 1.0))
 
         return self.gLeff
 
@@ -207,7 +204,7 @@ def read_RLK_lines(fpath):
     
     RLK_lines = []
 
-    for i_, line in enumerate(text_lines):
+    for idl, line in enumerate(text_lines):
         # ignore blank lines in Kurucz line list file
         # if len(line)<160:
         #     continue
@@ -217,10 +214,10 @@ def read_RLK_lines(fpath):
         decimal, integer = np.modf(aux)
         ion = int(integer)
         state = round(decimal*100)
-        elow = float(line[23:35])*0.00012 # [1/cm --> eV]
-        eup = float(line[51:63])*0.00012 # [1/cm --> eV]
-        gLlow = float(line[144:149]) / 1e3
-        gLup = float(line[150:155]) / 1e3
+        elow = float(line[23:35])/ 8065.544 # [1/cm --> eV]
+        eup = float(line[51:63])/ 8065.544 # [1/cm --> eV]
+        gLlow = float(line[143:148]) / 1e3
+        gLup = float(line[149:154]) / 1e3
         Jlow = float(line[35:40])
         Jup = float(line[63:68])
         Grad = float(line[81:86])
@@ -231,22 +228,14 @@ def read_RLK_lines(fpath):
         if elow>eup:
             swap = True
 
-        RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
+        RLK_lines.append(Line(lineNo=idl+1, lam0=lam0, loggf=loggf, 
                               ion=ion, state=state,
                               elow=elow, eup=eup,
-                              gLlow=gLup, gLup=gLlow, 
-                              Jlow=Jup, Jup=Jlow,
+                              gLlow=gLlow, gLup=gLup,
+                              Jlow=Jlow, Jup=Jup,
                               Grad=Grad,
                               config_low=config_low, config_up=config_up,
-                              swap=True))
-        # else:
-        #     RLK_lines.append(Line(lineNo=i_+1, lam0=lam0, loggf=loggf, 
-        #                           ion=ion, state=state,
-        #                           e1=e1, e2=e2,
-        #                           gLlow=gLlow, gLup=gLup,
-        #                           Jlow=Jlow, Jup=Jup,
-        #                           Grad=Grad,
-        #                           swap=False))
+                              swap=swap))
 
     return text_lines, RLK_lines
 
