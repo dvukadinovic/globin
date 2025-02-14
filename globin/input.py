@@ -878,7 +878,8 @@ def load_2nd_component_parameters(parameter, input_text):
 		if ".fits" in value:
 			value = fits.open(value)[0].data
 		else:
-				value = float(value)
+			value = float(value)
+
 	fit_flag = _find_value_by_key(f"{parameter}_fit", input_text, "optional", "false", str)
 	if fit_flag is not None:
 		if fit_flag.lower()=="true":

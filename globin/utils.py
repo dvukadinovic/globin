@@ -236,7 +236,7 @@ def pretty_print_parameters(atmos, flag):
 
     if atmos.mode>=2:
         for parameter in atmos.global_pars:
-            if parameter=="vmac" or parameter=="stray":
+            if parameter=="vmac" or parameter=="stray" or ("sl_" in parameter):
                 print(parameter)
                 print(atmos.global_pars[parameter])
             else:
