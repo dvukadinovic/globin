@@ -2290,8 +2290,9 @@ class Atmosphere(object):
 							rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 
 							if self.sl_atmos is not None:
-								sl_diff = np.repeat(sl_diff, self.nx, axis=0)
-								sl_diff = np.repeat(sl_diff, self.ny, axis=1)
+								if self.stray_mode==3:
+									sl_diff = np.repeat(sl_diff, self.nx, axis=0)
+									sl_diff = np.repeat(sl_diff, self.ny, axis=1)
 								sl_diff *= weights
 								sl_diff /= rf_noise_scale
 								sl_diff *= np.sqrt(2)
