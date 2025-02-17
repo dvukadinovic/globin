@@ -2263,7 +2263,10 @@ class Atmosphere(object):
 							spec_plus = self.compute_spectra(synthesize, pool=pool)
 							if self.sl_atmos is not None:
 								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
-								sl_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
+								flag = synthesize
+								if self.stray_mode==3:
+									flag = None
+								sl_plus = self.sl_atmos.compute_spectra(flag, pool=pool)
 
 							if self.rf_der_type=="central":
 								self.global_pars[parameter][...,idp] -= 2*perturbation
@@ -2271,7 +2274,10 @@ class Atmosphere(object):
 								diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 								if self.sl_atmos is not None:
 									self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
-									sl_minus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
+									flag = synthesize
+									if self.stray_mode==3:
+										flag = None
+									sl_minus = self.sl_atmos.compute_spectra(flag, pool=pool)
 									sl_diff = (sl_plus.spec - sl_minus.spec) / 2 / perturbation
 							if self.rf_der_type=="forward":
 								diff = (spec_plus.spec - spec.spec) / perturbation
@@ -2284,6 +2290,8 @@ class Atmosphere(object):
 							rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 
 							if self.sl_atmos is not None:
+								sl_diff = np.repeat(sl_diff, self.nx, axis=0)
+								sl_diff = np.repeat(sl_diff, self.ny, axis=1)
 								sl_diff *= weights
 								sl_diff /= rf_noise_scale
 								sl_diff *= np.sqrt(2)
