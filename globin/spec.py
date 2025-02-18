@@ -610,6 +610,38 @@ class Spectrum(object):
 
 		return new_spec
 
+	def concatenate(self, spectrum):
+		"""
+		Concatenate two spectra in the spectral dimension.
+
+		The self one is assumed to be lower in wavelengths.
+		"""
+
+		assert self.nx==spectrum.nx
+		assert self.ny==spectrum.ny
+
+		new_spec = Spectrum(nx=self.nx, ny=self.ny, nw=self.nw+spectrum.nw)
+
+		# if self.wavelength[-1]>spectrum.wavelength[0]:
+		# 	raise ValueError("Cannot concatenate spectra. There is overlap in wavelengths.")
+
+		# if self.wavelength[0]<spectrum.wavelength[-1]:
+		# 	raise ValueError("Cannot concatenate spectra. There is overlap in wavelengths.")
+
+		new_spec.wavelength[:self.nw] = self.wavelength
+		new_spec.wavelength[self.nw:] = spectrum.wavelength
+
+		new_spec.spec[:,:,:self.nw] = self.spec
+		new_spec.spec[:,:,self.nw:] = spectrum.spec
+
+		try:
+			new_spec.Ic = self.Ic
+			new_spec.Icont = self.Icont
+		except:
+			pass
+
+		return new_spec
+
 	def wavelength_rebinning(self, binning):
 		if binning==1:
 			return
