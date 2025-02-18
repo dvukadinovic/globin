@@ -831,19 +831,28 @@ class Inverter(InputData):
 
 			corrected_spec = atmos.compute_spectra(ones, pool=pool)
 			if atmos.sl_atmos is not None:
-				sl_spec = atmos.sl_atmos.compute_spectra(ones, pool=pool)
+				flag = ones
+				if atmos.stray_mode==3:
+					flag = None
+				sl_spec = atmos.sl_atmos.compute_spectra(flag, pool=pool)
 
 			# broaden the corrected spectra by macro velocity
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
 				if atmos.sl_atmos is not None:
-					sl_spec.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
+					flag = ones
+					if atmos.stray_mode==3:
+						flag = None
+					sl_spec.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
 			
 			# convolve profiles with instrumental profile
 			if atmos.instrumental_profile is not None:
 				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
 				if atmos.sl_atmos is not None:
-					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
+					flag = ones
+					if atmos.stray_mode==3:
+						flag = None
+					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 
 			# add the stray light component:
 			if atmos.add_stray_light:
@@ -862,6 +871,9 @@ class Inverter(InputData):
 					sl_spectrum = atmos.hsra_spec.spec
 				if atmos.stray_type=="2nd_component":
 					sl_spectrum = sl_spec.spec
+					if atmos.stray_mode==3:
+						sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
+						sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
@@ -988,17 +1000,26 @@ class Inverter(InputData):
 
 		inverted_spectra = atmos.compute_spectra(ones, pool=pool)
 		if atmos.sl_atmos is not None:
-			sl_spec = atmos.sl_atmos.compute_spectra(ones, pool=pool)
+			flag = ones
+			if atmos.stray_mode==3:
+				flag = None
+			sl_spec = atmos.sl_atmos.compute_spectra(flag, pool=pool)
 		
 		if not self.mean:
 			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
 			if atmos.sl_atmos is not None:
-				sl_spec.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
+				flag = ones
+				if atmos.stray_mode==3:
+					flag = None
+				sl_spec.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
 	
 		if atmos.instrumental_profile is not None:
 			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
 			if atmos.sl_atmos is not None:
-				sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
+				flag = ones
+				if atmos.stray_mode==3:
+					flag = None
+				sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 
 		if atmos.add_stray_light:
 			# get the stray light factor(s)
@@ -1016,6 +1037,9 @@ class Inverter(InputData):
 				sl_spectrum = atmos.hsra_spec.spec
 			if atmos.stray_type=="2nd_component":
 				sl_spectrum = sl_spec.spec
+				if atmos.stray_mode==3:
+					sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
+					sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
@@ -1396,7 +1420,7 @@ def normalize_hessian(H, atmos, mode):
 		# get the global (atomic) parameters scale values
 		start = Natmos*Nlocalpar
 		for parameter in atmos.global_pars:
-			if parameter=="vmac":
+			if (parameter=="vmac") or (parameter=="stray") or ("sl_" in parameter):
 				atmos.parameter_scale[parameter] = scales[start]
 				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
 				start += 1
@@ -1412,10 +1436,10 @@ def normalize_hessian(H, atmos, mode):
 				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
 
 				start += N
-			if parameter=="stray":
-				atmos.parameter_scale[parameter] = scales[start]
-				atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
-				start += 1
+			# if parameter=="stray":
+			# 	atmos.parameter_scale[parameter] = scales[start]
+			# 	atmos.parameter_scale[parameter] *= atmos.parameter_norm[parameter]
+			# 	start += 1
 
 		# create the sparse matrix of scales for each parameter combination for every atmosphere
 		l, u = 0, 0
@@ -1442,10 +1466,7 @@ def normalize_hessian(H, atmos, mode):
 				if N==0:
 					continue
 
-			if parameter=="vmac":
-				N = 1
-
-			if parameter=="stray":
+			if (parameter=="vmac") or (parameter=="stray") or ("sl_" in parameter):
 				N = 1
 
 			for idl in range(N):

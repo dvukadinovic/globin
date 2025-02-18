@@ -582,7 +582,14 @@ class Atmosphere(object):
 			pass
 
 		if self.stray_mode==3:
-			self.global_pars["stray"] = np.asarray([self.header["STRAY"]])
+			# self.global_pars["stray"] = np.asarray([self.header["STRAY"]])
+			for parameter in ["stray", "sl_temp", "sl_vz", "sl_vmic"]:
+				try:
+					self.global_pars[parameter] = np.asarray([self.header[parameter]])
+					if parameter=="sl_temp":
+						self.hydrostatic = True
+				except:
+					pass
 		
 		try:
 			self.scale_id = globin.scale_id[self.header["SCALE"].lower()]
@@ -644,11 +651,15 @@ class Atmosphere(object):
 				self.sl_atmos.nodes["sl_vmic"] = self.nodes["sl_vmic"]
 				self.sl_atmos.values["sl_vmic"] = self.values["sl_vmic"]
 				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
+		except:
+			pass
+
+		if self.sl_atmos is not None:
+			for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+					self.build_from_nodes(params=parameter)
 
 			if self.sl_atmos.hydrostatic:
 				self.sl_atmos.makeHSE()
-		except:
-			pass
 
 		#--- get the number of local parameters
 		self.n_local_pars = 0
@@ -929,17 +940,29 @@ class Atmosphere(object):
 		"""
 		# interpolate atmosphere which is used as the stray light source (2nd component)
 		if self.sl_atmos is not None:
-			for parameter in self.sl_atmos.nodes:
+			if self.stray_mode in [1,2]:
+				sl_parameters = list(self.sl_atmos.nodes.keys())
+				sl_values = self.values
+			if self.stray_mode==3:
+				sl_parameters = list(self.sl_atmos.global_pars.keys())
+				sl_values = self.global_pars
+				# sl_parameters = [par for par in sl_parameters if "sl_" in par]
+
+			for parameter in sl_parameters:
 				# skip non-fit parameters; we already assigned them on the setup
-				if parameter not in self.nodes:
+				if self.stray_mode in [1,2]:	
+					if parameter not in self.nodes:
+						continue
+
+				if parameter in ["loggf", "dlam", "stray"]:
 					continue
 
 				if parameter=="sl_temp":
-					delta = self.values[parameter] - globin.T0_HSRA
+					delta = sl_values[parameter] - globin.T0_HSRA
 					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
 					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = HSRA_temp + delta
 				else:
-					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = self.values[parameter]
+					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = sl_values[parameter]
 
 			# stop futher call if we only needed to build the parameter of the 2nd component atmosphere
 			if params in ["sl_temp", "sl_vz", "sl_vmic"]:
@@ -1123,6 +1146,8 @@ class Atmosphere(object):
 
 		# solve HSE also for the 2nd atmospheric model
 		if self.sl_atmos is not None:
+			if self.stray_mode==3:
+				flag = None
 			self.sl_atmos.makeHSE(flag, pool=pool)
 
 		# self.data[indx,indy,2] = results[:,0,:]
@@ -1426,6 +1451,12 @@ class Atmosphere(object):
 			primary.header["VMAC"] = ("{:5.3f}".format(self.vmac), "macro-turbulen velocity [km/s]")
 			primary.header["VMAC_FIT"] = ("False", "flag for fitting macro velocity")
 
+		for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+			if parameter not in self.global_pars:
+				continue
+
+			primary.header[parameter.upper()] = self.global_pars[parameter][0]
+
 		# add keys from kwargs (as dict)
 		if kwargs:
 			for key in kwargs:
@@ -1512,7 +1543,7 @@ class Atmosphere(object):
 		hdulist = fits.HDUList([primary])
 		
 		for parameter in self.global_pars:
-			if parameter=="vmac" or parameter=="stray":
+			if (parameter=="vmac") or (parameter=="stray") or ("sl_" in parameter):
 				primary.header[parameter] = self.global_pars[parameter][0]
 				primary.header["MODE"] = self.mode
 				continue
@@ -1606,7 +1637,7 @@ class Atmosphere(object):
 			global_pars = proposed_steps[NparLocal*Natmos:]
 			low_ind, up_ind = 0, 0
 			for parameter in self.global_pars:
-				if parameter=="vmac" or parameter=="stray":
+				if (parameter=="vmac") or (parameter=="stray") or ("sl_" in parameter):
 					low_ind = up_ind
 					up_ind += 1
 					step = global_pars[low_ind:up_ind] / self.parameter_scale[parameter]
@@ -1664,7 +1695,7 @@ class Atmosphere(object):
 					self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
-			if parameter=="vmac":
+			if (parameter=="vmac"):
 				# minimum check
 				if self.global_pars[parameter]<self.limit_values[parameter][0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][0]], dtype=np.float64)
@@ -1672,17 +1703,16 @@ class Atmosphere(object):
 				if self.global_pars[parameter]>self.limit_values[parameter][1]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter][1]], dtype=np.float64)
 				# get back values into the atmosphere structure
-				# if parameter=="vmac":
 				self.vmac = self.global_pars["vmac"]
-			elif parameter=="stray":
+			elif (parameter=="stray") or ("sl_" in parameter):
 				if self.global_pars[parameter]<self.limit_values[parameter].min[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].min[0]], dtype=np.float64)
 				# maximum check
 				if self.global_pars[parameter]>self.limit_values[parameter].max[0]:
 					self.global_pars[parameter] = np.array([self.limit_values[parameter].max[0]], dtype=np.float64)
 				# get back values into the atmosphere structure
-				# if parameter=="stray":
-				self.stray_light = self.global_pars["stray"]
+				if parameter=="stray":
+					self.stray_light = self.global_pars["stray"]
 			else:
 				Npar = self.line_no[parameter].size
 				if Npar > 0:
@@ -1807,8 +1837,15 @@ class Atmosphere(object):
 
 			self.global_pars[parameter] = atoms.data[parameter]
 			self.line_no[parameter] = atoms.data[f"{parameter}IDs"]
+			self.parameter_scale[parameter] = np.ones((1, 1, self.global_pars[parameter].shape[-1]))
 			if atoms.limit_values[parameter] is not None:
 				self.limit_values[parameter] = atoms.limit_values[parameter]
+
+			if self.sl_atmos is not None:
+				self.sl_atmos.global_pars[parameter] = self.global_pars[parameter]
+				self.sl_atmos.line_no[parameter] = self.line_no[parameter]
+				self.sl_atmos.parameter_scale[parameter] = self.parameter_scale[parameter]
+				self.sl_atmos.limit_values[parameter] = self.limit_values[parameter]
 
 	def load_errors(self, local_pars=None, global_pars=None):
 		local_errors = np.load(local_pars)
@@ -2030,7 +2067,10 @@ class Atmosphere(object):
 			self.makeHSE(synthesize, pool=pool)
 		spec = self.compute_spectra(synthesize, pool=pool)
 		if self.sl_atmos is not None:
-			sl_spec = self.sl_atmos.compute_spectra(synthesize, pool=pool)
+			flag = synthesize
+			if self.stray_mode==3:
+				flag = None
+			sl_spec = self.sl_atmos.compute_spectra(flag, pool=pool)
 
 		Nw = len(self.wavelength_air)
 
@@ -2175,6 +2215,37 @@ class Atmosphere(object):
 					rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 					free_par_ID += 1
 
+				elif parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
+					free_par_ID_sl_pars.append(free_par_ID)
+
+					perturbation = self.delta[parameter]
+					
+					self.global_pars[parameter] += perturbation
+					self.build_from_nodes(params=parameter, pool=pool)
+					spec_plus = self.sl_atmos.compute_spectra(synthesize=None, pool=pool)
+
+					if self.rf_der_type=="central":
+						self.global_pars[parameter] -= 2*perturbation
+						self.build_from_nodes(params=parameter, pool=pool)
+						spec_minus = self.sl_atmos.compute_spectra(synthesize=None, pool=pool)
+						diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
+					if self.rf_der_type=="forward":
+						diff = (spec_plus.spec - sl_spec.spec) / perturbation
+
+					diff = np.repeat(diff, self.nx, axis=0)
+					diff = np.repeat(diff, self.ny, axis=1)
+					diff *= weights
+					diff /= rf_noise_scale
+					diff *= np.sqrt(2)
+					rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
+					free_par_ID += 1
+
+					if self.rf_der_type=="central":
+						self.global_pars[parameter] += perturbation
+					if self.rf_der_type=="forward":
+						self.global_pars[parameter] -= perturbation
+					self.build_from_nodes(flag=synthesize, params=parameter, pool=pool)
+
 				elif parameter=="loggf" or parameter=="dlam":
 					if self.line_no[parameter].size > 0:
 						perturbation = self.delta[parameter]
@@ -2192,7 +2263,10 @@ class Atmosphere(object):
 							spec_plus = self.compute_spectra(synthesize, pool=pool)
 							if self.sl_atmos is not None:
 								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
-								sl_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
+								flag = synthesize
+								if self.stray_mode==3:
+									flag = None
+								sl_plus = self.sl_atmos.compute_spectra(flag, pool=pool)
 
 							if self.rf_der_type=="central":
 								self.global_pars[parameter][...,idp] -= 2*perturbation
@@ -2200,7 +2274,10 @@ class Atmosphere(object):
 								diff = (spec_plus.spec - spec_minus.spec) / 2 / perturbation
 								if self.sl_atmos is not None:
 									self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
-									sl_minus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
+									flag = synthesize
+									if self.stray_mode==3:
+										flag = None
+									sl_minus = self.sl_atmos.compute_spectra(flag, pool=pool)
 									sl_diff = (sl_plus.spec - sl_minus.spec) / 2 / perturbation
 							if self.rf_der_type=="forward":
 								diff = (spec_plus.spec - spec.spec) / perturbation
@@ -2213,6 +2290,9 @@ class Atmosphere(object):
 							rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
 
 							if self.sl_atmos is not None:
+								if self.stray_mode==3:
+									sl_diff = np.repeat(sl_diff, self.nx, axis=0)
+									sl_diff = np.repeat(sl_diff, self.ny, axis=1)
 								sl_diff *= weights
 								sl_diff /= rf_noise_scale
 								sl_diff *= np.sqrt(2)
@@ -2235,7 +2315,10 @@ class Atmosphere(object):
 		if not mean:
 			spec.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
 			if self.sl_atmos is not None:
-				sl_spec.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
+				flag = synthesize
+				if self.stray_mode==3:
+					flag = None
+				sl_spec.broaden_spectra(self.vmac, flag, self.n_thread, pool=pool)
 			if self.vmac!=0:
 				kernel = spec.get_kernel(self.vmac, order=0)
 				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread, pool=pool)
@@ -2244,7 +2327,10 @@ class Atmosphere(object):
 		if self.instrumental_profile is not None:
 			spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
 			if self.sl_atmos is not None:
-				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
+				flag = synthesize
+				if self.stray_mode==3:
+					flag = None
+				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread, pool=pool)
 
 		#--- add the stray light component:
@@ -2264,6 +2350,9 @@ class Atmosphere(object):
 				sl_spectrum = self.hsra_spec.spec
 			if self.stray_type=="2nd_component":
 				sl_spectrum = sl_spec.spec
+				if self.stray_mode==3:
+					sl_spectrum = np.repeat(sl_spectrum, self.nx, axis=0)
+					sl_spectrum = np.repeat(sl_spectrum, self.ny, axis=1)
 			if self.stray_type in ["atmos", "spec"]:
 				sl_spectrum = self.stray_light_spectrum.spec
 
@@ -2704,14 +2793,20 @@ class Atmosphere(object):
 		if value is None:
 			return
 
-		ones = np.ones((self.nx, self.ny, 1))
-		
 		if fit_it:
-			self.nodes[parameter] = np.array([0])
-			self.values[parameter] = ones * value
-			self.parameter_scale[parameter] = ones.copy()
-			self.mask[parameter] = np.ones(1)
-			self.n_local_pars += 1
+			if self.stray_mode in [1,2]:
+				self.nodes[parameter] = np.array([0])
+				self.values[parameter] = np.ones((self.nx, self.ny, 1)) * value
+				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, 1))
+				self.mask[parameter] = np.ones(1)
+				self.n_local_pars += 1
+				self.sl_atmos.nodes[parameter] = np.array([0])
+			if self.stray_mode==3:
+				self.global_pars[parameter] = np.array([value], dtype=np.float64)
+				self.sl_atmos.global_pars[parameter] = np.array([value], dtype=np.float64)
+				self.parameter_scale[parameter] = 1.0
+				self.n_global_pars += 1
+
 			if parameter=="sl_temp":
 				self.hydrostatic = True
 				self.sl_atmos.hydrostatic = True
@@ -2724,7 +2819,6 @@ class Atmosphere(object):
 				self.limit_values[parameter].vmax = [vmax]
 				self.limit_values[parameter].vmax_dim = 1
 
-		self.sl_atmos.nodes[parameter] = np.array([0])
 		if parameter=="sl_temp":
 			delta = value - globin.T0_HSRA
 			HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
@@ -2737,8 +2831,15 @@ class Atmosphere(object):
 			self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = value
 
 	def init_2nd_component(self):
-		self.sl_atmos = globin.Atmosphere(nx=self.nx, 
-										 ny=self.ny,
+		if self.stray_mode in [1,2]:
+			nx = self.nx
+			ny = self.ny
+		if self.stray_mode==3:
+			nx = 1
+			ny = 1
+
+		self.sl_atmos = globin.Atmosphere(nx=nx, 
+										 ny=ny,
 										 nz=self.nz,
 										 logtau_bot=self.logtau_bot,
 										 logtau_top=self.logtau_top,

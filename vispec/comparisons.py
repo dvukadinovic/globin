@@ -5,6 +5,7 @@ from scipy.optimize import curve_fit
 from scipy.stats import pearsonr
 
 from .tools import add_colorbar
+from .tools import MidpointNormalizeFair
 
 alphabet = list(map(chr, range(97, 123)))
 
@@ -19,16 +20,28 @@ cmaps = {"temp"  : "plasma",
          "sl_vz" : "bwr_r",
          "sl_vmic" : "plasma"}
 
-parameter_relay = {"temp"  : "Temperature [K]",
-                   "vz"    : "LOS velocity [km/s]",
-                   "vmic"  : "Micro-turbulent velocity [km/s]",
-                   "mag"   : "Magnetic field [G]",
-                   "gamma" : r"Inclination [$^\circ$]",
-                   "chi"   : r"Azimuth [$^\circ$]",
-                   "stray" : "stray light factor",
-                   "sl_temp" : "2nd Temperature [K]",
-                   "sl_vz" : "2nd LOS velocity [km/s]",
-                   "sl_vmic" : "2nd Micro-turbulent velocity [km/s]"}
+parameter_relay_text = {"temp"  : "Temperature [K]",
+                        "vz"    : "LOS velocity [km/s]",
+                        "vmic"  : "Micro-turbulent velocity [km/s]",
+                        "mag"   : "Magnetic field [G]",
+                        "gamma" : r"Inclination [$^\circ$]",
+                        "chi"   : r"Azimuth [$^\circ$]",
+                        "stray" : "stray light factor",
+                        "sl_temp" : "2nd Temperature [K]",
+                        "sl_vz" : "2nd LOS velocity [km/s]",
+                        "sl_vmic" : "2nd Micro-turbulent velocity [km/s]"}
+
+parameter_relay_symbols = {"temp"    : r"$T [\mathrm{K}]$",
+                           "vz"      : r"$v_\mathrm{LOS} [\mathrm{km/s}]$",
+                           "vmic"    : r"$v_\mathrm{mic} [\mathrm{km/s}]$",
+                           "mag"     : r"$B [\mathrm{G}]$",
+                           "gamma"   : r"$\gamma [^\circ]$",
+                           "chi"     : r"$\phi   [^\circ]$",
+                           "stray"   : r"$\alpha$",
+                           "sl_temp" : r"$T^{s} [\mathrm{K}]$",
+                           "sl_vz"   : r"$v_\mathrm{LOS}^s [\mathrm{km/s}]$",
+                           "sl_vmic" : r"$v_\mathrm{vmic}^s [\mathrm{km/s}]$"
+                           }
 
 bands = {"temp"  : [100, 200],
          "vz"    : [0.2, 0.5],
@@ -50,7 +63,9 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
         n2 = len(atm2.nodes[parameter])
         nrows = max([nrows, n1, n2])
         _parameters.append(parameter)
-    
+   
+    parameter_relay = parameter_relay_symbols
+
     ncols = len(_parameters)
     width, height = 3, 2 + 2/3
     fig = plt.figure(figsize=(width*ncols, height*nrows))
@@ -149,8 +164,15 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], contrast=3, fontsize=15, aspect=4/3, grid=False, show_errors=False):
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], boundaries={}, contrast=3, fontsize=15, parameters_titles="text", wspace=0.3, aspect=4/3, grid=False, show_errors=False, show_axis_ticks=True):
     mpl.rcParams.update({"font.size" : fontsize})
+
+    if parameters_titles=="text":
+        parameter_relay = parameter_relay_text
+    elif parameters_titles=="symbols":
+        parameter_relay = parameter_relay_symbols
+    else:
+        raise ValueError(f"Unrecognized title for parameters '{parameters_titles}'. Only 'text' and 'symbols' are supported.")
 
     N = 1
     n2 = 0
@@ -169,8 +191,9 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     ncols = len(_parameters)
     height = 3
     width = height*aspect
+    width, height = mpl.figure.figaspect(aspect)
     fig = plt.figure(figsize=(N*width*ncols, height*nrows))
-    gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=0.5, hspace=0.1)
+    gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=wspace, hspace=0.1)
 
     for idc in range(ncols):
         parameter = _parameters[idc]
@@ -191,15 +214,18 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             std = np.nanstd(x)
             vmin = mean - contrast*std
             vmax = mean + contrast*std
+            norm = None
             if parameter=="mag":
                 if vmin<10:
                     vmin = 9
-            if parameter=="vmic":
+            if parameter in ["vmic", "sl_vmic"]:
                 if vmin<1e-3:
                     vmin = 1e-3
             if parameter in ["vz", "sl_vz"]:
                 vmax = np.max([np.abs(vmin), np.abs(vmax)])
                 vmin = -vmax
+                # norm = MidpointNormalizeFair(vmin=vmin, vmax=vmax, midpoint=0)
+                # vmin, vmax = None, None
             if show_errors:
                 vmin = 0
 
@@ -207,16 +233,22 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 ax.set_title(labels[0], fontsize="large")
 
             # label for color bars
-            cblabel_1 = r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
-            if atm2 is not None:
-                cblabel_2 = cblabel_1
-                cblabel_1 = None
+            # cblabel_1 = r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
+            # if atm2 is not None:
+            #     cblabel_2 = cblabel_1
+            #     cblabel_1 = None
 
-            im = ax.imshow(x.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
-            if idc==(ncols-1):
-                add_colorbar(fig, ax, im, label=cblabel_1)
-            else:
-                add_colorbar(fig, ax, im)
+            if parameter in boundaries:
+                vmin = boundaries[parameter][0]
+                vmax = boundaries[parameter][1]
+
+            im = ax.imshow(x.T, origin="lower", vmin=vmin, vmax=vmax, norm=norm, cmap=cmaps[parameter])
+            add_colorbar(fig, ax, im)
+            if nnodes>1:
+                ax.set_ylabel(r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr]))
+            # if idc==(ncols-1):
+            #     add_colorbar(fig, ax, im, label=cblabel_1)
+            # else:
 
             # if idr+1!=nnodes:
             #     ax.set_xticklabels([])
@@ -236,11 +268,11 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
 
                 if idr==0:
                     ax2.set_title(labels[1], fontsize="large")
-                im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, cmap=cmaps[parameter])
-                if idc==(ncols-1):
-                    add_colorbar(fig, ax2, im, label=cblabel_2)
-                else:
-                    add_colorbar(fig, ax2, im)
+                im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, norm=norm, cmap=cmaps[parameter])
+                add_colorbar(fig, ax2, im)
+                # if idc==(ncols-1):
+                #     add_colorbar(fig, ax2, im, label=cblabel_2)
+                # else:
                 
                 # if idr+1!=nnodes:
                 #     ax2.set_xticklabels([])
@@ -251,17 +283,24 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 # ax2.set_yticks([])
                 # ax2.set_yticklabels([])
 
+                if not show_axis_ticks:
+                    ax2.set_xticks([])
+                    ax2.set_xticklabels([])
+                    ax2.set_yticks([])
+                    ax2.set_yticklabels([])
+
             if grid:
                 ax.grid(which="major", axis="both", lw=0.75, color="gray")
                 ax2.grid(which="major", axis="both", lw=0.75, color="gray")
 
-            # ax.set_xticks([])
-            # ax.set_xticklabels([])
-            # ax.set_yticks([])
-            # ax.set_yticklabels([])
-
+            if not show_axis_ticks:
+                ax.set_xticks([])
+                ax.set_xticklabels([])
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+                
         # add parameter wise titles (spanning N columns)
-        y0 = 0.91
+        y0 = 0.91 if nrows>1 else 0.95
         x0 = (ax.get_position().x1 + ax.get_position().x0)/2
         if N==2:
             x0 = (ax2.get_position().x1 + ax.get_position().x0)/2

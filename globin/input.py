@@ -462,9 +462,12 @@ class InputData(object):
 		if vmac<0:
 			# check if initial macro veclocity is larger than the step size in wavelength
 			vmac = np.abs(vmac)
-			kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
+			# kernel_sigma = vmac*1e3 / globin.LIGHT_SPEED * (self.lmin + self.lmax)*0.5 / self.step
+			kernel_sigma = globin.utils.get_kernel_sigma(vmac, self.observation.wavelength)
 			if kernel_sigma<0.5:
-				vmac = 0.5 * globin.LIGHT_SPEED / ((self.lmin + self.lmax)*0.5) * self.step
+				mean_wavelength = (self.observation.wavelength[0] + self.observation.wavelength[-1])/2
+				step = self.observation.wavelength[1] - self.observation.wavelength[0]
+				vmac = 0.5 * globin.LIGHT_SPEED / (mean_wavelength) * step
 				vmac /= 1e3
 				self.limit_values["vmac"][0] = vmac
 
@@ -875,7 +878,8 @@ def load_2nd_component_parameters(parameter, input_text):
 		if ".fits" in value:
 			value = fits.open(value)[0].data
 		else:
-				value = float(value)
+			value = float(value)
+
 	fit_flag = _find_value_by_key(f"{parameter}_fit", input_text, "optional", "false", str)
 	if fit_flag is not None:
 		if fit_flag.lower()=="true":
