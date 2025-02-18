@@ -17,6 +17,9 @@ class AtoMol(object):
     def __repr__(self):
         return self.__str__()
 
+    def set_state(self, state):
+        self.state = state
+
 class RHAtomsMolecules(object):
     def __init__(self):
         self.atoms = []
@@ -24,6 +27,9 @@ class RHAtomsMolecules(object):
 
     def add_atom(self, atom):
         self.atoms.append(atom)
+
+    def remove_atom(self, atomID):
+        pass
 
     def add_molecule(self, molecule):
         self.molecules.append(molecule)
@@ -55,6 +61,11 @@ class RHAtomsMolecules(object):
 
     def create_molecules_list(self, fpath="molecules.input"):
         self.create_list(fpath, "molecules")
+
+    def find_atom(self, element):
+        for ida, atom in enumerate(self.atoms):
+            if element in atom.name:
+                return ida, atom
 
 class RHKeywords(object):
     def __init__(self, keywor_input=None):
@@ -157,7 +168,8 @@ C = AtoMol("C.atom")
 N = AtoMol("N.atom")
 O = AtoMol("O.atom")
 S = AtoMol("S.atom")
-Fe = AtoMol("Fe.atom")
+#Fe = AtoMol("Fe.atom")
+Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
 Si = AtoMol("Si.atom")
 Al = AtoMol("Al.atom")
 Na = AtoMol("Na.atom")
