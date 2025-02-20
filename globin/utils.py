@@ -548,7 +548,7 @@ def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
 def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
     factor = np.ones_like(wavelength)
     wave2 = 1/wavelength**2
-    factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2) * wave2
+    factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2[wavelength>vacuum2air_limit]) * wave2[wavelength>vacuum2air_limit]
 
     aux = wavelength/factor
 
