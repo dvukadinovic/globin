@@ -72,16 +72,20 @@ class RHKeywords(object):
         if keywor_input:
             self._read_keyword_input_file(keywor_input)
 
+        self.ATOMS_FILE = "atoms.input"
+        self.MOLECULES_FILE = "molecules.input"
+
         self.set_LTE_parameters()
 
     def _read_keyword_input_file(self, fpath):
         pass
 
-    def set_parameters(self, **parameters):
-        keywords = self.dict()
+    def set_keywords(self, parameters):
+        # keywords = self.dict()
         for key in parameters:
-            if key in keywords:
-                keywords[key] = parameters[key]
+            setattr(self, key, parameters[key])
+            # if key in keywords:
+            #     keywords[key] = parameters[key]
 
     def set_LTE_parameters(self):
         self.NRAYS = 1
@@ -147,19 +151,20 @@ class RHKeywords(object):
 
     def create_input_file(self, fpath):
         with open(fpath, "w") as file:
-            keywords = self.dict()
+            keywords = self.__dict__
             for key in keywords:
-                if key==True:
-                    value = "TRUE"
-                elif key==False:
-                    value = "FALSE"
-                elif key is None:
+                prefix = ""
+                if isinstance(keywords[key], bool):
+                    if keywords[key]==True:
+                        value = "TRUE"
+                    if keywords[key]==False:
+                        value = "FALSE"
+                elif keywords[key] is None:
                     prefix = "#"
                     value = ""
                 else:
-                    value = str(keywords[key])
+                    value = keywords[key]
                 file.write(f"{prefix}  {key} = {value}\n")
-                prefix = ""
 
 # atoms
 H_6 = AtoMol("H_6.atom")
@@ -168,8 +173,10 @@ C = AtoMol("C.atom")
 N = AtoMol("N.atom")
 O = AtoMol("O.atom")
 S = AtoMol("S.atom")
-#Fe = AtoMol("Fe.atom")
-Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
+Fe = AtoMol("Fe.atom")
+#Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
+#Fe = AtoMol("Fe52.atom", state="ACTIVE")
+#Fe = AtoMol("Fe52_167_50_A2fupd_NORAD.atom", state="ACTIVE")
 Si = AtoMol("Si.atom")
 Al = AtoMol("Al.atom")
 Na = AtoMol("Na.atom")
