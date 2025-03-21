@@ -221,6 +221,11 @@ class Atmosphere(object):
 		# flag for computing the atomic parameters RFs (for those in self.global_pars)
 		self.get_atomic_rfs = False
 
+		# flag to retrieve the level populations for ACTIVE atoms
+		self.get_populations = False
+		self.n_pops = {}
+		self.nstar_pops = {}
+
 		# type of RFs caluclation
 		self.rf_der_type = "central"
 
@@ -1579,6 +1584,32 @@ class Atmosphere(object):
 
 		hdulist.writeto(fpath, overwrite=True)
 
+	def save_populations(self, fpath="populations.fits", kwargs=None):
+		primary = fits.PrimaryHDU()
+		hdulist = fits.HDUList([primary])
+
+		for element in self.n_pops:
+			par_hdu = fits.ImageHDU(self.n_pops[element])
+			par_hdu.name = f"{element}_N"
+			hdulist.append(par_hdu)
+
+			par_hdu = fits.ImageHDU(self.nstar_pops[element])
+			par_hdu.name = f"{element}_Nstar"
+			hdulist.append(par_hdu)
+
+		hdulist.writeto(fpath, overwrite=True)
+
+	def load_populations(self, fpath):
+		hdulist = fits.open(fpath)
+
+		self.n_pops = {}
+		self.nstar_pops = {}
+		for idh in range(1, len(hdulist)-1, 2):
+			element = hdulist[idh].name.split("_")[0]
+
+			self.n_pops[element] = hdulist[idh].data
+			self.nstar_pops[element] = hdulist[idh+1].data
+
 	def update_parameters(self, proposed_steps):
 		"""
 		Change the inversion parameters (local and global) based on the given steps.
@@ -1974,7 +2005,9 @@ class Atmosphere(object):
 		else:
 			spectra_list = pool.map(self._compute_spectra_sequential, args)
 
-		spectra_list = np.array(spectra_list)
+		# print(spectra_list)
+
+		spectra_list = np.array(spectra_list)[:,0,:4]
 		natm, ns, nw = spectra_list.shape
 		spectra_list = np.swapaxes(spectra_list, 1, 2)
 
@@ -1982,12 +2015,40 @@ class Atmosphere(object):
 		spectra.wavelength = self.wavelength_air
 		spectra.spec[indx,indy] = spectra_list[:,:,:4]
 
-		self.atomic_rfs = spectra_list[:,:,4:]
+		if self.get_atomic_rfs:
+			self.atomic_rfs = spectra_list[:,:,4]
+
+		if self.get_populations:
+			pops = [item[1] for item in spectra_list]
+
+			elements = [item.ID.decode("utf-8") for item in pops[0]]
+			
+			for ide, element in enumerate(elements):
+				Nlevel = pops[0][ide].nlevel
+				self.n_pops[element] = np.empty((self.nx*self.ny, Nlevel, self.nz))
+				self.nstar_pops[element] = np.empty((self.nx*self.ny, Nlevel, self.nz))
+
+			for ida in range(len(pops)):
+				for ide in range(len(pops[ida])):
+					self.n_pops[elements[ide]][ida] = pops[ida][ide].n
+					self.nstar_pops[elements[ide]][ida] = pops[ida][ide].nstar
+
+			for ide, element in enumerate(elements):
+				Nlevel = pops[0][ide].nlevel
+				self.n_pops[element] = self.n_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
+				self.nstar_pops[element] = self.nstar_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
+
+		# 	_spectra = [item[0] for item in spectra_list]
+		# 	spectra_list = _spectra
+
+		# print(self.atomic_rfs)
 
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
+
+		got_populations = False
 
 		start = time.time()
 
@@ -2008,23 +2069,30 @@ class Atmosphere(object):
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 
-			output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
+			pyrh_output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
 									self.wavelength_vacuum,
 								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
 								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4,
-								  fudge_lam, fudge_value, self.get_atomic_rfs)
-			if self.get_atomic_rfs:
-				sI, sQ, sU, sV, rh_wave_vac, rf = output
-			else:
-				sI, sQ, sU, sV, rh_wave_vac = output
-				rf = None
+								  fudge_lam, fudge_value, self.get_atomic_rfs, self.get_populations)
+			# if self.get_atomic_rfs:
+			# 	sI, sQ, sU, sV, rh_wave_vac, rf = pyrh_output
+			# else:
+			# 	sI, sQ, sU, sV, rh_wave_vac = pyrh_output
+			# 	rf = None
 		else:
-			sI, sQ, sU, sV, rh_wave_vac = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
+			pyrh_output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
 									self.wavelength_vacuum,
 								  self.line_no["loggf"], self.global_pars["loggf"],
 								  self.line_no["dlam"], self.global_pars["dlam"]/1e4,
-								  fudge_lam, fudge_value, False)
-			rf = None
+								  fudge_lam, fudge_value, False, self.get_populations)
+			# if len(pyrh_output)==5:
+			# 	sI, sQ, sU, sV, rh_wave_vac = pyrh_output
+			# if len(pyrh_output)==6:
+			# 	sI, sQ, sU, sV, rh_wave_vac, populations = pyrh_output
+
+			# rf = None
+
+		sI, sQ, sU, sV, rh_wave_vac = pyrh_output[:5]
 
 		tck = splrep(rh_wave_vac, sI, k=3)
 		sI = splev(self.wavelength_vacuum, tck, der=0)
@@ -2035,17 +2103,28 @@ class Atmosphere(object):
 		tck = splrep(rh_wave_vac, sV, k=3)
 		sV = splev(self.wavelength_vacuum, tck, der=0)
 
-		if rf is not None:
+		stokes = np.vstack((sI, sQ, sU, sV))
+
+		output = (stokes,)
+
+		if self.get_atomic_rfs:
+			rf = pyrh_output[6]
+
 			for idp in range(rf.shape[1]):
 				tck = splrep(rh_wave_vac, rf[:,idp], k=3)
 				rf[:,idp] = splev(self.wavelength_vacuum, tck, der=0)
 
-			return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
+			output += rf
 
-		# if self.mode==0:
-		# 	print(f"Finished pixel ({idx},{idy}) in {time.time() - start:1.3f}s")
+			# return np.vstack((np.vstack((sI, sQ, sU, sV)), rf.T))
 
-		return np.vstack((sI, sQ, sU, sV))
+		if self.get_populations:
+			populations = pyrh_output[-1]
+			output += populations
+			# return np.vstack((sI, sQ, sU, sV)), populations
+
+		return output
+		#return np.vstack((sI, sQ, sU, sV))
 
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
@@ -2954,6 +3033,9 @@ class Atmosphere(object):
 		atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 		if self.line_list is not None:
 			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
+
+		keywords = globin.rh.RHKeywords()
+		keywords.create_input_file(f"{self.cwd}/keyword.input")
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
 	try:

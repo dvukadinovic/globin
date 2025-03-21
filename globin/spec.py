@@ -587,6 +587,20 @@ class Spectrum(object):
 		self.shape = self.spec.shape
 		self.nx, self.ny, self.nw, _ = self.spec.shape
 
+	def get_wavelength_region(self, lmin, lmax):
+		ind_min = np.argmin(np.abs(self.wavelength - lmin))
+		ind_max = np.argmin(np.abs(self.wavelength - lmax))+1
+		
+		wavelength = self.wavelength[ind_min:ind_max]
+
+		new_spec = globin.Spectrum(nx=self.nx, ny=self.ny, nw=len(wavelength))
+
+		new_spec.wavelength = wavelength
+		new_spec.spec = self.spec[:,:,ind_min:ind_max,:]
+		new_spec.shape = new_spec.spec.shape
+
+		return new_spec
+
 	def extract(self, slice_x, slice_y):
 		dic = self.__dict__
 		keys = dic.keys()
