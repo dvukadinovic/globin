@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.integrate import simps
+from tqdm import tqdm
+import sys
+import os
+
+import globin
+
+from argparse import ArgumentParser
+
+def compute_chi2(obs, inv, noise=1e-3, stokes_weights=np.array([1,1,1,1]), Np=0):
+	noise_stokes = np.ones_like(obs.shape)
+	StokesI_cont = np.quantile(obs[...,0], 0.95, axis=2)
+	noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+	
+	diff = obs - inv
+	diff *= stokes_weights
+	diff /= noise_stokes
+	chi2 = np.sum(diff**2, axis=(2,3))
+
+	Ndof = np.count_nonzero(stokes_weights) * nw - Np
+	chi2 /= Ndof
+
+	return chi2
+
+def StokesI_rms(obs, inv):
+	diff = obs.I - inv.I
+	rms = np.sum(diff**2/obs.nw, axis=(2))
+	rms = np.sqrt(rms)
+
+	return rms
+
+def clean_input_files():
+	os.system("rm tmp atoms.input molecules.input kurucz.input keyword.input")
+
+def main(line_list, save_path, wavelength_path):
+	atmos = globin.falc
+	atmos.line_list = "tmp"
+	atmos.create_input_files()
+
+	text, lines = globin.atoms.read_RLK_lines(line_list)
+	Nlines = len(lines)
+
+	if wavelength_path:
+		wavelength = np.loadtxt(wavelength_path)
+	else:
+		wavelength = globin.utils.compute_wavelength_grid(
+							lmin=lines[0].lam0-0.3, 
+							lmax=lines[-1].lam0+0.05, 
+							dlam=2e-4, 
+							unit="nm")
+
+	atmos.set_wavelength_grid(wavelength)
+	atmos.set_mu(1)
+
+	out = open("tmp", "w")
+	out.writelines(text)
+	out.close()
+
+	complete = atmos.compute_spectra()
+	wave = complete.wavelength
+	complete.spec /= complete.I[0,0,0]
+
+	eta = np.ones(Nlines)
+	D = np.zeros(Nlines)
+	A = np.zeros(Nlines)
+	rms = np.zeros(Nlines)
+	complete_line_strength = np.zeros(Nlines)
+	incomplete_line_strength = np.zeros(Nlines)
+	lam0 = np.zeros(Nlines)
+
+	for idl in tqdm(range(Nlines)):
+		line = text.pop(idl)
+		_lam0 = lines[idl].lam0
+		lam0[idl] = _lam0
+
+		out = open("tmp", "w")
+		out.writelines(text)
+		out.close()
+
+		incomplete = atmos.compute_spectra()
+		incomplete.spec /= incomplete.I[0,0,0]
+
+		diff = incomplete.I[0,0] - complete.I[0,0]
+
+		# plt.plot(complete.wavelength, complete.I[0,0])
+		# plt.plot(incomplete.wavelength, incomplete.I[0,0])
+		# plt.show()
+		# sys.exit()
+
+		A[idl] = simps(diff, wave)
+		D[idl] = np.abs(diff).max()
+		if D[idl]!=0:
+			W = np.abs(A[idl]/D[idl])
+
+			ind_min = np.argmin(np.abs(wave - _lam0 + W/2))
+			ind_max = np.argmin(np.abs(wave - _lam0 - W/2))+1
+
+			complete_line_strength[idl] = simps(1 - complete.I[0,0,ind_min:ind_max], wave[ind_min:ind_max])
+			incomplete_line_strength[idl] = simps(1 - incomplete.I[0,0,ind_min:ind_max], wave[ind_min:ind_max])
+
+			rms[idl] = StokesI_rms(complete, incomplete)[0,0]
+
+			eta[idl] = incomplete_line_strength[idl]/complete_line_strength[idl]*100
+
+		text.insert(idl, line)
+
+	np.savetxt(save_path, np.vstack((lam0, A, D, incomplete_line_strength, complete_line_strength, eta, rms)).T, 
+		fmt="%5.4f %5.4e %5.4e %5.4e %5.4e %3.2f %5.4e",
+		header="  lam0      A          D        Incom      Comp    abs(Incom)/Comp[%]     RMS")
+
+if __name__=="__main__":
+	aparser = ArgumentParser(description="Computing the line blending factor for a line list")
+
+	aparser.add_argument("line_list", type=str, help="Path to the Kurucz line list")
+	aparser.add_argument("save_path", type=str, help="Name of the file to save the blending results")
+	aparser.add_argument("--wavelength", type=str, nargs="?", default=None, help="Path to the file containing the wavelength grid")
+
+	args = aparser.parse_args()
+
+	main(args.line_list, args.save_path, args.wavelength)
+
+	clean_input_files()
