@@ -9,18 +9,14 @@ n_thread = 10
 interp_deree = 3
 interp_method = bezier
 spline_tension = 0
-<<<<<<< Updated upstream
 mode = 0
-=======
-mode = 3
->>>>>>> Stashed changes
 debug = False
 
 #--- Spectra to be fitted
 observation = obs_630_mu1_abs_LTE_20240918.fits
 #observation = obs_4016_vmac1.fits
 noise = 0
-1e-5
+1e-2
 #weights = 1,5,5,3
 weights = 1,1,1,1
 #vmac = 1
@@ -29,10 +25,13 @@ norm = False
 mu = 1.0
 #instrumental_profile = hinode_instr_prof.dat
 
-stray_factor = -0.34
-stray_factor_vmin = 0
-stray_mode = 1
-stray_type = 2nd_component
+#stray_factor = 0.1
+#stray_factor_vmin = 0
+#stray_mode = 3
+#stray_type = 2nd_component
+
+#sl_vz_fit = True
+#sl_vz = 7.4
 
 #--- Output spectra
 #spectrum = obs_630_mu1_abs_LTE_20240918.fits
@@ -80,15 +79,15 @@ of_file = of.dat
 of_scatt_flag = 1
 
 #--- wavelength window (in Angstroms)
-#linelist = lines_4016
+#line_list = lines_4016
 #wave_min = 4015
 #wave_max = 4017
 #wave_step = 0.010
 
-linelist = fe6300
+line_list = fe6300
 wave_min = 6300.7
-wave_max = 6303.3
-wave_step = 0.010
+wave_max = 6301.8
+wave_step = 0.01
 
 #--- Levenberg-Marquardt parameters
 ncycle = 1
@@ -103,4 +102,4 @@ chi2_tolerance = 1e-3
 cube_atmosphere = atmos_bezier_20240918.fits
 
 range = 1,1,1,1
-#range = 2,2,2,2
+#range = 1,2,1,3

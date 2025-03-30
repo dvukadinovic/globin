@@ -7,35 +7,38 @@
 # First specify input files for atmosphere and abundances
 # (both KEYWORD_REQUIRED).
 
+#LS_LANDE = TRUE
+
+#  ATMOS_FILE = hsrasp.dat
 #  ABUND_FILE = /home/dusan/Documents/pyrh/rh/Atoms/abundance.input
 
 # Set choice of number of rays (KEYWORD_OPTIONAL).
 
-  NRAYS = 3
+  NRAYS = 1
 
 # Input file for all atoms (KEYWORD_REQUIRED).
 
   ATOMS_FILE = atoms.input
 
-# arklem tables for the collisional coefficients
+# Barklem tables for the collisional coefficients
 #  BARKLEM_SP_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_spdata.dat
 #  BARKLEM_PD_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_pddata.dat
 #  BARKLEM_DF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/Barklem_dfdata.dat
-
+         
 # Input file for all molecules (KEYWORD_REQUIRED).
 
   MOLECULES_FILE = molecules.input
 
 ##  Table of additional wavelengths  KEYWORD_OPTIONAL
 
-#  WAVETABLE = spinor.wave
+#  WAVETABLE = spinor_window.wave
 
 # Maximum number of iterations to initialize scattering radiation
 # field in the background (KEYWORD_OPTIONAL). In LTE case it needs
 # to be set at 0
 
-  N_MAX_SCATTER = 2
-#  N_MAX_SCATTER = 0
+#  N_MAX_SCATTER = 2
+  N_MAX_SCATTER = 0
 
 # Row of statistical equilibrium equation that is to be eliminated
 # to enforce particle conservation (KEYWORD_REQUIRED). If set to -1
@@ -47,8 +50,8 @@
 # Set number of maximum iterations and convergence limit
 # (both KEYWORD_REQUIRED). For LTE case set this to 1.
 
-#  N_MAX_ITER = 1
-  N_MAX_ITER = 100
+  N_MAX_ITER = 1
+#  N_MAX_ITER = 100
   ITER_LIMIT = 1.0E-2
 
 # Parameters for Ng convergence acceleration (all are KEYWORD_OPTIONAL)
@@ -66,8 +69,8 @@
 # PRD convergence limit. Both are KEYWORD_OPTIONAL. If PRD_N_MAX_ITER=1
 # all lines will be treated in CRD.
 
-  PRD_N_MAX_ITER = 3
-#  PRD_N_MAX_ITER = 1
+#  PRD_N_MAX_ITER = 3
+  PRD_N_MAX_ITER = 1
   PRD_ITER_LIMIT = 1.0E-2
 
 # PRD_NG_?? are the Ng accelleration parameters for PRD iterations
@@ -108,7 +111,6 @@
 # RLK_SCATTER = boolean - for 2lvl scattering in lines given in KURUCZ_DATA. 
 
 #  KURUCZ_PF_DATA = /home/dusan/Documents/pyrh/rh/Atoms/pf_Kurucz.input
-  #KURUCZ_PF_DATA = /media/dusan/storage/RH/pyrh/rh/Atoms/pf_Kurucz.input
   KURUCZ_DATA = kurucz.input
   SOLVE_NE = NONE
   RLK_SCATTER = FALSE
@@ -127,15 +129,15 @@
 # OF_SASHA if opacity fudge factors from Shapiro+10 should be used
 # (added on 03/04/2020 by D.Vukadinovic); it does not show any infulence.
 
- OPACITY_FUDGE = /home/dusan/Documents/pyrh/rh/Atmos/opacity_fudge.input
-#  OPACITY_FUDGE = of.data
+#  OPACITY_FUDGE = ../../Atmos/opacity_fudge.input
+#  OPACITY_FUDGE = ../../Atmos/of_test
 #  OF_SASHA = ../../Atmos/of_sasha.dat
 #  LINE_FUDGE = TRUE
 
 # Output files for atomic data, spectrum, populations, and geometry
   
   SPECTRUM_OUTPUT = spectrum.out
-
+  
 # OPACITY_OUTPUT, RADRATE_OUTPUT, COLLRATE_OUTPUT, and DAMPING_OUTPUT
 # are all KEYWORD_OPTIONAL
 # When set to ``none'' (which is the default) no output is produced.
@@ -149,21 +151,21 @@
 # written to the specified file, as well as the broadening velocity
 # for the specific atom.
 
-#  OPACITY_OUTPUT  = opacity.out
-#  RADRATE_OUTPUT  = radrate.out
-#  COLLRATE_OUTPUT = collrate.out
-#  DAMPING_OUTPUT  = damping.out
+  OPACITY_OUTPUT  = opacity.out
+  RADRATE_OUTPUT  = radrate.out
+  COLLRATE_OUTPUT = collrate.out
+  DAMPING_OUTPUT  = damping.out
 
 # Typical value of ``micro-turbulence'' in [km/s]. Used in getlambda.c
 # to convert doppler units to real wavelengths.
 
-  VMICRO_CHAR = 5.0
+  VMICRO_CHAR = 5
 
 # Treshold value of macroscopic velocity in [km/s] above which line
 # absorption coefficients are calculated seperately for the different mu
 # values (KEYWORD_OPTIONAL).
 
-  VMACRO_TRESH = 0
+  VMACRO_TRESH = 0.0
   S_INTERPOLATION = S_BEZIER3
   S_INTERPOLATION_STOKES = DELO_BEZIER3
   
@@ -209,7 +211,7 @@
 # Set this value to TRUE to get printout on CPU usage (may take some
 # extra CPU usage though!).
 
-  PRINT_CPU = FALSE
+#  PRINT_CPU = TRUE
 
 # Enable program to do the formal solution for N_THREADS wavelengths
 # concurrently (KEYWORD_OPTIONAL). Maximum number of threads is limited
@@ -220,3 +222,4 @@
 #  N_THREADS = 2
 
 # End
+

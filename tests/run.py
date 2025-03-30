@@ -1,7 +1,7 @@
 import globin
 
 inverter = globin.Inverter(verbose=False)
-inverter.read_input(run_name="m1_spline_SPINOR_compare_vmic0")
+inverter.read_input(run_name="test")
 inv_atmos, inv_spec, chi2 = inverter.run()
 
 # globin.plot_spectra(inverter.observation.spec[0,0], inverter.observation.wavelength,

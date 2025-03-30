@@ -1,0 +1,14 @@
+  11
+
+  H_6.atom      PASSIVE    LTE_POPULATIONS       pops.H_6.atom.out   
+  He.atom       PASSIVE    LTE_POPULATIONS       pops.He.atom.out    
+  C.atom        PASSIVE    LTE_POPULATIONS       pops.C.atom.out     
+  N.atom        PASSIVE    LTE_POPULATIONS       pops.N.atom.out     
+  O.atom        PASSIVE    LTE_POPULATIONS       pops.O.atom.out     
+  S.atom        PASSIVE    LTE_POPULATIONS       pops.S.atom.out     
+  Fe.atom       PASSIVE    LTE_POPULATIONS       pops.Fe.atom.out    
+  Si.atom       PASSIVE    LTE_POPULATIONS       pops.Si.atom.out    
+  Al.atom       PASSIVE    LTE_POPULATIONS       pops.Al.atom.out    
+  Na.atom       PASSIVE    LTE_POPULATIONS       pops.Na.atom.out    
+  Mg.atom       PASSIVE    LTE_POPULATIONS       pops.Mg.atom.out    
+
