@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import globin
+import numpy as np
+import matplotlib.pyplot as plt
+
+LEVEL_WIDTH = 0.1
+LEVEL_PAD = 0.03
+
+from argparse import ArgumentParser
+
+def main(model_path):
+	atom = globin.atoms.Atom()
+	txt = atom.read_model(model_path)
+
+	terms = [level.term for level in atom.levels]
+	J = [level.J for level in atom.levels]
+	S = [level.S for level in atom.levels]
+
+	# print(terms)
+	# print(S)
+
+	draw_terms = [atom.levels[0].term]
+	energy = [None]
+
+	nread = 1
+	total_energy = atom.levels[0].E
+	
+	for idl in range(1, atom.Nlevel):
+		if atom.levels[idl].term==atom.levels[idl-1].term:
+			nread += 1
+			total_energy += atom.levels[idl].E			
+			continue
+
+		energy[-1] = total_energy/nread
+
+		draw_terms.append(atom.levels[idl].term)
+		energy.append(None)
+		nread = 1
+		total_energy = atom.levels[idl].E
+
+	fig, axs = plt.subplots(ncols=1, nrows=1)
+
+	# the lowest level
+	start = LEVEL_PAD
+	end = LEVEL_WIDTH + LEVEL_PAD
+	axs.axhline(y=energy[0], xmin=start, xmax=end, c="k", lw=0.75)
+
+	drawn_terms = [draw_terms[0][-2:]]
+	
+	for idt in range(1, len(draw_terms)):
+		if energy[idt] is None:
+			continue
+
+		if draw_terms[idt][-2:] in drawn_terms:
+			index = drawn_terms.index(draw_terms[idt][-2:])
+			start = LEVEL_PAD*index
+			end = start + LEVEL_WIDTH
+		else:
+			start = end + LEVEL_PAD
+			end = start + LEVEL_WIDTH
+			drawn_terms.append(draw_terms[idt][-2:])
+
+		axs.axhline(y=energy[idt], xmin=start, xmax=end, c="k", lw=0.75)
+
+	print(drawn_terms)
+
+	# drawn_terms = [atom.levels[0].term]
+	# xticks = [LEVEL_PAD + LEVEL_WIDTH/2]
+
+	# for idl in range(atom.Nlevel-1):
+	# 	if atom.levels[idl].term!=atom.levels[idl-1].term:
+	# 		start = end + LEVEL_PAD
+	# 		end = start + LEVEL_WIDTH
+	# 		if atom.levels[idl].term in drawn_terms:
+	# 			start = LEVEL_PAD
+	# 			end = LEVEL_WIDTH
+	# 		else:
+	# 			drawn_terms.append(atom.levels[idl].term)
+	# 			xticks.append(xticks[-1] + LEVEL_PAD + LEVEL_WIDTH)
+	# 	level = atom.levels[idl]
+	# 	axs.axhline(y=level.E, xmin=start, xmax=end, c="k", lw=0.75)
+
+	# print(drawn_terms)
+	# print(xticks)
+
+	# axs.set_xticks(xticks)
+	# axs.set_xticklabels(drawn_terms)
+
+	plt.show()
+
+if __name__=="__main__":
+	aparser = ArgumentParser(description="Create the grotrian diagram for an input atomic model")
+
+	aparser.add_argument("model_path", type=str, help="Path to the atomic model in RH format")
+	# aparser.add_argument("save_path", type=str, help="Name of the file to save the blending results")
+	# aparser.add_argument("--wavelength", type=str, nargs="?", default=None, help="Path to the file containing the wavelength grid")
+
+	args = aparser.parse_args()
+
+	main(args.model_path)
