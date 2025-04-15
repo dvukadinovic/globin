@@ -9,7 +9,7 @@ Create a new conda virtual environment using the Python3.10.
 
 Due to some required packages ('emcee') we need to add the 'conda-forge' in the package search channels:
 
-'conda config --add channels conda-forge'
+`conda config --add channels conda-forge`
 
 Now, install all the required packages:
 
