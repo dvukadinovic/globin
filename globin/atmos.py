@@ -14,7 +14,8 @@ import scipy.sparse as sp
 try:
 	import pyrh
 except:
-	raise ImportError("No 'pyrh' module. Install it before using 'globin'")
+	# raise ImportError("No 'pyrh' module. Install it before using 'globin'")
+	pass
 
 import globin
 from .spec import Spectrum

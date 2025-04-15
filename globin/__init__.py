@@ -21,9 +21,9 @@ os.environ["OMP_NUM_THREADS"] = "1"
 import numpy as np
 import sys
 
-import pyrh
-if pyrh.__version__!=0.30:
-	raise ImportError(f"Incompatible version of pyrh module. Found {pyrh.__version__} but expected 0.30. Please install the correct version.")
+# import pyrh
+# if pyrh.__version__!=0.30:
+# 	raise ImportError(f"Incompatible version of pyrh module. Found {pyrh.__version__} but expected 0.30. Please install the correct version.")
 
 from .inversion import Inverter
 from .atmos import Atmosphere

@@ -14,8 +14,6 @@ import emcee
 
 from tqdm import tqdm, trange
 
-import pyrh
-
 from .spec import Spectrum
 from .input import InputData
 from .chi2 import Chi2

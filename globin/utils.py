@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
 import copy
-import pyrh
 from scipy.interpolate import splrep, splev
 from scipy.interpolate import interp1d
 
