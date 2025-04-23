@@ -2975,6 +2975,9 @@ class Atmosphere(object):
 		self.sl_atmos.fudge_lam = self.fudge_lam
 		self.sl_atmos.fudge = self.fudge
 
+		self.sl_atmos.atomic_number = self.atomic_number
+		self.sl_atmos.atomic_abundance = self.atomic_abundance
+
 		self.sl_atmos.continuum_idl = self.continuum_idl
 
 		# when we invert global parameters in one, we need them also in the second one to compute RFs
