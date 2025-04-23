@@ -1184,8 +1184,8 @@ class Atmosphere(object):
 							 pg_top=self.pg[idx,idy,0]/10, 
 							 fudge_wave=fudge_lam, 
 							 fudge_value=fudge_value,
-							 abundance_number=self.atomic_number, 
-							 abundance_abundance=self.atomic_abundance,
+							 atomic_number=self.atomic_number, 
+							 atomic_abundance=self.atomic_abundance,
 							 full_output=False)
 
 		return np.vstack((ne/1e6, nHtot/1e6))
