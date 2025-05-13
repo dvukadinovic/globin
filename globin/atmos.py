@@ -3059,13 +3059,14 @@ class Atmosphere(object):
 		self.data = data
 		self.values = values
 
-	def create_input_files(self):
+	def create_input_files(self, keys):
 		atmols.create_atoms_list(f"{self.cwd}/atoms.input")
 		atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 		if self.line_list is not None:
 			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
 
 		keywords = globin.rh.RHKeywords()
+		keywords.set_keywords(keys)
 		keywords.create_input_file(f"{self.cwd}/keyword.input")
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
