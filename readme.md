@@ -5,9 +5,27 @@ simultaneously. We employ the global inversion algorithm where atomic parameters
 
 ## Installation
 
-Install package in editable mode system-wide:
+Create a new conda virtual environment using the Python3.10.
 
-'pip3 install -e /path/to/package'
+Due to some required packages (`emcee`) we need to add the `conda-forge` in the package search channels:
+
+`conda config --add channels conda-forge`
+
+Now, install all the required packages:
+
+`conda install --file requirements.txt`
+
+To install the package in the editable mode system-wide type:
+
+`pip3 install -e /path/to/package`
+
+Now you should have functional `globin` module. To test if everything is right, go to the `globin/tests` directory and type:
+
+`python run.py`
+
+which will start an inversion of a test sample.
+
+To use the `globin` for forward modelling (and inversions), it relies on the cythonized version of RH called `pyrh` that is found [here](https://github.com/dvukadinovic/pyrh#).
 
 ## Synthesis
 

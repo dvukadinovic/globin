@@ -3,6 +3,11 @@ import numpy as np
 
 import globin
 
+orbitals = {"S": 0, "P": 1, "D": 2, "F": 3, 
+            "G": 4, "H": 5, "I": 6, "J": 7,
+            "K": 8, "L": 9, "M": 10, "N": 11,
+            "O": 12, "Q": 13, "R": 14, "T": 15}
+
 def gamma_function(a, b, c):
     if a==0:
         return 0
@@ -28,10 +33,6 @@ class Line(object):
     """
     Class for storing spectral line data.
     """
-    orbitals = {"S": 0, "P": 1, "D": 2, "F": 3, 
-                "G": 4, "H": 5, "I": 6, "J": 7,
-                "K": 8, "L": 9, "M": 10, "N": 11,
-                "O": 12, "Q": 13, "R": 14, "T": 15}
     def __init__(self, lineNo=None, lam0=None,
                     loggf=None, loggf_min=None, loggf_max=None,
                     dlam=None, dlam_min=None, dlam_max=None,
@@ -104,7 +105,7 @@ class Line(object):
             self.has_low_LS_numbers = False
         
         try:   
-            self.Llow = self.orbitals[config_low[1]]
+            self.Llow = orbitals[config_low[1]]
         except:
             self.Llow = None
             self.has_low_LS_numbers = False
@@ -122,7 +123,7 @@ class Line(object):
             self.has_up_LS_numbers = False
         
         try:   
-            self.Lup = self.orbitals[config_up[1]]
+            self.Lup = orbitals[config_up[1]]
         except:
             self.Lup = None
             self.has_up_LS_numbers = False
@@ -529,6 +530,100 @@ class PSE(object):
 
     def get_element_number(self, element_symbol):
         return self.symbols.index(symbol)+1
+
+class EnergyLevel(object):
+    def __init__(self, energy, g, configuration, stage, levelID, abo_level=None):
+        self.E = energy
+        self.g = g
+        self.configuration = configuration
+        self.stage = stage
+        self.levelID = levelID
+        self.abo_level = abo_level
+
+        self.get_term()
+
+    def get_term(self):
+        config = list(filter(None, self.configuration.split(" ")))
+        try:
+            J = int(config[-1])
+            term = config[-2]
+        except:
+            J = None
+            term = config[-1]
+
+        S, L, parity = term[-3:]
+        S = (int(S) - 1)/2
+        L = orbitals[L]
+
+        self.J = J
+        self.S = S
+        self.L = L
+        self.term = term[-4:-1]
+
+class Transition(Line):
+    def __init__(self, lower_level, upper_level, loggf):
+        super().__init__(loggf=loggf)
+
+        self.lower_level = lower_level
+        self.upper_level = upper_level
+
+    def __str__(self):
+        msg = f"<Transition: {self.lower_level} --> {self.upper_level}; log(gf) = {self.loggf}>"
+        return msg
+
+class Atom(object):
+    def __init__(self):
+        self.ID = None
+
+    def read_model(self, name):
+        text = open(name, "r").readlines()
+
+        text = [line.rstrip("\n") for line in text if (len(line.rstrip("\n"))>1 and line[0]!="#")]
+
+        self.ID = text[0]
+        self.Nlevel, self.Nline, self.Ncont, self.Nfixed = map(int, list(filter(None, text[1].split(" "))))
+
+        #--- read in the information of each level
+
+        self.levels = [None]*self.Nlevel
+
+        for idl in range(self.Nlevel):
+            text_line = list(filter(None, text[2+idl].split("'")))
+            conf = text_line[1]
+            E, g = map(float, filter(None, text_line[0].split(" ")))
+            _text_line = list(filter(None, text_line[2].split(" ")))
+            # stage, levelNo = map(int, filter(None, text_line[2].split(" ")))
+            if len(_text_line)==3:
+                stage, levelNo, abo_level = map(int, _text_line)
+            else:
+                abo_level = None
+                stage, levelNo = map(int, _text_line)
+
+            self.levels[idl] = EnergyLevel(E, g, conf, stage, levelNo, abo_level)
+
+        #--- read in the transitions
+
+        self.transitions = [None]*self.Nline
+
+        for idt in range(self.Nline):
+            text_line = list(filter(None, text[2+self.Nlevel+idt].split(" ")))
+            lower_level, upper_level = map(int, text_line[:2])
+            oscillator_strength = float(text_line[2])
+            profile_type = text_line[3]
+            NQ, symmetry, Qcore, Qwing = text_line[4:8]
+            vdwapproximation = text_line[8]
+            vdw_H = text_line[9:11]
+            vdw_He = text_line[11:13]
+            radiative = text_line[13]
+            Stark = text_line[14]
+
+            loggf = np.log10(oscillator_strength*self.levels[upper_level].g)
+
+            self.transitions[idt] = Transition(lower_level=lower_level, 
+                                          upper_level=upper_level,
+                                          loggf=loggf)
+
+        #--- read in the continuum transitions
 
 if __name__=="__main__":
     lineNo = {"loggf" : [1,2,3,4], "dlam" : [11,12]}

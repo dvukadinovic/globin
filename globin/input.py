@@ -1218,9 +1218,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 		init_mag = False
 		if len(line)==2:
-		   lam0, line_dlam = map(float,line)
-		   init_lines[idl] = [lam0, line_dlam/1e4]
-		   mag_line[idl] = False
+			lam0, line_dlam = map(float,line)
+			init_lines[idl] = [lam0, line_dlam/1e4]
+			mag_line[idl] = False
 		elif len(line)==8:
 			# raise ValueError("We currently do not support intialization of magnetic field vector.")
 			init_mag = True

@@ -14,7 +14,8 @@ import scipy.sparse as sp
 try:
 	import pyrh
 except:
-	raise ImportError("No 'pyrh' module. Install it before using 'globin'")
+	# raise ImportError("No 'pyrh' module. Install it before using 'globin'")
+	pass
 
 import globin
 from .spec import Spectrum
@@ -220,6 +221,10 @@ class Atmosphere(object):
 
 		# flag for computing the atomic parameters RFs (for those in self.global_pars)
 		self.get_atomic_rfs = False
+
+		# containers for updating atomic abundances
+		self.atomic_number = np.zeros(0, dtype=np.int32)
+		self.atomic_abundance = np.zeros(0, dtype=np.float64)
 
 		# flag to retrieve the level populations for ACTIVE atoms
 		self.get_populations = False
@@ -1172,9 +1177,16 @@ class Atmosphere(object):
 			fudge_lam = self.fudge_lam
 			fudge_value = self.fudge[idx,idy]
 
-		ne, nHtot = pyrh.hse(self.cwd, self.scale_id,
-							 self.data[idx, idy, 0], self.data[idx, idy, 1], 
-							 self.pg[idx,idy,0]/10, fudge_lam, fudge_value)
+		ne, nHtot = pyrh.hse(cwd=self.cwd, 
+					   		 atm_scale=self.scale_id,
+							 scale=self.data[idx, idy, 0], 
+							 temp=self.data[idx, idy, 1], 
+							 pg_top=self.pg[idx,idy,0]/10, 
+							 fudge_wave=fudge_lam, 
+							 fudge_value=fudge_value,
+							 atomic_number=self.atomic_number, 
+							 atomic_abundance=self.atomic_abundance,
+							 full_output=False)
 
 		return np.vstack((ne/1e6, nHtot/1e6))
 
@@ -2069,22 +2081,38 @@ class Atmosphere(object):
 			elif self.mode==3:
 				_idx, _idy = 0, 0
 
-			pyrh_output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy], 
-									self.wavelength_vacuum,
-								  self.line_no["loggf"], self.global_pars["loggf"][_idx, _idy],
-								  self.line_no["dlam"], self.global_pars["dlam"][_idx, _idy]/1e4,
-								  fudge_lam, fudge_value, self.get_atomic_rfs, self.get_populations)
+			pyrh_output = pyrh.compute1d(cwd=self.cwd, 
+										 mu=mu, 
+										 atm_scale=self.scale_id, 
+										 atmosphere=self.data[idx,idy], 
+										 wave=self.wavelength_vacuum,
+								  		 loggf_ids=self.line_no["loggf"], 
+										 loggf_values=self.global_pars["loggf"][_idx, _idy],
+								  		 lam_ids=self.line_no["dlam"], 
+										 lam_values=self.global_pars["dlam"][_idx, _idy]/1e4,
+								  		 fudge_wave=fudge_lam, 
+										 fudge_value=fudge_value, 
+										 atomic_number=self.atomic_number,
+										 atomic_abundance=self.atomic_abundance,
+										 get_atomic_rfs=self.get_atomic_rfs, 
+										 get_populations=self.get_populations)
 			# if self.get_atomic_rfs:
 			# 	sI, sQ, sU, sV, rh_wave_vac, rf = pyrh_output
 			# else:
 			# 	sI, sQ, sU, sV, rh_wave_vac = pyrh_output
 			# 	rf = None
 		else:
-			pyrh_output = pyrh.compute1d(self.cwd, mu, self.scale_id, self.data[idx,idy],
-									self.wavelength_vacuum,
-								  self.line_no["loggf"], self.global_pars["loggf"],
-								  self.line_no["dlam"], self.global_pars["dlam"]/1e4,
-								  fudge_lam, fudge_value, False, self.get_populations)
+			pyrh_output = pyrh.compute1d(cwd=self.cwd, 
+										 mu=mu, 
+										 atm_scale=self.scale_id, 
+										 atmosphere=self.data[idx,idy],
+										 wave=self.wavelength_vacuum,
+								  		 fudge_wave=fudge_lam, 
+										 fudge_value=fudge_value, 
+										 atomic_number=self.atomic_number,
+										 atomic_abundance=self.atomic_abundance,
+										 get_atomic_rfs=False, 
+										 get_populations=self.get_populations)
 			# if len(pyrh_output)==5:
 			# 	sI, sQ, sU, sV, rh_wave_vac = pyrh_output
 			# if len(pyrh_output)==6:
@@ -2947,6 +2975,9 @@ class Atmosphere(object):
 		self.sl_atmos.fudge_lam = self.fudge_lam
 		self.sl_atmos.fudge = self.fudge
 
+		self.sl_atmos.atomic_number = self.atomic_number
+		self.sl_atmos.atomic_abundance = self.atomic_abundance
+
 		self.sl_atmos.continuum_idl = self.continuum_idl
 
 		# when we invert global parameters in one, we need them also in the second one to compute RFs
@@ -3028,13 +3059,14 @@ class Atmosphere(object):
 		self.data = data
 		self.values = values
 
-	def create_input_files(self):
+	def create_input_files(self, keys):
 		atmols.create_atoms_list(f"{self.cwd}/atoms.input")
 		atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 		if self.line_list is not None:
 			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
 
 		keywords = globin.rh.RHKeywords()
+		keywords.set_keywords(keys)
 		keywords.create_input_file(f"{self.cwd}/keyword.input")
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
@@ -3333,25 +3365,26 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 		free_par_ID = 0
 		for parameter in global_pars:
 			if parameter=="vmac":
-				radius = int(4*kernel_sigma + 0.5)
-				x = np.arange(-radius, radius+1)
-				phi = np.exp(-x**2/kernel_sigma**2)
-				# normalaizing the profile
-				phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
-				kernel = phi*(2*x**2/kernel_sigma**2 - 1)
-				# since we are correlating, we need to reverse the order of data
-				kernel = kernel[::-1]
+				pass
+				# radius = int(4*kernel_sigma + 0.5)
+				# x = np.arange(-radius, radius+1)
+				# phi = np.exp(-x**2/kernel_sigma**2)
+				# # normalaizing the profile
+				# phi *= 1/(np.sqrt(np.pi)*kernel_sigma)
+				# kernel = phi*(2*x**2/kernel_sigma**2 - 1)
+				# # since we are correlating, we need to reverse the order of data
+				# kernel = kernel[::-1]
 
-				spec, _ = compute_spectra(atmos)
-				if not globin.mean:
-					spec.broaden_spectra(atmos.vmac)
+				# spec, _ = compute_spectra(atmos)
+				# if not globin.mean:
+				# 	spec.broaden_spectra(atmos.vmac)
 
-				for idx in range(atmos.nx):
-					for idy in range(atmos.ny):
-						for sID in range(1,5):
-							rf[idx,idy,free_par_ID,0,:,sID-1] = correlate1d(spec[idx,idy,:,sID], kernel)
-							rf[idx,idy,free_par_ID,0,:,sID-1] *= 1/atmos.vmac * atmos.parameter_scale["vmac"]
-				free_par_ID += 1
+				# for idx in range(atmos.nx):
+				# 	for idy in range(atmos.ny):
+				# 		for sID in range(1,5):
+				# 			rf_global[idx,idy,free_par_ID,0,:,sID-1] = correlate1d(spec[idx,idy,:,sID], kernel)
+				# 			rf_global[idx,idy,free_par_ID,0,:,sID-1] *= 1/atmos.vmac * atmos.parameter_scale["vmac"]
+				# free_par_ID += 1
 			elif parameter in ["loggf", "dlam"]:
 				perturbation = atmos.delta[parameter]
 
