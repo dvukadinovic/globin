@@ -177,15 +177,19 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     N = 1
     n2 = 0
     if atm2 is not None:
-        N = 2
+        if not isinstance(atm2, list):
+            atm2 = [atm2]
+        N += len(atm2)
 
-    nrows = 0
+    nrows = 1
     _parameters = []
     for parameter in parameters:
         n1 = len(atm1.nodes[parameter])
         if atm2 is not None:
-            n2 = len(atm2.nodes[parameter])
-        nrows = max([nrows, n1, n2])
+            for _atm in atm2:
+                n2 = len(_atm.nodes[parameter])
+                nmax = max([n1, n2])
+        nrows = max([nrows, nmax])
         _parameters.append(parameter)
 
     ncols = len(_parameters)
@@ -257,37 +261,38 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
 
             # add the second axis if we have two atmospheres
             if atm2 is not None:
-                ax2 = fig.add_subplot(gs[idr,2*idc+1])
-                
-                # set titles
-                if show_errors:
-                    y = atm2.errors[parameter][...,idr].copy()
-                else:
-                    y = atm2.values[parameter][:,:,idr].copy()
-                y *= fact
+                for ida, _atm in enumerate(atm2):
+                    ax2 = fig.add_subplot(gs[idr,N*idc+ida+1])
+                    
+                    # set titles
+                    if show_errors:
+                        y = _atm.errors[parameter][...,idr].copy()
+                    else:
+                        y = _atm.values[parameter][:,:,idr].copy()
+                    y *= fact
 
-                if idr==0:
-                    ax2.set_title(labels[1], fontsize="large")
-                im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, norm=norm, cmap=cmaps[parameter])
-                add_colorbar(fig, ax2, im)
-                # if idc==(ncols-1):
-                #     add_colorbar(fig, ax2, im, label=cblabel_2)
-                # else:
-                
-                # if idr+1!=nnodes:
-                #     ax2.set_xticklabels([])
-                # ax2.set_yticklabels([])
+                    if idr==0:
+                        ax2.set_title(labels[1+ida], fontsize="large")
+                    im = ax2.imshow(y.T, origin="lower", vmin=vmin, vmax=vmax, norm=norm, cmap=cmaps[parameter])
+                    add_colorbar(fig, ax2, im)
+                    # if idc==(ncols-1):
+                    #     add_colorbar(fig, ax2, im, label=cblabel_2)
+                    # else:
+                    
+                    # if idr+1!=nnodes:
+                    #     ax2.set_xticklabels([])
+                    # ax2.set_yticklabels([])
 
-                # ax2.set_xticks([])
-                # ax2.set_xticklabels([])
-                # ax2.set_yticks([])
-                # ax2.set_yticklabels([])
+                    # ax2.set_xticks([])
+                    # ax2.set_xticklabels([])
+                    # ax2.set_yticks([])
+                    # ax2.set_yticklabels([])
 
-                if not show_axis_ticks:
-                    ax2.set_xticks([])
-                    ax2.set_xticklabels([])
-                    ax2.set_yticks([])
-                    ax2.set_yticklabels([])
+                    if not show_axis_ticks:
+                        ax2.set_xticks([])
+                        ax2.set_xticklabels([])
+                        ax2.set_yticks([])
+                        ax2.set_yticklabels([])
 
             if grid:
                 ax.grid(which="major", axis="both", lw=0.75, color="gray")
