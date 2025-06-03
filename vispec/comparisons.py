@@ -27,9 +27,9 @@ parameter_relay_text = {"temp"  : "Temperature [K]",
                         "gamma" : r"Inclination [$^\circ$]",
                         "chi"   : r"Azimuth [$^\circ$]",
                         "stray" : "stray light factor",
-                        "sl_temp" : "2nd Temperature [K]",
-                        "sl_vz" : "2nd LOS velocity [km/s]",
-                        "sl_vmic" : "2nd Micro-turbulent velocity [km/s]"}
+                        "sl_temp" : "magnetized Temperature [K]",
+                        "sl_vz" : "magnetized LOS velocity [km/s]",
+                        "sl_vmic" : "magnetized Micro-turbulent velocity [km/s]"}
 
 parameter_relay_symbols = {"temp"    : r"$T [\mathrm{K}]$",
                            "vz"      : r"$v_\mathrm{LOS} [\mathrm{km/s}]$",
@@ -38,9 +38,9 @@ parameter_relay_symbols = {"temp"    : r"$T [\mathrm{K}]$",
                            "gamma"   : r"$\gamma [^\circ]$",
                            "chi"     : r"$\phi   [^\circ]$",
                            "stray"   : r"$\alpha$",
-                           "sl_temp" : r"$T^{s} [\mathrm{K}]$",
-                           "sl_vz"   : r"$v_\mathrm{LOS}^s [\mathrm{km/s}]$",
-                           "sl_vmic" : r"$v_\mathrm{vmic}^s [\mathrm{km/s}]$"
+                           "sl_temp" : r"$T^{m} [\mathrm{K}]$",
+                           "sl_vz"   : r"$v_\mathrm{LOS}^m [\mathrm{km/s}]$",
+                           "sl_vmic" : r"$v_\mathrm{vmic}^m [\mathrm{km/s}]$"
                            }
 
 bands = {"temp"  : [100, 200],
@@ -184,11 +184,11 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     nrows = 1
     _parameters = []
     for parameter in parameters:
-        n1 = len(atm1.nodes[parameter])
+        nmax = len(atm1.nodes[parameter])
         if atm2 is not None:
             for _atm in atm2:
                 n2 = len(_atm.nodes[parameter])
-                nmax = max([n1, n2])
+                nmax = max([nmax, n2])
         nrows = max([nrows, nmax])
         _parameters.append(parameter)
 
