@@ -18,10 +18,10 @@ Currently, supported atomic line parameters are transition probability (through 
    :maxdepth: 2
    :caption: Contents:
 
-   user/introduction
    user/installation
-   user/keywords
+   user/introduction
    user/input_files
+   user/keywords
 
    changelog
 

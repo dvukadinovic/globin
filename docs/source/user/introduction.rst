@@ -3,15 +3,14 @@
 Introduction
 ============
 
-Main purpose of **globin** package is to invert high-resolution NUV solar observations from SUSI instrument onboard SUNRISE III balloon-borne mission for inference of atomic line parameters. Package is able to invert ocilator strength (log(gf)) and rest wavelength of spectral line along with atmospheric parameters (temperature, vertical velocity, micro-turbulent velocity, magnetic field strength, field inclination and azimuth).
+**globin** is spectropolarimetric inversino code developed to self-consistently infer atmospheric and atomic line parameters from high-spectral and high-spatial resolution observations of the solar atmosphere from the near ultraviolet to infrared wavelengths. Main purpose of **globin** is to infer the atomic line parameters, such as, transition probability, line centra wavelength and element abundance, spacially coupling spectra from each pixel from the observed field of view. This spatial coupling improves the inference by reducing the coupling between atomic and atmospheric parameters. More information about the method and its implementation is presented in `Vukadinovic et al. (2025) <https://ui.adsabs.harvard.edu/abs/2024A%26A...686A.262V/abstract>`_.
 
-Parametrization of atmospheric structure is done using node approach where in node we have value of given physical parameters. Code minimizes difference between provided observed profiles and synthesised spectra using Levenberg-Marquardt algorithm.
+The forward modelling of **globin** module is based on the well-tested non-LTE code `RH <https://github.com/han-uitenbroek/RH>`_. RH is modified and ported into Python environment using Cython as a separate module named `**pyrh** <https://github.com/dvukadinovic/pyrh>`_. 
 
-In case of atomic parameters we have implemented a global minimization. In this approach, atomic parameters are called global and are the same for each observed Stokes profile in given field-of-view. This way, we have coupled information from all the pixels to have better inference of atomic parameters.
+The modifications of RH code are performed to enable parallel executions on superclusters using MPI protocol using **mpi4py** module from **schwimmbad** module. 
 
-Atmospheric structure is assumed to be given in optical depth scale which is then finly interpolated on scale -6 to 1 with step size of 0.1. Interpolation between atmospheric nodes is performed with Bezier's 2nd and 3rd order polynomials.
-
-Response function, necessary for spectropolarimetric inversion using LM algorithm, are calculated numerical using ``rf_ray`` executable of RH. It is modified executable of ``sovleray``.
+.. note::
+    **globin** is well tested for LTE forward modelling and inversion. Tests performed in non-LTE mode show machine precision difference in spectra from **globin** and original RH, verifying that modifications of RH did not impact in any way the code core. Inversions in non-LTE are possible, but are not verifyed yet. 
 
 Inverter
 ============
