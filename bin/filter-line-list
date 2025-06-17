@@ -4,56 +4,102 @@
 import globin
 import numpy as np
 from tqdm import tqdm
-import sys
+import matplotlib.pyplot as plt
 import os
+import multiprocessing as mp
 
 from argparse import ArgumentParser
 
-def clean_input_files():
-	os.system("rm tmp atoms.input molecules.input kurucz.input keyword.input")
+dlam = 2e-4
 
-def main(line_list, thresholds):
-	atmos = globin.falc
-	atmos.line_list = "tmp"
-	atmos.set_mode(0)
-	atmos.set_mu(1)
-	atmos.set_spectrum_normalization(True, 1)
-	
-	atmos.create_input_files()
+def chunk_list(list, n_chunks):
+	Nelem = len(list)
 
-	text, lines = globin.atoms.read_RLK_lines(line_list)	
+	inds = np.array_split(np.arange(Nelem, dtype=np.int32), n_chunks)
+
+	chunks = [None]*n_chunks
+	for idc in range(n_chunks):
+		chunks[idc] = list[slice(inds[idc][0], inds[idc][-1]+1, 1)]
+
+	return chunks
+
+def parallel_call(args):
+	pID, atmos, lines, text = args
+
+	try:
+		os.mkdir(f"globin_tmp_{pID:04d}")
+	except FileExistsError:
+		pass
+	atmos.set_cwd(f"globin_tmp_{pID:04d}")
+	atmos.line_list = f"globin_tmp_{pID:04d}/tmp"
+	atmos.create_input_files()#keys={"STOKES_MODE" : "NO_STOKES"})
+
 	Nlines = len(lines)
 
 	line_depth = np.zeros(Nlines)
 
-	for idl in tqdm(range(Nlines)):
+	if pID==0:
+		iterator = tqdm(range(Nlines), desc=f"PID {pID:04d}")
+	else:
+		iterator = range(Nlines)
+	
+	for idl in iterator:
 		delta_J = lines[idl].Jlow - lines[idl].Jup
 		if abs(delta_J)>1:
 			continue
 
-		tmp = open("tmp", "w")
+		tmp = open(f"globin_tmp_{pID:04d}/tmp", "w")
 		tmp.writelines(text[idl])
 		tmp.close()
 
-		# for each line individual one + continuum far away (2 A from the lower wavelength limit)
+		# for each line individual one + continuum far away (5nm from the lower wavelength limit)
 		wavelength = globin.utils.compute_wavelength_grid(
-							lmin=lines[idl].lam0-0.1, 
-							lmax=lines[idl].lam0+0.1, 
-							dlam=2e-4, 
+							lmin=lines[idl].lam0-3*dlam, 
+							lmax=lines[idl].lam0+3*dlam, 
+							dlam=dlam, 
 							unit="nm")
-		wavelength = np.insert(wavelength, 0, lines[idl].lam0-5)
+		wavelength = np.insert(wavelength, 0, lines[idl].lam0-1)
 		atmos.set_wavelength_grid(wavelength)
 
-		lam0 = lines[idl].lam0
-		spec = globin.inversion.synthesize(atmos)
+		StokesI = atmos._compute_spectra_sequential((0,0))[0][0]
+		StokesI = np.array(StokesI)
 
-		#globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
-		#globin.show()
+		plt.plot(StokesI/StokesI[0])
+		plt.show()
 
-		line_depth[idl] = 1-np.min(spec.I[0,0])
-
+		line_depth[idl] = 1 - np.min(StokesI/StokesI[0])
 		text[idl] = f"{line_depth[idl]:.4e}  " + text[idl]
 
+	os.system(f"rm -rf globin_tmp_{pID:04d}")
+
+	return line_depth, text
+
+def main(line_list, thresholds, n_cpus):
+	atmos = globin.falc
+	atmos.interpolate_atmosphere(np.linspace(-4, 1, num=51), atmos.data)
+	atmos.set_mode(0)
+	atmos.set_mu(1)
+	atmos.set_spectrum_normalization(True, 1)
+	
+	text, lines = globin.atoms.read_RLK_lines(line_list)
+
+	lines_chunks = chunk_list(lines, n_cpus)
+	text_chunks = chunk_list(text, n_cpus)
+
+	iterable = zip(np.arange(n_cpus, dtype=np.int32), [atmos]*n_cpus, lines_chunks, text_chunks)
+
+	with mp.Pool(n_cpus) as pool:
+		out = pool.map(parallel_call, iterable)
+
+	text = []
+	line_depth = []
+	for idc in range(n_cpus):
+		_line_depth, _text = out[idc]
+		line_depth.append(_line_depth)
+		text += _text
+
+	line_depth = np.concatenate(line_depth)
+	
 	tmp = open(f"{line_list}_line_depth", "w")
 	tmp.writelines(text)
 	tmp.close()
@@ -61,7 +107,7 @@ def main(line_list, thresholds):
 	for threshold in thresholds:
 		inds = np.where(line_depth>=threshold)[0]
 		tmp = open(f"{line_list}_th{threshold}", "w")
-		tmp.writelines([text[ind] for ind in inds])
+		tmp.writelines([text[ind][12:] for ind in inds])
 		tmp.close()
 
 if __name__=="__main__":
@@ -69,11 +115,10 @@ if __name__=="__main__":
 
 	aparser.add_argument("line_list", type=str, help="Path to the Kurucz line list")
 	aparser.add_argument("--thresholds", type=str, nargs="*", help="List of threshold values")
+	aparser.add_argument("--n-cpus", type=int, help="Number of CPUs to be used for parallel execution")
 
 	args = aparser.parse_args()
 
 	thresholds = list(map(float, args.thresholds))
 
-	main(args.line_list, thresholds)
-
-	clean_input_files()
+	main(args.line_list, thresholds, args.n_cpus)
