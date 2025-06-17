@@ -3059,7 +3059,7 @@ class Atmosphere(object):
 		self.data = data
 		self.values = values
 
-	def create_input_files(self, keys):
+	def create_input_files(self, keys={}):
 		atmols.create_atoms_list(f"{self.cwd}/atoms.input")
 		atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 		if self.line_list is not None:
