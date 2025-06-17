@@ -534,6 +534,13 @@ def write_wavs(wavs, fname='wavegrid', transform=True, air2vacuum_limit=199.9352
     return wavs
 
 def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
+    return_array = True
+    if isinstance(wavelength, float):
+        wavelength = np.array([wavelength])
+        return_array = False
+    if isinstance(wavelength, list):
+        wavelength = np.array(wavelength)
+
     sigma_sq = (1.0e7/wavelength)**2
     fact = 1.0000834213 + 2.406030e6/(1.3e10 - sigma_sq) + 1.5997e4/(3.89e9 - sigma_sq)
 
@@ -542,16 +549,30 @@ def air_to_vacuum(wavelength, air2vacuum_limit=199.9352):
 
     aux = wavelength*fact
 
-    return aux
+    if return_array:
+        return aux
+    else:
+        return aux[0]
 
 def vacuum_to_air(wavelength, vacuum2air_limit=200.0000):
+    return_array = True
+    if isinstance(wavelength, float):
+        wavelength = np.array([wavelength])
+        return_array = False
+
+    if isinstance(wavelength, list):
+        wavelength = np.array(wavelength)
+
     factor = np.ones_like(wavelength)
     wave2 = 1/wavelength**2
     factor[wavelength>vacuum2air_limit] = 1 + 2.735182e-4 + (1.314182 + 2.76249e4*wave2[wavelength>vacuum2air_limit]) * wave2[wavelength>vacuum2air_limit]
 
     aux = wavelength/factor
 
-    return aux
+    if return_array:
+        return aux
+    else:
+        return aux[0]
 
 def compute_wavelength_grid(lmin, lmax, nwl=None, dlam=None, unit="A"):
     """
