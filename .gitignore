@@ -7,3 +7,4 @@ comments
 *.so
 tests/*/runs/*
 examples/
+docs/build
