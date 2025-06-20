@@ -245,9 +245,9 @@ def sequential_synthesize(atmos):
 	
 	for idx in range(atmos.nx):
 		for idy in range(atmos.ny):
-			stokes_vector = atmos._compute_spectra_sequential((idx,idy)).T
+			stokes_vector = atmos._compute_spectra_sequential((idx,idy))[0].T
 			if atmos.sl_atmos is not None:
-				_sl_spec = atmos._compute_spectra_sequential((idx,idy)).T
+				_sl_spec = atmos._compute_spectra_sequential((idx,idy))[0].T
 			if atmos.vmac!=0:	
 				stokes_vector = globin.spec._broaden_spectra((stokes_vector, kernel))
 				if atmos.sl_atmos is not None:
