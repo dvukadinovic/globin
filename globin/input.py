@@ -78,12 +78,17 @@ class InputData(object):
 		globin.rh.atmols.create_atoms_list(f"{self.cwd}/atoms.input")
 		globin.rh.atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 
+		# create keywords.input file
+		keywords = globin.rh.RHKeywords()
+		keywords.create_input_file(f"{self.cwd}/keyword.input")
+
 		#--- get parameters from globin input file
 		text = open(self.globin_input_name, "r").read()
 		self.parameters_input = text
 
 		line_list = _find_value_by_key("line_list", self.parameters_input, "required")
 		globin.rh.create_kurucz_input(line_list, f"{self.cwd}/kurucz.input")
+
 
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 
