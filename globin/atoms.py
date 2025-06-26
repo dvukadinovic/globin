@@ -432,7 +432,7 @@ def update_line_list(fpath, parameter, line_number, value):
     if len(line_number)!=len(value):
         raise ValueError("Unequal size of the 'line_number' and 'value' lists.")
 
-    for idl, line_num in enumerate((line_number)):
+    for idl, line_num in enumerate(line_number):
         # line_num -= 1 # to comply with Python counting
         kurucz_line = list(lines[line_num])
         if parameter=="loggf":
