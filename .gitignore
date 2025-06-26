@@ -5,6 +5,7 @@ globin/invert/__pycache__/
 vispec/__pycache__/
 comments
 *.so
+*.png
 tests/*/runs/*
 examples/
 docs/build
