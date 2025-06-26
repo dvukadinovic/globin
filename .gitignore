@@ -8,4 +8,4 @@ comments
 *.png
 tests/*/runs/*
 examples/
-docs/build
+docs/build/
