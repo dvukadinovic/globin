@@ -1,4 +1,0 @@
-test
-============
-
-This is a test .rst file in which I will try to learn how to write down documentation in Sphinx.

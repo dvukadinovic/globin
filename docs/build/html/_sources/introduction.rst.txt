@@ -1,1 +1,0 @@
-Package 'globin' is spectropolarimetric inversion code which is written for Python 3.6+ interpreters. For detailed depndencies see (...). It is based around RH code which is used to synthesise the spectra and compute response functions. For the optimization it uses Levenberg-Marquard algorithm.
