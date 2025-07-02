@@ -256,10 +256,11 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 		
 		#--- Stokes I
 		if shift:
-			if norm:
-				obs[:,0] += shift/Icont[0]
-			else:
-				obs[:,0] += shift
+			print("[Info] Shift option is obsolete at the moment...")
+			# if norm:
+			# 	obs[:,0] += shift/Icont[0]
+			# else:
+			# 	obs[:,0] += shift
 
 		axI.plot((wavelength - lam0)*10, obs[:,0], lw=lw, color="k")
 		# if norm:
