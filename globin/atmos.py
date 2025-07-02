@@ -1290,13 +1290,8 @@ class Atmosphere(object):
 		z_new = np.round(z_new, decimals=2)
 		ref_atm[:,:,0] = np.round(ref_atm[:,:,0], decimals=2)
 
-		if z_new[0]<ref_atm[0,0,0,0] or z_new[-1]>ref_atm[0,0,0,-1]:
-			print("--> Warning: atmosphere will be extrapolated")
-			print("    from {} to {} in optical depth.\n".format(ref_atm[0,0,0,0], z_new[0]))
-			raise ValueError("Do not trust it... Just check your parameters for logtau scale in 'params.input' file.")
-			self.logtau = ref_atm[0,0,0]
-			self.data = ref_atm
-			return
+		if (z_new[0]<ref_atm[0,0,0,0]) or (z_new[-1]>ref_atm[0,0,0,-1]):
+			print("[Warning] The atmosphere will be extrapolated from {} to {} in the optical depth.\n".format(ref_atm[0,0,0,0], z_new[0]))
 
 		self.nz = len(z_new)
 
@@ -1314,10 +1309,10 @@ class Atmosphere(object):
 		if oneD:
 			for idp in range(1, self.npar):
 				if idp==2 or idp==8:
-					fun = interp1d(ref_atm[0,0,0], np.log10(ref_atm[0,0,idp]), kind=3)
+					fun = interp1d(ref_atm[0,0,0], np.log10(ref_atm[0,0,idp]), kind=3, fill_value="extrapolate")
 					self.data[:,:,idp,:] = 10**(fun(z_new))
 				else:
-					fun = interp1d(ref_atm[0,0,0], ref_atm[0,0,idp], kind=3)
+					fun = interp1d(ref_atm[0,0,0], ref_atm[0,0,idp], kind=3, fill_value="extrapolate")
 					self.data[...,idp,:] = fun(z_new)
 			# self.nHtot = np.sum(self.data[...,8:,:], axis=2)
 		else:
@@ -1325,10 +1320,10 @@ class Atmosphere(object):
 				for idy in range(self.ny):
 					for idp in range(1, self.npar):
 						if idp==2 or idp==8:
-							fun = interp1d(ref_atm[idx,idy,0], np.log10(ref_atm[idx,idy,idp]), kind=3)
+							fun = interp1d(ref_atm[idx,idy,0], np.log10(ref_atm[idx,idy,idp]), kind=3, fill_value="extrapolate")
 							self.data[idx,idy,idp] = 10**(fun(z_new))
 						else:
-							fun = interp1d(ref_atm[idx,idy,0], ref_atm[idx,idy,idp], kind=3)
+							fun = interp1d(ref_atm[idx,idy,0], ref_atm[idx,idy,idp], kind=3, fill_value="extrapolate")
 							self.data[idx,idy,idp] = fun(z_new)
 					# self.nHtot[idx,idy] = np.sum(self.data[idx,idy,8:,:], axis=0)
 	
