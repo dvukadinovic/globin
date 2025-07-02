@@ -384,7 +384,7 @@ class Inverter(InputData):
 			#--- compute new spectrum after parameters update
 			corrected_spec = atmos.compute_spectra(stop_flag, pool=pool)
 			if atmos.sl_atmos is not None:
-				 sl_spec = atmos.sl_atmos.compute_spectra(stop_flag, pool=pool)
+				sl_spec = atmos.sl_atmos.compute_spectra(stop_flag, pool=pool)
 			
 			if not self.mean:
 				corrected_spec.broaden_spectra(atmos.vmac, stop_flag, self.n_thread, pool=pool)
