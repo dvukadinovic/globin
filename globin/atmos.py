@@ -981,9 +981,11 @@ class Atmosphere(object):
 		if flag is None:
 			flag = np.ones((self.nx, self.ny))
 
+		flag = np.asarray(flag)
+
 		atmos = [self]*(self.nx*self.ny)
 		params = [params]*(self.nx*self.ny)
-		args = zip(atmos, flag[self.idx_meshgrid, self.idy_meshgrid], self.idx_meshgrid, self.idy_meshgrid, params)
+		args = zip(atmos, flag.ravel(), self.idx_meshgrid, self.idy_meshgrid, params)
 
 		if pool is None:
 			with mp.Pool(self.n_thread) as pool:
@@ -2154,7 +2156,7 @@ class Atmosphere(object):
 		return output
 		#return np.vstack((sI, sQ, sU, sV))
 
-	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=[], rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
+	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=None, rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
 		Compute response functions for atmospheric parameters at given nodes and
 		specified global parameters (atomic line, vmac, stray light).
@@ -2169,6 +2171,9 @@ class Atmosphere(object):
 
 		old_rf : ndarray
 		"""
+		if synthesize is None:
+			synthesize = np.ones((self.nx, self.ny))
+
 		self.build_from_nodes(synthesize, pool=pool)
 		if self.hydrostatic:
 			self.makeHSE(synthesize, pool=pool)
