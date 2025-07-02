@@ -506,6 +506,10 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	width, height = 3, 2+2/3
 	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=True)
 	fig.subplots_adjust(wspace=0.5, hspace=0.4)
+	if nrows==1:
+		axs = axs[np.newaxis,:]
+	if ncols==1:
+		axs = axs[:,np.newaxis]
 
 	if rf_local is not None:
 		for i_, parameter in enumerate(local_parameters):
