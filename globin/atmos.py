@@ -302,8 +302,8 @@ class Atmosphere(object):
 
 			self.nHtot = np.sum(self.data[:,:,8:,:], axis=2)
 			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
-			self.idx_meshgrid = self.idx_meshgrid.flatten()
-			self.idy_meshgrid = self.idy_meshgrid.flatten()
+			self.idx_meshgrid = self.idx_meshgrid.ravel()
+			self.idy_meshgrid = self.idy_meshgrid.ravel()
 		else:
 			self.data = None
 			self.header = None
@@ -314,8 +314,8 @@ class Atmosphere(object):
 				self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
-				self.idx_meshgrid = self.idx_meshgrid.flatten()
-				self.idy_meshgrid = self.idy_meshgrid.flatten()
+				self.idx_meshgrid = self.idx_meshgrid.ravel()
+				self.idy_meshgrid = self.idy_meshgrid.ravel()
 
 		#--- limit values for local and global parameters
 		self.limit_values = {"temp"  : MinMax(3000, 10000), # [K]
@@ -991,7 +991,7 @@ class Atmosphere(object):
 		else:
 			results = pool.map(self._build_from_nodes, args)
 
-		results = np.array(results)
+		results = np.asarray(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
 
 	def _build_from_nodes(self, args):
@@ -1029,7 +1029,7 @@ class Atmosphere(object):
 				x = np.append(x, new_node)
 
 			return x, y
-
+		
 		atmos, flag, idx, idy, params = args
 
 		parameters = self.nodes
@@ -1041,7 +1041,7 @@ class Atmosphere(object):
 
 		if flag==0:
 			return atmos.data[idx,idy]
-
+		
 		for parameter in parameters:
 			# skip over OF and stray light parameters
 			if parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
