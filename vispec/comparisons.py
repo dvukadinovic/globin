@@ -55,7 +55,7 @@ bands = {"temp"  : [100, 200],
 def lin(x, a, b):
     return x*a + b
 
-def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False, show_bands=False, show_errors=False):
+def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referent", "inversion"], statistics=False, subplot_markers=False, show_bands=False, show_errors=False, mark=None):
     nrows = 0
     _parameters = []
     for parameter in parameters:
@@ -71,6 +71,20 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig = plt.figure(figsize=(width*ncols, height*nrows))
     gs = fig.add_gridspec(nrows=nrows, ncols=ncols)
 
+    mark_markers = False
+    if mark is not None:
+        mark_markers = True
+        if not isinstance(mark, list):
+            mark = [mark]
+        nconditions = len(mark)
+        inds = np.arange(atm1.nx*atm1.ny)
+        mark_inds = [None]*len(mark)
+        total_condition = True
+        for idc, condition in enumerate(mark):
+            mark_inds[idc] = inds[condition]
+            total_condition &= condition
+        donot_mark_inds = inds[np.logical_not(total_condition)] 
+    
     # change the marker size based on the weights provided (chi2 values,...)
     ms = 9
     if weight is not None:
@@ -128,7 +142,12 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
             if show_errors:
                 ax.errorbar(x, y, xerr=xerr, yerr=yerr, fmt="o", markeredgecolor="k", ecolor="k", alpha=0.7, fillstyle="none")
             else:
-                ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
+                if mark_markers:
+                    ax.scatter(x[donot_mark_inds], y[donot_mark_inds], s=9, edgecolor="k", facecolor="none", alpha=0.7)
+                    for idcon in range(nconditions):
+                        ax.scatter(x[mark_inds[idcon]], y[mark_inds[idcon]], s=9, edgecolor=f"C{idcon}", facecolor="none", alpha=0.7)
+                else:
+                    ax.scatter(x, y, s=ms, edgecolor="k", facecolor="none", alpha=0.7)
             mean = np.nanmean(x)
             std = np.nanstd(x)
             vmin = mean - 3*std
