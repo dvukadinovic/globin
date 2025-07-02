@@ -2941,9 +2941,11 @@ class Atmosphere(object):
 		if self.stray_mode in [1,2]:
 			nx = self.nx
 			ny = self.ny
-		if self.stray_mode==3:
+		elif self.stray_mode==3:
 			nx = 1
 			ny = 1
+		else:
+			raise ValueError("Unknown 'strey_mode' value.")
 
 		self.sl_atmos = globin.Atmosphere(nx=nx, 
 										 ny=ny,
