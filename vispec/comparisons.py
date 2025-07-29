@@ -32,15 +32,15 @@ parameter_relay_text = {"temp"  : "Temperature [K]",
                         "sl_vmic" : "magnetized Micro-turbulent velocity [km/s]"}
 
 parameter_relay_symbols = {"temp"    : r"$T [\mathrm{K}]$",
-                           "vz"      : r"$v_\mathrm{LOS} [\mathrm{km/s}]$",
-                           "vmic"    : r"$v_\mathrm{mic} [\mathrm{km/s}]$",
+                           "vz"      : r"$v_\mathrm{LOS}^{m} [\mathrm{km/s}]$",
+                           "vmic"    : r"$v_\mathrm{mic}^{m} [\mathrm{km/s}]$",
                            "mag"     : r"$B [\mathrm{G}]$",
                            "gamma"   : r"$\gamma [^\circ]$",
                            "chi"     : r"$\phi   [^\circ]$",
                            "stray"   : r"$\alpha$",
-                           "sl_temp" : r"$T^{m} [\mathrm{K}]$",
-                           "sl_vz"   : r"$v_\mathrm{LOS}^m [\mathrm{km/s}]$",
-                           "sl_vmic" : r"$v_\mathrm{vmic}^m [\mathrm{km/s}]$"
+                           "sl_temp" : r"$T^{um} [\mathrm{K}]$",
+                           "sl_vz"   : r"$v_\mathrm{LOS}^{um} [\mathrm{km/s}]$",
+                           "sl_vmic" : r"$v_\mathrm{vmic}^{um} [\mathrm{km/s}]$"
                            }
 
 bands = {"temp"  : [100, 200],
