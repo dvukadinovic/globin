@@ -872,6 +872,9 @@ class Atmosphere(object):
 			else:
 				setattr(new_atmos, key, dic[key])
 
+		if new_atmos.sl_atmos is not None:
+			new_atmos.sl_atmos = self.sl_atmos.extract(slice_x, slice_y, slice_z)
+
 		return new_atmos
 
 	def get_atmos(self, indx, indy):
