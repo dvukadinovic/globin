@@ -511,25 +511,26 @@ class AtomPars(object):
                 print(f"[Info] Did not found boundary values for {parameter}.")
 
 class PSE(object):
+    symbols = ["H",  "He", 
+                "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne",
+                "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar",
+                "K",  "Ca", "Sc", "Ti", "V",  "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
+                "Ga", "Ge", "As", "Se", "Br", "Kr",
+                "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
+                "In", "Sn", "Sb", "Te", "I",  "Xe",
+                "Cs", "Ba", 
+                "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
+                "Hf", "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
+                "Fr", "Ra",
+                "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm"]
     def __init__(self):
-        self.symbols = ["H",  "He", 
-                        "Li", "Be", "B",  "C",  "N",  "O",  "F",  "Ne",
-                        "Na", "Mg", "Al", "Si", "P",  "S",  "Cl", "Ar",
-                        "K",  "Ca", "Sc", "Ti", "V",  "Cr", "Mn", "Fe", "Co", "Ni", "Cu", "Zn",
-                        "Ga", "Ge", "As", "Se", "Br", "Kr",
-                        "Rb", "Sr", "Y",  "Zr", "Nb", "Mo", "Tc", "Ru", "Rh", "Pd", "Ag", "Cd",
-                        "In", "Sn", "Sb", "Te", "I",  "Xe",
-                        "Cs", "Ba", 
-                        "La", "Ce", "Pr", "Nd", "Pm", "Sm", "Eu", "Gd", "Tb", "Dy", "Ho", "Er", "Tm", "Yb", "Lu",
-                        "Hf", "Ta", "W",  "Re", "Os", "Ir", "Pt", "Au", "Hg", "Tl", "Pb", "Bi", "Po", "At", "Rn",
-                        "Fr", "Ra",
-                        "Ac", "Th", "Pa", "U", "Np", "Pu", "Am", "Cm", "Bk", "Cf", "Es", "Fm"]
+        pass
 
     def get_element_symbol(self, element_number):
         return self.symbols[int(element_number-1)]
 
     def get_element_number(self, element_symbol):
-        return self.symbols.index(symbol)+1
+        return self.symbols.index(element_symbol)+1
 
 class EnergyLevel(object):
     def __init__(self, energy, g, configuration, stage, levelID, abo_level=None):
