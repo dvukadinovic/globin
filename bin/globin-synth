@@ -2,25 +2,44 @@
 # -*- coding: utf-8 -*-
 
 import globin
+import numpy as np
+from argparse import ArgumentParser
+
+aparser = ArgumentParser(description='Simple and fast computetion of a spectrum from a 1D atmospheric model')
+aparser.add_argument("linelist", type=str, help='Path to the line list in Kurucz format')
+aparser.add_argument("--mu", type=float, default=1.0, help="mu angle for which to compute the spectrum")
+aparser.add_argument("--vmac", type=float, default=0, help="mu angle for which to compute the spectrum")
+aparser.add_argument("--save", action="store_true", help="Flag for saving the computed spectrum")
+aparser.add_argument("--norm", action="store_true", help="Flag if the spectrum should be normalized to 1")
+args = aparser.parse_args()
 
 atmosphere = globin.falc
 
-mu = 1.00
-
-atmosphere.set_mu(mu)
+atmosphere.set_mu(args.mu)
 atmosphere.set_cwd(".")
-atmosphere.set_spectrum_normalization(True, 1)
-atmosphere.add_magnetic_vector(B=1500, gamma=60, chi=15)
+atmosphere.set_vmac(args.vmac)
+if args.norm:
+    atmosphere.set_spectrum_normalization(True, 1)
+# atmosphere.add_magnetic_vector(B=1500, gamma=60, chi=15)
 
-atmosphere.line_list = "fe6300"
+atmosphere.line_list = args.linelist
 atmosphere.create_input_files()
 
-wavelength = globin.utils.compute_wavelength_grid(6301.0, 6303.0, nwl=201, unit="A")
+_, lines = globin.atoms.read_RLK_lines(args.linelist)
+lmin = lines[0].lam0 - 0.05
+lmax = lines[-1].lam0 + 0.05
+
+wavelength = globin.utils.compute_wavelength_grid(lmin, lmax, dlam=1e-3, unit="nm")
 atmosphere.set_wavelength_grid(wavelength)
 
 spec = globin.inversion.synthesize(atmosphere)
 
 globin.plot_spectra(spec.spec[0,0], spec.wavelength, 
-                    norm=True,
+                    norm=args.norm,
                     center_wavelength_grid=False)
+
+if args.save:
+    data = np.vstack((spec.wavelength, spec.I[0,0])).T
+    np.save(f"spec_FALC_mu{args.mu:.2f}_vmac{args.vmac:.2f}_{lmin:.3f}-{lmax:.3f}", data)
+
 globin.show()

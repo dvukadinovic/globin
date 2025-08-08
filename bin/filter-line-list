@@ -64,8 +64,8 @@ def parallel_call(args):
 		StokesI = atmos._compute_spectra_sequential((0,0))[0][0]
 		StokesI = np.array(StokesI)
 
-		plt.plot(StokesI/StokesI[0])
-		plt.show()
+		# plt.plot(StokesI/StokesI[0])
+		# plt.show()
 
 		line_depth[idl] = 1 - np.min(StokesI/StokesI[0])
 		text[idl] = f"{line_depth[idl]:.4e}  " + text[idl]
