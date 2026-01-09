@@ -16,7 +16,7 @@ To install **globin** in a newly created environment type:
 The forward modelling and inversion mode of **globin** rely on the `RH code <https://github.com/han-uitenbroek/RH>`_. The modified version of RH, **pyrh**, optimized to be used directly from Python environment, can be installed from `here <https://github.com/dvukadinovic/pyrh>`_. The **pyrh** module is not necessary only if user wishes to visualise inversion results or manipulate with atmospheric models.
 
 Create environment
----------------
+------------------
 
 Create a new conda virtual environment using Python 3.10 (the minimal recommended version is 3.6).
 
