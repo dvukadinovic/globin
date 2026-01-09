@@ -203,8 +203,10 @@ def log_prob(theta, obs, atmos, pool):
 	#--- compute posterior
 	if atmos.skip_local_pars:
 		lp = lnprior(None, atmos.global_pars, atmos.limit_values)
-	if atmos.skip_global_pars:
+	elif atmos.skip_global_pars:
 		lp = lnprior(atmos.values, None, atmos.limit_values)
+	else:
+		lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values)
 
 	if not np.isfinite(lp):
 		return -np.inf

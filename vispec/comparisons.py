@@ -183,7 +183,7 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], boundaries={}, contrast=3, fontsize=15, parameters_titles="text", wspace=0.3, aspect=4/3, grid=False, show_errors=False, show_axis_ticks=True):
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], boundaries={}, contrast=3, fontsize=15, parameters_titles="text", wspace=0.3, aspect=4/3, mark_panels=False, grid=False, show_errors=False, show_axis_ticks=True):
     mpl.rcParams.update({"font.size" : fontsize})
 
     if parameters_titles=="text":
@@ -223,6 +223,14 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
         nnodes = len(atm1.nodes[parameter])
         for idr in range(nnodes):
             ax = fig.add_subplot(gs[idr,N*idc])
+
+            if mark_panels:
+                ax.text(0.05, 0.94, chr(97+idc*nnodes+idr), 
+                        transform=ax.transAxes,
+                        va="center",
+                        ha="left",
+                        fontsize="x-small",
+                        bbox=dict(boxstyle='round', facecolor='white', alpha=0.60))
             
             fact = 1
             if parameter in ["gamma", "chi"]:

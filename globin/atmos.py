@@ -861,6 +861,8 @@ class Atmosphere(object):
 				for parameter in self.nodes:
 					new_atmos.nodes[parameter] = self.nodes[parameter]
 					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+				if "stray" in self.nodes:
+					self.stray_light = self.values[parameter]
 			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 				pass
 			elif key in ["pg", "height", "rho", "nHtot"]:
