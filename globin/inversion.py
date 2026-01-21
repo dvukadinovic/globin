@@ -1337,6 +1337,10 @@ def normalize_hessian(H, atmos, mode):
 			for idy in range(atmos.ny):
 				diagonal = np.diagonal(H[idx,idy], offset=0)
 				scales = np.sqrt(diagonal)
+				
+				if any(scales==0):
+					print(f"zero scale: ({idx+1},{idy+1}) -- {scales}")
+					raise ValueError("RF function is zero for a parameter...")
 
 				l, u = 0, 0
 				for parameter in atmos.nodes:
@@ -1344,9 +1348,6 @@ def normalize_hessian(H, atmos, mode):
 					atmos.parameter_scale[parameter][idx,idy,:] = scales[l:u] * atmos.parameter_norm[parameter]
 
 				scales = 1/scales
-				if any(np.isnan(scales)):
-					print(f"zero scale: ({idx},{idy}) -- {scales}")
-					raise ValueError("RF function is zero for a parameter...")
 				RHS_scales[idx,idy] = scales
 				H_scales[idx,idy] = np.outer(scales, scales)
 
