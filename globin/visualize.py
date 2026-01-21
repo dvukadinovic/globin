@@ -430,6 +430,7 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes="I", 
 			 logtau_top=-6, logtau_bot=1,
 			 lmin=None, lmax=None,
+			 vmin=None, vmax=None,
 	    	 rf_wave_integrate=False, rf_tau_integrate=False):
 	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
@@ -529,17 +530,22 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 						ax.set_ylabel(r"$\log(\tau)$", fontsize=fontsize)
 					
 					matrix = rf_local[idp,:,:, ids]
-					vmax = np.max(np.abs(matrix))
-					vmin = -vmax
+					_vmax = np.max(np.abs(matrix))
+					_vmin = -_vmax
 					par_cmap = cmap[parameter]
-					if parameter=="temp":
-						if ids!=0:
-							par_cmap = "bwr"
+					# if parameter=="temp":
+					# 	_vmin = np.min(matrix)
+					# 	if ids!=0:
+					# 		par_cmap = "bwr"
 					# 	else:
 					# 		vmin = 0
+					if vmin is not None:
+						_vmin = vmin[parameter]
+					if vmax is not None:
+						_vmax = vmax[parameter]
 					
 					im = ax.imshow(matrix, aspect="auto", origin="upper",
-						cmap=par_cmap, vmin=vmin, vmax=vmax,
+						cmap=par_cmap, vmin=_vmin, vmax=_vmax,
 						extent=[wavs[0], wavs[-1], logtau[-1], logtau[0]])
 					if j_+1==ncols:
 						add_colorbar(fig, ax, im, label=cbar_label[parameter], fontsize=fontsize)
