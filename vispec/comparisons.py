@@ -38,9 +38,9 @@ parameter_relay_symbols = {"temp"    : r"$T [\mathrm{K}]$",
                            "gamma"   : r"$\gamma [^\circ]$",
                            "chi"     : r"$\phi   [^\circ]$",
                            "stray"   : r"$\alpha$",
-                           "sl_temp" : r"$T^{um} [\mathrm{K}]$",
-                           "sl_vz"   : r"$v_\mathrm{LOS}^{um} [\mathrm{km/s}]$",
-                           "sl_vmic" : r"$v_\mathrm{vmic}^{um} [\mathrm{km/s}]$"
+                           "sl_temp" : r"$T^{nm} [\mathrm{K}]$",
+                           "sl_vz"   : r"$v_\mathrm{LOS}^{nm} [\mathrm{km/s}]$",
+                           "sl_vmic" : r"$v_\mathrm{vmic}^{nm} [\mathrm{km/s}]$"
                            }
 
 bands = {"temp"  : [100, 200],
