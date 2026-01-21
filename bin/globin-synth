@@ -4,13 +4,18 @@
 import globin
 import numpy as np
 from argparse import ArgumentParser
+import os
 
 aparser = ArgumentParser(description='Simple and fast computetion of a spectrum from a 1D atmospheric model')
 aparser.add_argument("linelist", type=str, help='Path to the line list in Kurucz format')
 aparser.add_argument("--mu", type=float, default=1.0, help="mu angle for which to compute the spectrum")
-aparser.add_argument("--vmac", type=float, default=0, help="mu angle for which to compute the spectrum")
+aparser.add_argument("--vmac", type=float, default=0, help="Macro-turbulent broadening in km/s")
+aparser.add_argument("--inputs", action="store_true", default=False, help="Flag for using existing RH input files")
+aparser.add_argument("--of", action="store_true", default=False, help="Flag for adding the opacity fudge in the continuum")
 aparser.add_argument("--save", action="store_true", help="Flag for saving the computed spectrum")
 aparser.add_argument("--norm", action="store_true", help="Flag if the spectrum should be normalized to 1")
+aparser.add_argument("--n-cpus", type=int, default=1, help="Number of CPUs to be used for parallel execution")
+
 args = aparser.parse_args()
 
 atmosphere = globin.falc
@@ -18,16 +23,31 @@ atmosphere = globin.falc
 atmosphere.set_mu(args.mu)
 atmosphere.set_cwd(".")
 atmosphere.set_vmac(args.vmac)
-if args.norm:
-    atmosphere.set_spectrum_normalization(True, 1)
+# if args.norm:
+#     atmosphere.set_spectrum_normalization(True, 1)
 # atmosphere.add_magnetic_vector(B=1500, gamma=60, chi=15)
 
 atmosphere.line_list = args.linelist
-atmosphere.create_input_files()
-
 _, lines = globin.atoms.read_RLK_lines(args.linelist)
-lmin = lines[0].lam0 - 0.05
+lmin = lines[0].lam0 - 0.10
 lmax = lines[-1].lam0 + 0.05
+
+if args.of:
+    keys = {}
+    atmosphere.create_input_files(keys=keys)
+    
+    wavelength = globin.utils.compute_wavelength_grid(lmin, lmin+0.1, dlam=1e-3, unit="nm")
+    atmosphere.set_wavelength_grid(wavelength)
+
+    spec = globin.inversion.synthesize(atmosphere)
+    Icont = spec.I[0,0,0]
+    
+if not args.inputs:
+    keys = {}
+    if args.of:
+        PYRH_PATH = os.environ["PYRH_PATH"]
+        keys["OPACITY_FUDGE"] = f"{PYRH_PATH}/rh/Atmos/opacity_fudge.input"
+    atmosphere.create_input_files(keys=keys)
 
 wavelength = globin.utils.compute_wavelength_grid(lmin, lmax, dlam=1e-3, unit="nm")
 atmosphere.set_wavelength_grid(wavelength)
@@ -39,7 +59,10 @@ globin.plot_spectra(spec.spec[0,0], spec.wavelength,
                     center_wavelength_grid=False)
 
 if args.save:
-    data = np.vstack((spec.wavelength, spec.I[0,0])).T
-    np.save(f"spec_FALC_mu{args.mu:.2f}_vmac{args.vmac:.2f}_{lmin:.3f}-{lmax:.3f}", data)
+    data = np.vstack((spec.wavelength, spec.I[0,0]/Icont)).T
+    of = ""
+    if args.of:
+        of = "of"
+    np.save(f"spec_FALC_mu{args.mu:.2f}_vmac{args.vmac:.2f}_{lmin:.3f}-{lmax:.3f}_{of}", data)
 
 globin.show()
