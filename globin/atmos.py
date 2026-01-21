@@ -2207,7 +2207,7 @@ class Atmosphere(object):
 		free_par_ID_sl_pars = []
 		for parameter in self.nodes:
 			nodes = self.nodes[parameter]
-			values = self.values[parameter]
+			values = self.values[parameter].copy()
 			perturbation = self.delta[parameter]
 
 			for nodeID in range(len(nodes)):
@@ -2218,11 +2218,14 @@ class Atmosphere(object):
 					free_par_ID_sl_pars.append(free_par_ID)
 				
 				#--- positive perturbation
-				self.values[parameter][:,:,nodeID] += perturbation
+				self.values[parameter][:,:,nodeID] = values[...,nodeID] + perturbation
+				# pos_nodes = self.values[parameter][...,nodeID].copy()
 				if parameter=="of":
 					self.make_OF_table()
 				else:
 					self.build_from_nodes(synthesize, params=parameter, pool=pool)
+					self.makeHSE(synthesize, pool=pool)
+				# positive = self.data[active_indx, active_indy,self.par_id[parameter]].copy()
 
 				if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
 					spectra_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
@@ -2244,11 +2247,14 @@ class Atmosphere(object):
 					if self.stray_type=="gray":
 						node_RF = -spec.spec1				
 				else:
-					self.values[parameter][:,:,nodeID] -= 2*perturbation
+					self.values[parameter][:,:,nodeID] = values[...,nodeID] - perturbation
+					# neg_nodes = self.values[parameter][...,nodeID].copy()
 					if parameter=="of":	
 						self.make_OF_table()
 					else:
 						self.build_from_nodes(synthesize, params=parameter, pool=pool)
+						self.makeHSE(synthesize, pool=pool)
+					# negative = self.data[active_indx, active_indy,self.par_id[parameter]].copy()
 
 					if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
 						spectra_minus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
@@ -2268,16 +2274,19 @@ class Atmosphere(object):
 
 				#--- return back perturbations (node way)
 				if parameter=="of":	
-					self.values[parameter][:,:,nodeID] += perturbation
+					self.values[parameter][:,:,nodeID] = values[...,nodeID]# perturbation
 					self.make_OF_table()
 				elif parameter=="stray":
 					pass
 				else:
 					if parameter=="gamma" or parameter=="chi" or self.rf_der_type=="forward":
-						self.values[parameter][:,:,nodeID] -= perturbation
+						# self.values[parameter][:,:,nodeID] -= perturbation
+						self.values[parameter][:,:,nodeID] = values[...,nodeID]
 					else:
-						self.values[parameter][:,:,nodeID] += perturbation
+						# self.values[parameter][:,:,nodeID] += perturbation
+						self.values[parameter][:,:,nodeID] = values[...,nodeID]
 					self.build_from_nodes(synthesize, params=parameter, pool=pool)
+					self.makeHSE(synthesize, pool=pool)
 
 		#--- loop through global parameters and calculate RFs
 		skip_par = -1
@@ -3177,7 +3186,7 @@ def _interpolate_rf(args):
 
 	for idp in range(npar):
 		for ids in range(4):
-			rf_out[idp,:,ids] = interp1d(wave_in, rf_in[idp,:,ids], kind=3)(wave_out)
+			rf_out[idp,:,ids] = interp1d(wave_in, rf_in[idp,:,ids], kind=3, fill_value="extrapolate")(wave_out)
 
 	return rf_out
 
@@ -3320,6 +3329,15 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 	# reference spectrum for forward derivative computation
 	if atmos.rf_der_type=="forward":
 		spec = atmos.compute_spectra()
+
+		if atmos.norm:
+			if atmos.norm_level==1:
+				Ic = spec.I[...,atmos.continuum_idl]
+				spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+			elif atmos.norm_level=="hsra":
+				spec.spec /= atmos.icont
+			else:
+				spec.spec /= atmos.norm_level
 	
 	# compute the total number of free parameters (have to sum atomic for each line)
 	n_local = 0
@@ -3342,6 +3360,14 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 			for idz in tqdm(range(atmos.nz), desc=parameter):
 				atmos.data[:,:,parID,idz] += perturbation
 				spec_plus = atmos.compute_spectra()
+				if atmos.norm:
+					if atmos.norm_level==1:
+						Ic = spec_plus.I[...,atmos.continuum_idl]
+						spec_plus.spec = np.einsum("ij...,ij->ij...", spec_plus.spec, 1/Ic)
+					elif atmos.norm_level=="hsra":
+						spec_plus.spec /= atmos.icont
+					else:
+						spec_plus.spec /= atmos.norm_level
 				# if atmos.sl_atmos is not None:
 				# 	spec_plus_sl = atmos.sl_atmos.compute_spectra()
 
@@ -3350,6 +3376,14 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 					spec_minus = atmos.compute_spectra()
 					# if atmos.sl_atmos is not None:
 					# 	spec_minus_sl = atmos.sl_atmos.compute_spectra()
+					if atmos.norm:
+						if atmos.norm_level==1:
+							Ic = spec_minus.I[...,atmos.continuum_idl]
+							spec_minus.spec = np.einsum("ij...,ij->ij...", spec_minus.spec, 1/Ic)
+						elif atmos.norm_level=="hsra":
+							spec_minus.spec /= atmos.icont
+						else:
+							spec_minus.spec /= atmos.norm_level
 
 					diff = spec_plus.spec - spec_minus.spec
 					rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
@@ -3398,10 +3432,26 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 				for idp in tqdm(range(atmos.line_no[parameter].size), desc=parameter):
 					atmos.global_pars[parameter][...,idp] += perturbation
 					spec_plus = atmos.compute_spectra()
+					if atmos.norm:
+						if atmos.norm_level==1:
+							Ic = spec_plus.I[...,atmos.continuum_idl]
+							spec_plus.spec = np.einsum("ij...,ij->ij...", spec_plus.spec, 1/Ic)
+						elif atmos.norm_level=="hsra":
+							spec_plus.spec /= atmos.icont
+						else:
+							spec_plus.spec /= atmos.norm_level
 
 					if atmos.rf_der_type=="central":
 						atmos.global_pars[parameter][...,idp] -= 2*perturbation
 						spec_minus = atmos.compute_spectra()
+						if atmos.norm:
+							if atmos.norm_level==1:
+								Ic = spec_minus.I[...,atmos.continuum_idl]
+								spec_minus.spec = np.einsum("ij...,ij->ij...", spec_minus.spec, 1/Ic)
+							elif atmos.norm_level=="hsra":
+								spec_minus.spec /= atmos.icont
+							else:
+								spec_minus.spec /= atmos.norm_level
 						diff = spec_plus.spec - spec_minus.spec
 						rf_global[:,:,free_par_ID] = diff / 2 / perturbation
 					elif atmos.rf_der_type=="forward":
