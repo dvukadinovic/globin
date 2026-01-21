@@ -4,9 +4,7 @@
 Input files
 ============
 
-Since the **globin** is based on the RH code, we rely on the same input parameters as are used for the RH. For detailed description of each file and underlying parameters, refer to the RH documentation.
-
-The input file for the **globin** is, by default, named 'parameters.input'. It contains all neccesssary parameters for the synthesis/inversion.
+The **globin** relies on the same input files as those used by the RH code, such as, ``atoms.input``, ``molecules.input``, ``keywords.input``, and ``kurucz.input`` (``ray.input`` is obsolete). The names of these files are hardcoded and should not be altered. Additional input file ``params.input`` is used to control the **globin**. Here, we will only cover **globin** specific keywords used to synthesize spectra or perform inversions of spectropoalrimetric observations. Users unfamiliar with the RH input files are suggested to consult the codes own documentation. This is especially important if non-LTE modelling is to be used since many parameters can be adjusted and will impact the output spectrum. In case of the LTE modelling, RH parameters are set by default inside **globin** and users do not need to know the specifics of the RH code.
 
 * 'mode': state in which **globin** will be run. It is used to specify which paremeters are to be read and performs sanity check.
     #. mode=0 -- synthesize spectra from given atmosphere model.

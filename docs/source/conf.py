@@ -38,7 +38,7 @@ extensions = ['sphinx.ext.autodoc',
     'sphinx.ext.autosectionlabel']
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+# templates_path = ['_templates']
 
 # The suffix(es) of source filenames.
 # You can specify multiple suffix as a list of string:
@@ -87,7 +87,7 @@ todo_include_todos = False
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'press'
+html_theme = 'sphinx_book_theme'
 
 # html_logo = 'path_to_img'
 
@@ -100,7 +100,10 @@ html_theme = 'press'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []
+# html_static_path = ["_static"]
+# html_css_files = [
+#     'css/dv.css',
+# ]
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -109,9 +112,10 @@ html_static_path = []
 # refs: http://alabaster.readthedocs.io/en/latest/installation.html#sidebars
 html_sidebars = {
     '**': [
-        'relations.html',  # needs 'show_related': True theme option to display
-        'searchbox.html',
-        'util/sidetoc.html',
+        "navbar-logo.html",
+        "icon-links.html",
+        "search-button-field.html",
+        "sbt-sidebar-nav.html",
     ]
 }
 
