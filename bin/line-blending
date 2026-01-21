@@ -12,6 +12,12 @@ import globin
 
 from argparse import ArgumentParser
 
+INFO = " Compute the line blending factor for a line list based on the method from " \
+"		 Laverick+17 (https://ui.adsabs.harvard.edu/abs/2017CaJPh..95..843L)." \
+"" \
+"		 It computes the emergent spectrum with and without each line in the list " \
+"		 and compares the results to quantify the blending effects."
+
 def compute_chi2(obs, inv, noise=1e-3, stokes_weights=np.array([1,1,1,1]), Np=0):
 	noise_stokes = np.ones_like(obs.shape)
 	StokesI_cont = np.quantile(obs[...,0], 0.95, axis=2)
@@ -61,7 +67,9 @@ def main(line_list, save_path, wavelength_path):
 	out.writelines(text)
 	out.close()
 
+	print("Computing complete spectrum...")
 	complete = atmos.compute_spectra()
+	print("Done.\n")
 	wave = complete.wavelength
 	complete.spec /= complete.I[0,0,0]
 
