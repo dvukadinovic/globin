@@ -80,6 +80,7 @@ class InputData(object):
 
 		# create keywords.input file
 		keywords = globin.rh.RHKeywords()
+		# keywords.RLK_SCATTER = True
 		keywords.create_input_file(f"{self.cwd}/keyword.input")
 
 		#--- get parameters from globin input file
@@ -222,11 +223,11 @@ class InputData(object):
 				self.atmosphere.continuum_idl = idl
 
 		# compare the wavelength sampling in the observations and in the synthetic spectrum
-		if self.mode>=1:
-			dlam_obs = self.observation.wavelength[1:] - self.observation.wavelength[:-1]
-			dlam_synth = wavelength_air[1:] - wavelength_air[:-1]
-			if np.mean(dlam_obs)<np.mean(dlam_synth):
-				raise ValueError(f"Requested wavelength sampling {np.mean(dlam_synth):.4f} is smaller than the observed one {np.mean(dlam_obs):.4f}. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
+		# if self.mode>=1:
+		# 	dlam_obs = self.observation.wavelength[1:] - self.observation.wavelength[:-1]
+		# 	dlam_synth = wavelength_air[1:] - wavelength_air[:-1]
+		# 	if np.mean(dlam_obs)<np.mean(dlam_synth):
+		# 		raise ValueError(f"Requested wavelength sampling {np.mean(dlam_synth):.4f} is smaller than the observed one {np.mean(dlam_obs):.4f}. Increase the wavelength sampling to improve the spectrum synthesis accuracy.")
 
 		# if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
@@ -446,7 +447,10 @@ class InputData(object):
 		fpath = _find_value_by_key("rf_weights", self.parameters_input, "optional")
 		self.wavs_weight = None
 		if fpath is not None:
-			self.wavs_weight = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(self.observation.wavelength),4))
+			if self.mode==3:
+				self.wavs_weight = np.zeros((self.atmosphere.nx, self.atmosphere.ny, len(self.observation.wavelength),4))
+			else:
+				self.wavs_weight = np.zeros((1, 1, len(self.observation.wavelength),4))
 			lam, wI, wQ, wU, wV = np.loadtxt(fpath, unpack=True)
 			# !!! Lenghts can be the same, but not the values in arrays. Needs to be changed.
 			if len(lam)==len(self.observation.wavelength):

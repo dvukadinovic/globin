@@ -8,19 +8,46 @@ import matplotlib.pyplot as plt
 from astropy.io import fits
 import multiprocessing as mp
 import scipy.sparse as sp
+from scipy.linalg import eigvals
 from scipy.sparse.linalg import spsolve
 from scipy.interpolate import splrep, splev
 import emcee
 
 from tqdm import tqdm, trange
 
-from .spec import Spectrum
+from .spec import Spectrum, get_noise_level
 from .input import InputData
 from .chi2 import Chi2
 from .visualize import plot_spectra, add_colorbar
 from .utils import pretty_print_parameters
 
 import globin
+
+class InversionContainer:
+	def __init__(self):
+		self.Npar = None
+		self.weights = None
+		self.noise = None
+		self.mode = None
+		self.rf_type = None
+		self.wavs_weight = None
+		self.svd_tolerance = None
+		self.mean = None
+		self.n_thread = None
+		self.chi2_tolerance = None
+		self.max_iter = None
+		self.marq_lambda = None
+
+	def assign_values(self, inverter):
+		self.weights = inverter.weights
+		self.noise = inverter.noise
+		self.mode = inverter.mode
+		self.rf_type = inverter.rf_type
+		self.wavs_weight = inverter.wavs_weight
+		self.svd_tolerance = inverter.svd_tolerance
+		self.mean = inverter.mean
+		self.n_thread = inverter.n_thread
+		self.chi2_tolerance = inverter.chi2_tolerance
 
 class Inverter(InputData):
 	def __init__(self, save_output=True, verbose=True):
@@ -40,12 +67,30 @@ class Inverter(InputData):
 		#--- read the input parameters from input files
 		self.read_input_files(globin_input_name, rh_input_name)
 
+	def get_maximum_iterations_number(self, cycle):
+		# if the cycle number is larger than the number of given max iterations
+		# take the last given number of max iterations
+		if len(self.max_iter)<cycle+1:
+			return self.max_iter[-1]
+		else:
+			return self.max_iter[cycle]
+		
+	def get_Marquardt_lamba_parameter(self, cycle):
+		# if the cycle number is larger than the number of given Marquardt parameters
+		# take the last given number of Marquardt parameters
+		if len(self.marq_lambda)<cycle+1:
+			return self.marq_lambda[-1]
+		else:
+			return self.marq_lambda[cycle]
+
 	def run(self, pool=None):
 		if self.mode>=1:
 			start = time.time()
 
 			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
 
+			Npar = self._get_Npar()
+			
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
 					print("="*globin.NCHAR)
@@ -53,22 +98,55 @@ class Inverter(InputData):
 					print("="*globin.NCHAR)
 					print()
 
-				# if the cycle number is larger than the number of given max iterations
-				# take the last given number of max iterations
-				if len(self.max_iter)<cycle+1:
-					max_iter = self.max_iter[-1]
-				else:
-					max_iter = self.max_iter[cycle]
-
-				# if the cycle number is larger than the number of given Marquardt parameters
-				# take the last given number of Marquardt parameters
-				if len(self.marq_lambda)<cycle+1:
-					marq_lambda = self.marq_lambda[-1]
-				else:
-					marq_lambda = self.marq_lambda[cycle]
+				max_iter = self.get_maximum_iterations_number(cycle)
+				marq_lambda = self.get_Marquardt_lamba_parameter(cycle)
 
 				if (self.mode==1) or (self.mode==2):
-					atmos, spec, chi2 = self.invert_pxl_by_pxl(max_iter, marq_lambda, pool)
+					# atmos, spec, chi2 = self.invert_pxl_by_pxl(max_iter, marq_lambda, pool)
+
+					inverter_container = InversionContainer()
+					inverter_container.assign_values(self)
+					inverter_container.Npar = Npar
+					inverter_container.max_iter = max_iter
+					inverter_container.marq_lambda = marq_lambda
+
+					if self.atmosphere.stray_type=="hsra" or self.atmosphere.norm_level=="hsra":
+						print("[Info] Computing the HSRA spectrum...")
+						self.atmosphere.get_hsra_cont()
+						if self.atmosphere.stray_type=="hsra":
+							self.atmosphere.hsra_spec.broaden_spectra(self.atmosphere.vmac)
+
+					atmospheric_models = self.atmosphere.split_atmosphere()
+					observations = self.observation.split_spectra()
+					inverter = [inverter_container]*(self.atmosphere.nx*self.atmosphere.ny)
+					args = zip(atmospheric_models, observations, inverter)
+					
+					if pool is None:
+						with mp.Pool(self.n_thread) as pool:
+							results = list(tqdm(pool.imap(invert_single_pixel, args), total=len(atmospheric_models)))
+					else:
+						results = pool.map(invert_single_pixel, args)
+
+					chi2 = Chi2(nx=self.atmosphere.nx, ny=self.atmosphere.ny, niter=max_iter)
+					chi2.mode = self.mode
+					chi2.Nlolcal_par = self._get_Npar()
+					chi2.Nglobal_par = 0
+					chi2.Nw = np.count_nonzero(self.weights)*self.observation.nw
+
+					spec = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=self.observation.nw)
+					spec.wavelength = self.observation.wavelength
+
+					for idr, res in enumerate(results):
+						idx, idy = np.unravel_index(idr, (self.atmosphere.nx, self.atmosphere.ny))
+						self.atmosphere.data[idx,idy] = res[0].data[0,0]
+						for parameter in self.atmosphere.nodes:
+							self.atmosphere.values[parameter][idx,idy] = res[0].values[parameter][0,0]
+						
+						spec.spec[idx,idy] = res[1].spec[0,0]
+						chi2.chi2[idx,idy] = res[2].chi2[0,0]
+
+					atmos = self.atmosphere
+
 				elif self.mode==3:
 					atmos, spec, chi2 = self.invert_global(max_iter, marq_lambda, pool)
 				else:
@@ -83,7 +161,7 @@ class Inverter(InputData):
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
 					self.atmosphere.smooth_parameters(cycle, self.gaussian_smooth_window[cycle], self.gaussian_smooth_std[cycle])
-					# rest atomic line parameters to the initial ones
+					# reset atomic line parameters to the initial ones
 					if self.reset_atomic_values:
 						self.read_mode_3()
 
@@ -134,32 +212,6 @@ class Inverter(InputData):
 			sys.exit()
 
 		return Npar
-
-	def _estimate_noise_level(self, nx, ny, nw, weights=False):
-		noise = 1e-4
-		if self.noise!=0:
-			noise = self.noise
-		
-		noise_stokes = np.ones((nx, ny, nw, 4))
-		StokesI_cont = np.quantile(self.observation.I, 0.9, axis=2)
-		noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
-
-		# weights on Stokes vector based on observed Stokes I
-		# (nx, ny, nw, 4)
-		if weights and self.weight_type=="StokesI":
-			# print("  Set the weight based on Stokes I...")
-			aux = 1/self.observation.I
-			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
-			# because they will enter the diff which will be squared in chi^2 computation
-			weights = np.sqrt(weights)
-			# norm = np.sum(weights, axis=2)
-			# weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
-		else:
-			weights = 1
-		
-		noise_stokes /= weights
-
-		return noise_stokes
 
 	def invert_pxl_by_pxl(self, max_iter, marq_lambda, pool):
 		"""
@@ -296,8 +348,6 @@ class Inverter(InputData):
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
 				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength)
 				# globin.show()
-
-				# raise ValueError()
 
 				# copy old spectra into new ones for the new itteration
 				if total!=atmos.nx*atmos.ny:
@@ -624,8 +674,17 @@ class Inverter(InputData):
 		Ndof = np.count_nonzero(self.weights)*Nw*Natmos - Nlocalpar*Natmos - Nglobalpar
 
 		#--- estimate of Stokes noise
-		rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
-		diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs), weights=True)
+		# rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
+		# rf_noise_stokes = obs.get_noise_level(noise=self.noise)
+		# rf_weights_stokes = obs.get_wavelength_weights()
+		# rf_noise_stokes /= rf_weights_stokes
+		# diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs), weights=True)
+		# diff_noise_stokes = obs.get_noise_level(noise=self.noise)
+
+		rf_noise_stokes = get_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air), obs.I, noise=self.noise)
+		rf_weights_stokes = obs.get_wavelength_weights()
+		rf_noise_stokes /= rf_weights_stokes
+		diff_noise_stokes = get_noise_level(atmos.nx, atmos.ny, Nw, obs.I, noise=self.noise)
 
 		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
 		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
@@ -1211,16 +1270,346 @@ class Inverter(InputData):
 
 		return reg_weight, total_chi2, regul_chi2
 
+def invert_single_pixel(args):
+	atmosphere, observation, inverter = args
+
+	pool = None
+
+	Nw = len(atmosphere.wavelength_obs)
+	Npar = inverter.Npar
+	Natmos = 1
+	Ndof = np.count_nonzero(inverter.weights)*Nw - Npar
+
+	LM_parameter = inverter.marq_lambda
+	
+	# flags those pixels whose chi2 converged:
+	#   1 --> we do inversion
+	#   0 --> we converged
+	stop_flag = np.ones((atmosphere.nx, atmosphere.ny), dtype=np.int32)
+
+	# flag those pixels whose parameter we have updated
+	#   0 -- no parameters update --> we have not got good parameters or we converged
+	#   1 -- we have updated parameters; we need new RF and spectrum
+	flag_updated_parameters = True
+
+	"""
+	'stop_flag' and 'updated_pars' do not contain the same info. We can have fail update in
+	parameters in one pixel in given iteration, but in the next one, we can have successful. 
+	While 'stop_flag' will always stay 0 after convergence and parameters will not change.
+	"""
+
+	# indices of diagonal elements of Hessian matrix
+	x = np.arange(atmosphere.nx)
+	y = np.arange(atmosphere.ny)
+	p = np.arange(Npar)
+	X,Y,P = np.meshgrid(x,y,p, indexing="ij")
+
+	rf_noise_stokes = get_noise_level(atmosphere.nx, atmosphere.ny, len(atmosphere.wavelength_air), observation.I, noise=inverter.noise)
+	rf_weights_stokes = observation.get_wavelength_weights()
+	rf_noise_stokes /= rf_weights_stokes
+
+	diff_noise_stokes = get_noise_level(atmosphere.nx, atmosphere.ny, Nw, observation.I, noise=inverter.noise)
+
+	chi2 = Chi2(nx=atmosphere.nx, ny=atmosphere.ny, niter=inverter.max_iter)
+	chi2.mode = inverter.mode
+	chi2.Nlolcal_par = Npar
+	chi2.Nglobal_par = 0
+	chi2.Nw = np.count_nonzero(inverter.weights)*Nw
+	iteration = 0
+
+	atmosphere.rf = np.zeros((atmosphere.nx, atmosphere.ny, Npar, Nw, 4))
+	# spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+	spec = Spectrum(nx=atmosphere.nx, ny=atmosphere.ny, nw=Nw)
+	proposed_steps = np.zeros((atmosphere.nx, atmosphere.ny, Npar))
+
+	while iteration<inverter.max_iter:
+		if globin.collect_stats:
+			start_iter = time.time()
+
+		#--- if we updated parameters, recaluclate RF and referent spectra
+		if flag_updated_parameters:
+			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
+			#             spec.shape = (nx, ny, Nw, 5)
+			spec = atmosphere.compute_rfs(weights=inverter.weights, rf_noise_scale=rf_noise_stokes, synthesize=None, rf_type=inverter.rf_type, pool=pool)
+
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
+			# globin.show()
+
+			#--- compute chi2
+			diff = observation.spec - spec.spec
+			diff *= inverter.weights
+			diff /= diff_noise_stokes
+			diff *= np.sqrt(2)
+			if inverter.wavs_weight is not None:
+				diff *= inverter.wavs_weight
+			chi2_old = np.sum(diff**2, axis=(2,3))
+			chi2_old /= Ndof
+
+			"""
+			Gymnastics with indices for solving LM equations for
+			next step parameters.
+			"""
+
+			if inverter.wavs_weight is not None:
+				for idp in range(Npar):
+					atmosphere.rf[:,:,idp] *= inverter.wavs_weight
+
+			# JT = (nx, ny, npar, 4*nw)
+			JT = atmosphere.rf.reshape(atmosphere.nx, atmosphere.ny, Npar, 4*Nw, order="F")
+			# J = (nx, ny, 4*nw, npar)
+			J = np.moveaxis(JT, 2, 3)
+			# JTJ = (nx, ny, npar, npar)
+			JTJ = np.einsum("...ij,...jk", JT, J)
+			
+			# reshaped array of differences between computed and observed spectra
+			# flatted_diff = (nx, ny, 4*Nw)
+			flatted_diff = diff.reshape(atmosphere.nx, atmosphere.ny, 4*Nw, order="F")
+
+			# This was tested with arrays filled with hand and
+			# checked if the array manipulations return what we expect
+			# and it does!
+
+			# get scaling of Hessian matrix
+			H_scale, delta_scale = normalize_hessian(JTJ, atmosphere, mode=inverter.mode)
+
+			# hessian = (nx, ny, npar, npar)
+			H = JTJ*H_scale
+			# after scaling the Hessian, it should contian 1s on the diagonal
+			H_diagonal = np.ones((atmosphere.nx, atmosphere.ny, Npar))
+			
+			# difference in spectra (O - S); shape = (nx, ny, npar)
+			delta = np.einsum("...pw,...w", JT, flatted_diff)
+			delta *= delta_scale
+
+		# add LM parameter to the diagonal elements
+		H[X,Y,P,P] = np.einsum("...i,...", H_diagonal, 1+LM_parameter)
+
+		#--- invert Hessian matrix using SVD method with specified svd_tolerance
+		proposed_steps = invert_Hessian(H, delta, inverter.svd_tolerance, stop_flag, inverter.n_thread, pool=pool)
+		
+		#--- save old parameters (atmospheric and atomic)
+		old_atmos_parameters = copy.deepcopy(atmosphere.values)
+		if inverter.mode==2:
+			old_atomic_parameters = copy.deepcopy(atmosphere.global_pars)
+		
+		#--- update and check parameter boundaries
+		atmosphere.update_parameters(proposed_steps)
+		atmosphere.check_parameter_bounds(inverter.mode)
+
+		#--- set OF table after parameters update
+		if atmosphere.add_fudge:
+			atmosphere.make_OF_table()
+
+		#--- rebuild new atmosphere after parameters update
+		atmosphere.build_from_nodes(stop_flag, pool=pool)
+		if atmosphere.hydrostatic:
+			atmosphere.makeHSE(stop_flag, pool=pool)
+
+		#--- compute new spectrum after parameters update
+		corrected_spec = atmosphere.compute_spectra(stop_flag, pool=pool)
+		if atmosphere.sl_atmos is not None:
+			sl_spec = atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
+		
+		if not inverter.mean:
+			corrected_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+			if atmosphere.sl_atmos is not None:
+				sl_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+
+		if atmosphere.instrumental_profile is not None:
+			corrected_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+			if atmosphere.sl_atmos is not None:
+				sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=synthesize, n_thread=inverter.n_thread, pool=pool)
+
+		#--- add the stray light component:
+		if atmosphere.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in atmosphere.global_pars:
+				stray_light = atmosphere.global_pars["stray"]
+				stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
+			elif "stray" in atmosphere.values:
+				stray_light = atmosphere.values["stray"]
+			else:
+				stray_light = atmosphere.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if atmosphere.stray_type=="hsra":
+				sl_spectrum = atmosphere.hsra_spec.spec
+			if atmosphere.stray_type=="2nd_component":
+				sl_spectrum = sl_spec.spec
+			if atmosphere.stray_type in ["atmos", "spec"]:
+				sl_spectrum = atmosphere.stray_light_spectrum.spec
+
+			corrected_spec.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
+
+		if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
+			corrected_spec.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
+
+		if atmosphere.norm:
+			if atmosphere.norm_level==1:
+				Ic = corrected_spec.I[...,atmosphere.continuum_idl]
+				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+			elif atmosphere.norm_level=="hsra":
+				corrected_spec.spec /= atmosphere.icont
+			else:
+				corrected_spec.spec /= atmosphere.norm_level
+
+		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+		# globin.show()
+
+		#--- compute new chi2 after parameter correction
+		new_diff = observation.spec - corrected_spec.spec
+		new_diff *= inverter.weights
+		new_diff /= diff_noise_stokes
+		new_diff *= np.sqrt(2)
+		if inverter.wavs_weight is not None:
+			new_diff *= inverter.wavs_weight
+		chi2_new = np.sum(new_diff**2, axis=(2,3))
+		chi2_new /= Ndof
+
+		#--- if new chi2 is worse than old chi2
+		flag_updated_parameters = False
+		if chi2_new[0,0]>=chi2_old[0,0]:
+			# chi2.chi2[0,0,itter] = chi2_old[0,0]
+			LM_parameter *= 10
+			for parameter in old_atmos_parameters:
+				atmosphere.values[parameter][0,0] = copy.deepcopy(old_atmos_parameters[parameter][0,0])
+			if inverter.mode==2:
+				for parameter in old_atomic_parameters:
+					N = len(old_atomic_parameters[parameter])
+					if N!=0:
+						atmosphere.global_pars[parameter][0,0] = copy.deepcopy(old_atomic_parameters[parameter][0,0])
+		else:
+			chi2.chi2[0,0,iteration] = chi2_new[0,0]
+			iteration += 1
+			chi2_old = np.copy(chi2_new)
+			LM_parameter /= 10
+			flag_updated_parameters = True
+
+		#--- remake OF table after check of chi2 convergance
+		if atmosphere.add_fudge:
+			atmosphere.make_OF_table()
+
+		#--- check the Marquardt parameter value
+		if LM_parameter<1e-5:
+			LM_parameter = 1e-5
+
+		if LM_parameter>1e5:
+			stop_flag[0,0] = 0
+			break
+
+		#--- check the convergence only for pixels whose iteration number is larger than 2
+		if flag_updated_parameters:
+			stop_flag[0,0], _, _ = _chi2_convergence((chi2.chi2[0,0], stop_flag[0,0], iteration, flag_updated_parameters, inverter.max_iter, inverter.chi2_tolerance))
+
+		# if globin.collect_stats and total!=0:
+		# 	globin.statistics.add(fun_name="pbp_iteration", execution_time=time.time()-start_iter)
+
+		# if all pixels have converged, we stop inversion
+		if np.sum(stop_flag)==0:
+			break
+
+	# all pixels will be synthesized when we finish everything (should we do this?)
+	stop_flag[0,0] = 1
+
+	atmosphere.build_from_nodes(stop_flag, pool=pool)
+	if atmosphere.hydrostatic:
+		atmosphere.makeHSE(stop_flag, pool=pool)
+	inverted_spectra = atmosphere.compute_spectra(stop_flag, pool=pool)
+	if atmosphere.sl_atmos is not None:
+		sl_spec = atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
+
+	if not inverter.mean:
+		inverted_spectra.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+		if atmosphere.sl_atmos is not None:
+			sl_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+	
+	if atmosphere.instrumental_profile is not None:
+		inverted_spectra.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+		if atmosphere.sl_atmos is not None:
+			sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+
+	#--- add the stray light component:
+	if atmosphere.add_stray_light:
+		# get the stray light factor(s)
+		if "stray" in atmosphere.global_pars:
+			stray_light = atmosphere.global_pars["stray"]
+			stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
+		elif "stray" in atmosphere.values:
+			stray_light = atmosphere.values["stray"]
+		else:
+			stray_light = atmosphere.stray_light
+
+		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+		sl_spectrum = None
+		if atmosphere.stray_type=="hsra":
+			sl_spectrum = atmosphere.hsra_spec.spec
+		if atmosphere.stray_type=="2nd_component":
+			sl_spectrum = sl_spec.spec
+		if atmosphere.stray_type in ["atmos", "spec"]:
+			sl_spectrum = atmosphere.stray_light_spectrum.spec
+
+		inverted_spectra.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
+
+	if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
+		inverted_spectra.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
+
+	if atmosphere.norm:
+		if atmosphere.norm_level==1:
+			Ic = inverted_spectra.I[...,atmosphere.continuum_idl]
+			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+		elif atmosphere.norm_level=="hsra":
+			inverted_spectra.spec /= atmosphere.icont
+		else:
+			inverted_spectra.spec /= atmosphere.norm_level
+
+	try:
+		# remove parameter normalization factor from Hessian
+		parameter_norms = []
+		for parameter in atmosphere.nodes:
+			nnodes = len(atmosphere.nodes[parameter])
+			parameter_norms += [atmosphere.parameter_norm[parameter]]*nnodes
+		parameter_norms = np.array(parameter_norms)
+		parameter_norms = np.tile(parameter_norms, atmosphere.nx*atmosphere.ny)
+
+		# for parameter in atmos.global_pars:
+		# 	Npars = atmos.global_pars[parameter].size
+		# 	if Npars==0:
+		# 		continue
+
+		# 	global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
+		# 	global_parameter_norms = np.array(global_parameter_norms)
+
+		# 	parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
+
+		P = np.outer(parameter_norms, parameter_norms)
+		P /= 2 # we need 1/2 of Hessian
+
+		Hessian = JTJ.multiply(P).tocsc()
+
+		# sp.save_npz(f"runs/{inverter.run_name}/hessian.npz", Hessian)
+
+		# we send Ndof/2 because I added factor of 2 in computation of chi2 (accidently)
+		# it is related to diff variable because it stores gradient of the chi2
+		atmosphere.compute_errors(Hessian, chi2, Ndof/2)
+	except:
+		pass
+
+	return atmosphere, inverted_spectra, chi2
+
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 	nx, ny, Npar, _ = H.shape
 	indx, indy = np.where(stop_flag==1)
 	args = zip(H[indx,indy], delta[indx,indy], [svd_tolerance]*nx*ny)
 
-	if pool is None:
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=_invert_Hessian, iterable=args)
+	if nx*ny==1:
+		results = list(map(_invert_Hessian, args))
 	else:
-		results = pool.map(_invert_Hessian, args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_invert_Hessian, iterable=args)
+		else:
+			results = pool.map(_invert_Hessian, args)
 
 	steps = np.zeros((nx, ny, Npar))
 
@@ -1235,6 +1624,10 @@ def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 
 def _invert_Hessian(args):
 	hessian, delta, svd_tolerance = args
+	
+	# eigv = eigvals(hessian, b=None)
+	# cond_num = np.abs(np.max(eigv) / np.min(eigv))
+	# print(cond_num)
 	
 	try:
 		invH = np.linalg.pinv(hessian, rcond=svd_tolerance, hermitian=True)
@@ -1257,11 +1650,14 @@ def chi2_convergence(chi2, itter, stop_flag, updated_pars, n_thread, max_iter, c
 
 	args = zip(chi2.reshape(nx*ny, max_iter), stop_flag.flatten(), itter.flatten(), updated_pars.flatten(), _max_iter, _chi2_tolerance)
 
-	if pool is None:
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=_chi2_convergence, iterable=args)
+	if nx*ny==1:
+		results = list(map(_chi2_convergence, args))
 	else:
-		results = pool.map(_chi2_tolerance, args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_chi2_convergence, iterable=args)
+		else:
+			results = pool.map(_chi2_tolerance, args)
 
 	results = np.array(results)
 	stop_flag = results[...,0].reshape(nx, ny)

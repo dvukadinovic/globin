@@ -327,11 +327,14 @@ class Spectrum(object):
 		indx, indy = np.where(flag==1)
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
-		if pool is None:
-			with mp.Pool(n_thread) as pool:
-				results = pool.map(func=_broaden_spectra, iterable=args)
+		if self.nx*self.ny==1:
+			results = list(map(_broaden_spectra, args))
 		else:
-			results = pool.map(_broaden_spectra, args)
+			if pool is None:
+				with mp.Pool(n_thread) as pool:
+					results = pool.map(func=_broaden_spectra, iterable=args)
+			else:
+				results = pool.map(_broaden_spectra, args)
 
 		results = np.array(results)
 		self.spec[indx, indy] = results
@@ -349,11 +352,14 @@ class Spectrum(object):
 			indx, indy = np.where(flag==1)
 			args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
-			if pool is None:
-				with mp.Pool(n_thread) as pool:
-					results = pool.map(func=_broaden_spectra, iterable=args)
+			if self.nx*self.ny==1:
+				results = list(map(_broaden_spectra, args))
 			else:
-				results = pool.map(_broaden_spectra, args)
+				if pool is None:
+					with mp.Pool(n_thread) as pool:
+						results = pool.map(func=_broaden_spectra, iterable=args)
+				else:
+					results = pool.map(_broaden_spectra, args)
 
 			results = np.array(results)
 			self.spec[indx,indy] = results
@@ -557,11 +563,14 @@ class Spectrum(object):
 
 		args = zip(_spec, [wave_out]*(self.nx*self.ny), [fill_value]*(self.nx*self.ny))
 
-		if pool is None:
-			with mp.Pool(n_thread) as pool:
-				results = pool.map(func=self._interpolate, iterable=args)
+		if self.nx*self.ny==1:
+			results = list(map(self._interpolate, args))
 		else:
-			results = pool.map(self._interpolate, args)
+			if pool is None:
+				with mp.Pool(n_thread) as pool:
+					results = pool.map(func=self._interpolate, iterable=args)
+			else:
+				results = pool.map(self._interpolate, args)
 
 		results = np.array(results)
 		self.nw = len(wave_out)
@@ -623,6 +632,34 @@ class Spectrum(object):
 				setattr(new_spec, key, dic[key])
 
 		return new_spec
+
+	def split_spectra(self):
+		dic = self.__dict__
+		keys = dic.keys()
+
+		na = self.nx*self.ny
+
+		spectra_list = [None]*na
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				new_spec = Spectrum(nx=1, ny=1, nw=self.nw)
+				for key in keys:
+					if key=="spec":
+						new_spec.spec[0,0] = self.spec[idx,idy]
+						new_spec.shape = new_spec.spec.shape
+						new_spec.nx, new_spec.ny, _, _ = new_spec.shape
+					elif key=="Ic":
+						new_spec.Ic = self.Ic[idx,idy]
+					elif key in ["nx", "ny", "shape"]:
+						pass
+					else:
+						setattr(new_spec, key, dic[key])
+
+				ida = int(idx*self.ny + idy)
+				spectra_list[ida] = new_spec
+
+		return spectra_list
 
 	def concatenate(self, spectrum):
 		"""
@@ -709,6 +746,25 @@ class Spectrum(object):
 			self.spec[...,ids] *= mask[ids]
 
 		self.spec[self.spec==0] = np.nan
+
+	def get_wavelength_weights(self):
+		# weights on Stokes vector based on observed Stokes I
+		# (nx, ny, nw, 4)
+		weights = 1
+
+		if weights and self.weight_type=="StokesI":
+			aux = 1/self.spec.I
+			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
+			# because they will enter the diff which will be squared in chi^2 computation
+			weights = np.sqrt(weights)
+			# norm = np.sum(weights, axis=2)
+			# weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
+		
+		# noise_stokes /= weights
+
+		weights = 1
+
+		return weights
 
 class Observation(Spectrum):
 	"""
@@ -842,3 +898,13 @@ def _broaden_spectra(args):
 		spec[:,ids] = np.convolve(aux, kernel, mode="same")[N:-N]
 
 	return spec
+
+def get_noise_level(nx, ny, nw, StokesI, noise):
+	if noise==0:
+		noise = 1e-4
+
+	noise_stokes = np.ones((nx, ny, nw, 4))
+	StokesI_cont = np.quantile(StokesI, 0.9, axis=2)
+	noise_stokes = np.einsum("ijkl,ij->ijkl", noise_stokes, noise*StokesI_cont)
+
+	return noise_stokes

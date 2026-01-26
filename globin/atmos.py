@@ -231,6 +231,9 @@ class Atmosphere(object):
 		self.n_pops = {}
 		self.nstar_pops = {}
 
+		# spectrum container
+		self.spectrum = None
+
 		# type of RFs caluclation
 		self.rf_der_type = "central"
 
@@ -784,7 +787,6 @@ class Atmosphere(object):
 		dic = self.__dict__
 		keys = dic.keys()
 		
-
 		for idt in range(size):
 			print(f"{idt+1}/{size}")
 			idx = self.indx[idt]
@@ -837,6 +839,63 @@ class Atmosphere(object):
 
 		return self
 
+	def split_atmosphere(self):
+		dic = self.__dict__
+		keys = dic.keys()
+
+		na = self.nx*self.ny
+
+		atmosphere_list = [None]*na
+
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				new_atmos = Atmosphere(nx=1, ny=1, nz=self.nz)
+				for key in keys:
+					if key=="data":
+						new_atmos.data[0,0] = np.copy(self.data[idx,idy])
+						new_atmos.shape = new_atmos.data.shape
+						new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
+						new_atmos.logtau = np.copy(self.logtau[:])
+						new_atmos.height = np.copy(self.height[idx,idy,:])
+						xrange, yrange = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny))
+						new_atmos.idx_meshgrid = xrange.ravel()
+						new_atmos.idy_meshgrid = yrange.ravel()
+						new_atmos.nodes = self.nodes
+						for parameter in self.nodes:
+							new_atmos.values[parameter] = np.zeros((1,1,len(self.nodes[parameter])))
+							new_atmos.values[parameter][0,0] = np.copy(self.values[parameter][idx,idy])
+							new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
+							new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+						if "stray" in self.nodes:
+							self.stray_light = self.values[parameter]
+					elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
+						pass
+					elif key in ["idx_meshgrid", "idy_meshgrid"]:
+						pass
+					elif key in ["nodes", "values", "parameter_scale"]:
+						pass
+					elif key in ["sl_atmos"]:
+						pass
+					elif key in ["pg", "rho", "nHtot"]:
+						pass
+					elif key in ["rank", "size", "use_mpi"]:
+						pass
+					else:
+						setattr(new_atmos, key, dic[key])
+
+				ida = int(idx*self.ny + idy)
+				atmosphere_list[ida] = new_atmos
+				new_atmos = None
+
+		if self.sl_atmos is not None:
+			sl_atmos = self.sl_atmos.split_atmosphere()
+
+		for ida in range(na):
+			if self.sl_atmos is not None:
+				atmosphere_list[ida].sl_atmos = sl_atmos[ida]
+
+		return atmosphere_list
+
 	def extract(self, slice_x, slice_y, slice_z):
 		dic = self.__dict__
 		keys = dic.keys()
@@ -865,9 +924,13 @@ class Atmosphere(object):
 					self.stray_light = self.values[parameter]
 			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 				pass
-			elif key in ["pg", "height", "rho", "nHtot"]:
-				pass
 			elif key in ["idx_meshgrid", "idy_meshgrid"]:
+				pass
+			elif key in ["nodes", "values"]:
+				pass
+			elif key in ["sl_atmos"]:
+				pass
+			elif key in ["pg", "rho", "nHtot"]:
 				pass
 			elif key in ["rank", "size", "use_mpi"]:
 				pass
@@ -992,11 +1055,14 @@ class Atmosphere(object):
 		params = [params]*(self.nx*self.ny)
 		args = zip(atmos, flag.ravel(), self.idx_meshgrid, self.idy_meshgrid, params)
 
-		if pool is None:
-			with mp.Pool(self.n_thread) as pool:
-				results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+		if self.nx*self.ny==1:
+			results = list(map(self._build_from_nodes, args))
 		else:
-			results = pool.map(self._build_from_nodes, args)
+			if pool is None:
+				with mp.Pool(self.n_thread) as pool:
+					results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+			else:
+				results = pool.map(self._build_from_nodes, args)
 
 		results = np.asarray(results)
 		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
@@ -1072,6 +1138,8 @@ class Atmosphere(object):
 				if self.interpolation_method=="bezier":	
 					K0 = (y[1]-y[0]) / (x[1]-x[0])
 					# bottom node slope for extrapolation based on temperature gradient from FAL C model
+					# if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
+					# 	K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 					Kn = splev(x[-1], globin.temp_tck, der=1)
 				if self.interpolation_method=="spline":
 					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
@@ -1086,8 +1154,6 @@ class Atmosphere(object):
 				if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
 					K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
 				# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
-				# if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-				# 	K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
 				
 			elif parameter in ["gamma", "chi"]:
 				if self.interpolation_method=="bezier":
@@ -1149,12 +1215,15 @@ class Atmosphere(object):
 		# obtain new Pg and use it as initial value for the HSE at the top
 		self.get_pg()
 
-		if pool is None:
-			with mp.Pool(self.n_thread) as pool:
-				results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
-			pool = None
+		if self.nx*self.ny==1:
+			results = list(map(self._makeHSE, args))
 		else:
-			results = pool.map(self._makeHSE, args)
+			if pool is None:
+				with mp.Pool(self.n_thread) as pool:
+					results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+				pool = None
+			else:
+				results = pool.map(self._makeHSE, args)
 
 		results = np.array(results)
 
@@ -2008,32 +2077,43 @@ class Atmosphere(object):
 		spectra : globin.Spectrum() object
 			structure containgin all the info regarding the spectrum.
 		"""
+		if self.spectrum is None:
+			self.spectrum = np.empty((self.nx, self.ny, len(self.wavelength_vacuum), 4), dtype=np.float64)
+
+		if self.get_atomic_rfs:
+			if self.atomic_rfs is None:
+				Npars = 0
+				for parameter in ["loggf", "dlam"]:
+					Npars += self.global_pars[parameter].shape[-1]
+				self.atomic_rfs = np.empty((self.nx, self.ny, len(self.wavelength_vacuum), 4, Npars), dtype=np.float64)
+
 		if synthesize is None:
 			synthesize = np.ones((self.nx, self.ny))
 		indx, indy = np.where(synthesize==1)
 		args = zip(indx, indy)
 
-		if pool is None:
-			with mp.Pool(self.n_thread) as pool:
-				spectra_list = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+		if self.nx*self.ny==1:
+			results = list(map(self._compute_spectra_sequential, args))
 		else:
-			spectra_list = pool.map(self._compute_spectra_sequential, args)
+			if pool is None:
+				with mp.Pool(self.n_thread) as pool:
+					results = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+			else:
+				results = pool.map(self._compute_spectra_sequential, args)
 
-		# print(spectra_list)
-
-		spectra_list = np.array(spectra_list)[:,0,:4]
-		natm, ns, nw = spectra_list.shape
-		spectra_list = np.swapaxes(spectra_list, 1, 2)
+		results = np.array(results)
+		natm, _, nw, ns = results.shape
 
 		spectra = Spectrum(nx=self.nx, ny=self.ny, nw=nw)
 		spectra.wavelength = self.wavelength_air
-		spectra.spec[indx,indy] = spectra_list[:,:,:4]
+		spectra.spec[indx,indy] = results[:,0]
 
 		if self.get_atomic_rfs:
-			self.atomic_rfs = spectra_list[:,:,4]
+			self.atomic_rfs[indx,indy] = results[:,1]
 
 		if self.get_populations:
-			pops = [item[1] for item in spectra_list]
+			raise ValueError("Population retrieval not yet implemented.")
+			pops = [item[1] for item in results]
 
 			elements = [item.ID.decode("utf-8") for item in pops[0]]
 			
@@ -2052,15 +2132,14 @@ class Atmosphere(object):
 				self.n_pops[element] = self.n_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 				self.nstar_pops[element] = self.nstar_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 
-		# 	_spectra = [item[0] for item in spectra_list]
-		# 	spectra_list = _spectra
-
-		# print(self.atomic_rfs)
-
 		return spectra
 
 	def _compute_spectra_sequential(self, args):
 		idx, idy = args
+
+		spec = self.spectrum[idx,idy]
+		if self.get_atomic_rfs:
+			rfs = self.atomic_rfs[idx,idy]
 
 		got_populations = False
 
@@ -2084,7 +2163,8 @@ class Atmosphere(object):
 				_idx, _idy = 0, 0
 
 			pyrh_output = pyrh.compute1d(cwd=self.cwd, 
-										 mu=mu, 
+										 mu=mu,
+										 spectrum=spec,
 										 atm_scale=self.scale_id, 
 										 atmosphere=self.data[idx,idy], 
 										 wave=self.wavelength_vacuum,
@@ -2096,7 +2176,8 @@ class Atmosphere(object):
 										 fudge_value=fudge_value, 
 										 atomic_number=self.atomic_number,
 										 atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=self.get_atomic_rfs, 
+										 get_atomic_rfs=self.get_atomic_rfs,
+										 rfs=rfs,
 										 get_populations=self.get_populations)
 			# if self.get_atomic_rfs:
 			# 	sI, sQ, sU, sV, rh_wave_vac, rf = pyrh_output
@@ -2106,21 +2187,29 @@ class Atmosphere(object):
 		else:
 			pyrh_output = pyrh.compute1d(cwd=self.cwd, 
 										 mu=mu, 
+										 spectrum=spec,
 										 atm_scale=self.scale_id, 
 										 atmosphere=self.data[idx,idy],
 										 wave=self.wavelength_vacuum,
-								  		 fudge_wave=fudge_lam, 
-										 fudge_value=fudge_value, 
-										 atomic_number=self.atomic_number,
-										 atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=False, 
+								  		#  fudge_wave=fudge_lam, 
+										#  fudge_value=fudge_value, 
+										#  atomic_number=self.atomic_number,
+										#  atomic_abundance=self.atomic_abundance,
+										 get_atomic_rfs=self.get_atomic_rfs, 
+										 rfs=rfs,
 										 get_populations=self.get_populations)
+			
 			# if len(pyrh_output)==5:
 			# 	sI, sQ, sU, sV, rh_wave_vac = pyrh_output
 			# if len(pyrh_output)==6:
 			# 	sI, sQ, sU, sV, rh_wave_vac, populations = pyrh_output
 
 			# rf = None
+
+		if self.get_atomic_rfs:
+			return (spec, rfs)
+
+		return (spec,)
 
 		sI, sQ, sU, sV, rh_wave_vac = pyrh_output[:5]
 
@@ -2263,6 +2352,19 @@ class Atmosphere(object):
 
 					node_RF = (spectra_plus.spec - spectra_minus.spec ) / 2 / perturbation
 
+				# plt.plot(node_RF[0,0,:,0])
+				# plt.show()
+
+				# if (node_RF[active_indx, active_indy, nodeID,0]==0).any():
+				# 	# print(parameter, nodeID, node_RF[active_indx, active_indy, :,0])
+				# 	print(parameter, nodeID, active_indx, active_indy)
+				# 	# print(pos_nodes)
+				# 	# print(neg_nodes)
+				# 	# print(positive - negative)
+				# 	print(spectra_plus.spec[active_indx, active_indy, nodeID,0])
+				# 	print(spectra_minus.spec[active_indx, active_indy, nodeID,0])
+				# 	sys.exit()
+
 				#--- compute parameter scale				
 				node_RF *= weights
 				node_RF /= rf_noise_scale
@@ -2270,6 +2372,8 @@ class Atmosphere(object):
 
 				#--- set RFs value
 				rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
+				# plt.plot(rf[0,0,free_par_ID,:,0])
+				# plt.show()
 				free_par_ID += 1
 
 				#--- return back perturbations (node way)
@@ -2300,8 +2404,11 @@ class Atmosphere(object):
 
 					args = zip(spec.spec.reshape(self.nx*self.ny, Nw, 4), [kernel]*self.nx*self.ny)
 
-					with mp.Pool(self.n_thread) as pool:
-						results = pool.map(func=_compute_vmac_RF, iterable=args)
+					if self.nx*self.ny==1:
+						results = list(map(_compute_vmac_RF, args))
+					else:
+						with mp.Pool(self.n_thread) as pool:
+							results = pool.map(func=_compute_vmac_RF, iterable=args)
 
 					dlam = spec.wavelength[1] - spec.wavelength[0]
 
@@ -3119,11 +3226,14 @@ def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
 		_flag = np.repeat(_flag, npar*nz)
 		args = zip(_rf, [kernel]*nx*ny*npar*nz, _flag)
 
-	if pool is None:
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=_broaden_rfs, iterable=args)
+	if nx*ny==1:
+		results = list(map(_broaden_rfs, args))
 	else:
-		results = pool.map(_broaden_rfs, args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_broaden_rfs, iterable=args)
+		else:
+			results = pool.map(_broaden_rfs, args)
 
 	results = np.array(results)
 	if not full:
@@ -3166,11 +3276,14 @@ def interpolate_rf(rf_in, wave_in, wave_out, n_thread, pool=None):
 
 	args = zip(_rf, [wave_in]*(nx*ny), [wave_out]*(nx*ny))
 
-	if pool is None:
-		with mp.Pool(n_thread) as pool:
-			results = pool.map(func=_interpolate_rf, iterable=args)
+	if nx*ny==1:
+		results = list(map(_interpolate_rf, args))
 	else:
-		results = pool.map(_interpolate_rf, args)
+		if pool is None:
+			with mp.Pool(n_thread) as pool:
+				results = pool.map(func=_interpolate_rf, iterable=args)
+		else:
+			results = pool.map(_interpolate_rf, args)
 
 	results = np.array(results)
 	rf_out = results.reshape(nx, ny, npar, len(wave_out), ns)
