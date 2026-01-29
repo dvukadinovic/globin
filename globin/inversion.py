@@ -101,6 +101,12 @@ class Inverter(InputData):
 				max_iter = self.get_maximum_iterations_number(cycle)
 				marq_lambda = self.get_Marquardt_lamba_parameter(cycle)
 
+				if self.atmosphere.stray_type=="hsra" or self.atmosphere.norm_level=="hsra":
+					print("[Info] Computing the HSRA spectrum...")
+					self.atmosphere.get_hsra_cont()
+					if self.atmosphere.stray_type=="hsra":
+						self.atmosphere.hsra_spec.broaden_spectra(self.atmosphere.vmac)
+
 				if (self.mode==1) or (self.mode==2):
 					inverter_container = InversionContainer()
 					inverter_container.assign_values(self)
@@ -108,11 +114,6 @@ class Inverter(InputData):
 					inverter_container.max_iter = max_iter
 					inverter_container.marq_lambda = marq_lambda
 
-					if self.atmosphere.stray_type=="hsra" or self.atmosphere.norm_level=="hsra":
-						print("[Info] Computing the HSRA spectrum...")
-						self.atmosphere.get_hsra_cont()
-						if self.atmosphere.stray_type=="hsra":
-							self.atmosphere.hsra_spec.broaden_spectra(self.atmosphere.vmac)
 
 					atmospheric_models = self.atmosphere.split_atmosphere()
 					observations = self.observation.split_spectra()
@@ -146,13 +147,20 @@ class Inverter(InputData):
 						for parameter in self.atmosphere.nodes:
 							self.atmosphere.values[parameter][idx,idy] = res[0].values[parameter][0,0]
 						
-						spec.spec[idx,idy] = res[1].spec[0,0]
-						chi2.chi2[idx,idy] = res[2].chi2[0,0]
+						spec.spec[idx,idy] = res[0].spectrum.spec[0,0]
+						chi2.chi2[idx,idy] = res[1][0,0]
 
 					atmos = self.atmosphere
+					atmos.spectrum = spec
 
 				elif self.mode==3:
-					atmos, spec, chi2 = self.invert_global(max_iter, marq_lambda, pool)
+					self.atmosphere.spectrum = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.atmosphere.wavelength_vacuum))
+					self.atmosphere.rf = np.zeros((self.atmosphere.nx, self.atmosphere.ny, Npar, len(self.atmosphere.wavelength_obs), 4))
+					if self.atmosphere.sl_atmos is not None:
+						self.atmosphere.sl_atmos.spectrum = Spectrum(nx=self.atmosphere.sl_atmos.nx, ny=self.atmosphere.sl_atmos.ny, nw=len(self.atmosphere.sl_atmos.wavelength_vacuum))
+						# self.sl_atmos.rf = np.zeros((self.sl_atmos.nx, self.sl_atmos.ny, Npar, len(self.sl_atmos.wavelength_obs), 4))
+					chi2 = self.invert_global(max_iter, marq_lambda, pool)
+					atmos = self.atmosphere
 				else:
 					raise ValueError(f"Not supported mode {self.mode}, currently.")
 
@@ -160,7 +168,7 @@ class Inverter(InputData):
 					self.save_debug()
 
 				if self.save_output:
-					self.save_cycle(chi2, self.observation, spec, atmos, cycle+1)
+					self.save_cycle(chi2, self.observation, atmos.spectrum, atmos, cycle+1)
 
 				# in last cycle we do not smooth atmospheric parameters after inversion
 				if (cycle+1)<self.ncycle:
@@ -177,7 +185,7 @@ class Inverter(InputData):
 			if globin.collect_stats:
 				globin.statistics.save()
 
-			return atmos, spec, chi2
+			return atmos, atmos.spectrum, chi2
 
 		elif self.mode==0:
 			start = time.time()
@@ -661,11 +669,6 @@ class Inverter(InputData):
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
 			print()
 
-		if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-			atmos.get_hsra_cont()
-			if atmos.stray_type=="hsra":
-				atmos.hsra_spec.broaden_spectra(atmos.vmac)
-
 		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
 		Npar = self._get_Npar()
@@ -676,19 +679,12 @@ class Inverter(InputData):
 		Ndof = np.count_nonzero(self.weights)*Nw*Natmos - Nlocalpar*Natmos - Nglobalpar
 
 		#--- estimate of Stokes noise
-		# rf_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air))
-		# rf_noise_stokes = obs.get_noise_level(noise=self.noise)
-		# rf_weights_stokes = obs.get_wavelength_weights()
-		# rf_noise_stokes /= rf_weights_stokes
-		# diff_noise_stokes = self._estimate_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_obs), weights=True)
-		# diff_noise_stokes = obs.get_noise_level(noise=self.noise)
-
 		rf_noise_stokes = get_noise_level(atmos.nx, atmos.ny, len(atmos.wavelength_air), obs.I, noise=self.noise)
 		rf_weights_stokes = obs.get_wavelength_weights()
 		rf_noise_stokes /= rf_weights_stokes
 		diff_noise_stokes = get_noise_level(atmos.nx, atmos.ny, Nw, obs.I, noise=self.noise)
 
-		# chi2 = np.zeros((obs.nx, obs.ny, max_iter), dtype=np.float64)
+		#--- create Chi2 object for storing chi2 values
 		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
 		chi2.mode = self.mode
 		chi2.Nlolcal_par = Nlocalpar
@@ -714,7 +710,7 @@ class Inverter(InputData):
 		indx, indy = np.where(ones==1)		
 
 		# create the RF array for atmosphere for each free parameter (saves copy/paste time)
-		atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
+		# atmos.rf = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
 
 		# eye matrix
 		eye = sp.eye(Natmos*Nlocalpar + Nglobalpar, Natmos*Nlocalpar + Nglobalpar)
@@ -888,30 +884,30 @@ class Inverter(InputData):
 			if atmos.hydrostatic:
 				atmos.makeHSE(ones, pool=pool)
 
-			corrected_spec = atmos.compute_spectra(ones, pool=pool)
+			atmos.compute_spectra(ones, pool=pool)
 			if atmos.sl_atmos is not None:
 				flag = ones
 				if atmos.stray_mode==3:
 					flag = None
-				sl_spec = atmos.sl_atmos.compute_spectra(flag, pool=pool)
+				atmos.sl_atmos.compute_spectra(flag, pool=pool)
 
 			# broaden the corrected spectra by macro velocity
 			if not self.mean:
-				corrected_spec.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
+				atmos.spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
 				if atmos.sl_atmos is not None:
 					flag = ones
 					if atmos.stray_mode==3:
 						flag = None
-					sl_spec.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
+					atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
 			
 			# convolve profiles with instrumental profile
 			if atmos.instrumental_profile is not None:
-				corrected_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
+				atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
 				if atmos.sl_atmos is not None:
 					flag = ones
 					if atmos.stray_mode==3:
 						flag = None
-					sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
+					atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 
 			# add the stray light component:
 			if atmos.add_stray_light:
@@ -929,32 +925,32 @@ class Inverter(InputData):
 				if atmos.stray_type=="hsra":
 					sl_spectrum = atmos.hsra_spec.spec
 				if atmos.stray_type=="2nd_component":
-					sl_spectrum = sl_spec.spec
+					sl_spectrum = atmos.sl_atmos.spectrum.spec
 					if atmos.stray_mode==3:
 						sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
 						sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
 				if atmos.stray_type in ["atmos", "spec"]:
 					sl_spectrum = atmos.stray_light_spectrum.spec
 
-				corrected_spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
+				atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
 
 			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-				corrected_spec.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
+				atmos.spectrum.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
 
 			if atmos.norm:
 				if atmos.norm_level==1:
-					Ic = corrected_spec.I[...,atmos.continuum_idl]
-					corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+					Ic = atmos.spectrum.I[...,atmos.continuum_idl]
+					atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
 				elif atmos.norm_level=="hsra":
-					corrected_spec.spec /= atmos.icont
+					atmos.spectrum.spec /= atmos.icont
 				else:
-					corrected_spec.spec /= atmos.norm_level
+					atmos.spectrum.spec /= atmos.norm_level
 
-			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], atmos.spectrum.spec[0,0]], labels=["obs", "old", "new"])
 			# globin.show()
 
 			#--- compute new chi2 value
-			new_diff = obs.spec - corrected_spec.spec
+			new_diff = obs.spec - atmos.spectrum.spec
 			new_diff *= self.weights
 			new_diff /= diff_noise_stokes
 			new_diff *= np.sqrt(2)
@@ -1044,7 +1040,7 @@ class Inverter(InputData):
 			if self.output_frequency!=max_iter:
 				if itter%self.output_frequency==0 and itter!=0:
 					atmos.build_from_nodes(ones, pool=pool)
-					self.save_cycle(chi2, obs, corrected_spec, atmos, 0)
+					self.save_cycle(chi2, obs, atmos.spectrum, atmos, 0)
 			
 			#--- if all pixels have converged, we stop inversion
 			if break_flag:
@@ -1057,28 +1053,28 @@ class Inverter(InputData):
 		if atmos.hydrostatic:
 			atmos.makeHSE(ones, pool=pool)
 
-		inverted_spectra = atmos.compute_spectra(ones, pool=pool)
+		atmos.compute_spectra(ones, pool=pool)
 		if atmos.sl_atmos is not None:
 			flag = ones
 			if atmos.stray_mode==3:
 				flag = None
-			sl_spec = atmos.sl_atmos.compute_spectra(flag, pool=pool)
+			atmos.sl_atmos.compute_spectra(flag, pool=pool)
 		
 		if not self.mean:
-			inverted_spectra.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
+			atmos.spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
 			if atmos.sl_atmos is not None:
 				flag = ones
 				if atmos.stray_mode==3:
 					flag = None
-				sl_spec.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
+				atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
 	
 		if atmos.instrumental_profile is not None:
-			inverted_spectra.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
+			atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
 			if atmos.sl_atmos is not None:
 				flag = ones
 				if atmos.stray_mode==3:
 					flag = None
-				sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
+				atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 
 		if atmos.add_stray_light:
 			# get the stray light factor(s)
@@ -1095,26 +1091,26 @@ class Inverter(InputData):
 			if atmos.stray_type=="hsra":
 				sl_spectrum = atmos.hsra_spec.spec
 			if atmos.stray_type=="2nd_component":
-				sl_spectrum = sl_spec.spec
+				sl_spectrum = atmos.sl_atmos.spectrum.spec
 				if atmos.stray_mode==3:
 					sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
 					sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
 			if atmos.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmos.stray_light_spectrum.spec
 
-			inverted_spectra.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
+			atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
 
 		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-			inverted_spectra.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
+			atmos.spectrum.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
 
 		if atmos.norm:
 			if atmos.norm_level==1:
-				Ic = inverted_spectra.I[...,atmos.continuum_idl]
-				inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+				Ic = atmos.spectrum.I[...,atmos.continuum_idl]
+				atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
 			elif atmos.norm_level=="hsra":
-				inverted_spectra.spec /= atmos.icont
+				atmos.spectrum.spec /= atmos.icont
 			else:
-				inverted_spectra.spec /= atmos.norm_level
+				atmos.spectrum.spec /= atmos.norm_level
 
 		try:
 			# remove parameter normalization factor from Hessian
@@ -1148,7 +1144,7 @@ class Inverter(InputData):
 		except:
 			print("[Info] Could not compute parameters error.")
 
-		return atmos, inverted_spectra, chi2
+		return chi2
 
 	def save_debug(self):
 		output_path = f"runs/{self.run_name}"
@@ -1589,7 +1585,7 @@ def invert_single_pixel(args):
 	# except:
 	# 	pass
 
-	# return atmosphere#, inverted_spectra#, chi2
+	return atmosphere, chi2
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 	nx, ny, Npar, _ = H.shape

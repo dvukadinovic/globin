@@ -1207,9 +1207,8 @@ class Atmosphere(object):
 			all pixels).
 
 		"""
-		if flag is None:
-			flag = np.ones((self.nx, self.ny))
-		indx, indy = np.where(flag==1)
+		indx = self.idx_meshgrid
+		indy = self.idy_meshgrid
 		args = zip(indx, indy)
 
 		# obtain new Pg and use it as initial value for the HSE at the top
@@ -1227,19 +1226,14 @@ class Atmosphere(object):
 
 		results = np.array(results)
 
-		self.data[indx,indy,2] = results[:,0,:]
-		self.data[indx,indy,8] = results[:,1,:]
+		self.data[indx,indy,2] = results[:,0]
+		self.data[indx,indy,8] = results[:,1]
 
 		# solve HSE also for the 2nd atmospheric model
 		if self.sl_atmos is not None:
 			if self.stray_mode==3:
 				flag = None
 			self.sl_atmos.makeHSE(flag, pool=pool)
-
-		# self.data[indx,indy,2] = results[:,0,:]
-		# self.data[indx,indy,8:] = results[:,1:7,:]
-		# self.rho[indx,indy] = results[:,7,:]
-		# self.pg[indx,indy] = results[:,8,:]
 
 	def _makeHSE(self, arg):
 		"""
@@ -1261,14 +1255,13 @@ class Atmosphere(object):
 							nHtot=self.data[idx,idy,8],
 							rho=self.rho[idx,idy],
 							pg=self.pg[idx,idy],
-							pg_top=0.1,#self.pg[idx,idy,0]/10,
+							pg_top=100,
 							fudge_wave=fudge_lam, 
 							fudge_value=fudge_value,
 							atomic_number=self.atomic_number, 
 							atomic_abundance=self.atomic_abundance,
 							full_output=False)
 
-		# return np.vstack((ne/1e6, nHtot/1e6))
 		return np.vstack((self.data[idx,idy,2]/1e6, self.data[idx,idy,8]/1e6))
 
 	def get_pg(self):
@@ -2092,9 +2085,8 @@ class Atmosphere(object):
 					Npars += self.global_pars[parameter].shape[-1]
 				self.atomic_rfs = np.empty((self.nx, self.ny, len(self.wavelength_vacuum), 4, Npars), dtype=np.float64)
 
-		if synthesize is None:
-			synthesize = np.ones((self.nx, self.ny))
-		indx, indy = np.where(synthesize==1)
+		indx = self.idx_meshgrid
+		indy = self.idy_meshgrid
 		args = zip(indx, indy)
 
 		if self.nx*self.ny==1:
@@ -2481,9 +2473,9 @@ class Atmosphere(object):
 				flag = synthesize
 				if self.stray_mode==3:
 					flag = None
-				sl_spec.broaden_spectra(self.vmac, flag, self.n_thread, pool=pool)
+				self.sl_atmos.spectrum.broaden_spectra(self.vmac, flag, self.n_thread, pool=pool)
 			if self.vmac!=0:
-				kernel = spec.get_kernel(self.vmac, order=0)
+				kernel = self.spectrum.get_kernel(self.vmac, order=0)
 				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread, pool=pool)
 		
 		#--- add instrumental broadening
@@ -2493,7 +2485,7 @@ class Atmosphere(object):
 				flag = synthesize
 				if self.stray_mode==3:
 					flag = None
-				sl_spec.instrumental_broadening(kernel=self.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
+				self.sl_atmos.spectrum.instrumental_broadening(kernel=self.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread, pool=pool)
 
 		#--- add the stray light component:
@@ -2512,7 +2504,7 @@ class Atmosphere(object):
 			if self.stray_type=="hsra":
 				sl_spectrum = self.hsra_spec.spec
 			if self.stray_type=="2nd_component":
-				sl_spectrum = sl_spec.spec
+				sl_spectrum = self.sl_atmos.spectrum.spec
 				if self.stray_mode==3:
 					sl_spectrum = np.repeat(sl_spectrum, self.nx, axis=0)
 					sl_spectrum = np.repeat(sl_spectrum, self.ny, axis=1)
