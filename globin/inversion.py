@@ -102,8 +102,6 @@ class Inverter(InputData):
 				marq_lambda = self.get_Marquardt_lamba_parameter(cycle)
 
 				if (self.mode==1) or (self.mode==2):
-					# atmos, spec, chi2 = self.invert_pxl_by_pxl(max_iter, marq_lambda, pool)
-
 					inverter_container = InversionContainer()
 					inverter_container.assign_values(self)
 					inverter_container.Npar = Npar
@@ -119,6 +117,12 @@ class Inverter(InputData):
 					atmospheric_models = self.atmosphere.split_atmosphere()
 					observations = self.observation.split_spectra()
 					inverter = [inverter_container]*(self.atmosphere.nx*self.atmosphere.ny)
+					
+					# preallocate space for spectra and RFs
+					for idi in range(len(atmospheric_models)):
+						atmospheric_models[idi].spectrum = Spectrum(nx=1, ny=1, nw=len(self.atmosphere.wavelength_vacuum))
+						atmospheric_models[idi].rf = np.zeros((1, 1, Npar, len(self.atmosphere.wavelength_obs), 4))
+
 					args = zip(atmospheric_models, observations, inverter)
 					
 					if pool is None:
@@ -556,8 +560,6 @@ class Inverter(InputData):
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:
 				break
-
-		print()
 
 		# all pixels will be synthesized when we finish everything (should we do this?)
 		updated_pars[...] = 1
@@ -1277,7 +1279,6 @@ def invert_single_pixel(args):
 
 	Nw = len(atmosphere.wavelength_obs)
 	Npar = inverter.Npar
-	Natmos = 1
 	Ndof = np.count_nonzero(inverter.weights)*Nw - Npar
 
 	LM_parameter = inverter.marq_lambda
@@ -1310,17 +1311,8 @@ def invert_single_pixel(args):
 
 	diff_noise_stokes = get_noise_level(atmosphere.nx, atmosphere.ny, Nw, observation.I, noise=inverter.noise)
 
-	chi2 = Chi2(nx=atmosphere.nx, ny=atmosphere.ny, niter=inverter.max_iter)
-	chi2.mode = inverter.mode
-	chi2.Nlolcal_par = Npar
-	chi2.Nglobal_par = 0
-	chi2.Nw = np.count_nonzero(inverter.weights)*Nw
+	chi2 = np.zeros((atmosphere.nx, atmosphere.ny, inverter.max_iter), dtype=np.float64)
 	iteration = 0
-
-	atmosphere.rf = np.zeros((atmosphere.nx, atmosphere.ny, Npar, Nw, 4))
-	# spec = np.zeros((atmos.nx, atmos.ny, Npar, Nw, 4))
-	spec = Spectrum(nx=atmosphere.nx, ny=atmosphere.ny, nw=Nw)
-	proposed_steps = np.zeros((atmosphere.nx, atmosphere.ny, Npar))
 
 	while iteration<inverter.max_iter:
 		if globin.collect_stats:
@@ -1406,19 +1398,19 @@ def invert_single_pixel(args):
 			atmosphere.makeHSE(stop_flag, pool=pool)
 
 		#--- compute new spectrum after parameters update
-		corrected_spec = atmosphere.compute_spectra(stop_flag, pool=pool)
+		atmosphere.compute_spectra(stop_flag, pool=pool)
 		if atmosphere.sl_atmos is not None:
-			sl_spec = atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
+			atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
 		
 		if not inverter.mean:
-			corrected_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+			atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 			if atmosphere.sl_atmos is not None:
-				sl_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+				atmosphere.sl_atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 
 		if atmosphere.instrumental_profile is not None:
-			corrected_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+			atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 			if atmosphere.sl_atmos is not None:
-				sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=synthesize, n_thread=inverter.n_thread, pool=pool)
+				atmosphere.sl_atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 
 		#--- add the stray light component:
 		if atmosphere.add_stray_light:
@@ -1436,29 +1428,29 @@ def invert_single_pixel(args):
 			if atmosphere.stray_type=="hsra":
 				sl_spectrum = atmosphere.hsra_spec.spec
 			if atmosphere.stray_type=="2nd_component":
-				sl_spectrum = sl_spec.spec
+				sl_spectrum = atmosphere.sl_atmosphere.spectrum.spec
 			if atmosphere.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmosphere.stray_light_spectrum.spec
 
-			corrected_spec.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
+			atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
 
 		if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
-			corrected_spec.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
+			atmosphere.spectrum.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
 
 		if atmosphere.norm:
 			if atmosphere.norm_level==1:
-				Ic = corrected_spec.I[...,atmosphere.continuum_idl]
-				corrected_spec.spec = np.einsum("ij...,ij->ij...", corrected_spec.spec, 1/Ic)
+				Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
+				atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
 			elif atmosphere.norm_level=="hsra":
-				corrected_spec.spec /= atmosphere.icont
+				atmosphere.spectrum.spec /= atmosphere.icont
 			else:
-				corrected_spec.spec /= atmosphere.norm_level
+				atmosphere.spectrum.spec /= atmosphere.norm_level
 
-		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[spec.spec[0,0], corrected_spec.spec[0,0]], labels=["obs", "old", "new"])
+		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[spec.spec[0,0], atmosphere.spectrum.spec[0,0]], labels=["obs", "old", "new"])
 		# globin.show()
 
 		#--- compute new chi2 after parameter correction
-		new_diff = observation.spec - corrected_spec.spec
+		new_diff = observation.spec - atmosphere.spectrum.spec
 		new_diff *= inverter.weights
 		new_diff /= diff_noise_stokes
 		new_diff *= np.sqrt(2)
@@ -1470,7 +1462,6 @@ def invert_single_pixel(args):
 		#--- if new chi2 is worse than old chi2
 		flag_updated_parameters = False
 		if chi2_new[0,0]>=chi2_old[0,0]:
-			# chi2.chi2[0,0,itter] = chi2_old[0,0]
 			LM_parameter *= 10
 			for parameter in old_atmos_parameters:
 				atmosphere.values[parameter][0,0] = copy.deepcopy(old_atmos_parameters[parameter][0,0])
@@ -1480,7 +1471,7 @@ def invert_single_pixel(args):
 					if N!=0:
 						atmosphere.global_pars[parameter][0,0] = copy.deepcopy(old_atomic_parameters[parameter][0,0])
 		else:
-			chi2.chi2[0,0,iteration] = chi2_new[0,0]
+			chi2[0,0,iteration] = chi2_new[0,0]
 			iteration += 1
 			chi2_old = np.copy(chi2_new)
 			LM_parameter /= 10
@@ -1500,7 +1491,7 @@ def invert_single_pixel(args):
 
 		#--- check the convergence only for pixels whose iteration number is larger than 2
 		if flag_updated_parameters:
-			stop_flag[0,0], _, _ = _chi2_convergence((chi2.chi2[0,0], stop_flag[0,0], iteration, flag_updated_parameters, inverter.max_iter, inverter.chi2_tolerance))
+			stop_flag[0,0], _, _ = _chi2_convergence((chi2[0,0], stop_flag[0,0], iteration, flag_updated_parameters, inverter.max_iter, inverter.chi2_tolerance))
 
 		# if globin.collect_stats and total!=0:
 		# 	globin.statistics.add(fun_name="pbp_iteration", execution_time=time.time()-start_iter)
@@ -1515,17 +1506,17 @@ def invert_single_pixel(args):
 	atmosphere.build_from_nodes(stop_flag, pool=pool)
 	if atmosphere.hydrostatic:
 		atmosphere.makeHSE(stop_flag, pool=pool)
-	inverted_spectra = atmosphere.compute_spectra(stop_flag, pool=pool)
+	atmosphere.compute_spectra(stop_flag, pool=pool)
 	if atmosphere.sl_atmos is not None:
 		sl_spec = atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
 
 	if not inverter.mean:
-		inverted_spectra.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+		atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 		if atmosphere.sl_atmos is not None:
 			sl_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 	
 	if atmosphere.instrumental_profile is not None:
-		inverted_spectra.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+		atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 		if atmosphere.sl_atmos is not None:
 			sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 
@@ -1549,53 +1540,56 @@ def invert_single_pixel(args):
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
-		inverted_spectra.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
+		atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
 
 	if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
-		inverted_spectra.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
+		atmosphere.spectrum.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
 
 	if atmosphere.norm:
 		if atmosphere.norm_level==1:
-			Ic = inverted_spectra.I[...,atmosphere.continuum_idl]
-			inverted_spectra.spec = np.einsum("ij...,ij->ij...", inverted_spectra.spec, 1/Ic)
+			Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
+			atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
 		elif atmosphere.norm_level=="hsra":
-			inverted_spectra.spec /= atmosphere.icont
+			atmosphere.spectrum.spec /= atmosphere.icont
 		else:
-			inverted_spectra.spec /= atmosphere.norm_level
+			atmosphere.spectrum.spec /= atmosphere.norm_level
 
-	try:
-		# remove parameter normalization factor from Hessian
-		parameter_norms = []
-		for parameter in atmosphere.nodes:
-			nnodes = len(atmosphere.nodes[parameter])
-			parameter_norms += [atmosphere.parameter_norm[parameter]]*nnodes
-		parameter_norms = np.array(parameter_norms)
-		parameter_norms = np.tile(parameter_norms, atmosphere.nx*atmosphere.ny)
+	# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[atmosphere.spectrum.spec[0,0]], labels=["obs", "new"])
+	# globin.show()
 
-		# for parameter in atmos.global_pars:
-		# 	Npars = atmos.global_pars[parameter].size
-		# 	if Npars==0:
-		# 		continue
+	# try:
+	# 	# remove parameter normalization factor from Hessian
+	# 	parameter_norms = []
+	# 	for parameter in atmosphere.nodes:
+	# 		nnodes = len(atmosphere.nodes[parameter])
+	# 		parameter_norms += [atmosphere.parameter_norm[parameter]]*nnodes
+	# 	parameter_norms = np.array(parameter_norms)
+	# 	parameter_norms = np.tile(parameter_norms, atmosphere.nx*atmosphere.ny)
 
-		# 	global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
-		# 	global_parameter_norms = np.array(global_parameter_norms)
+	# 	# for parameter in atmos.global_pars:
+	# 	# 	Npars = atmos.global_pars[parameter].size
+	# 	# 	if Npars==0:
+	# 	# 		continue
 
-		# 	parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
+	# 	# 	global_parameter_norms = [atmos.parameter_norm[parameter]]*Npars
+	# 	# 	global_parameter_norms = np.array(global_parameter_norms)
 
-		P = np.outer(parameter_norms, parameter_norms)
-		P /= 2 # we need 1/2 of Hessian
+	# 	# 	parameter_norms = np.concatenate((parameter_norms, global_parameter_norms))
 
-		Hessian = JTJ.multiply(P).tocsc()
+	# 	P = np.outer(parameter_norms, parameter_norms)
+	# 	P /= 2 # we need 1/2 of Hessian
 
-		# sp.save_npz(f"runs/{inverter.run_name}/hessian.npz", Hessian)
+	# 	Hessian = JTJ.multiply(P).tocsc()
 
-		# we send Ndof/2 because I added factor of 2 in computation of chi2 (accidently)
-		# it is related to diff variable because it stores gradient of the chi2
-		atmosphere.compute_errors(Hessian, chi2, Ndof/2)
-	except:
-		pass
+	# 	# sp.save_npz(f"runs/{inverter.run_name}/hessian.npz", Hessian)
 
-	return atmosphere, inverted_spectra, chi2
+	# 	# we send Ndof/2 because I added factor of 2 in computation of chi2 (accidently)
+	# 	# it is related to diff variable because it stores gradient of the chi2
+	# 	atmosphere.compute_errors(Hessian, chi2, Ndof/2)
+	# except:
+	# 	pass
+
+	# return atmosphere#, inverted_spectra#, chi2
 
 def invert_Hessian(H, delta, svd_tolerance, stop_flag, n_thread=1, pool=None):
 	nx, ny, Npar, _ = H.shape
