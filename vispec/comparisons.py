@@ -183,7 +183,7 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
     fig.tight_layout()
     plt.show()
 
-def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], boundaries={}, contrast=3, fontsize=15, parameters_titles="text", wspace=0.3, aspect=4/3, mark_panels=False, grid=False, show_errors=False, show_axis_ticks=True):
+def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inversion"], boundaries={}, contrast=3, fontsize=15, parameters_titles="text", wspace=0.3, hspace=0.2, aspect=4/3, mark_panels=False, grid=False, show_errors=False, show_axis_ticks=True):
     mpl.rcParams.update({"font.size" : fontsize})
 
     if parameters_titles=="text":
@@ -216,21 +216,28 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
     width = height*aspect
     width, height = mpl.figure.figaspect(aspect)
     fig = plt.figure(figsize=(N*width*ncols, height*nrows))
-    gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=wspace, hspace=0.1)
+    gs = fig.add_gridspec(nrows=nrows, ncols=N*ncols, wspace=wspace, hspace=hspace)
 
+    marker_ind = 0
     for idc in range(ncols):
         parameter = _parameters[idc]
         nnodes = len(atm1.nodes[parameter])
         for idr in range(nnodes):
             ax = fig.add_subplot(gs[idr,N*idc])
 
+            if idc==0:
+                ax.set_ylabel("y [px]")
+            if idr==nnodes-1:
+                ax.set_xlabel("x [px]")
+
             if mark_panels:
-                ax.text(0.05, 0.94, chr(97+idc*nnodes+idr), 
+                ax.text(0.05, 0.94, chr(97+marker_ind), 
                         transform=ax.transAxes,
                         va="center",
                         ha="left",
                         fontsize="x-small",
                         bbox=dict(boxstyle='round', facecolor='white', alpha=0.60))
+                marker_ind += 1
             
             fact = 1
             if parameter in ["gamma", "chi"]:
@@ -261,7 +268,12 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
                 vmin = 0
 
             if idr==0:
-                ax.set_title(labels[0], fontsize="large")
+                title = labels[0]
+                if nnodes>1:
+                    title += r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
+                ax.set_title(title, fontsize="large")
+            if nnodes>1 and idr>0:
+                ax.set_title(r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr]))
 
             # label for color bars
             # cblabel_1 = r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
@@ -275,8 +287,6 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
 
             im = ax.imshow(x.T, origin="lower", vmin=vmin, vmax=vmax, norm=norm, cmap=cmaps[parameter])
             add_colorbar(fig, ax, im)
-            if nnodes>1:
-                ax.set_ylabel(r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr]))
             # if idc==(ncols-1):
             #     add_colorbar(fig, ax, im, label=cblabel_1)
             # else:
