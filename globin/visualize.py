@@ -508,10 +508,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	width, height = 3, 2+2/3
 	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=True)
 	fig.subplots_adjust(wspace=0.5, hspace=0.4)
-	if nrows==1:
-		axs = axs[np.newaxis,:]
-	if ncols==1:
-		axs = axs[:,np.newaxis]
+	axs = np.atleast_2d(axs)
 
 	if rf_local is not None:
 		for i_, parameter in enumerate(local_parameters):
@@ -523,7 +520,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 			if not rf_wave_integrate:
 				for j_, ids in enumerate(stokes_range):
-					ax = axs[i_,j_]
+					ax = axs[j_,i_]
 					if i_==0:
 						ax.set_title(stokes_labels[j_], fontsize=fontsize)
 					if j_==0:
