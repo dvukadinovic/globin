@@ -280,9 +280,9 @@ class InputData(object):
 				raise NotImplemented()
 
 		#--- meshgrid of pixels for computation optimization
-		idx,idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny))
-		self.atmosphere.idx_meshgrid = idx.flatten()
-		self.atmosphere.idy_meshgrid = idy.flatten()
+		idx, idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny), indexing="xy")
+		self.atmosphere.idx_meshgrid = idx.ravel(order="C")
+		self.atmosphere.idy_meshgrid = idy.ravel(order="C")
 
 		#--- debugging variables initialization
 		if self.mode>=1:
@@ -389,15 +389,6 @@ class InputData(object):
 		
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
 		self.observation = Observation(path_to_observations, obs_range=atm_range, spec_type=obs_fmt)
-
-		# import matplotlib.pyplot as plt
-
-		# plt.imshow(self.observation.V[...,83])
-		# plt.colorbar()
-		# plt.show()
-
-		# plt.plot(self.observation.I[10,10])
-		# plt.show()
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 
@@ -951,7 +942,7 @@ def _find_value_by_key(key, text, key_type, default_val=None, conversion=str):
 
 def get_atmosphere_range(parameters_input):
 	#--- determine which observations from cube to take into consideration
-	aux = _find_value_by_key("range", parameters_input, "default", [0,None,0,None])
+	aux = _find_value_by_key("atm_range", parameters_input, "default", [0,None,0,None])
 	
 	atm_range = aux
 
@@ -1103,9 +1094,9 @@ def read_node_atmosphere(fpath):
 	atmos.logtau = logtau
 	atmos.data[:,:,0] = logtau
 
-	idx, idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny))
-	atmos.idx_meshgrid = idx.flatten()
-	atmos.idy_meshgrid = idy.flatten()
+	idx, idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny), indexing="xy")
+	atmos.idx_meshgrid = idx.ravel(order="C")
+	atmos.idy_meshgrid = idy.ravel(order="C")
 	atmos.ids_tuple = list(zip(atmos.idx_meshgrid, atmos.idy_meshgrid))
 
 	# temperature interpolation
@@ -1210,9 +1201,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 	indx = np.arange(obs.nx)
 	indy = np.arange(obs.ny)
-	indx, indy = np.meshgrid(indx, indy)
-	indx = indx.ravel()
-	indy = indy.ravel()
+	indx, indy = np.meshgrid(indx, indy, indexing="xy")
+	indx = indx.ravel(order="C")
+	indy = indy.ravel(order="C")
 
 	vlos = 0
 	blos = 0

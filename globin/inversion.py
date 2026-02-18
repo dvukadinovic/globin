@@ -17,7 +17,7 @@ from tqdm import tqdm, trange
 
 from .spec import Spectrum, get_noise_level
 from .input import InputData
-from .chi2 import Chi2
+from .chi2 import Chi2, compute_chi2
 from .visualize import plot_spectra, add_colorbar
 from .utils import pretty_print_parameters
 
@@ -114,7 +114,6 @@ class Inverter(InputData):
 					inverter_container.max_iter = max_iter
 					inverter_container.marq_lambda = marq_lambda
 
-
 					atmospheric_models = self.atmosphere.split_atmosphere()
 					observations = self.observation.split_spectra()
 					inverter = [inverter_container]*(self.atmosphere.nx*self.atmosphere.ny)
@@ -129,6 +128,7 @@ class Inverter(InputData):
 					if pool is None:
 						with mp.Pool(self.n_thread) as pool:
 							results = list(tqdm(pool.imap(invert_single_pixel, args), total=len(atmospheric_models)))
+						pool = None
 					else:
 						results = pool.map(invert_single_pixel, args)
 
@@ -767,14 +767,13 @@ class Inverter(InputData):
 					# Gamma *= np.sqrt(reg_weight)
 
 				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]])
-				# globin.visualize.plot_spectra(spec.spec[0,0], spec.wavelength, center_wavelength_grid=False)
 				# globin.show()
 
 				if self.debug:
 					self.rf_debug[:,:,itter] = atmos.rf
 
 				#--- calculate chi2
-				diff = obs.spec - spec.spec
+				diff = obs.spec - atmos.spectrum.spec
 				diff *= self.weights
 				diff /= diff_noise_stokes
 				diff *= np.sqrt(2)
@@ -786,7 +785,6 @@ class Inverter(InputData):
 				if atmos.spatial_regularization:
 					chi2_reg = np.sum(Gamma**2, axis=-1)
 					chi2_old += chi2_reg
-					# print(chi2_reg/chi2_old)
 
 				#--- create the global Jacobian matrix and fill it with RF values
 				if self.wavs_weight is not None:
@@ -796,12 +794,12 @@ class Inverter(InputData):
 
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				tmp = np.swapaxes(tmp, 2, 3)
-				tmp = tmp.reshape(Natmos, 4*Nw, Npar)
+				tmp = tmp.reshape(Natmos, 4*Nw, Npar, order="C")
 
 				# local part
 				Jl = sp.block_diag(tmp[...,:Nlocalpar].tolist())
 				# global part
-				Jg = sp.coo_matrix(tmp[...,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar))
+				Jg = sp.coo_matrix(tmp[...,Nlocalpar:].reshape(4*Nw*Natmos, Nglobalpar, order="C"))
 				
 				del tmp
 
@@ -816,7 +814,7 @@ class Inverter(InputData):
 				#---
 				JglobalT = Jglobal.transpose()
 				JTJ = JglobalT.dot(Jglobal)
-
+				
 				del Jglobal
 
 				aux = diff.reshape(atmos.nx, atmos.ny, 4*Nw, order="F")
@@ -831,7 +829,6 @@ class Inverter(InputData):
 					Gamma = Gamma.reshape(atmos.nx*atmos.ny*2*Nlocalpar, order="C")
 
 					deltaSP -= LT.dot(Gamma)
-					# print(LT.dot(Gamma)/deltaSP)
 
 				# This was heavily(?) tested with simple filled 'rf' and 'diff' ndarrays.
 				# It produces expected results.
@@ -839,6 +836,10 @@ class Inverter(InputData):
 
 				# get the scaling for H, deltaSP and parameters
 				sp_scales, scales = normalize_hessian(JTJ, atmos, mode=3)
+
+				RHS = deltaSP/scales
+
+				del deltaSP
 
 			#--- invert Hessian matrix
 			H = JTJ
@@ -850,7 +851,6 @@ class Inverter(InputData):
 				eta = LTLdiag/Hdiag
 
 			H = H.multiply(sp_scales)
-			RHS = deltaSP/scales
 
 			# add Marquardt parameter
 			diagonal = H.diagonal(k=0)
@@ -860,10 +860,11 @@ class Inverter(InputData):
 
 			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
-				print(f"[Warning] Did not converge the solution of Ax=b.")
+				print(f"[Error] Did not converge the solution of Ax=b.")
+				return atmos, atmos.spectrum, chi2
 			if info<0:
 				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
-				return atmos, spec, chi2
+				return atmos, atmos.spectrum, chi2
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -945,10 +946,7 @@ class Inverter(InputData):
 					atmos.spectrum.spec /= atmos.icont
 				else:
 					atmos.spectrum.spec /= atmos.norm_level
-
-			# globin.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0], atmos.spectrum.spec[0,0]], labels=["obs", "old", "new"])
-			# globin.show()
-
+			
 			#--- compute new chi2 value
 			new_diff = obs.spec - atmos.spectrum.spec
 			new_diff *= self.weights
@@ -1016,13 +1014,13 @@ class Inverter(InputData):
 			if (itter)>=2 and updated_parameters:
 				# need to get -2 and -1 because we already rised itter by 1
 				# when chi2 was updated
-				new_chi2 = np.sum(chi2.chi2[...,itter-1])
-				old_chi2 = np.sum(chi2.chi2[...,itter-2])
-				relative_change = np.abs(new_chi2/old_chi2 - 1)
+				_new_chi2 = np.sum(chi2.chi2[...,itter-1])
+				_old_chi2 = np.sum(chi2.chi2[...,itter-2])
+				relative_change = np.abs(_new_chi2/_old_chi2 - 1)
 				if relative_change<self.chi2_tolerance:
 					print("\nchi2 relative change is smaller than given value.\n")
 					break_flag = True
-				elif new_chi2<1:
+				elif _new_chi2<1:
 					print("\nchi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
@@ -1318,13 +1316,13 @@ def invert_single_pixel(args):
 		if flag_updated_parameters:
 			# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 			#             spec.shape = (nx, ny, Nw, 5)
-			spec = atmosphere.compute_rfs(weights=inverter.weights, rf_noise_scale=rf_noise_stokes, synthesize=None, rf_type=inverter.rf_type, pool=pool)
+			atmosphere.compute_rfs(weights=inverter.weights, rf_noise_scale=rf_noise_stokes, synthesize=None, rf_type=inverter.rf_type, pool=pool)
 
 			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]], labels=["obs", "inv"])
 			# globin.show()
 
 			#--- compute chi2
-			diff = observation.spec - spec.spec
+			diff = observation.spec - atmosphere.spectrum.spec
 			diff *= inverter.weights
 			diff /= diff_noise_stokes
 			diff *= np.sqrt(2)
@@ -1786,8 +1784,13 @@ def normalize_hessian(H, atmos, mode):
 		diagonal = H.diagonal(k=0)
 		scales = np.sqrt(diagonal)
 
+		if any(scales==0):
+			raise ValueError(f"RF function is zero for a parameter. {scales}")
+
 		# create the indices of sub-jacobian matrix
 		X, Y = np.meshgrid(np.arange(Nlocalpar), np.arange(Nlocalpar), indexing="ij")
+		X = X.ravel(order="C")
+		Y = Y.ravel(order="C")
 
 		# get the local (atmospheric) parameters scale values
 		shift = 0
@@ -1838,8 +1841,8 @@ def normalize_hessian(H, atmos, mode):
 				u += Nlocalpar
 
 				division = np.outer(scales[l:u], scales[l:u])
-				rows = np.append(rows, X.ravel() + ida*Nlocalpar)
-				cols = np.append(cols, Y.ravel() + ida*Nlocalpar)
+				rows = np.append(rows, X + ida*Nlocalpar)
+				cols = np.append(cols, Y + ida*Nlocalpar)
 				values = np.append(values, 1/division.ravel())
 				ida += 1
 
@@ -1888,25 +1891,30 @@ def normalize_hessian(H, atmos, mode):
 		return sp_scale, scales
 
 def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
+	if atmosphere.spectrum is None:
+		atmosphere.spectrum = Spectrum(nx=atmosphere.nx, 
+								 	   ny=atmosphere.ny,
+									   nw=len(atmosphere.wavelength_air))
+
 	if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
 		# print("[Info] Computing the HSRA spectrum...")
 		atmosphere.get_hsra_cont()
 
-	start = time.time()
-	spectrum = atmosphere.compute_spectra(pool=pool)
+	# start = time.time()
+	atmosphere.compute_spectra(pool=pool)
 	if atmosphere.sl_atmos is not None:
-		sl_spec = atmosphere.sl_atmos.compute_spectra(pool=pool)
+		atmosphere.sl_atmos.compute_spectra(pool=pool)
 	
 	#--- add macro-turbulent broadening
-	spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
+	atmosphere.spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
 	if atmosphere.sl_atmos is not None:
-		sl_spec.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
+		atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
 
 	#--- add instrument broadening (if applicable)
 	if atmosphere.instrumental_profile is not None:
-		spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
+		atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
 		if atmosphere.sl_atmos is not None:
-			sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
+			atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
 
 	#--- add the stray light component:
 	if atmosphere.add_stray_light:
@@ -1924,26 +1932,26 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
 		if atmosphere.stray_type=="2nd_component":
-			sl_spectrum = sl_spec.spec
+			sl_spectrum = atmosphere.sl_atmos.spectrum
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
-		spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum)
+		atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum)
 
 	#--- norm spectra
 	if atmosphere.norm:
 		if atmosphere.norm_level==1:
-			Ic = spectrum.I[...,atmosphere.continuum_idl]
-			spectrum.spec = np.einsum("ij...,ij->ij...", spectrum.spec, 1/Ic)
+			Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
+			atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
 		elif atmosphere.norm_level=="hsra":
-			spectrum.spec /= atmosphere.icont
+			atmosphere.spectrum.spec /= atmosphere.icont
 		else:
-			spectrum.spec /= atmosphere.norm_level
+			atmosphere.spectrum.spec /= atmosphere.norm_level
 
-	spectrum.Ic = spectrum.I[...,atmosphere.continuum_idl]
+	atmosphere.spectrum.Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
 
 	#--- add noise
 	if noise_level!=0:
-		spectrum.add_noise(noise_level)
-
-	return spectrum
+		atmosphere.spectrum.add_noise(noise_level)
+	
+	return atmosphere.spectrum

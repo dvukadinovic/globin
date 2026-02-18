@@ -220,6 +220,7 @@ class Atmosphere(object):
 		self.of_scatter = 1
 
 		# flag for computing the atomic parameters RFs (for those in self.global_pars)
+		self.atomic_rfs = None
 		self.get_atomic_rfs = False
 
 		# containers for updating atomic abundances
@@ -304,9 +305,9 @@ class Atmosphere(object):
 			# 	raise ValueError(f"Found NaN in atmosphere {fpath} at ({inds[0]},{inds[1]}) for parameter {inds[2]}.")
 
 			self.nHtot = np.sum(self.data[:,:,8:,:], axis=2)
-			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
-			self.idx_meshgrid = self.idx_meshgrid.ravel()
-			self.idy_meshgrid = self.idy_meshgrid.ravel()
+			self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="ij")
+			self.idx_meshgrid = self.idx_meshgrid.ravel(order="C")
+			self.idy_meshgrid = self.idy_meshgrid.ravel(order="C")
 		else:
 			self.data = None
 			self.header = None
@@ -316,9 +317,9 @@ class Atmosphere(object):
 				self.rho = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.pg = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
 				self.nHtot = np.empty((self.nx, self.ny, self.nz), dtype=np.float64)
-				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny))
-				self.idx_meshgrid = self.idx_meshgrid.ravel()
-				self.idy_meshgrid = self.idy_meshgrid.ravel()
+				self.idx_meshgrid, self.idy_meshgrid = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="ij")
+				self.idx_meshgrid = self.idx_meshgrid.ravel(order="C")
+				self.idy_meshgrid = self.idy_meshgrid.ravel(order="C")
 
 		#--- limit values for local and global parameters
 		self.limit_values = {"temp"  : MinMax(3000, 10000), # [K]
@@ -857,7 +858,7 @@ class Atmosphere(object):
 						new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 						new_atmos.logtau = np.copy(self.logtau[:])
 						new_atmos.height = np.copy(self.height[idx,idy,:])
-						xrange, yrange = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny))
+						xrange, yrange = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny), indexing="ij")
 						new_atmos.idx_meshgrid = xrange.ravel()
 						new_atmos.idy_meshgrid = yrange.ravel()
 						new_atmos.nodes = self.nodes
@@ -866,6 +867,8 @@ class Atmosphere(object):
 							new_atmos.values[parameter][0,0] = np.copy(self.values[parameter][idx,idy])
 							new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
 							new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+						if self.add_stray_light:
+							new_atmos.stray_light = np.ones((1,1,1))*self.stray_light[idx,idy]
 						if "stray" in self.nodes:
 							self.stray_light = self.values[parameter]
 					elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
@@ -875,6 +878,8 @@ class Atmosphere(object):
 					elif key in ["nodes", "values", "parameter_scale"]:
 						pass
 					elif key in ["sl_atmos"]:
+						pass
+					elif key in ["stray_light"]:
 						pass
 					elif key in ["pg", "rho", "nHtot"]:
 						pass
@@ -914,9 +919,9 @@ class Atmosphere(object):
 				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 				new_atmos.logtau = self.logtau[idz_min:idz_max]
 				new_atmos.height = self.height[idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
-				idx, idy = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny))
-				new_atmos.idx_meshgrid = idx.ravel()
-				new_atmos.idy_meshgrid = idy.ravel()
+				idx, idy = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny), indexing="ij")
+				new_atmos.idx_meshgrid = idx.ravel(order="C")
+				new_atmos.idy_meshgrid = idy.ravel(order="C")
 				for parameter in self.nodes:
 					new_atmos.nodes[parameter] = self.nodes[parameter]
 					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
@@ -1044,16 +1049,11 @@ class Atmosphere(object):
 
 			# stop futher call if we only needed to build the parameter of the 2nd component atmosphere
 			if params in ["sl_temp", "sl_vz", "sl_vmic"]:
-				return			
-
-		if flag is None:
-			flag = np.ones((self.nx, self.ny))
-
-		flag = np.asarray(flag)
+				return
 
 		atmos = [self]*(self.nx*self.ny)
 		params = [params]*(self.nx*self.ny)
-		args = zip(atmos, flag.ravel(), self.idx_meshgrid, self.idy_meshgrid, params)
+		args = zip(atmos, self.idx_meshgrid, self.idy_meshgrid, params)
 
 		if self.nx*self.ny==1:
 			results = list(map(self._build_from_nodes, args))
@@ -1065,7 +1065,8 @@ class Atmosphere(object):
 				results = pool.map(self._build_from_nodes, args)
 
 		results = np.asarray(results)
-		self.data = results.reshape(self.nx, self.ny, self.npar, self.nz, order="F")
+		# self.data[self.idx_meshgrid, self.idy_meshgrid] = results
+		self.data = results.reshape(self.shape, order="F")
 
 	def _build_from_nodes(self, args):
 		"""
@@ -1103,7 +1104,7 @@ class Atmosphere(object):
 
 			return x, y
 		
-		atmos, flag, idx, idy, params = args
+		atmos, idx, idy, params = args
 
 		parameters = self.nodes
 		if params is not None:
@@ -1112,9 +1113,6 @@ class Atmosphere(object):
 			else:
 				parameters = params
 
-		if flag==0:
-			return atmos.data[idx,idy]
-		
 		for parameter in parameters:
 			# skip over OF and stray light parameters
 			if parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
@@ -2040,6 +2038,7 @@ class Atmosphere(object):
 		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
 		hsra.mode = 0
 		hsra.wavelength_air = self.wavelength_air
+		hsra.wavelength_obs = self.wavelength_air
 		hsra.wavelength_vacuum = air_to_vacuum(hsra.wavelength_air)
 		hsra.cwd = self.cwd
 		hsra.mu = self.mu
@@ -2065,7 +2064,7 @@ class Atmosphere(object):
 
 		return tau_wlref
 
-	def compute_spectra(self, synthesize=None, pool=None):
+	def compute_spectra(self, synthesize=None, pool=None, get_atomic_rfs=False):
 		"""
 		Parameters:
 		-----------
@@ -2078,16 +2077,22 @@ class Atmosphere(object):
 		spectra : globin.Spectrum() object
 			structure containgin all the info regarding the spectrum.
 		"""
-		if self.get_atomic_rfs:
+		if get_atomic_rfs:
 			if self.atomic_rfs is None:
-				Npars = 0
-				for parameter in ["loggf", "dlam"]:
-					Npars += self.global_pars[parameter].shape[-1]
-				self.atomic_rfs = np.empty((self.nx, self.ny, len(self.wavelength_vacuum), 4, Npars), dtype=np.float64)
+				Nloggf = self.global_pars["loggf"].shape[-1]
+				self.atomic_rfs = np.zeros((self.nx, self.ny, len(self.wavelength_vacuum), 4, Nloggf), dtype=np.float64)
+
+		# reallocate the spectrum shape
+		# the shape changes after the interpolation because we downsample 
+		# it to the observed wavelength grid
+		if self.wavelength_air.shape!=self.wavelength_obs.shape and self.spectrum.spec.shape[2]!=len(self.wavelength_air):
+			self.spectrum.spec = np.zeros((self.nx, self.ny, len(self.wavelength_air), 4), dtype=np.float64)
+			self.spectrum.wavelength = self.wavelength_air
+			self.spectrum.nw = len(self.wavelength_air)
 
 		indx = self.idx_meshgrid
 		indy = self.idy_meshgrid
-		args = zip(indx, indy)
+		args = zip(indx, indy, [get_atomic_rfs]*len(indx))
 
 		if self.nx*self.ny==1:
 			results = list(map(self._compute_spectra_sequential, args))
@@ -2099,13 +2104,16 @@ class Atmosphere(object):
 				results = pool.map(self._compute_spectra_sequential, args)
 
 		results = np.array(results)
-		natm, _, nw, ns = results.shape
-
+		if results.ndim==3:
+			results = results[...,np.newaxis]
+		
 		self.spectrum.wavelength = self.wavelength_air
-		self.spectrum.spec[indx,indy] = results[:,0]
-
-		if self.get_atomic_rfs:
-			self.atomic_rfs[indx,indy] = results[:,1]
+		self.spectrum.spec[indx,indy] = results[...,0]
+		
+		if get_atomic_rfs:
+			start = 1
+			end = start + self.global_pars["loggf"].shape[-1]
+			self.atomic_rfs[indx,indy] = results[...,start:end]
 
 		if self.get_populations:
 			raise ValueError("Population retrieval not yet implemented.")
@@ -2128,14 +2136,14 @@ class Atmosphere(object):
 				self.n_pops[element] = self.n_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 				self.nstar_pops[element] = self.nstar_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 
-		return results[:,0].reshape(self.nx, self.ny, nw, ns)
+		return np.copy(self.spectrum.spec)
 
 	def _compute_spectra_sequential(self, args):
-		idx, idy = args
+		idx, idy, get_atomic_rfs = args
 
 		spec = self.spectrum.spec[idx,idy]
 		rfs = None
-		if self.get_atomic_rfs:
+		if get_atomic_rfs:
 			rfs = self.atomic_rfs[idx,idy]
 
 		got_populations = False
@@ -2171,7 +2179,7 @@ class Atmosphere(object):
 										 fudge_value=fudge_value, 
 										 atomic_number=self.atomic_number,
 										 atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=self.get_atomic_rfs,
+										 get_atomic_rfs=get_atomic_rfs,
 										 rfs=rfs,
 										 get_populations=self.get_populations)
 		else:
@@ -2181,18 +2189,18 @@ class Atmosphere(object):
 										 atm_scale=self.scale_id, 
 										 atmosphere=self.data[idx,idy],
 										 wave=self.wavelength_vacuum,
-								  		#  fudge_wave=fudge_lam, 
-										#  fudge_value=fudge_value, 
-										#  atomic_number=self.atomic_number,
-										#  atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=self.get_atomic_rfs, 
+								  		 fudge_wave=fudge_lam, 
+										 fudge_value=fudge_value, 
+										 atomic_number=self.atomic_number,
+										 atomic_abundance=self.atomic_abundance,
+										 get_atomic_rfs=get_atomic_rfs, 
 										 rfs=rfs,
 										 get_populations=self.get_populations)
 
-		if self.get_atomic_rfs:
-			return (spec, rfs)
+		if get_atomic_rfs:
+			return np.concatenate((spec[...,np.newaxis], rfs), axis=-1)
 
-		return (spec,)
+		return spec
 
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=None, rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
@@ -2215,7 +2223,9 @@ class Atmosphere(object):
 		self.build_from_nodes(synthesize, pool=pool)
 		if self.hydrostatic:
 			self.makeHSE(synthesize, pool=pool)
-		spec = self.compute_spectra(synthesize, pool=pool)
+
+		spec = self.compute_spectra(synthesize, pool=pool, get_atomic_rfs=self.get_atomic_rfs)
+		
 		if self.sl_atmos is not None:
 			flag = synthesize
 			if self.stray_mode==3:
@@ -2231,7 +2241,7 @@ class Atmosphere(object):
 
 		rf = np.zeros((self.nx, self.ny, Npar, Nw, 4))
 
-		active_indx, active_indy = np.where(synthesize==1)
+		# active_indx, active_indy = np.where(synthesize==1)
 
 		node_RF = np.zeros((self.nx, self.ny, Nw, 4))
 		if self.spatial_regularization:
@@ -2302,7 +2312,8 @@ class Atmosphere(object):
 				node_RF *= np.sqrt(2)
 
 				#--- set RFs value
-				rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
+				# rf[active_indx,active_indy,free_par_ID] = node_RF[active_indx, active_indy] / self.parameter_norm[parameter]
+				rf[:,:,free_par_ID] = node_RF / self.parameter_norm[parameter]
 				free_par_ID += 1
 
 				#--- return back perturbations (node way)
@@ -2399,6 +2410,18 @@ class Atmosphere(object):
 					self.build_from_nodes(flag=synthesize, params=parameter, pool=pool)
 
 				elif parameter=="loggf" or parameter=="dlam":
+					# missing a contribution from the 2nd component in case of stray light
+					if self.get_atomic_rfs and parameter=="loggf":
+						for idp in range(self.line_no[parameter].size):
+							rf[:,:,free_par_ID,:,:] = self.atomic_rfs[...,idp]
+							rf[:,:,free_par_ID,:,:] *= weights
+							rf[:,:,free_par_ID,:,:] /= rf_noise_scale
+							rf[:,:,free_par_ID,:,:] *= np.sqrt(2)
+							rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
+							free_par_ID_atomic.append(free_par_ID)
+							free_par_ID += 1
+						continue
+
 					if self.line_no[parameter].size > 0:
 						perturbation = self.delta[parameter]
 
@@ -2436,6 +2459,10 @@ class Atmosphere(object):
 								if self.sl_atmos is not None:
 									sl_diff = (sl_plus - sl_spec) / perturbation
 
+							# plt.plot(diff[0,0,:,0], c="k")
+							# plt.plot(rf[0,0,free_par_ID,:,0], c="r")
+							# plt.show()
+
 							diff *= weights
 							diff /= rf_noise_scale
 							diff *= np.sqrt(2)
@@ -2463,7 +2490,8 @@ class Atmosphere(object):
 				else:
 					raise ValueError(f"Unsupported global parameter {parameter}")
 
-		self.spectrum.spec[active_indx,active_indy] = np.copy(spec[active_indx,active_indy])
+		# self.spectrum.spec[active_indx,active_indy] = np.copy(spec[active_indx,active_indy])
+		self.spectrum.spec = np.copy(spec)
 		del spec
 
 		#--- broaden the spectra
@@ -2545,10 +2573,10 @@ class Atmosphere(object):
 				rf /= self.norm_level
 
 		# update the RFs for those pixels that have updated parameters
-		self.rf[active_indx, active_indy] = np.copy(rf[active_indx, active_indy])
+		self.rf = np.copy(rf)
 		del rf
 
-		return self.spectrum
+		return np.copy(self.spectrum.spec)
 
 	def get_regularization_gamma(self):
 		"""
@@ -3363,6 +3391,10 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 	dlogtau = atmos.logtau[1] - atmos.logtau[0]
 
+	if atmos.spectrum is None:
+		atmos.spectrum = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=len(atmos.wavelength_air))
+		atmos.spectrum.wavelength = atmos.wavelength_air			
+
 	if norm:
 		atmos.norm = True
 		atmos.norm_level = 1
@@ -3373,12 +3405,12 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 		if atmos.norm:
 			if atmos.norm_level==1:
-				Ic = spec.I[...,atmos.continuum_idl]
-				spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+				Ic = spec[...,atmos.continuum_idl,0]
+				spec = np.einsum("ij...,ij->ij...", spec, 1/Ic)
 			elif atmos.norm_level=="hsra":
-				spec.spec /= atmos.icont
+				spec /= atmos.icont
 			else:
-				spec.spec /= atmos.norm_level
+				spec /= atmos.norm_level
 	
 	# compute the total number of free parameters (have to sum atomic for each line)
 	n_local = 0
@@ -3403,12 +3435,12 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 				spec_plus = atmos.compute_spectra()
 				if atmos.norm:
 					if atmos.norm_level==1:
-						Ic = spec_plus.I[...,atmos.continuum_idl]
-						spec_plus.spec = np.einsum("ij...,ij->ij...", spec_plus.spec, 1/Ic)
+						Ic = spec_plus[...,atmos.continuum_idl,0]
+						spec_plus = np.einsum("ij...,ij->ij...", spec_plus, 1/Ic)
 					elif atmos.norm_level=="hsra":
-						spec_plus.spec /= atmos.icont
+						spec_plus /= atmos.icont
 					else:
-						spec_plus.spec /= atmos.norm_level
+						spec_plus /= atmos.norm_level
 				# if atmos.sl_atmos is not None:
 				# 	spec_plus_sl = atmos.sl_atmos.compute_spectra()
 
@@ -3419,17 +3451,17 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 					# 	spec_minus_sl = atmos.sl_atmos.compute_spectra()
 					if atmos.norm:
 						if atmos.norm_level==1:
-							Ic = spec_minus.I[...,atmos.continuum_idl]
-							spec_minus.spec = np.einsum("ij...,ij->ij...", spec_minus.spec, 1/Ic)
+							Ic = spec_minus[...,atmos.continuum_idl,0]
+							spec_minus = np.einsum("ij...,ij->ij...", spec_minus, 1/Ic)
 						elif atmos.norm_level=="hsra":
-							spec_minus.spec /= atmos.icont
+							spec_minus /= atmos.icont
 						else:
-							spec_minus.spec /= atmos.norm_level
+							spec_minus /= atmos.norm_level
 
-					diff = spec_plus.spec - spec_minus.spec
+					diff = spec_plus - spec_minus
 					rf_local[:,:,free_par_ID,idz] = diff / 2 / perturbation
 				elif atmos.rf_der_type=="forward":
-					diff = spec_plus.spec - spec.spec
+					diff = spec_plus - spec
 					rf_local[:,:,free_par_ID,idz] = diff / perturbation
 				else:
 					raise ValueError("Unsupported type of the RF derivative.")
@@ -3475,28 +3507,27 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 					spec_plus = atmos.compute_spectra()
 					if atmos.norm:
 						if atmos.norm_level==1:
-							Ic = spec_plus.I[...,atmos.continuum_idl]
-							spec_plus.spec = np.einsum("ij...,ij->ij...", spec_plus.spec, 1/Ic)
+							Ic = spec_plus[...,atmos.continuum_idl,0]
+							spec_plus = np.einsum("ij...,ij->ij...", spec_plus, 1/Ic)
 						elif atmos.norm_level=="hsra":
-							spec_plus.spec /= atmos.icont
+							spec_plus /= atmos.icont
 						else:
-							spec_plus.spec /= atmos.norm_level
-
+							spec_plus /= atmos.norm_level
 					if atmos.rf_der_type=="central":
 						atmos.global_pars[parameter][...,idp] -= 2*perturbation
 						spec_minus = atmos.compute_spectra()
 						if atmos.norm:
 							if atmos.norm_level==1:
-								Ic = spec_minus.I[...,atmos.continuum_idl]
-								spec_minus.spec = np.einsum("ij...,ij->ij...", spec_minus.spec, 1/Ic)
+								Ic = spec_minus[...,atmos.continuum_idl,0]
+								spec_minus = np.einsum("ij...,ij->ij...", spec_minus, 1/Ic)
 							elif atmos.norm_level=="hsra":
-								spec_minus.spec /= atmos.icont
+								spec_minus /= atmos.icont
 							else:
-								spec_minus.spec /= atmos.norm_level
-						diff = spec_plus.spec - spec_minus.spec
+								spec_minus /= atmos.norm_level
+						diff = spec_plus - spec_minus
 						rf_global[:,:,free_par_ID] = diff / 2 / perturbation
 					elif atmos.rf_der_type=="forward":
-						diff = spec_plus.spec - spec.spec
+						diff = spec_plus - spec
 						rf_global[:,:,free_par_ID] = diff / 2 / perturbation
 					else:
 						raise ValueError("Unsupported type of the RF derivative.")

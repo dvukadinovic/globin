@@ -322,9 +322,12 @@ class Spectrum(object):
 		# get only sample of spectra that we want to convolve
 		# (no need to do it in every pixel during inversion if
 		# we have not updated parameters)
-		if flag is None:
-			flag = np.ones((self.nx, self.ny), dtype=np.int32)
-		indx, indy = np.where(flag==1)
+		# if flag is None:
+		# 	flag = np.ones((self.nx, self.ny), dtype=np.int32)
+		# indx, indy = np.where(flag==1)
+		indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="xy")
+		indx = indx.ravel()
+		indy = indy.ravel()
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
 		if self.nx*self.ny==1:
@@ -347,9 +350,12 @@ class Spectrum(object):
 			# get only sample of spectra that we want to convolve
 			# (no need to do it in every pixel during inversion if
 			# we have not updated parameters)
-			if flag is None:
-				flag = np.ones((self.nx, self.ny), dtype=np.int32)
-			indx, indy = np.where(flag==1)
+			# if flag is None:
+			# 	flag = np.ones((self.nx, self.ny), dtype=np.int32)
+			# indx, indy = np.where(flag==1)
+			indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="xy")
+			indx = indx.ravel()
+			indy = indy.ravel()
 			args = zip(self.spec[indx,indy], [kernel]*len(indx))
 
 			if self.nx*self.ny==1:
@@ -559,7 +565,7 @@ class Spectrum(object):
 		# 	raise ValueError("Interpolation is outside of the wavelength range.")
 		
 		# spectra = np.zeros((self.nx, self.ny, len(wave_out), 4))
-		_spec = self.spec.reshape(self.nx*self.ny, self.nw, 4)
+		_spec = self.spec.reshape(self.nx*self.ny, self.nw, 4, order="C")
 
 		args = zip(_spec, [wave_out]*(self.nx*self.ny), [fill_value]*(self.nx*self.ny))
 
@@ -575,7 +581,7 @@ class Spectrum(object):
 		results = np.array(results)
 		self.nw = len(wave_out)
 		self.wavelength = wave_out
-		self.spec = results.reshape(self.nx, self.ny, self.nw, 4)
+		self.spec = results.reshape(self.nx, self.ny, self.nw, 4, order="C")
 
 	def _interpolate(self, args):
 		spec_in, wave_out, fill_value = args
@@ -808,7 +814,7 @@ class Observation(Spectrum):
 			raise IOError("We cannot recognize the observation file type.")
 
 	def read_fits(self, fpath, obs_range):
-		hdu = fits.open(fpath)[0]
+		hdu = fits.open(fpath, mode="denywrite")[0]
 		self.header = hdu.header
 
 		# xmin, xmax, ymin, ymax = obs_range
@@ -823,6 +829,8 @@ class Observation(Spectrum):
 		# we assume that wavelngth is same for every pixel in observation
 		self.wavelength = data[0,0,:,0]
 		self.spec = data[:,:,:,1:]
+		nx, ny, nw, _ = self.spec.shape
+		# self.spec = self.spec.reshape(1, nx*ny, nw, 4)
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
@@ -870,9 +878,10 @@ class Observation(Spectrum):
 		else:
 			raise ValueError("Unrecognized type of 'atm_range'.")
 		
-		nx, ny, ns, nw = data.shape
+		nx, ny, _, nw = data.shape
 		self.spec = np.swapaxes(data, 2, 3)
 		self.spec /= self.Icont
+		# self.spec = self.spec.reshape(1, nx*ny, nw, 4)
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
