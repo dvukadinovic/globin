@@ -8,6 +8,22 @@ orbitals = {"S": 0, "P": 1, "D": 2, "F": 3,
             "K": 8, "L": 9, "M": 10, "N": 11,
             "O": 12, "Q": 13, "R": 14, "T": 15}
 
+# the upper limits of the log(gf) uncertainty in % by NIST database
+# those that are more than 50% off are in class E;
+# see https://physics.nist.gov/PhysRefData/ASD/Html/lineshelp.html
+# 1% of uncertainty is equal to \delta(log(gf)) = 0.00434 dex
+accuracy = {"AAA" : 0.3,
+            "AA"  : 1,
+            "A+"  : 2,
+            "A"   : 3,
+            "B+"  : 7,
+            "B"   : 10,
+            "C+"  : 18,
+            "C"   : 25,
+            "D+"  : 40,
+            "D"   : 50}
+
+
 def gamma_function(a, b, c):
     if a==0:
         return 0
