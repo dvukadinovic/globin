@@ -1205,62 +1205,30 @@ class Atmosphere(object):
 			all pixels).
 
 		"""
-		indx = self.idx_meshgrid
-		indy = self.idy_meshgrid
-		args = zip(indx, indy)
-
-		# obtain new Pg and use it as initial value for the HSE at the top
-		self.get_pg()
+		args = self.prepare_HSE_arguments()
 
 		if self.nx*self.ny==1:
-			results = list(map(self._makeHSE, args))
+			results = list(map(_makeHSE, args))
 		else:
 			if pool is None:
 				with mp.Pool(self.n_thread) as pool:
-					results = pool.map(func=self._makeHSE, iterable=args, chunksize=self.chunk_size)
+					results = pool.map(func=_makeHSE, iterable=args)#, chunksize=self.chunk_size)
 				pool = None
 			else:
-				results = pool.map(self._makeHSE, args)
+				results = pool.map(_makeHSE, args)
 
 		results = np.array(results)
 
+		indx = self.idx_meshgrid
+		indy = self.idy_meshgrid
 		self.data[indx,indy,2] = results[:,0]
 		self.data[indx,indy,8] = results[:,1]
 
 		# solve HSE also for the 2nd atmospheric model
-		if self.sl_atmos is not None:
+		if self.sl_atmos is not None and "sl_temp" in self.sl_atmos.nodes:
 			if self.stray_mode==3:
 				flag = None
 			self.sl_atmos.makeHSE(flag, pool=pool)
-
-	def _makeHSE(self, arg):
-		"""
-		Parallelized call from makeHSE() function.
-		"""
-		idx, idy = arg
-
-		fudge_lam = None
-		fudge_value = None
-		if self.fudge_lam is not None:
-			fudge_lam = self.fudge_lam
-			fudge_value = self.fudge[idx,idy]
-
-		pyrh.hse(cwd=self.cwd, 
-							atm_scale=self.scale_id,
-							scale=self.data[idx, idy, 0],
-							temp=self.data[idx, idy, 1],
-							ne=self.data[idx,idy,2],
-							nHtot=self.data[idx,idy,8],
-							rho=self.rho[idx,idy],
-							pg=self.pg[idx,idy],
-							pg_top=100,
-							fudge_wave=fudge_lam, 
-							fudge_value=fudge_value,
-							atomic_number=self.atomic_number, 
-							atomic_abundance=self.atomic_abundance,
-							full_output=False)
-
-		return np.vstack((self.data[idx,idy,2]/1e6, self.data[idx,idy,8]/1e6))
 
 	def get_pg(self):
 		"""
@@ -3147,6 +3115,59 @@ class Atmosphere(object):
 		keywords = globin.rh.RHKeywords()
 		keywords.set_keywords(keys)
 		keywords.create_input_file(f"{self.cwd}/keyword.input")
+
+	def prepare_HSE_arguments(self):
+		Natmos = self.nx*self.ny
+
+		# obtain new Pg and use it as initial value for the HSE at the top
+		self.get_pg()
+
+		if self.fudge_lam is not None:
+			fudge_lam = self.fudge_lam.reshape(self.nx*self.ny, order="C")
+			fudge_value = self.fudge.reshape(self.nx*self.ny, 3, self.fudge_lam.size, order="C")
+			raise NotImplementedError("Fudge is not implemented for makeHSE yet.")
+		else:
+			fudge_lam = [None]*Natmos
+			fudge_value = [None]*Natmos
+
+		global_pars = {"cwd"       : self.cwd,
+				 	   "atm_scale" : self.scale_id,
+					   "atomic_number" : self.atomic_number,
+					   "atomic_abundance" : self.atomic_abundance,
+					   }
+
+		scale = self.data[:,:,0].reshape(Natmos, self.nz, order="C")
+		temp = self.data[:,:,1].reshape(Natmos, self.nz, order="C")
+		ne = self.data[:,:,2].reshape(Natmos, self.nz, order="C")
+		nHtot = self.data[:,:,8].reshape(Natmos, self.nz, order="C")
+		rho = self.rho.reshape(Natmos, self.nz, order="C")
+		pg = self.pg.reshape(Natmos, self.nz, order="C")
+
+		return zip([global_pars]*Natmos, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg)
+
+def _makeHSE(args):
+	"""
+	Parallelized call from makeHSE() function.
+	"""
+	global_pars, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg = args
+
+	pyrh.hse(cwd=global_pars["cwd"], 
+			atm_scale=global_pars["atm_scale"],
+			scale=scale,
+			temp=temp,
+			ne=ne,
+			nHtot=nHtot,
+			rho=rho,
+			pg=pg,
+			# pg_top=100,
+			pg_top=pg[0]/10,
+			fudge_wave=fudge_lam, 
+			fudge_value=fudge_value,
+			atomic_number=global_pars["atomic_number"], 
+			atomic_abundance=global_pars["atomic_abundance"],
+			full_output=False)
+
+	return np.vstack((ne/1e6, nHtot/1e6))
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
 	try:
