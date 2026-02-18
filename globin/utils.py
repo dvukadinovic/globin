@@ -13,14 +13,11 @@ import cProfile
 import pstats
 import io
 
-from .makeHSE import makeHSE
-from .chi2 import Chi2
-
-from scipy.constants import m_e, m_p
-from scipy.constants import k as k_b
-
-m_p *= 1e3
-m_e *= 1e3
+from .constants import K_BOLTZMAN
+from .constants import LIGHT_SPEED
+from .constants import PLANCK
+from .constants import ELECTRON_MASS
+from .constants import PROTON_MASS
 
 import globin
 
@@ -215,8 +212,8 @@ def extend(array, N):
 
 def Planck(wave, T):
     wave *= 1e-9 # [nm --> m]
-    C1 = 2*globin.PLANCK*globin.LIGHT_SPEED/(wave**3)
-    C2 = globin.PLANCK*globin.LIGHT_SPEED/(wave*globin.K_BOLTZMAN*T)
+    C1 = 2*PLANCK*LIGHT_SPEED/(wave**3)
+    C2 = PLANCK*LIGHT_SPEED/(wave*K_BOLTZMAN*T)
 
     return C1 / (np.exp(C2) - 1)
 
@@ -261,17 +258,17 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     for i_ in range(6):
         nH += atmos.data[:,:,8+i_,:]
     ni = np.einsum("ijk,l->ijkl", nH, 10**(atom_abundance - 12))
-    density = np.einsum("ijkl,l->ijk", ni, globin.atom_mass*m_p)
+    density = np.einsum("ijkl,l->ijk", ni, globin.atom_mass*PROTON_MASS*1e3)
     # density += atmos.data[:,:,2,:] * m_e
-    density += atm[:,:,2,:] * m_e
+    density += atm[:,:,2,:] * ELECTRON_MASS * 1e3
     spinor_atm[6] = density # density [g/cm3]
     
-    # gas_pressure = (np.sum(ni, axis=-1) + atmos.data[:,:,2,:]) * k_b * atmos.data[:,:,1,:] # [Pa]
-    gas_pressure = (np.sum(ni, axis=-1) + atm[:,:,2,:]) * k_b * atmos.data[:,:,1,:] # [Pa]
+    # gas_pressure = (np.sum(ni, axis=-1) + atmos.data[:,:,2,:]) * K_BOLTZMAN * atmos.data[:,:,1,:] # [Pa]
+    gas_pressure = (np.sum(ni, axis=-1) + atm[:,:,2,:]) * K_BOLTZMAN * atmos.data[:,:,1,:] # [Pa]
     spinor_atm[3] = gas_pressure * 10 # gas pressure [dyn/cm2]
 
-    # electron_pressure = atmos.data[:,:,2,:] * k_b * atmos.data[:,:,1,:] # [Pa]
-    electron_pressure = atm[:,:,2,:] * k_b * atmos.data[:,:,1,:] # [Pa]
+    # electron_pressure = atmos.data[:,:,2,:] * K_BOLTZMAN * atmos.data[:,:,1,:] # [Pa]
+    electron_pressure = atm[:,:,2,:] * K_BOLTZMAN * atmos.data[:,:,1,:] # [Pa]
     spinor_atm[4] = electron_pressure # electron pressure [dyn/cm2]
 
     spinor_atm[7] = atmos.data[:,:,5,:] * 1e4 # magnetic field [G]
@@ -286,108 +283,6 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
 
     np.savetxt("globin_atm_0_0.dat", spinor_atm[:,0,0,:].T, header=f"{atmos.nz}\tdummy.dat", comments="", 
         fmt="%3.2f %5.4e %6.2f %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4e %5.4f %5.4f")
-
-def calculate_chi2(pars, fname):
-    # pars:
-    #   atmospheric --> [node, values, idx, idy]
-    #   atomic      --> [line, values]
-    #   vmac        --> [None, values]
-    
-    noise_stokes = 1
-    dof = 1
-
-    # get parameter names
-    par_names = [item[0] for item in pars]
-
-    unique_names = list(set(par_names))
-    atmos_par_names = [name for name in unique_names if name in ["temp", "vz", "vmic", "mag", "gamma", "chi"]]
-    
-    # set all node values to expected ones;
-    # for that we use reference atmosphere
-    for par in atmos_par_names:
-        nodes = globin.atm.nodes[par]
-
-        par_id = globin.ref_atm.par_id[par]
-        value = globin.ref_atm.data[:,:,par_id,:]
-
-        for i_,node in enumerate(nodes):
-            ind = np.argmin(np.abs(globin.ref_atm.logtau - node))
-            par_in_node = value[:,:,ind]
-            globin.atm.values[par][:,:,i_] = par_in_node
-
-    # set shape of chi2
-    shape = [len(item[2]) for item in pars]
-    chi2 = np.zeros(shape)
-
-    # number of parameter combinations
-    N = np.prod(shape)
-
-    # set a list if indice for each parameter combination
-    ranges = [np.arange(size) for size in shape]
-    inds = np.meshgrid(*ranges, indexing="ij")
-    inds = [item.flatten() for item in inds]
-
-    #--- for each combination compute spectra and calculate chi2
-    for j_,ind in enumerate(zip(*inds)):
-        print("{:3.1f} %".format( (j_+1)/N * 100 ))
-
-        # set parameters
-        for i_,par in enumerate(par_names):
-            node = pars[i_][1]
-            value_ind = ind[i_]
-            value = pars[i_][2][value_ind]
-            try:
-                idx, idy = pars[i_][3], pars[i_][4]
-            except:
-                idx, idy = None, None
-            args = par, node, value, idx, idy
-            set_parameter(args)
-
-        # build atmosphere and compute spectra
-        globin.atm.build_from_nodes()
-        spec, _, _ = globin.compute_spectra(globin.atm)
-        if not globin.mean:
-            spec.broaden_spectra(globin.atm.vmac)
-
-        # compute chi2
-        diff = globin.obs.spec - spec.spec
-        
-        # plt.plot(globin.obs.spec[0,0,:,0])
-        # plt.plot(spec.spec[0,0,:,0])
-        # plt.show()
-
-        chi2[ind] = np.sum(diff**2 / noise_stokes**2 * globin.wavs_weight**2) / dof
-
-    #--- save chi2 into fits file
-    primary = fits.PrimaryHDU(chi2)
-    primary.name = "chi2_vals"
-
-    hdulist = fits.HDUList([primary])
-
-    for item in pars:
-        parameter = item[0]
-        node = item[1]
-        values = item[2]
-        try:
-            idx, idy = item[3], item[4]
-        except:
-            idx, idy = -1, -1
-
-        par_hdu = fits.ImageHDU(values)
-        if parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
-            par_hdu.name = f"{parameter}_x{idx}_y{idy}_n{node}"
-        else:
-            par_hdu.name = f"{parameter}_line{node}"
-
-        par_hdu.header["XPOS"] = (idx, " x position of atmosphere")
-        par_hdu.header["YPOS"] = (idx, " y position of atmosphere")
-        par_hdu.header["NODE"] = (node, " node index")
-
-        hdulist.append(par_hdu)
-    
-    hdulist.writeto(fname, overwrite=True)
-
-    return chi2
 
 def set_parameter(args):
     # koji parametar --> parameters
