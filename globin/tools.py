@@ -4,7 +4,6 @@ import copy
 import sys
 from scipy.ndimage import gaussian_filter
 from scipy.interpolate import splrep, splev
-import globin
 
 def get_func3(a,b,c,d):
     return lambda t: (1-t)*(1-t)*(1-t)*a + 3*(1-t)*(1-t)*t*b + 3*(1-t)*t*t*c + t*t*t*d
@@ -427,6 +426,9 @@ def congrid(a, newdims, method='neighbour', centre=True, minusone=False):
         return None
 
 if __name__=="__main__":
+    # from .models import FALC_temp_tck
+    from globin import FALC_temp_tck
+    
     # example from de la Cruz Rodriguez et al. (2019)
     x = np.array([-3,-2,-1.95, -1, 0.4, 2, 3.2])
     y = np.array([0.2, 0, 0.6, 0.55, 0.29, 0.21, 0.4])
@@ -438,7 +440,7 @@ if __name__=="__main__":
 
     K0 = (y[1]-y[0]) / (x[1]-x[0])
     # bottom node slope for extrapolation based on temperature gradient from FAL C model
-    Kn = splev(x[-1], globin.temp_tck, der=1)
+    Kn = splev(x[-1], FALC_temp_tck, der=1)
 
     # x = np.random.random(5)
     # x.sort()

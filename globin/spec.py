@@ -13,6 +13,7 @@ import globin
 from .utils import extend
 from .utils import congrid
 from .utils import get_first_larger_divisor
+from .constants import LIGHT_SPEED
 
 class Spectrum(object):
 	"""
@@ -289,7 +290,7 @@ class Spectrum(object):
 		Get Gaussian kernel standard deviation based on given macro-turbulent velocity (in km/s).
 		"""
 		step = self.wavelength[1] - self.wavelength[0]
-		return vmac*1e3 / globin.LIGHT_SPEED * (self.wavelength[0] + self.wavelength[-1])*0.5 / step
+		return vmac*1e3 / LIGHT_SPEED * (self.wavelength[0] + self.wavelength[-1])*0.5 / step
 
 	def get_kernel(self, vmac, order=0):
 		# we assume equidistant seprataion in wavelength grid
@@ -344,7 +345,7 @@ class Spectrum(object):
 
 	def instrumental_broadening(self, flag=None, n_thread=1, kernel=None, R=None, pool=None):
 		if R is not None:
-			vinst = globin.LIGHT_SPEED/R/1e3 # [km/s]
+			vinst = LIGHT_SPEED/R/1e3 # [km/s]
 			self.broaden_spectra(vinst, flag, n_thread, pool=pool)
 		elif kernel is not None:
 			# get only sample of spectra that we want to convolve

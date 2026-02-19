@@ -21,6 +21,8 @@ from .chi2 import Chi2, compute_chi2
 from .visualize import plot_spectra, add_colorbar
 from .utils import pretty_print_parameters
 
+from .constants import NCHAR
+
 import globin
 
 class InversionContainer:
@@ -87,15 +89,15 @@ class Inverter(InputData):
 		if self.mode>=1:
 			start = time.time()
 
-			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=globin.NCHAR))
+			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=NCHAR))
 
 			Npar = self._get_Npar()
 			
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
-					print("="*globin.NCHAR)
-					print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=globin.NCHAR,))
-					print("="*globin.NCHAR)
+					print("="*NCHAR)
+					print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=NCHAR,))
+					print("="*NCHAR)
 					print()
 
 				max_iter = self.get_maximum_iterations_number(cycle)
@@ -182,15 +184,15 @@ class Inverter(InputData):
 			end = time.time() - start
 			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
-			if globin.collect_stats:
-				globin.statistics.save()
+			# if globin.collect_stats:
+			# 	globin.statistics.save()
 
 			return atmos, atmos.spectrum, chi2
 
 		elif self.mode==0:
 			start = time.time()
 			
-			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=globin.NCHAR))
+			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=NCHAR))
 
 			spectrum = synthesize(self.atmosphere, self.n_thread, pool, self.noise)
 
@@ -202,11 +204,11 @@ class Inverter(InputData):
 			end = time.time() - start
 			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
-			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=globin.NCHAR))
-			print("-"*globin.NCHAR)
+			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=NCHAR))
+			print("-"*NCHAR)
 
-			if globin.collect_stats:
-				globin.statistics.save()
+			# if globin.collect_stats:
+			# 	globin.statistics.save()
 
 			return spectrum
 		else:
@@ -326,8 +328,8 @@ class Inverter(InputData):
 				for idx in range(atmos.nx):
 					for idy in range(atmos.ny):
 						self.LM_debug[itter[idx,idy],idx,idy] = LM_parameter[idx,idy]
-			if globin.collect_stats:
-				start_iter = time.time()
+			# if globin.collect_stats:
+			# 	start_iter = time.time()
 			# counter for the progress bar
 			old = np.sum(stop_flag)
 
@@ -562,8 +564,8 @@ class Inverter(InputData):
 			if self.verbose:
 				print("\n--------------------------------------------------\n")
 
-			if globin.collect_stats and total!=0:
-				globin.statistics.add(fun_name="pbp_iteration", execution_time=time.time()-start_iter)
+			# if globin.collect_stats and total!=0:
+			# 	globin.statistics.add(fun_name="pbp_iteration", execution_time=time.time()-start_iter)
 
 			# if all pixels have converged, we stop inversion
 			if np.sum(stop_flag)==0:
@@ -1006,7 +1008,7 @@ class Inverter(InputData):
 			if updated_parameters and self.verbose:
 				pretty_print_parameters(atmos, ones)
 				print(LM_parameter)
-				print("-"*globin.NCHAR, "\n")
+				print("-"*NCHAR, "\n")
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
@@ -1247,7 +1249,7 @@ class Inverter(InputData):
 		regul_chi2 = np.zeros(num)
 
 		for i_, alpha in enumerate(reg_weight):
-			print("\n{:{char}{align}{width}}".format(f" Round {i_+1}/{num} ", char="*", align="^", width=globin.NCHAR))
+			print("\n{:{char}{align}{width}}".format(f" Round {i_+1}/{num} ", char="*", align="^", width=NCHAR))
 
 			# recompute the regularization weights for each parameter
 			for parameter in self.atmosphere.nodes:
@@ -1309,8 +1311,8 @@ def invert_single_pixel(args):
 	iteration = 0
 
 	while iteration<inverter.max_iter:
-		if globin.collect_stats:
-			start_iter = time.time()
+		# if globin.collect_stats:
+		# 	start_iter = time.time()
 
 		#--- if we updated parameters, recaluclate RF and referent spectra
 		if flag_updated_parameters:

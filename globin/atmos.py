@@ -11,6 +11,8 @@ from tqdm import tqdm, trange
 import multiprocessing as mp
 import scipy.sparse as sp
 
+__path__ = os.path.dirname(__file__)
+
 try:
 	import pyrh
 except:
@@ -18,11 +20,25 @@ except:
 	pass
 
 import globin
+
+from .atoms import abundances
 from .spec import Spectrum
-from .tools import bezier_spline, spline_interpolation, get_K0_Kn, get_control_point
-from .utils import extend, Planck, azismooth, mygsmooth, air_to_vacuum
-from .makeHSE import makeHSE
+from .utils import extend, azismooth, mygsmooth, air_to_vacuum
 from .rh import atmols, create_kurucz_input
+from .rh import RHKeywords
+from .constants import atmosphere_scale_ID
+from .constants import K_BOLTZMAN
+from .constants import AMU
+from .constants import ATOMIC_MASS
+from .constants import ELECTRON_MASS
+from .constants import ELECTRON_CHARGE
+from .constants import PLANCK
+from .atoms import AtomPars
+from .atoms import read_RLK_lines
+
+from .parallel_methods import _makeHSE
+from .parallel_methods import _build_from_nodes
+from .parallel_methods import _compute_spectra_sequential
 
 class MinMax(object):
 	"""
@@ -72,8 +88,8 @@ class Atmosphere(object):
 					  "nH"     : 8}
 
 	#--- temperature limits in the atmosphere (used to limit the extrapolation to a top of the atmosphere)
-	Tmin = 2800
-	Tmax = 10000
+	# Tmin = 2800
+	# Tmax = 10000
 
 	#--- parameter perturbations for calculating RFs
 	delta = {"temp"  : 1,			# [K]
@@ -346,9 +362,6 @@ class Atmosphere(object):
 		_str += "  (nx,ny,npar,nz) = ({},{},{},{})>".format(*self.shape)
 		return _str
 
-	# def __deepcopy__(self, new):
-	# 	new.data = self.data
-
 	def read_multi(self, fpath):
 		"""
 		Read 1D MULTI type atmosphere data.
@@ -366,11 +379,11 @@ class Atmosphere(object):
 		# get the scale of the atmosphere
 		scale = lines[1].replace(" ", "")[0]
 		if (scale.upper()=="M"):
-			self.scale_id = globin.scale_id["cmass"]
+			self.scale_id = atmosphere_scale_ID["cmass"]
 		if (scale.upper()=="T"):
-			self.scale_id = globin.scale_id["tau"]
+			self.scale_id = atmosphere_scale_ID["tau"]
 		if (scale.upper()=="H"):
-			self.scale_id = globin.scale_id["height"]
+			self.scale_id = atmosphere_scale_ID["height"]
 
 		# get number of depth points
 		nz = int(lines[3].replace(" ", ""))
@@ -441,7 +454,7 @@ class Atmosphere(object):
 		self.data[:,:,1] = atmos_data[2]
 		# Electron density [1/cm3]
 		if np.count_nonzero(atmos_data[4])!=0:
-			self.data[:,:,2] = atmos_data[4]/10 / globin.K_BOLTZMAN / atmos_data[2] / 1e6
+			self.data[:,:,2] = atmos_data[4]/10 / K_BOLTZMAN / atmos_data[2] / 1e6
 		# Vertical velocity [cm/s] --> [km/s]
 		self.data[:,:,3] = atmos_data[9]/1e5
 		# Microturbulent velocitu [cm/s] --> [km/s]
@@ -461,8 +474,8 @@ class Atmosphere(object):
 		self.pg[:,:,:] = atmos_data[3]
 
 		# rho --> total Hydrogen density [1/cm3] (in RH it is atmos.nHtot)
-		m0 = globin.AMU*1e3 # [g]
-		avg_mass = np.sum(10**(globin.abundance-12) * globin.atom_mass)
+		m0 = AMU*1e3 # [g]
+		avg_mass = np.sum(10**(abundances-12) * np.array(ATOMIC_MASS))
 		self.data[:,:,8] = atmos_data[6]/m0/avg_mass
 
 		# container for the height [km]
@@ -474,14 +487,14 @@ class Atmosphere(object):
 
 		# check for the scale
 		if np.count_nonzero(self.logtau)!=0:
-			self.scale_id = globin.scale_id["tau"]
+			self.scale_id = atmosphere_scale_ID["tau"]
 			return
 		elif height_flag:
-			self.scale_id = globin.scale_id["height"]
+			self.scale_id = atmosphere_scale_ID["height"]
 			self.data[:,:,0] = self.height
 			return
 		elif np.count_nonzero(atmos_data[5])!=0:
-			self.scale_id = globin.scale_id["cmass"]
+			self.scale_id = atmosphere_scale_ID["cmass"]
 			self.data[:,:,0] = atmos_data[5]
 			return
 		else:
@@ -516,7 +529,7 @@ class Atmosphere(object):
 		# temperature [K]
 		self.data[0,0,1] = data[1]
 		# electron concentration [1/cm3]
-		self.data[0,0,2] = data[2]/10/globin.K_BOLTZMAN/data[1]/1e6
+		self.data[0,0,2] = data[2]/10/K_BOLTZMAN/data[1]/1e6
 		# LOS velocity [km/2]
 		self.data[0,0,3] = data[5]*1e5
 		# vmic [km/s]
@@ -537,14 +550,14 @@ class Atmosphere(object):
 
 		# check for the scale
 		if np.count_nonzero(self.logtau)!=0:
-			self.scale_id = globin.scale_id["tau"]
+			self.scale_id = atmosphere_scale_ID["tau"]
 		# 	return
 		# elif height_flag:
-		# 	self.scale_id = globin.scale_id["height"]
+		# 	self.scale_id = atmosphere_scale_ID["height"]
 		# 	self.data[:,:,0] = self.height
 		# 	return
 		# elif np.count_nonzero(atmos_data[5])!=0:
-		# 	self.scale_id = globin.scale_id["cmass"]
+		# 	self.scale_id = atmosphere_scale_ID["cmass"]
 		# 	self.data[:,:,0] = atmos_data[5]
 		# 	return
 		else:
@@ -606,9 +619,9 @@ class Atmosphere(object):
 					pass
 		
 		try:
-			self.scale_id = globin.scale_id[self.header["SCALE"].lower()]
+			self.scale_id = atmosphere_scale_ID[self.header["SCALE"].lower()]
 		except:
-			self.scale_id = globin.scale_id["tau"]
+			self.scale_id = atmosphere_scale_ID["tau"]
 
 		self.pg = np.empty((self.nx, self.ny, self.nz))
 		self.rho = np.empty((self.nx, self.ny, self.nz))
@@ -654,7 +667,7 @@ class Atmosphere(object):
 				self.sl_atmos.nodes["sl_temp"] = self.nodes["sl_temp"]
 				self.sl_atmos.values["sl_temp"] = self.values["sl_temp"]
 				delta = self.values["sl_temp"] - globin.T0_HSRA
-				HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+				HSRA_temp = interp1d(globin.HSRA.logtau, globin.HSRA.T[0,0])(self.sl_atmos.logtau)
 				self.sl_atmos.data[:,:,self.par_id["temp"]] = HSRA_temp + delta
 				self.sl_atmos.hydrostatic = True
 			if "sl_vz" in self.nodes:
@@ -759,7 +772,7 @@ class Atmosphere(object):
 
 	@property
 	def scale(self):
-		return list(globin.scale_id.keys())[self.scale_id].upper()
+		return list(atmosphere_scale_ID.keys())[self.scale_id].upper()
 
 	def _remove_local_pars(self):
 		self.nodes = {}
@@ -909,7 +922,7 @@ class Atmosphere(object):
 		idy_min, idy_max = slice_y
 		idz_min, idz_max = slice_z
 
-		new_atmos = globin.Atmosphere()
+		new_atmos = Atmosphere()
 
 		for key in keys:
 
@@ -977,12 +990,58 @@ class Atmosphere(object):
 
 		return new
 
+	def prepare_build_from_nodes_arguments(self, parameters):
+		Natmos = self.nx*self.ny
+
+		global_pars = {"method" : self.interpolation_method,
+						"logtau" : self.logtau,
+						"spline_tension" : self.spline_tension,
+						"degree" : self.interp_degree,
+						"nodes"  : self.nodes,
+						"limits" : self.limit_values}
+		
+		#--- check if limit values are per pixel and not global
+		for parameter in list(self.nodes.keys()):
+			limits = self.limit_values[parameter].min
+			if limits.ndim>1:
+				raise ValueError("Not prepared to pack non-global minimum limit values for atmospheri parameters.")
+			limits = self.limit_values[parameter].max
+			if limits.ndim>1:
+				raise ValueError("Not prepared to pack non-global maximum limit values for atmospheri parameters.")
+
+		#--- select parameters for interpolation (not all require parallel call)
+		if parameters is None:
+			parameters = list(self.nodes.keys())
+			for parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
+				if parameter in list(self.nodes.keys()):
+					parameters.remove(parameter)
+		
+		if not isinstance(parameters, list):
+			parameters = [parameters]
+
+		#--- get values in nodes
+		values = [None]*Natmos
+		for idx in range(self.nx):
+			for idy in range(self.ny):
+				ida = idx*self.ny + idy
+				_values = {key : None for key in parameters}
+				for parameter in parameters:
+					_values[parameter] = self.values[parameter][idx,idy]
+				values[ida] = _values
+
+		#--- get the columns for each parameters
+		_data = [None]*len(parameters)
+		for idp, parameter in enumerate(parameters):
+			_data[idp] = self.data[:,:,self.par_id[parameter]].reshape(Natmos, self.nz, order="C")
+		
+		return list(zip([global_pars]*Natmos, values, *_data))
+
 	def build_from_nodes(self, flag=None, params=None, pool=None):
 		"""
 		Construct the atmosphere from node values for given parameters.
 
 		It interpolates eighter using Bezier 3rd/2nd degree polynomial or using
-		the spline interpolation of 3rd/2nd degree without tensions. Bezier
+		the spline interpolation of 3rd/2nd degree with tensions. Bezier
 		interpolation is implemented from de la Cruz Rodriguez & Piskunov(2013)
 		[implemented in the STiC code].
 
@@ -1042,7 +1101,7 @@ class Atmosphere(object):
 
 				if parameter=="sl_temp":
 					delta = sl_values[parameter] - globin.T0_HSRA
-					HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+					HSRA_temp = interp1d(globin.HSRA.logtau, globin.HSRA.T[0,0])(self.sl_atmos.logtau)
 					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = HSRA_temp + delta
 				else:
 					self.sl_atmos.data[:,:,self.par_id[parameter.split("_")[1]]] = sl_values[parameter]
@@ -1051,145 +1110,49 @@ class Atmosphere(object):
 			if params in ["sl_temp", "sl_vz", "sl_vmic"]:
 				return
 
-		atmos = [self]*(self.nx*self.ny)
-		params = [params]*(self.nx*self.ny)
-		args = zip(atmos, self.idx_meshgrid, self.idy_meshgrid, params)
+		args = self.prepare_build_from_nodes_arguments(params)
 
 		if self.nx*self.ny==1:
-			results = list(map(self._build_from_nodes, args))
+			results = list(map(_build_from_nodes, args))
 		else:
 			if pool is None:
 				with mp.Pool(self.n_thread) as pool:
-					results = pool.map(func=self._build_from_nodes, iterable=args, chunksize=self.chunk_size)
+					results = pool.map(func=_build_from_nodes, iterable=args, chunksize=self.chunk_size)
 			else:
-				results = pool.map(self._build_from_nodes, args)
+				results = pool.map(_build_from_nodes, args)
 
 		results = np.asarray(results)
-		# self.data[self.idx_meshgrid, self.idy_meshgrid] = results
-		self.data = results.reshape(self.shape, order="F")
+		for idp, parameter in enumerate(list(args[0][1].keys())):
+			self.data[self.idx_meshgrid, self.idy_meshgrid, self.par_id[parameter]] = results[:,idp]
 
-	def _build_from_nodes(self, args):
-		"""
-		Parallelized call from self.build_from_nodes() function.
-		"""
-		def add_node(new_node, x, y, ymin, ymax, where="beginning"):
-			"""
-			Add the 'new_node' point to the atmosphere as a node by linear extrapolation
-			to the top.
+	def prepare_HSE_arguments(self):
+		Natmos = self.nx*self.ny
 
-			Before adding the value, check if it is in the boundaries.
+		# obtain new Pg and use it as initial value for the HSE at the top
+		self.get_pg()
 
-			Key 'where' regulates where we add this node: at the top ('beginning') or
-			at the bottom ('end').
-			"""
-			if where=="beginning":
-				K0 = (y[1]-y[0])/(x[1]-x[0])
-				n = y[0] - K0*x[0]
-			if where=="end":
-				K0 = (y[-1]-y[-2])/(x[-1]-x[-2])
-				n = y[-1] - K0*x[-1]
-			y0 = K0*new_node + n
-			if ymin is not None:
-				if y0<ymin:
-					y0 = ymin
-			if ymax is not None:
-				if y0>ymax:
-					y0 = ymax
-			if where=="beginning":
-				y = np.append(y0, y)
-				x = np.append(new_node, x)
-			if where=="end":
-				y = np.append(y, y0)
-				x = np.append(x, new_node)
+		if self.fudge_lam is not None:
+			fudge_lam = self.fudge_lam.reshape(self.nx*self.ny, order="C")
+			fudge_value = self.fudge.reshape(self.nx*self.ny, 3, self.fudge_lam.size, order="C")
+			raise NotImplementedError("Fudge is not implemented for makeHSE yet.")
+		else:
+			fudge_lam = [None]*Natmos
+			fudge_value = [None]*Natmos
 
-			return x, y
-		
-		atmos, idx, idy, params = args
+		global_pars = {"cwd"       : self.cwd,
+				 	   "atm_scale" : self.scale_id,
+					   "atomic_number" : self.atomic_number,
+					   "atomic_abundance" : self.atomic_abundance,
+					   }
 
-		parameters = self.nodes
-		if params is not None:
-			if not isinstance(params, list):
-				parameters = [params]
-			else:
-				parameters = params
+		scale = self.data[:,:,0].reshape(Natmos, self.nz, order="C")
+		temp = self.data[:,:,1].reshape(Natmos, self.nz, order="C")
+		ne = self.data[:,:,2].reshape(Natmos, self.nz, order="C")
+		nHtot = self.data[:,:,8].reshape(Natmos, self.nz, order="C")
+		rho = self.rho.reshape(Natmos, self.nz, order="C")
+		pg = self.pg.reshape(Natmos, self.nz, order="C")
 
-		for parameter in parameters:
-			# skip over OF and stray light parameters
-			if parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
-				continue
-
-			# K0, Kn by default; True for vmic, mag, gamma and chi
-			# K0, Kn = None, None
-			K0, Kn = 0, 0
-
-			x = self.nodes[parameter]
-			y = self.values[parameter][idx,idy]
-
-			# if we have a single node
-			if len(x)==1:
-				y_new = np.ones(self.nz) * y
-				atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
-				continue
-
-			# for 2+ number of nodes
-			if parameter=="temp":
-				if self.interpolation_method=="bezier":	
-					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					# bottom node slope for extrapolation based on temperature gradient from FAL C model
-					# if self.Tmax<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (self.Tmax - y[0]) / (atmos.logtau[0] - x[0])
-					Kn = splev(x[-1], globin.temp_tck, der=1)
-				if self.interpolation_method=="spline":
-					# add top of the atmosphere as a node (ask SPPINOR devs why ...)
-					# to the bottom we assume that the gradient is based only on the node positions;
-					# this is not fully reallistic thing to do, but... I do not wanna implement extrapolation
-					# using adiabatic and HSE assumption like in SPINOR for now to show similarities between them
-					x, y = add_node(self.logtau[0], x, y, self.Tmin, self.Tmax)
-					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
-				
-				# check if extrapolation at the top atmosphere point goes below the minimum
-				# if does, change the slope so that at top point we have Tmin (globin.limit_values["temp"][0])
-				if self.Tmin>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					K0 = (self.Tmin - y[0]) / (atmos.logtau[0] - x[0])
-				# temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
-				
-			elif parameter in ["gamma", "chi"]:
-				if self.interpolation_method=="bezier":
-					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-				if self.interpolation_method=="spline":
-					x, y = add_node(self.logtau[0], x, y, None, None)
-					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
-			
-			elif parameter in ["vz", "mag", "vmic"]:
-				if self.interpolation_method=="bezier":
-					K0 = (y[1]-y[0]) / (x[1]-x[0])
-					Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-				if self.interpolation_method=="spline":
-					x, y = add_node(self.logtau[0], x, y, self.limit_values[parameter].min[0], self.limit_values[parameter].max[0])
-					K0, Kn = get_K0_Kn(x, y, tension=self.spline_tension)
-				
-				if parameter in ["mag", "vmic"]:
-					# check if extrapolation at the top atmosphere point goes below the minimum
-					# if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-					if self.limit_values[parameter].min[0]>(y[0] + K0 * (atmos.logtau[0]-x[0])):
-						K0 = (self.limit_values[parameter].min[0] - y[0]) / (atmos.logtau[0] - x[0])
-					# if self.limit_values[parameter].max[0]<(y[0] + K0 * (atmos.logtau[0]-x[0])):
-					# 	K0 = (self.limit_values[parameter].max[0] - y[0]) / (atmos.logtau[0] - x[0])
-					# similar for the bottom for maximum/min values
-					# if self.limit_values[parameter].max[0]<(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-					# 	Kn = (self.limit_values[parameter].max[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-					if self.limit_values[parameter].min[0]>(y[-1] + Kn * (atmos.logtau[-1]-x[-1])):
-						Kn = (self.limit_values[parameter].min[0] - y[-1]) / (atmos.logtau[-1] - x[-1])
-
-			if self.interpolation_method=="bezier":
-				y_new = bezier_spline(x, y, atmos.logtau, K0=K0, Kn=Kn, degree=self.interp_degree, extrapolate=True)
-			if self.interpolation_method=="spline":
-				y_new = spline_interpolation(x, y, atmos.logtau, tension=self.spline_tension, K0=K0, Kn=Kn)
-
-			atmos.data[idx,idy,atmos.par_id[parameter],:] = y_new
-
-		return atmos.data[idx,idy]
+		return list(zip([global_pars]*Natmos, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg))
 
 	def makeHSE(self, flag=None, pool=None):
 		"""
@@ -1204,7 +1167,7 @@ class Atmosphere(object):
 			It has dimension of (self.nx, self.ny). Default is None (compute HSE in
 			all pixels).
 
-		"""
+		"""	
 		args = self.prepare_HSE_arguments()
 
 		if self.nx*self.ny==1:
@@ -1238,7 +1201,8 @@ class Atmosphere(object):
 		"""
 		nH = self.nH * 1e6 # [m3]
 		ne = self.ne * 1e6 # [m3]
-		self.pg = (nH*globin.totalAbundance + ne) * globin.K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
+		totalAbundance = np.sum(10**(abundances-12))
+		self.pg = (nH*totalAbundance + ne) * K_BOLTZMAN * self.data[...,1,:] * 10 # [dyn/cm2]
 
 	def get_ne_from_nH(self, scale="tau"):
 		"""
@@ -1456,7 +1420,7 @@ class Atmosphere(object):
 
 		# set the value for atmosphere scale type
 		try:
-			scale = list(globin.scale_id.keys())[self.scale_id]
+			scale = list(atmosphere_scale_ID.keys())[self.scale_id]
 			primary.header["SCALE"] = (scale.upper(), "scale type")
 			if self.scale_id==1:
 				primary.header["SCALEU"] = ("cm^2/g", "scale unit")
@@ -1907,7 +1871,7 @@ class Atmosphere(object):
 			self.global_pars_errors = parameter_error[Nlocal:]
 
 	def load_atomic_parameters(self, fpath):
-		atoms = globin.atoms.AtomPars(fpath)
+		atoms = AtomPars(fpath)
 
 		for parameter in ["loggf", "dlam"]:
 			if atoms.nl[parameter] is None:
@@ -2003,7 +1967,7 @@ class Atmosphere(object):
 			HSRA full Stokes spectrum. If the 'self.norm' is True, the returned 
 			spectrum is normalized to the local continuum point (@ first wavelength).
 		"""
-		hsra = Atmosphere(f"{globin.__path__}/data/hsrasp.dat", atm_type="spinor")
+		hsra = Atmosphere(f"{__path__}/data/hsrasp.dat", atm_type="spinor")
 		hsra.mode = 0
 		hsra.wavelength_air = self.wavelength_air
 		hsra.wavelength_obs = self.wavelength_air
@@ -2032,19 +1996,11 @@ class Atmosphere(object):
 
 		return tau_wlref
 
-	def compute_spectra(self, synthesize=None, pool=None, get_atomic_rfs=False):
-		"""
-		Parameters:
-		-----------
-		synthesize : ndarray
-		  flag for computing the pixels spectrum. If synthesize[idx,idy]==1 we compute spectrum,
-		  otherwise, we ignore it (populate with nans/zeros).
+	def prepare_synthesis_args(self, get_atomic_rfs):
+		Natmos = self.nx*self.ny
+		Nloggf = self.global_pars["loggf"].shape[-1]
+		Ndlam = self.global_pars["dlam"].shape[-1]
 
-		Return:
-		-------
-		spectra : globin.Spectrum() object
-			structure containgin all the info regarding the spectrum.
-		"""
 		if get_atomic_rfs:
 			if self.atomic_rfs is None:
 				Nloggf = self.global_pars["loggf"].shape[-1]
@@ -2058,30 +2014,86 @@ class Atmosphere(object):
 			self.spectrum.wavelength = self.wavelength_air
 			self.spectrum.nw = len(self.wavelength_air)
 
-		indx = self.idx_meshgrid
-		indy = self.idy_meshgrid
-		args = zip(indx, indy, [get_atomic_rfs]*len(indx))
+		global_pars = {"get_atomic_rfs" : get_atomic_rfs,
+				 	   "get_populations" : self.get_populations,
+					   "mu" : self.mu,
+					   "cwd" : self.cwd,
+					   "atm_scale" : self.scale_id,
+					   "wavelength" : self.wavelength_vacuum,
+					   "atomic_number" : self.atomic_number,
+					   "abundances" : self.atomic_abundance,
+					   "loggf_ids" : self.line_no["loggf"],
+					   "dlam_ids" : self.line_no["dlam"]}
+		
+		
+		if isinstance(self.mu, list):
+			raise NotImplementedError("List of mu values not supported.")
+
+		if self.fudge_lam is not None:
+			fudge_lam = self.fudge_lam.reshape(self.nx*self.ny, order="C")
+			fudge_value = self.fudge.reshape(self.nx*self.ny, 3, self.fudge_lam.size, order="C")
+			raise NotImplementedError("Fudge is not implemented for spectral synthesis yet.")
+		else:
+			fudge_lam = [None]*Natmos
+			fudge_value = [None]*Natmos
+
+		_data = self.data.reshape(Natmos, self.data.shape[2], self.nz, order="C")
+		_spectrum = self.spectrum.spec.reshape(Natmos, self.spectrum.nw, 4, order="C")
+		rfs = [None]*Natmos
+		if get_atomic_rfs:
+			rfs = self.atomic_rfs.reshape(Natmos, Nloggf, self.spectrum.nw, 4, order="C")
+
+		loggf = [None]*Natmos
+		if self.line_no["loggf"]>0:
+			if self.mode==2:
+				loggf = self.global_pars["loggf"].reshape(Natmos, Nloggf, order="C")
+			if self.mode==3:
+				loggf = [self.global_pars["loggf"][0,0]]*Natmos
+			
+		dlam = [None]*Natmos
+		if self.line_no["dlam"]>0:
+			if self.mode==2:
+				dlam = self.global_pars["dlam"].reshape(Natmos, Ndlam, order="C")
+			if self.mode==3:
+				dlam = [self.global_pars["dlam"][0,0]]*Natmos
+
+		return list(zip([global_pars]*Natmos, _data, _spectrum, rfs, loggf, dlam, fudge_lam, fudge_value))
+
+	def compute_spectra(self, synthesize=None, pool=None, get_atomic_rfs=False):
+		"""
+		Parameters:
+		-----------
+		synthesize : ndarray
+		  flag for computing the pixels spectrum. If synthesize[idx,idy]==1 we compute spectrum,
+		  otherwise, we ignore it (populate with nans/zeros).
+
+		Return:
+		-------
+		spectra : globin.Spectrum() object
+			structure containgin all the info regarding the spectrum.
+		"""
+		args = self.prepare_synthesis_args(get_atomic_rfs)
 
 		if self.nx*self.ny==1:
-			results = list(map(self._compute_spectra_sequential, args))
+			results = list(map(_compute_spectra_sequential, args))
 		else:
 			if pool is None:
 				with mp.Pool(self.n_thread) as pool:
-					results = pool.map(func=self._compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
+					results = pool.map(func=_compute_spectra_sequential, iterable=args, chunksize=self.chunk_size)
 			else:
-				results = pool.map(self._compute_spectra_sequential, args)
+				results = pool.map(_compute_spectra_sequential, args)
 
 		results = np.array(results)
 		if results.ndim==3:
 			results = results[...,np.newaxis]
 		
 		self.spectrum.wavelength = self.wavelength_air
-		self.spectrum.spec[indx,indy] = results[...,0]
+		self.spectrum.spec[self.idx_meshgrid,self.idy_meshgrid] = results[...,0]
 		
 		if get_atomic_rfs:
 			start = 1
 			end = start + self.global_pars["loggf"].shape[-1]
-			self.atomic_rfs[indx,indy] = results[...,start:end]
+			self.atomic_rfs[self.idx_meshgrid,self.idy_meshgrid] = results[...,start:end]
 
 		if self.get_populations:
 			raise ValueError("Population retrieval not yet implemented.")
@@ -2105,70 +2117,6 @@ class Atmosphere(object):
 				self.nstar_pops[element] = self.nstar_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 
 		return np.copy(self.spectrum.spec)
-
-	def _compute_spectra_sequential(self, args):
-		idx, idy, get_atomic_rfs = args
-
-		spec = self.spectrum.spec[idx,idy]
-		rfs = None
-		if get_atomic_rfs:
-			rfs = self.atomic_rfs[idx,idy]
-
-		got_populations = False
-
-		try:
-			mu = self.mu[idx,idy]
-		except:
-			mu = self.mu
-
-		fudge_lam = None
-		fudge_value = None
-		if self.fudge_lam is not None:
-			fudge_lam = self.fudge_lam
-			fudge_value = self.fudge[idx,idy]
-
-		if (self.line_no["loggf"].size>0) or (self.line_no["dlam"].size>0):
-			if self.mode==2:
-				_idx, _idy = idx, idy
-			elif self.mode==3:
-				_idx, _idy = 0, 0
-
-			pyrh.compute1d(cwd=self.cwd, 
-										 mu=mu,
-										 spectrum=spec,
-										 atm_scale=self.scale_id, 
-										 atmosphere=self.data[idx,idy], 
-										 wave=self.wavelength_vacuum,
-								  		 loggf_ids=self.line_no["loggf"], 
-										 loggf_values=self.global_pars["loggf"][_idx, _idy],
-								  		 lam_ids=self.line_no["dlam"], 
-										 lam_values=self.global_pars["dlam"][_idx, _idy]/1e4,
-								  		 fudge_wave=fudge_lam, 
-										 fudge_value=fudge_value, 
-										 atomic_number=self.atomic_number,
-										 atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=get_atomic_rfs,
-										 rfs=rfs,
-										 get_populations=self.get_populations)
-		else:
-			pyrh.compute1d(cwd=self.cwd, 
-										 mu=mu, 
-										 spectrum=spec,
-										 atm_scale=self.scale_id, 
-										 atmosphere=self.data[idx,idy],
-										 wave=self.wavelength_vacuum,
-								  		 fudge_wave=fudge_lam, 
-										 fudge_value=fudge_value, 
-										 atomic_number=self.atomic_number,
-										 atomic_abundance=self.atomic_abundance,
-										 get_atomic_rfs=get_atomic_rfs, 
-										 rfs=rfs,
-										 get_populations=self.get_populations)
-
-		if get_atomic_rfs:
-			return np.concatenate((spec[...,np.newaxis], rfs), axis=-1)
-
-		return spec
 
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=None, rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
@@ -2777,7 +2725,7 @@ class Atmosphere(object):
 		print("--------------------------------------")
 
 	def read_spectral_lines(self, fpath):
-		_, RLK_lines = globin.atoms.read_RLK_lines(fpath)
+		_, RLK_lines = read_RLK_lines(fpath)
 
 		nlines = len(RLK_lines)
 
@@ -2973,7 +2921,7 @@ class Atmosphere(object):
 
 		if parameter=="sl_temp":
 			delta = value - globin.T0_HSRA
-			HSRA_temp = interp1d(globin.hsra.logtau, globin.hsra.T[0,0])(self.sl_atmos.logtau)
+			HSRA_temp = interp1d(globin.HSRA.logtau, globin.HSRA.T[0,0])(self.sl_atmos.logtau)
 			value = HSRA_temp + delta
 
 		if np.asarray(value).ndim==0:
@@ -2992,13 +2940,13 @@ class Atmosphere(object):
 		else:
 			raise ValueError("Unknown 'strey_mode' value.")
 
-		self.sl_atmos = globin.Atmosphere(nx=nx, 
+		self.sl_atmos = Atmosphere(nx=nx, 
 										 ny=ny,
 										 nz=self.nz,
 										 logtau_bot=self.logtau_bot,
 										 logtau_top=self.logtau_top,
 										 logtau_step=self.logtau_step)
-		self.sl_atmos.interpolate_atmosphere(self.logtau, globin.hsra.data)
+		self.sl_atmos.interpolate_atmosphere(self.logtau, globin.HSRA.data)
 		self.sl_atmos.scale_id = self.scale_id
 
 		self.sl_atmos.shape = self.sl_atmos.data.shape
@@ -3112,62 +3060,9 @@ class Atmosphere(object):
 		if self.line_list is not None:
 			create_kurucz_input(self.line_list, f"{self.cwd}/kurucz.input")
 
-		keywords = globin.rh.RHKeywords()
+		keywords = RHKeywords()
 		keywords.set_keywords(keys)
 		keywords.create_input_file(f"{self.cwd}/keyword.input")
-
-	def prepare_HSE_arguments(self):
-		Natmos = self.nx*self.ny
-
-		# obtain new Pg and use it as initial value for the HSE at the top
-		self.get_pg()
-
-		if self.fudge_lam is not None:
-			fudge_lam = self.fudge_lam.reshape(self.nx*self.ny, order="C")
-			fudge_value = self.fudge.reshape(self.nx*self.ny, 3, self.fudge_lam.size, order="C")
-			raise NotImplementedError("Fudge is not implemented for makeHSE yet.")
-		else:
-			fudge_lam = [None]*Natmos
-			fudge_value = [None]*Natmos
-
-		global_pars = {"cwd"       : self.cwd,
-				 	   "atm_scale" : self.scale_id,
-					   "atomic_number" : self.atomic_number,
-					   "atomic_abundance" : self.atomic_abundance,
-					   }
-
-		scale = self.data[:,:,0].reshape(Natmos, self.nz, order="C")
-		temp = self.data[:,:,1].reshape(Natmos, self.nz, order="C")
-		ne = self.data[:,:,2].reshape(Natmos, self.nz, order="C")
-		nHtot = self.data[:,:,8].reshape(Natmos, self.nz, order="C")
-		rho = self.rho.reshape(Natmos, self.nz, order="C")
-		pg = self.pg.reshape(Natmos, self.nz, order="C")
-
-		return zip([global_pars]*Natmos, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg)
-
-def _makeHSE(args):
-	"""
-	Parallelized call from makeHSE() function.
-	"""
-	global_pars, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg = args
-
-	pyrh.hse(cwd=global_pars["cwd"], 
-			atm_scale=global_pars["atm_scale"],
-			scale=scale,
-			temp=temp,
-			ne=ne,
-			nHtot=nHtot,
-			rho=rho,
-			pg=pg,
-			# pg_top=100,
-			pg_top=pg[0]/10,
-			fudge_wave=fudge_lam, 
-			fudge_value=fudge_value,
-			atomic_number=global_pars["atomic_number"], 
-			atomic_abundance=global_pars["atomic_abundance"],
-			full_output=False)
-
-	return np.vstack((ne/1e6, nHtot/1e6))
 
 def broaden_rfs(rf, kernel, flag, skip_par, n_thread, pool=None):
 	try:
@@ -3283,11 +3178,11 @@ def _interpolate_rf(args):
 def distribute_hydrogen(temp, pg, pe, vtr=0):
 	Ej = 13.59844
 
-	ne = pe/10 / globin.K_BOLTZMAN/temp # [1/m3]
-	CC = 2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN
-	C1 = ne/2 * (globin.PLANCK / (CC*temp)**(1/2))**3
+	ne = pe/10 / K_BOLTZMAN/temp # [1/m3]
+	CC = 2*np.pi*ELECTRON_MASS*K_BOLTZMAN
+	C1 = ne/2 * (PLANCK / (CC*temp)**(1/2))**3
 
-	nH = (pg-pe)/10 / globin.K_BOLTZMAN / temp / np.sum(10**(globin.abundance-12)) / 1e6 # [1/cm3]
+	nH = (pg-pe)/10 / K_BOLTZMAN / temp / np.sum(10**(abundances-12)) / 1e6 # [1/cm3]
 
 	pops = np.zeros((6, *temp.shape))
 
@@ -3296,10 +3191,10 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 	for lvl in range(1,6):
 		e_lvl = Ej*(1-1/(lvl+1)**2)
 		g = 2*(lvl+1)**2
-		fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/globin.K_BOLTZMAN/temp)
+		fact[lvl] = g/2 * np.exp(-e_lvl*1.60218e-19/K_BOLTZMAN/temp)
 		if lvl==5:
 			e_lvl = Ej
-			fact[lvl] = 1/2 * np.exp(-e_lvl*1.60218e-19/globin.K_BOLTZMAN/temp)
+			fact[lvl] = 1/2 * np.exp(-e_lvl*1.60218e-19/K_BOLTZMAN/temp)
 			fact[lvl] /= C1
 		suma += fact[lvl]
 
@@ -3312,11 +3207,11 @@ def distribute_hydrogen(temp, pg, pe, vtr=0):
 
 def distribute_H(nHtot, temp, ne):
 	Ej = 13.59844
-	eV = globin.ELECTRON_CHARGE
+	eV = ELECTRON_CHARGE
 
-	lth = globin.PLANCK / np.sqrt(2*np.pi*globin.ELECTRON_MASS*globin.K_BOLTZMAN*temp)
+	lth = PLANCK / np.sqrt(2*np.pi*ELECTRON_MASS*K_BOLTZMAN*temp)
 	Saha = 2/ne/1e6 * 1/lth**3
-	Saha *= np.exp(-Ej*eV/globin.K_BOLTZMAN/temp)
+	Saha *= np.exp(-Ej*eV/K_BOLTZMAN/temp)
 	Saha *= 2/1
 
 	nH0 = nHtot / (1 + Saha)
@@ -3329,7 +3224,7 @@ def distribute_H(nHtot, temp, ne):
 	for idl in range(5):
 		E = Ej*(1-1/(idl+1)**2)
 		g = 2*(idl+1)**2
-		pops[idl] = nH0 * g/1 * np.exp(-E*globin.ELECTRON_CHARGE/globin.K_BOLTZMAN/temp)
+		pops[idl] = nH0 * g/1 * np.exp(-E*ELECTRON_CHARGE/K_BOLTZMAN/temp)
 
 	return pops
 
@@ -3746,7 +3641,7 @@ def spinor2multi(atmos_data):
 	# temperature [K]
 	atmos.data[:,:,1] = atmos_data[2]
 	# electron density [1/cm3]
-	atmos.data[:,:,2] = atmos_data[4]/10/globin.K_BOLTZMAN/atmos_data[2] / 1e6
+	atmos.data[:,:,2] = atmos_data[4]/10/K_BOLTZMAN/atmos_data[2] / 1e6
 	# LOS velocity [km/s]
 	atmos.data[:,:,3] = atmos_data[8]/1e5*(-1)
 	# micro-turbulent velocity [km/s]
@@ -3776,7 +3671,7 @@ def multi2sir(atmos, fpath):
 			new[idx,idy,0] = atmos.data[idx,idy,0] 			# log(tau) @ 500nm
 			new[idx,idy,1] = atmos.data[idx,idy,1] 			# T [K]
 			new[idx,idy,2] = atmos.data[idx,idy,2]*1e6 	# ne [1/m3]
-			new[idx,idy,2] *= globin.K_BOLTZMAN * new[idx,idy,1] * 10	# ne [dyn/cm2]
+			new[idx,idy,2] *= K_BOLTZMAN * new[idx,idy,1] * 10	# ne [dyn/cm2]
 			new[idx,idy,3] = atmos.data[idx,idy,4]*1e5	# vmic [cm/s]
 			new[idx,idy,4] = atmos.data[idx,idy,5]			# B [G]
 			new[idx,idy,5] = atmos.data[idx,idy,3]*1e5	# vz [cm/s]
@@ -3810,8 +3705,8 @@ def multi2spinor(multi_atmosphere, fname=None):
 			# pg, pe, kappa, rho = globin.makeHSE(5000, multi_atmosphere[idx,idy,0], multi_atmosphere[idx,idy,1])
 
 			nHtot = np.sum(multi_atmosphere[idx,idy,8:,:], axis=0)
-			pe = multi_atmosphere[idx,idy,2] * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]# * 10 # [CGS]
-			pg = pe + nHtot * globin.K_BOLTZMAN * multi_atmosphere[idx,idy,1]
+			pe = multi_atmosphere[idx,idy,2] * K_BOLTZMAN * multi_atmosphere[idx,idy,1]# * 10 # [CGS]
+			pg = pe + nHtot * K_BOLTZMAN * multi_atmosphere[idx,idy,1]
 			rho = nHtot * np.mean(Axmu)
 
 			spinor_atmosphere[idx,idy,:,3] = pg*10 # [CGS unit]
@@ -3939,4 +3834,3 @@ def read_inverted_atmosphere(fpath, atm_range=[0,None,0,None]):
 		atmos.chi_c = None
 
 	return atmos
-

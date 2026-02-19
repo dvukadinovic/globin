@@ -1,7 +1,24 @@
 from astropy.io import fits
 import numpy as np
 
-import globin
+from .constants import PLANCK
+from .constants import LIGHT_SPEED
+from .constants import ELECTRON_MASS
+from .constants import ELECTRON_CHARGE
+from .constants import EPSILON_0
+
+abundances = np.array([12.0, 10.99, 1.16, 1.15, 2.6, 8.39, 8.0, 8.66, 4.4,
+            		  8.09, 6.33, 7.58, 6.47, 7.55, 5.45, 7.21, 5.5, 6.56,
+            		  5.12, 6.36, 3.1, 4.99, 4.0, 5.67, 5.39, 7.44, 4.92,
+            		  6.25, 4.21, 4.6, 2.88, 3.41, 2.37, 3.35, 2.63, 3.23,
+            		  2.6, 2.9, 2.24, 2.6, 1.42, 1.92, -7.96, 1.84, 1.12,
+            		  1.69, 0.94, 1.86, 1.66, 2.0, 1.0, 2.24, 1.51, 2.23,
+            		  1.12, 2.13, 1.22, 1.55, 0.71, 1.5, -7.96, 1.0, 0.51,
+            		  1.12, -0.1, 1.1, 0.26, 0.93, 0.0, 1.08, 0.76, 0.88,
+            		  0.13, 1.11, 0.27, 1.45, 1.35, 1.8, 1.01, 1.09, 0.9,
+            		  1.85, 0.71, -7.96, -7.96, -7.96, -7.96, -7.96, -7.96,
+            		  0.12, -7.96, -0.47, -7.96, -7.96, -7.96, -7.96, -7.96,
+            		  -7.96, -7.96])
 
 orbitals = {"S": 0, "P": 1, "D": 2, "F": 3, 
             "G": 4, "H": 5, "I": 6, "J": 7,
@@ -181,14 +198,14 @@ class Line(object):
         glow = 2*self.Jlow + 1
         gup = 2*self.Jup + 1
         gf = 10**self.loggf
-        nu = globin.LIGHT_SPEED/self.lam0/1e-9
-        Aji = (2*np.pi*globin.ELECTRON_CHARGE**2*nu**2)/(globin.EPSILON_0*globin.ELECTRON_MASS*globin.LIGHT_SPEED**3) * gf/gup
+        nu = LIGHT_SPEED/self.lam0/1e-9
+        Aji = (2*np.pi*ELECTRON_CHARGE**2*nu**2)/(EPSILON_0*ELECTRON_MASS*LIGHT_SPEED**3) * gf/gup
         return Aji
 
     @property
     def Bji(self):
-        nu = globin.LIGHT_SPEED/self.lam0/1e-9
-        Bji = globin.LIGHT_SPEED**2/(2*globin.PLANCK*nu**3) * self.Aji
+        nu = LIGHT_SPEED/self.lam0/1e-9
+        Bji = LIGHT_SPEED**2/(2*PLANCK*nu**3) * self.Aji
         return Bji
 
     @property

@@ -7,6 +7,7 @@ import multiprocessing as mp
 import copy
 from scipy.interpolate import splrep, splev
 from scipy.interpolate import interp1d
+from scipy.ndimage import map_coordinates
 
 import time
 import cProfile
@@ -18,6 +19,8 @@ from .constants import LIGHT_SPEED
 from .constants import PLANCK
 from .constants import ELECTRON_MASS
 from .constants import PROTON_MASS
+from .constants import ATOMIC_MASS
+from .atoms import abundances
 
 import globin
 
@@ -257,8 +260,8 @@ def RHatm2Spinor(in_data, atmos, fpath="globin_node_atm_SPINOR.fits"):
     nH = 0
     for i_ in range(6):
         nH += atmos.data[:,:,8+i_,:]
-    ni = np.einsum("ijk,l->ijkl", nH, 10**(atom_abundance - 12))
-    density = np.einsum("ijkl,l->ijk", ni, globin.atom_mass*PROTON_MASS*1e3)
+    ni = np.einsum("ijk,l->ijkl", nH, 10**(abundances - 12))
+    density = np.einsum("ijkl,l->ijk", ni, np.array(ATOMIC_MASS)*PROTON_MASS*1e3)
     # density += atmos.data[:,:,2,:] * m_e
     density += atm[:,:,2,:] * ELECTRON_MASS * 1e3
     spinor_atm[6] = density # density [g/cm3]
@@ -730,7 +733,7 @@ def congrid(a, newdims, method='neighbour', centre=True, minusone=False):
 
         newcoords_tr += ofs
 
-        deltas = (n.asarray(old) - m1) / (newdims - m1)
+        deltas = (np.asarray(old) - m1) / (newdims - m1)
         newcoords_tr *= deltas
 
         newcoords_tr -= ofs
@@ -773,13 +776,13 @@ def get_stats(fun):
 
 def timeit(fun):
     def wrapped(*args, **kwargs):
-        if globin.collect_stats:
-            start = time.time()
+        # if globin.collect_stats:
+        #     start = time.time()
 
         output = fun(*args, **kwargs)
 
-        if globin.collect_stats:
-            globin.statistics.add(fun_name=f"{fun.__module__}.{fun.__name__}", execution_time=time.time()-start)
+        # if globin.collect_stats:
+        #     globin.statistics.add(fun_name=f"{fun.__module__}.{fun.__name__}", execution_time=time.time()-start)
 
         return output
     return wrapped
@@ -815,11 +818,12 @@ class Stats(object):
         return output
 
     def save(self):
-        if globin.collect_stats:
-            output = self.__repr__()
-            out = open("globin_stats", "w")
-            out.write(output)
-            out.close()
+        pass
+        # if globin.collect_stats:
+        #     output = self.__repr__()
+        #     out = open("globin_stats", "w")
+        #     out.write(output)
+        #     out.close()
 
     def add(self, fun_name, execution_time):
         if fun_name in self.stats:

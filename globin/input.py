@@ -14,6 +14,7 @@ from .atmos import Atmosphere
 from .spec import Observation
 from .utils import _slice_line, construct_atmosphere_from_nodes, air_to_vacuum
 from .utils import compute_wavelength_grid
+from .constants import atmosphere_scale_ID
 
 import globin
 
@@ -191,7 +192,7 @@ class InputData(object):
 				self.atmosphere.n_global_pars += self.atmosphere.global_pars[parameter].shape[-1]
 
 			# add the scale type (of the inversion atmosphere)
-			self.atmosphere.scale_id = globin.scale_id[atm_scale]
+			self.atmosphere.scale_id = atmosphere_scale_ID[atm_scale]
 		else:
 			raise ValueError(f"Mode {self.mode} is unsupported.")
 
@@ -325,7 +326,7 @@ class InputData(object):
 			if path_to_atmosphere is None:
 				node_atmosphere_path = _find_value_by_key("node_atmosphere", self.parameters_input, "optional")
 				if node_atmosphere_path is None:
-					self.atmosphere = globin.falc
+					self.atmosphere = globin.FALC
 				else:
 					self.atmosphere = construct_atmosphere_from_nodes(node_atmosphere_path, atm_range)
 			else:
