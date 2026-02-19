@@ -1111,6 +1111,8 @@ class Atmosphere(object):
 				return
 
 		args = self.prepare_build_from_nodes_arguments(params)
+		if len(list(args[0][1].keys()))==0:
+			return
 
 		if self.nx*self.ny==1:
 			results = list(map(_build_from_nodes, args))
@@ -1998,12 +2000,12 @@ class Atmosphere(object):
 
 	def prepare_synthesis_args(self, get_atomic_rfs):
 		Natmos = self.nx*self.ny
+
 		Nloggf = self.global_pars["loggf"].shape[-1]
 		Ndlam = self.global_pars["dlam"].shape[-1]
 
 		if get_atomic_rfs:
 			if self.atomic_rfs is None:
-				Nloggf = self.global_pars["loggf"].shape[-1]
 				self.atomic_rfs = np.zeros((self.nx, self.ny, len(self.wavelength_vacuum), 4, Nloggf), dtype=np.float64)
 
 		# reallocate the spectrum shape
@@ -2025,7 +2027,6 @@ class Atmosphere(object):
 					   "loggf_ids" : self.line_no["loggf"],
 					   "dlam_ids" : self.line_no["dlam"]}
 		
-		
 		if isinstance(self.mu, list):
 			raise NotImplementedError("List of mu values not supported.")
 
@@ -2041,21 +2042,22 @@ class Atmosphere(object):
 		_spectrum = self.spectrum.spec.reshape(Natmos, self.spectrum.nw, 4, order="C")
 		rfs = [None]*Natmos
 		if get_atomic_rfs:
-			rfs = self.atomic_rfs.reshape(Natmos, Nloggf, self.spectrum.nw, 4, order="C")
+			rfs = self.atomic_rfs.reshape(Natmos, self.spectrum.nw, 4, Nloggf, order="C")
+			# print(rfs[0].shape)
 
 		loggf = [None]*Natmos
-		if self.line_no["loggf"]>0:
+		if len(self.line_no["loggf"])>0:
 			if self.mode==2:
 				loggf = self.global_pars["loggf"].reshape(Natmos, Nloggf, order="C")
 			if self.mode==3:
 				loggf = [self.global_pars["loggf"][0,0]]*Natmos
 			
 		dlam = [None]*Natmos
-		if self.line_no["dlam"]>0:
+		if len(self.line_no["dlam"])>0:
 			if self.mode==2:
-				dlam = self.global_pars["dlam"].reshape(Natmos, Ndlam, order="C")
+				dlam = self.global_pars["dlam"].reshape(Natmos, Ndlam, order="C")/1e4
 			if self.mode==3:
-				dlam = [self.global_pars["dlam"][0,0]]*Natmos
+				dlam = [self.global_pars["dlam"][0,0]/1e4]*Natmos
 
 		return list(zip([global_pars]*Natmos, _data, _spectrum, rfs, loggf, dlam, fudge_lam, fudge_value))
 
@@ -2093,7 +2095,7 @@ class Atmosphere(object):
 		if get_atomic_rfs:
 			start = 1
 			end = start + self.global_pars["loggf"].shape[-1]
-			self.atomic_rfs[self.idx_meshgrid,self.idy_meshgrid] = results[...,start:end]
+			self.atomic_rfs[self.idx_meshgrid, self.idy_meshgrid] = results[...,start:end]
 
 		if self.get_populations:
 			raise ValueError("Population retrieval not yet implemented.")
@@ -2141,7 +2143,7 @@ class Atmosphere(object):
 			self.makeHSE(synthesize, pool=pool)
 
 		spec = self.compute_spectra(synthesize, pool=pool, get_atomic_rfs=self.get_atomic_rfs)
-		
+
 		if self.sl_atmos is not None:
 			flag = synthesize
 			if self.stray_mode==3:
@@ -2337,71 +2339,75 @@ class Atmosphere(object):
 							free_par_ID_atomic.append(free_par_ID)
 							free_par_ID += 1
 						continue
+				
 
-					if self.line_no[parameter].size > 0:
-						perturbation = self.delta[parameter]
+					if self.line_no[parameter].size==0:
+						continue
 
-						# get the stray light factor
+					perturbation = self.delta[parameter]
+
+					# get the stray light factor
+					if self.sl_atmos is not None:
+						if "stray" in self.global_pars:
+							stray_light = self.global_pars["stray"]
+							stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
+						else:
+							stray_light = self.stray_light
+
+					for idp in range(self.line_no[parameter].size):
+						self.global_pars[parameter][...,idp] += perturbation
+						spec_plus = self.compute_spectra(synthesize, pool=pool)
 						if self.sl_atmos is not None:
-							if "stray" in self.global_pars:
-								stray_light = self.global_pars["stray"]
-								stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
-							else:
-								stray_light = self.stray_light
+							self.sl_atmos.global_pars[parameter][...,idp] += perturbation
+							flag = synthesize
+							if self.stray_mode==3:
+								flag = None
+							sl_plus = self.sl_atmos.compute_spectra(flag, pool=pool)
 
-						for idp in range(self.line_no[parameter].size):
-							self.global_pars[parameter][...,idp] += perturbation
-							spec_plus = self.compute_spectra(synthesize, pool=pool)
+						if self.rf_der_type=="central":
+							self.global_pars[parameter][...,idp] -= 2*perturbation
+							spec_minus = self.compute_spectra(synthesize, pool=pool)
+							diff = (spec_plus - spec_minus) / 2 / perturbation
 							if self.sl_atmos is not None:
-								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
+								self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
 								flag = synthesize
 								if self.stray_mode==3:
 									flag = None
-								sl_plus = self.sl_atmos.compute_spectra(flag, pool=pool)
-
-							if self.rf_der_type=="central":
-								self.global_pars[parameter][...,idp] -= 2*perturbation
-								spec_minus = self.compute_spectra(synthesize, pool=pool)
-								diff = (spec_plus - spec_minus) / 2 / perturbation
-								if self.sl_atmos is not None:
-									self.sl_atmos.global_pars[parameter][...,idp] -= 2*perturbation
-									flag = synthesize
-									if self.stray_mode==3:
-										flag = None
-									sl_minus = self.sl_atmos.compute_spectra(flag, pool=pool)
-									sl_diff = (sl_plus - sl_minus) / 2 / perturbation
-							if self.rf_der_type=="forward":
-								diff = (spec_plus - spec) / perturbation
-								if self.sl_atmos is not None:
-									sl_diff = (sl_plus - sl_spec) / perturbation
-
-							# plt.plot(diff[0,0,:,0], c="k")
-							# plt.plot(rf[0,0,free_par_ID,:,0], c="r")
-							# plt.show()
-
-							diff *= weights
-							diff /= rf_noise_scale
-							diff *= np.sqrt(2)
-							rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
-
+								sl_minus = self.sl_atmos.compute_spectra(flag, pool=pool)
+								sl_diff = (sl_plus - sl_minus) / 2 / perturbation
+						if self.rf_der_type=="forward":
+							diff = (spec_plus - spec) / perturbation
 							if self.sl_atmos is not None:
-								if self.stray_mode==3:
-									sl_diff = np.repeat(sl_diff, self.nx, axis=0)
-									sl_diff = np.repeat(sl_diff, self.ny, axis=1)
-								sl_diff *= weights
-								sl_diff /= rf_noise_scale
-								sl_diff *= np.sqrt(2)
-								rf_sl_atom = sl_diff / self.parameter_norm[parameter]
-								rf[:,:,free_par_ID] = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], rf[:,:,free_par_ID])
-								aux = np.einsum("ij...,ij->ij...", rf_sl_atom, stray_light[...,0])
-								rf[:,:,free_par_ID] += aux
+								sl_diff = (sl_plus - sl_spec) / perturbation
 
-							free_par_ID_atomic.append(free_par_ID)
-							free_par_ID += 1
-							
-							self.global_pars[parameter][...,idp] += perturbation
-							if self.sl_atmos is not None:
-								self.sl_atmos.global_pars[parameter][...,idp] += perturbation
+						# print(self.global_pars[parameter][...,idp], perturbation)
+						
+						# plt.plot(diff[0,0,:,0], c="k")
+						# plt.show()
+
+						diff *= weights
+						diff /= rf_noise_scale
+						diff *= np.sqrt(2)
+						rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
+
+						if self.sl_atmos is not None:
+							if self.stray_mode==3:
+								sl_diff = np.repeat(sl_diff, self.nx, axis=0)
+								sl_diff = np.repeat(sl_diff, self.ny, axis=1)
+							sl_diff *= weights
+							sl_diff /= rf_noise_scale
+							sl_diff *= np.sqrt(2)
+							rf_sl_atom = sl_diff / self.parameter_norm[parameter]
+							rf[:,:,free_par_ID] = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], rf[:,:,free_par_ID])
+							aux = np.einsum("ij...,ij->ij...", rf_sl_atom, stray_light[...,0])
+							rf[:,:,free_par_ID] += aux
+
+						free_par_ID_atomic.append(free_par_ID)
+						free_par_ID += 1
+						
+						self.global_pars[parameter][...,idp] += perturbation
+						if self.sl_atmos is not None:
+							self.sl_atmos.global_pars[parameter][...,idp] += perturbation
 
 				else:
 					raise ValueError(f"Unsupported global parameter {parameter}")

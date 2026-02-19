@@ -427,7 +427,7 @@ class InputData(object):
 							logtau_top=logtau_top, logtau_bot=logtau_bot, logtau_step=logtau_step)
 			else:
 				# self.reference_atmosphere = globin.falc
-				self.reference_atmosphere = globin.hsra
+				self.reference_atmosphere = globin.HSRA
 
 		#--- initialize invert atmosphere data from reference atmosphere
 		logtau = np.arange(logtau_top, logtau_bot + logtau_step, logtau_step)
