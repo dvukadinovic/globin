@@ -81,11 +81,10 @@ class RHKeywords(object):
         pass
 
     def set_keywords(self, parameters):
-        # keywords = self.dict()
+        if parameters is None:
+            return
         for key in parameters:
             setattr(self, key, parameters[key])
-            # if key in keywords:
-            #     keywords[key] = parameters[key]
 
     def set_LTE_parameters(self):
         self.NRAYS = 1

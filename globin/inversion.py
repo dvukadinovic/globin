@@ -57,7 +57,7 @@ class Inverter(InputData):
 		self.save_output = save_output
 		self.verbose = verbose
 
-	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input"):
+	def read_input(self, run_name, globin_input_name="params.input", rh_input_name="keyword.input", RH_kwargs=None):
 		if rh_input_name is None:
 			raise ValueError("There is no path to the globin input file.")
 		# if globin_input_name is None:
@@ -67,7 +67,7 @@ class Inverter(InputData):
 		self.run_name = run_name
 		
 		#--- read the input parameters from input files
-		self.read_input_files(globin_input_name, rh_input_name)
+		self.read_input_files(globin_input_name, rh_input_name, RH_kwargs=RH_kwargs)
 
 	def get_maximum_iterations_number(self, cycle):
 		# if the cycle number is larger than the number of given max iterations

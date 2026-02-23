@@ -39,7 +39,7 @@ class InputData(object):
 		# flag for computing the mean spectrum
 		self.mean = False
 
-	def read_input_files(self, globin_input_name, rh_input_name):
+	def read_input_files(self, globin_input_name, rh_input_name, RH_kwargs=None):
 		"""
 		Read input files for globin and RH.
 
@@ -80,9 +80,9 @@ class InputData(object):
 		globin.rh.atmols.create_molecules_list(f"{self.cwd}/molecules.input")
 
 		# create keywords.input file
-		keywords = globin.rh.RHKeywords()
-		# keywords.RLK_SCATTER = True
-		keywords.create_input_file(f"{self.cwd}/keyword.input")
+		RH_keys = globin.rh.RHKeywords()
+		RH_keys.set_keywords(RH_kwargs)
+		RH_keys.create_input_file(f"{self.cwd}/keyword.input")
 
 		#--- get parameters from globin input file
 		text = open(self.globin_input_name, "r").read()
