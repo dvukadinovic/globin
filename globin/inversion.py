@@ -863,10 +863,10 @@ class Inverter(InputData):
 			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
 				print(f"[Error] Did not converge the solution of Ax=b.")
-				return atmos, atmos.spectrum, chi2
+				return chi2#tmos, atmos.spectrum, chi2
 			if info<0:
 				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
-				return atmos, atmos.spectrum, chi2
+				return chi2#atmos, atmos.spectrum, chi2
 
 			#--- save the old parameters
 			old_local_parameters = copy.deepcopy(atmos.values)
@@ -1442,7 +1442,7 @@ def invert_single_pixel(args):
 			else:
 				atmosphere.spectrum.spec /= atmosphere.norm_level
 
-		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[spec.spec[0,0], atmosphere.spectrum.spec[0,0]], labels=["obs", "old", "new"])
+		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[atmosphere.spectrum.spec[0,0]], labels=["obs", "new"])
 		# globin.show()
 
 		#--- compute new chi2 after parameter correction
