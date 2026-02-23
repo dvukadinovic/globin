@@ -279,9 +279,12 @@ class InputData(object):
 				raise NotImplemented()
 			elif sl_type=="spec":
 				raise NotImplemented()
+			
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "stray", "sl_temp", "sl_vz", "sl_vmic"]:
+			self.read_node_values_limits(parameter)
 
 		#--- meshgrid of pixels for computation optimization
-		idx, idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny), indexing="xy")
+		idx, idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny), indexing="ij")
 		self.atmosphere.idx_meshgrid = idx.ravel(order="C")
 		self.atmosphere.idy_meshgrid = idy.ravel(order="C")
 
@@ -495,9 +498,6 @@ class InputData(object):
 			# read node parameters from .input file
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter)
-
-		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "stray_factor", "sl_temp", "sl_vz", "sl_vmic"]:
-			self.read_node_values_limits(parameter)
 
 		#--- check for spatial regularization of atmospheric parameters
 		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
@@ -852,7 +852,7 @@ def load_stray_light_parameters(input_text):
 	if stray_mode not in [1,2,3]:
 		raise ValueError(f"Stray mode {stray_mode} is not supported.")
 
-	stray_factor = _find_value_by_key("stray_factor", input_text, "default", "0.0", conversion=str)
+	stray_factor = _find_value_by_key("stray", input_text, "default", "0.0", conversion=str)
 	if ".fits" in stray_factor:
 		stray_factor = fits.open(stray_factor)[0].data
 	else:
