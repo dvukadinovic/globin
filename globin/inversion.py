@@ -124,6 +124,8 @@ class Inverter(InputData):
 					for idi in range(len(atmospheric_models)):
 						atmospheric_models[idi].spectrum = Spectrum(nx=1, ny=1, nw=len(self.atmosphere.wavelength_vacuum))
 						atmospheric_models[idi].rf = np.zeros((1, 1, Npar, len(self.atmosphere.wavelength_obs), 4))
+						if atmospheric_models[idi].sl_atmos is not None:
+							atmospheric_models[idi].sl_atmos.spectrum = Spectrum(nx=1, ny=1, nw=len(self.atmosphere.wavelength_vacuum))
 
 					args = zip(atmospheric_models, observations, inverter)
 					
@@ -157,6 +159,8 @@ class Inverter(InputData):
 
 				elif self.mode==3:
 					self.atmosphere.spectrum = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.atmosphere.wavelength_vacuum))
+					if self.atmosphere.sl_atmos is not None:
+						self.atmosphere.sl_atmos.spectrum = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.atmosphere.wavelength_vacuum))
 					self.atmosphere.rf = np.zeros((self.atmosphere.nx, self.atmosphere.ny, Npar, len(self.atmosphere.wavelength_obs), 4))
 					if self.atmosphere.sl_atmos is not None:
 						self.atmosphere.sl_atmos.spectrum = Spectrum(nx=self.atmosphere.sl_atmos.nx, ny=self.atmosphere.sl_atmos.ny, nw=len(self.atmosphere.sl_atmos.wavelength_vacuum))
@@ -1396,17 +1400,17 @@ def invert_single_pixel(args):
 		#--- compute new spectrum after parameters update
 		atmosphere.compute_spectra(stop_flag, pool=pool)
 		if atmosphere.sl_atmos is not None:
-			atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
+			atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
 		
 		if not inverter.mean:
 			atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 			if atmosphere.sl_atmos is not None:
-				atmosphere.sl_atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+				atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 
 		if atmosphere.instrumental_profile is not None:
 			atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 			if atmosphere.sl_atmos is not None:
-				atmosphere.sl_atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+				atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 
 		#--- add the stray light component:
 		if atmosphere.add_stray_light:
@@ -1424,7 +1428,7 @@ def invert_single_pixel(args):
 			if atmosphere.stray_type=="hsra":
 				sl_spectrum = atmosphere.hsra_spec.spec
 			if atmosphere.stray_type=="2nd_component":
-				sl_spectrum = atmosphere.sl_atmosphere.spectrum.spec
+				sl_spectrum = atmosphere.sl_atmos.spectrum.spec
 			if atmosphere.stray_type in ["atmos", "spec"]:
 				sl_spectrum = atmosphere.stray_light_spectrum.spec
 
@@ -1504,17 +1508,17 @@ def invert_single_pixel(args):
 		atmosphere.makeHSE(stop_flag, pool=pool)
 	atmosphere.compute_spectra(stop_flag, pool=pool)
 	if atmosphere.sl_atmos is not None:
-		sl_spec = atmosphere.sl_atmosphere.compute_spectra(stop_flag, pool=pool)
+		sl_spec = atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
 
 	if not inverter.mean:
 		atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 		if atmosphere.sl_atmos is not None:
-			sl_spec.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
+			atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
 	
 	if atmosphere.instrumental_profile is not None:
 		atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 		if atmosphere.sl_atmos is not None:
-			sl_spec.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
+			atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
 
 	#--- add the stray light component:
 	if atmosphere.add_stray_light:
@@ -1532,7 +1536,7 @@ def invert_single_pixel(args):
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
 		if atmosphere.stray_type=="2nd_component":
-			sl_spectrum = sl_spec.spec
+			sl_spectrum = atmosphere.sl_atmos.spectrum.spec
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 

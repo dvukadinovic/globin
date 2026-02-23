@@ -279,9 +279,6 @@ class InputData(object):
 				raise NotImplemented()
 			elif sl_type=="spec":
 				raise NotImplemented()
-			
-		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi", "stray", "sl_temp", "sl_vz", "sl_vmic"]:
-			self.read_node_values_limits(parameter)
 
 		#--- meshgrid of pixels for computation optimization
 		idx, idy = np.meshgrid(np.arange(self.atmosphere.nx), np.arange(self.atmosphere.ny), indexing="ij")
@@ -498,6 +495,7 @@ class InputData(object):
 			# read node parameters from .input file
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter)
+				self.read_node_values_limits(parameter)
 
 		#--- check for spatial regularization of atmospheric parameters
 		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
@@ -844,15 +842,7 @@ def load_spectrum_normalization(input_text):
 	return norm, norm_level
 
 def load_stray_light_parameters(input_text):
-	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 0, int)
-	if stray_mode==0:
-		print("[Warning] We are ignoring the stray light contribution.")
-		return
-
-	if stray_mode not in [1,2,3]:
-		raise ValueError(f"Stray mode {stray_mode} is not supported.")
-
-	stray_factor = _find_value_by_key("stray", input_text, "default", "0.0", conversion=str)
+	stray_factor = _find_value_by_key("stray_factor", input_text, "default", "0.0", conversion=str)
 	if ".fits" in stray_factor:
 		stray_factor = fits.open(stray_factor)[0].data
 	else:
@@ -863,14 +853,22 @@ def load_stray_light_parameters(input_text):
 		if np.abs(stray_factor)==0:
 			return
 	
+	stray_min = _find_value_by_key("stray_factor_vmin", input_text, "optional", conversion=float)
+	stray_max = _find_value_by_key("stray_factor_vmax", input_text, "optional", conversion=float)
+
+	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 0, int)
+	if stray_mode==0:
+		print("[Info] We are ignoring the stray light contribution.")
+		return
+
+	if stray_mode not in [1,2,3]:
+		raise ValueError(f"Stray mode {stray_mode} is not supported.")
+	
 	stray_type = _find_value_by_key("stray_type", input_text, "default", "gray", str)
 	stray_type = stray_type.lower()
 	# if stray_type not in ["gray", "2nd_component", "hsra", "atmos", "spec"]:
 	if stray_type not in ["gray", "2nd_component", "hsra"]:
 		raise ValueError(f"Stray light type '{stray_type}' is not supported.")
-
-	stray_min = _find_value_by_key("stray_factor_vmin", input_text, "optional", conversion=float)
-	stray_max = _find_value_by_key("stray_factor_vmax", input_text, "optional", conversion=float)
 
 	return stray_mode, stray_factor, stray_type, stray_min, stray_max
 

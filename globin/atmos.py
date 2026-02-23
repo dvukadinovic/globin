@@ -907,10 +907,12 @@ class Atmosphere(object):
 
 		if self.sl_atmos is not None:
 			sl_atmos = self.sl_atmos.split_atmosphere()
-
-		for ida in range(na):
-			if self.sl_atmos is not None:
-				atmosphere_list[ida].sl_atmos = sl_atmos[ida]
+			for ida in range(na):
+				if self.stray_mode in [1,2]:
+					_sl_atmos = sl_atmos[ida]
+				if self.stray_mode in [3]:
+					_sl_atmos = sl_atmos[0]
+				atmosphere_list[ida].sl_atmos = _sl_atmos
 
 		return atmosphere_list
 
@@ -2865,16 +2867,16 @@ class Atmosphere(object):
 		elif np.asarray(stray_factor).ndim==0:
 			self.stray_light *= np.abs(stray_factor)
 
-		# if the factor is inverted
+		# if the factor is to be inferred
 		if stray_factor<0:
 			self.invert_stray = True
 
 			if stray_min is not None:
-				self.limit_values["stray"].vmin = [stray_min]
+				self.limit_values["stray"].vmin = np.array([stray_min])
 				self.limit_values["stray"].vmin_dim = 1
 
 			if stray_max is not None:
-				self.limit_values["stray"].vmax = [stray_max]
+				self.limit_values["stray"].vmax = np.array([stray_max])
 				self.limit_values["stray"].vmax_dim = 1
 
 			if self.stray_mode in [1,2]:
@@ -2982,7 +2984,7 @@ class Atmosphere(object):
 
 		self.sl_atmos.continuum_idl = self.continuum_idl
 
-		# when we invert global parameters in one, we need them also in the second one to compute RFs
+		# when we invert global parameters in one, we need them also in the second to compute RFs
 		self.sl_atmos.global_pars = copy.deepcopy(self.global_pars)
 		self.sl_atmos.line_no = self.line_no
 
