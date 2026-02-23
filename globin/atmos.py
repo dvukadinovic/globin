@@ -1032,8 +1032,11 @@ class Atmosphere(object):
 		#--- get the columns for each parameters
 		_data = [None]*len(parameters)
 		for idp, parameter in enumerate(parameters):
+			if parameter in ["stray", "sl_temp", "sl_vz", "sl_vmic"]:
+				continue
 			_data[idp] = self.data[:,:,self.par_id[parameter]].reshape(Natmos, self.nz, order="C")
-		
+
+
 		return list(zip([global_pars]*Natmos, values, *_data))
 
 	def build_from_nodes(self, flag=None, params=None, pool=None):
@@ -1184,10 +1187,8 @@ class Atmosphere(object):
 
 		results = np.array(results)
 
-		indx = self.idx_meshgrid
-		indy = self.idy_meshgrid
-		self.data[indx,indy,2] = results[:,0]
-		self.data[indx,indy,8] = results[:,1]
+		self.data[self.idx_meshgrid,self.idy_meshgrid,2] = results[:,0]
+		self.data[self.idx_meshgrid,self.idy_meshgrid,8] = results[:,1]
 
 		# solve HSE also for the 2nd atmospheric model
 		if self.sl_atmos is not None and "sl_temp" in self.sl_atmos.nodes:
@@ -1232,7 +1233,6 @@ class Atmosphere(object):
 			results = pool.map(self._get_ne_from_nH, iterable=args, chunksize=self.chunk_size)
 
 		results = np.array(results)
-		print(results.shape)
 		# self.data[:,:,2] = results
 
 		del self.scale_type
@@ -2159,8 +2159,6 @@ class Atmosphere(object):
 
 		rf = np.zeros((self.nx, self.ny, Npar, Nw, 4))
 
-		# active_indx, active_indy = np.where(synthesize==1)
-
 		node_RF = np.zeros((self.nx, self.ny, Nw, 4))
 		if self.spatial_regularization:
 			self.scale_LT = np.zeros((self.nx*self.ny*self.n_local_pars + self.n_global_pars))
@@ -2187,6 +2185,9 @@ class Atmosphere(object):
 				self.values[parameter][:,:,nodeID] = values[...,nodeID] + perturbation
 				if parameter=="of":
 					self.make_OF_table()
+				elif parameter in ["stray"]:
+					# we do not need to perturb it
+					self.values[parameter][:,:,nodeID] = values[...,nodeID]
 				else:
 					self.build_from_nodes(synthesize, params=parameter, pool=pool)
 					self.makeHSE(synthesize, pool=pool)
