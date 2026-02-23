@@ -1099,7 +1099,7 @@ def read_node_atmosphere(fpath):
 	atmos.logtau = logtau
 	atmos.data[:,:,0] = logtau
 
-	idx, idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny), indexing="xy")
+	idx, idy = np.meshgrid(np.arange(atmos.nx), np.arange(atmos.ny), indexing="ij")
 	atmos.idx_meshgrid = idx.ravel(order="C")
 	atmos.idy_meshgrid = idy.ravel(order="C")
 	atmos.ids_tuple = list(zip(atmos.idx_meshgrid, atmos.idy_meshgrid))
@@ -1206,7 +1206,7 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 
 	indx = np.arange(obs.nx)
 	indy = np.arange(obs.ny)
-	indx, indy = np.meshgrid(indx, indy, indexing="xy")
+	indx, indy = np.meshgrid(indx, indy, indexing="ij")
 	indx = indx.ravel(order="C")
 	indy = indy.ravel(order="C")
 

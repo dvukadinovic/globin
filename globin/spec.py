@@ -326,7 +326,7 @@ class Spectrum(object):
 		# if flag is None:
 		# 	flag = np.ones((self.nx, self.ny), dtype=np.int32)
 		# indx, indy = np.where(flag==1)
-		indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="xy")
+		indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="ij")
 		indx = indx.ravel()
 		indy = indy.ravel()
 		args = zip(self.spec[indx,indy], [kernel]*len(indx))
@@ -354,7 +354,7 @@ class Spectrum(object):
 			# if flag is None:
 			# 	flag = np.ones((self.nx, self.ny), dtype=np.int32)
 			# indx, indy = np.where(flag==1)
-			indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="xy")
+			indx, indy = np.meshgrid(np.arange(self.nx), np.arange(self.ny), indexing="ij")
 			indx = indx.ravel()
 			indy = indy.ravel()
 			args = zip(self.spec[indx,indy], [kernel]*len(indx))
