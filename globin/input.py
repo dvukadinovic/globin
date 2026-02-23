@@ -576,6 +576,8 @@ class InputData(object):
 			self.atmosphere.global_pars["dlam"][:,:] = aux_values
 			self.atmosphere.line_no["dlam"][:] = aux_lineNo
 
+		sp.run(f"cp {line_pars_path} {self.cwd}", shell=True)
+
 		#---
 		if self.atmosphere.sl_atmos is not None:
 			self.atmosphere.sl_atmos.global_pars = copy.deepcopy(self.atmosphere.global_pars)
@@ -627,6 +629,8 @@ class InputData(object):
 
 			self.atmosphere.global_pars["dlam"][0,0] = aux_values
 			self.atmosphere.line_no["dlam"][:] = aux_lineNo
+
+		sp.run(f"cp {line_pars_path} {self.cwd}", shell=True)
 
 		#---
 		if self.atmosphere.sl_atmos is not None:
