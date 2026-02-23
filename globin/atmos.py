@@ -2266,7 +2266,7 @@ class Atmosphere(object):
 						with mp.Pool(self.n_thread) as pool:
 							results = pool.map(func=_compute_vmac_RF, iterable=args)
 
-					dlam = spec.wavelength[1] - spec.wavelength[0]
+					dlam = self.wavelength_vacuum[1] - self.wavelength_vacuum[0]
 
 					results = np.array(results)
 					rf[:,:,free_par_ID] = results.reshape(self.nx, self.ny, Nw, 4)
@@ -2284,13 +2284,13 @@ class Atmosphere(object):
 					free_par_ID_stray = free_par_ID
 
 					if self.stray_type=="2nd_component":
-						diff = sl_spec.spec - spec.spec
+						diff = sl_spec - spec
 					if self.stray_type=="hsra":
-						diff = self.hsra_spec.spec - spec.spec
+						diff = self.hsra_spec.spec - spec
 					if self.stray_type in ["atmos", "spec"]:
-						diff = self.stray_light_spectrum.spec - spec.spec
+						diff = self.stray_light_spectrum.spec - spec
 					if self.stray_type=="gray":
-						diff = -spec.spec
+						diff = -spec
 
 					diff *= weights
 					diff /= rf_noise_scale
@@ -2858,6 +2858,9 @@ class Atmosphere(object):
 
 		stray_mode, stray_factor, stray_type, stray_min, stray_max = sl_data
 
+		if stray_mode==3 and self.mode!=3 and stray_factor<0:
+			raise ValueError("Unequal inversion mode and the stray light inference mode. If global stray light is required, set the 'mode=3' and 'stray_mode=3'.")
+
 		self.stray_mode = stray_mode
 		self.stray_type = stray_type
 		self.stray_light = np.ones((self.nx, self.ny, 1))
@@ -2897,12 +2900,12 @@ class Atmosphere(object):
 		if parameter in self.nodes:
 			return
 
-		value, fit_it, vmin, vmax = values
+		value, fit_me, vmin, vmax = values
 
 		if value is None:
 			return
 
-		if fit_it:
+		if fit_me:
 			if self.stray_mode in [1,2]:
 				self.nodes[parameter] = np.array([0])
 				self.values[parameter] = np.ones((self.nx, self.ny, 1)) * value
@@ -2910,10 +2913,13 @@ class Atmosphere(object):
 				self.mask[parameter] = np.ones(1)
 				self.n_local_pars += 1
 				self.sl_atmos.nodes[parameter] = np.array([0])
+				self.sl_atmos.values[parameter] = np.ones((self.nx, self.ny, 1)) * value
+				self.sl_atmos.parameter_scale[parameter] = np.ones((self.nx, self.ny, 1))
 			if self.stray_mode==3:
 				self.global_pars[parameter] = np.array([value], dtype=np.float64)
 				self.sl_atmos.global_pars[parameter] = np.array([value], dtype=np.float64)
 				self.parameter_scale[parameter] = 1.0
+				self.sl_atmos.parameter_scale[parameter] = 1.0
 				self.n_global_pars += 1
 
 			if parameter=="sl_temp":
@@ -2921,11 +2927,11 @@ class Atmosphere(object):
 				self.sl_atmos.hydrostatic = True
 
 			if vmin is not None:
-				self.limit_values[parameter].vmin = [vmin]
+				self.limit_values[parameter].vmin = np.array([vmin])
 				self.limit_values[parameter].vmin_dim = 1
 
 			if vmax is not None:
-				self.limit_values[parameter].vmax = [vmax]
+				self.limit_values[parameter].vmax = np.array([vmax])
 				self.limit_values[parameter].vmax_dim = 1
 
 		if parameter=="sl_temp":
@@ -2950,11 +2956,11 @@ class Atmosphere(object):
 			raise ValueError("Unknown 'strey_mode' value.")
 
 		self.sl_atmos = Atmosphere(nx=nx, 
-										 ny=ny,
-										 nz=self.nz,
-										 logtau_bot=self.logtau_bot,
-										 logtau_top=self.logtau_top,
-										 logtau_step=self.logtau_step)
+									ny=ny,
+									nz=self.nz,
+									logtau_bot=self.logtau_bot,
+									logtau_top=self.logtau_top,
+									logtau_step=self.logtau_step)
 		self.sl_atmos.interpolate_atmosphere(self.logtau, globin.HSRA.data)
 		self.sl_atmos.scale_id = self.scale_id
 

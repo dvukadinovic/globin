@@ -159,12 +159,9 @@ class Inverter(InputData):
 
 				elif self.mode==3:
 					self.atmosphere.spectrum = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.atmosphere.wavelength_vacuum))
-					if self.atmosphere.sl_atmos is not None:
-						self.atmosphere.sl_atmos.spectrum = Spectrum(nx=self.atmosphere.nx, ny=self.atmosphere.ny, nw=len(self.atmosphere.wavelength_vacuum))
 					self.atmosphere.rf = np.zeros((self.atmosphere.nx, self.atmosphere.ny, Npar, len(self.atmosphere.wavelength_obs), 4))
 					if self.atmosphere.sl_atmos is not None:
 						self.atmosphere.sl_atmos.spectrum = Spectrum(nx=self.atmosphere.sl_atmos.nx, ny=self.atmosphere.sl_atmos.ny, nw=len(self.atmosphere.sl_atmos.wavelength_vacuum))
-						# self.sl_atmos.rf = np.zeros((self.sl_atmos.nx, self.sl_atmos.ny, Npar, len(self.sl_atmos.wavelength_obs), 4))
 					chi2 = self.invert_global(max_iter, marq_lambda, pool)
 					atmos = self.atmosphere
 				else:
@@ -1508,7 +1505,7 @@ def invert_single_pixel(args):
 		atmosphere.makeHSE(stop_flag, pool=pool)
 	atmosphere.compute_spectra(stop_flag, pool=pool)
 	if atmosphere.sl_atmos is not None:
-		sl_spec = atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
+		atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
 
 	if not inverter.mean:
 		atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
@@ -1901,6 +1898,11 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		atmosphere.spectrum = Spectrum(nx=atmosphere.nx, 
 								 	   ny=atmosphere.ny,
 									   nw=len(atmosphere.wavelength_air))
+	if atmosphere.sl_atmos is not None:
+		if atmosphere.sl_atmos.spectrum is None:
+			atmosphere.sl_atmos.spectrum = Spectrum(nx=atmosphere.sl_atmos.nx, 
+													ny=atmosphere.sl_atmos.ny,
+													nw=len(atmosphere.wavelength_air))
 
 	if atmosphere.add_stray_light or atmosphere.norm_level=="hsra":
 		# print("[Info] Computing the HSRA spectrum...")
@@ -1910,7 +1912,7 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 	atmosphere.compute_spectra(pool=pool)
 	if atmosphere.sl_atmos is not None:
 		atmosphere.sl_atmos.compute_spectra(pool=pool)
-	
+
 	#--- add macro-turbulent broadening
 	atmosphere.spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
 	if atmosphere.sl_atmos is not None:
@@ -1929,7 +1931,7 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 			stray_light = atmosphere.global_pars["stray"]
 			stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
 		elif "stray" in atmosphere.values:
-				stray_light = atmosphere.values["stray"]
+			stray_light = atmosphere.values["stray"]
 		else:
 			stray_light = atmosphere.stray_light
 
@@ -1938,7 +1940,7 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 		if atmosphere.stray_type=="hsra":
 			sl_spectrum = atmosphere.hsra_spec.spec
 		if atmosphere.stray_type=="2nd_component":
-			sl_spectrum = atmosphere.sl_atmos.spectrum
+			sl_spectrum = atmosphere.sl_atmos.spectrum.spec
 		if atmosphere.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmosphere.stray_light_spectrum.spec
 
