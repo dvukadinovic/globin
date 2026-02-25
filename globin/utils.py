@@ -519,7 +519,7 @@ def get_kernel_sigma(vmac, wavelength):
     Get Gaussian kernel standard deviation based on given macro-turbulent velocity (in km/s).
     """
     step = wavelength[1] - wavelength[0]
-    return vmac*1e3 / globin.LIGHT_SPEED * (wavelength[0] + wavelength[-1])*0.5 / step
+    return vmac*1e3 / LIGHT_SPEED * (wavelength[0] + wavelength[-1])*0.5 / step
 
 def get_kernel(vmac, wavelength, order=0):
     # we assume equidistant seprataion in wavelength grid
