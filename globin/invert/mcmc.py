@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 from time import time
 
 import globin
-from globin.inversion import Inverter
 
 RNG = np.random.default_rng()
 scales = {"temp"  : 1,			# [K]
@@ -23,7 +22,7 @@ scales = {"temp"  : 1,			# [K]
 		  "dlam"  : 0.1}		#
 
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
-	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.NCHAR))
+	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
 	# if atmos.sl_atmos is not None:
 	# 	# start = time()
@@ -51,7 +50,7 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	
 	obs.Ndof = np.count_nonzero(obs.weights)*obs.nw*Natmos - ndim
 
-	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.NCHAR))
+	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.constants.NCHAR))
 	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
 		print("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
@@ -234,33 +233,29 @@ def log_prob(theta, obs, atmos, pool):
 
 def sequential_synthesize(atmos):
 	# compute spectra
-	nw = len(atmos.wavelength_vacuum)
-	spec = globin.spec.Spectrum(nx=atmos.nx, ny=atmos.ny, nw=nw)
-	spec.wavelength = atmos.wavelength_air
-
-	if atmos.sl_atmos is not None:
-		sl_spec = globin.spec.Spectrum(nx=atmos.nx, ny=atmos.ny, nw=nw)
-		sl_spec.wavelength = atmos.wavelength_air
-
 	if atmos.vmac!=0:
-		kernel = spec.get_kernel(atmos.vmac, order=0)
+		kernel = globin.utils.get_kernel(atmos.vmac, atmos.wavelength_obs, order=0)
+
+	args = atmos.prepare_synthesis_args(get_atomic_rfs=False)
+	if atmos.sl_atmos is not None:
+		args_sl = atmos.sl_atmos.prepare_synthesis_args(get_atomic_rfs=False)
 	
 	for idx in range(atmos.nx):
 		for idy in range(atmos.ny):
-			stokes_vector = atmos._compute_spectra_sequential((idx,idy))[0].T
+			stokes_vector = globin.parallel_methods._compute_spectra_sequential(args[idx*atmos.ny+idy])
 			if atmos.sl_atmos is not None:
-				_sl_spec = atmos._compute_spectra_sequential((idx,idy))[0].T
-			if atmos.vmac!=0:	
+				sl_spec = globin.parallel_methods._compute_spectra_sequential(args_sl[idx*atmos.ny+idy])
+			if atmos.vmac!=0:
 				stokes_vector = globin.spec._broaden_spectra((stokes_vector, kernel))
 				if atmos.sl_atmos is not None:
-					_sl_spec = globin.spec._broaden_spectra((_sl_spec, kernel))
+					sl_spec = globin.spec._broaden_spectra((sl_spec, kernel))
 			if atmos.instrumental_profile is not None:
 				stokes_vector = globin.spec._broaden_spectra((stokes_vector, atmos.instrumental_profile))
 				if atmos.sl_atmos is not None:
-					_sl_spec = globin.spec._broaden_spectra((_sl_spec, atmos.instrumental_profile))
-			spec.spec[idx,idy] = stokes_vector
+					sl_spec = globin.spec._broaden_spectra((sl_spec, atmos.instrumental_profile))
+			atmos.spectrum.spec[idx,idy] = stokes_vector
 			if atmos.sl_atmos is not None:
-				sl_spec.spec[idx,idy] = _sl_spec
+				atmos.sl_atmos.spectrum.spec[idx,idy] = sl_spec
 
 	if atmos.add_stray_light:
 		# get the stray light factor(s)
@@ -277,46 +272,47 @@ def sequential_synthesize(atmos):
 		if atmos.stray_type=="hsra":
 			sl_spectrum = atmos.hsra_spec.spec
 		if atmos.stray_type=="2nd_component":
-			sl_spectrum = sl_spec.spec
+			sl_spectrum = atmos.sl_atmos.spectrum.spec
 		if atmos.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmos.stray_light_spectrum.spec
 
-		spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
+		atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
 
 	if atmos.norm:
 		if atmos.norm_level==1:
-			Ic = spec.I[...,atmos.continuum_idl]
-			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+			Ic = atmos.spectrum.I[...,atmos.continuum_idl]
+			atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
 		elif atmos.norm_level=="hsra":
-			spec.spec /= atmos.icont
+			atmos.spectrum.spec /= atmos.icont
 		else:
-			spec.spec /= atmos.norm_level
+			atmos.spectrum.spec /= atmos.norm_level
 
 	#--- downsample the synthetic spectrum to observed wavelength grid
+	# This will fail when I have to use it...
 	if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
 		for idx in range(atmos.nx):
 			for idy in range(atmos.ny):
-				args = spec.spec[idx,idy], atmos.wavelength_obs, "extrapolate"
-				spec.spec[idx,idy] = spec._interpolate(args)
+				args = atmos.spectrum.spec[idx,idy], atmos.wavelength_obs, "extrapolate"
+				atmos.spectrum.spec[idx,idy] = atmos.spectrum._interpolate(args)
 
-	return spec
+	return atmos.spectrum
 
 def mpi_synthesize(obs, atmos, pool):
 	atmos.build_from_nodes(pool=pool)
 	
-	spec = atmos.compute_spectra(pool=pool)
+	atmos.compute_spectra(pool=pool)
 	if atmos.sl_atmos is not None:
-		sl_spec = atmos.sl_atmos.compute_spectra(pool=pool)
+		atmos.sl_atmos.compute_spectra(pool=pool)
 
-	spec.broaden_spectra(atmos.vmac, pool=pool)
+	atmos.spectrum.broaden_spectra(atmos.vmac, pool=pool)
 	if atmos.sl_atmos is not None:
-		sl_spec.broaden_spectra(atmos.vmac, pool=pool)
+		atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, pool=pool)
 
 	#--- add instrument broadening (if applicable)
 	if atmos.instrumental_profile is not None:
-		spec.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
+		atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
 		if atmos.sl_atmos is not None:
-			sl_spec.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
+			atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
 
 	#--- add the stray light component:
 	if atmos.add_stray_light:
@@ -334,23 +330,23 @@ def mpi_synthesize(obs, atmos, pool):
 		if atmos.stray_type=="hsra":
 			sl_spectrum = atmos.hsra_spec.spec
 		if atmos.stray_type=="2nd_component":
-			sl_spectrum = sl_spec.spec
+			sl_spectrum = atmos.sl_atmos.spectrum.spec
 		if atmos.stray_type in ["atmos", "spec"]:
 			sl_spectrum = atmos.stray_light_spectrum.spec
 
-		spec.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
+		atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
 
 	#--- norm spectra
 	if atmos.norm:
 		if atmos.norm_level==1:
-			Ic = spec.I[...,atmos.continuum_idl]
-			spec.spec = np.einsum("ij...,ij->ij...", spec.spec, 1/Ic)
+			Ic = atmos.spectrum.I[...,atmos.continuum_idl]
+			atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
 		elif atmos.norm_level=="hsra":
-			spec.spec /= atmos.icont
+			atmos.spectrum.spec /= atmos.icont
 		else:
-			spec.spec /= atmos.norm_level
+			atmos.spectrum.spec /= atmos.norm_level
 
-	return spec
+	return atmos.spectrum
 
 def initialize_walker_states(nwalkers, ndim, atmos):
 	#--- get parameter vector
