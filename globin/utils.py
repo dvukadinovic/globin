@@ -549,7 +549,7 @@ def get_vinst(fwhm, lam_ref):
     """
     vinst = fwhm/lam_ref
     vinst *= np.sqrt(2*np.log(2))/2
-    vinst *= globin.LIGHT_SPEED
+    vinst *= LIGHT_SPEED
 
     return vinst/1e3
 
