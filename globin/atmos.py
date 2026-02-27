@@ -24,6 +24,7 @@ import globin
 from .atoms import abundances
 from .spec import Spectrum
 from .utils import extend, azismooth, mygsmooth, air_to_vacuum
+from .utils import get_kernel_sigma, get_kernel
 from .rh import atmols, create_kurucz_input
 from .rh import RHKeywords
 from .constants import atmosphere_scale_ID
@@ -2255,10 +2256,10 @@ class Atmosphere(object):
 			#--- loop through global parameters and calculate RFs
 			for parameter in self.global_pars:
 				if parameter=="vmac":
-					kernel_sigma = spec.get_kernel_sigma(self.vmac)
-					kernel = spec.get_kernel(self.vmac, order=1)
+					kernel_sigma = get_kernel_sigma(self.vmac, self.wavelength_air)
+					kernel = get_kernel(self.vmac, self.wavelength_air, order=1)
 
-					args = zip(spec.spec.reshape(self.nx*self.ny, Nw, 4), [kernel]*self.nx*self.ny)
+					args = zip(spec.reshape(self.nx*self.ny, Nw, 4), [kernel]*self.nx*self.ny)
 
 					if self.nx*self.ny==1:
 						results = list(map(_compute_vmac_RF, args))
