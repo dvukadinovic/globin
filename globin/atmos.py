@@ -654,8 +654,8 @@ class Atmosphere(object):
 				self.mask[parameter] = np.ones(len(self.nodes[parameter]))
 
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
-			except:
-				pass
+			except Exception as e:
+				print(e)
 
 		#--- try to get the second atmosphere
 		try:
@@ -679,8 +679,8 @@ class Atmosphere(object):
 				self.sl_atmos.nodes["sl_vmic"] = self.nodes["sl_vmic"]
 				self.sl_atmos.values["sl_vmic"] = self.values["sl_vmic"]
 				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
-		except:
-			pass
+		except Exception as e:
+			print(e)
 
 		if self.sl_atmos is not None:
 			for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
@@ -879,12 +879,21 @@ class Atmosphere(object):
 						for parameter in self.nodes:
 							new_atmos.values[parameter] = np.zeros((1,1,len(self.nodes[parameter])))
 							new_atmos.values[parameter][0,0] = np.copy(self.values[parameter][idx,idy])
-							new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
-							new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+							# not applicable to the 2nd atmospheric component
+							try:
+								new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
+								new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+							except:
+								pass
 						if self.add_stray_light:
 							new_atmos.stray_light = np.ones((1,1,1))*self.stray_light[idx,idy]
 						if "stray" in self.nodes:
 							self.stray_light = self.values[parameter]
+					elif key in ["global_pars"]:
+						for parameter in ["loggf", "dlam"]:
+							if len(self.line_no[parameter])==0:
+								continue
+							new_atmos.global_pars[parameter] = self.global_pars[parameter][idx,idy]
 					elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 						pass
 					elif key in ["idx_meshgrid", "idy_meshgrid"]:
@@ -928,7 +937,6 @@ class Atmosphere(object):
 		new_atmos = Atmosphere()
 
 		for key in keys:
-
 			if key=="data":
 				new_atmos.data = self.data[idx_min:idx_max, idy_min:idy_max, :, idz_min:idz_max]
 				new_atmos.shape = new_atmos.data.shape
@@ -955,8 +963,6 @@ class Atmosphere(object):
 			elif key in ["idx_meshgrid", "idy_meshgrid"]:
 				pass
 			elif key in ["nodes", "values"]:
-				pass
-			elif key in ["sl_atmos"]:
 				pass
 			elif key in ["pg", "rho", "nHtot"]:
 				pass
