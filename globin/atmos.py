@@ -950,6 +950,12 @@ class Atmosphere(object):
 				for parameter in self.nodes:
 					new_atmos.nodes[parameter] = self.nodes[parameter]
 					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+					# not applicable to the 2nd atmospheric component
+					try:
+						new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
+						new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+					except:
+						pass
 					new_atmos.n_local_pars += len(self.nodes[parameter])
 				if "stray" in self.nodes:
 					self.stray_light = self.values[parameter]
@@ -964,8 +970,12 @@ class Atmosphere(object):
 				pass
 			elif key in ["nodes", "values"]:
 				pass
-			elif key in ["pg", "rho", "nHtot"]:
-				pass
+			elif key=="rho":
+				new_atmos.rho = self.rho[idx_min:idx_max,idy_min:idy_max, idz_min:idz_max]
+			elif key=="pg":
+				new_atmos.pg = self.pg[idx_min:idx_max,idy_min:idy_max, idz_min:idz_max]
+			elif key=="nHtot":
+				new_atmos.nHtot = self.nHtot[idx_min:idx_max,idy_min:idy_max, idz_min:idz_max]
 			elif key in ["rank", "size", "use_mpi"]:
 				pass
 			else:
