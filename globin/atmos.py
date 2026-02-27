@@ -938,11 +938,18 @@ class Atmosphere(object):
 				idx, idy = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny), indexing="ij")
 				new_atmos.idx_meshgrid = idx.ravel(order="C")
 				new_atmos.idy_meshgrid = idy.ravel(order="C")
+				new_atmos.n_local_pars = 0
 				for parameter in self.nodes:
 					new_atmos.nodes[parameter] = self.nodes[parameter]
 					new_atmos.values[parameter] = self.values[parameter][idx_min:idx_max, idy_min:idy_max, idz_min:idz_max]
+					new_atmos.n_local_pars += len(self.nodes[parameter])
 				if "stray" in self.nodes:
 					self.stray_light = self.values[parameter]
+			elif key in ["global_pars"]:
+				for parameter in ["loggf", "dlam"]:
+					if len(self.line_no[parameter])==0:
+						continue
+					new_atmos.global_pars[parameter] = self.global_pars[parameter][idx_min:idx_max,idy_min:idy_max]
 			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 				pass
 			elif key in ["idx_meshgrid", "idy_meshgrid"]:
