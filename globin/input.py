@@ -681,7 +681,7 @@ class InputData(object):
 					values[i_] += 1
 
 		if parameter=="temp" and self.init_temp:
-			values = splev(atmosphere.nodes[parameter], globin.temp_tck)
+			values = splev(atmosphere.nodes[parameter], globin.FALC_temp_tck)
 
 		matrix[:,:] = copy.deepcopy(values)
 		if parameter=="gamma":
