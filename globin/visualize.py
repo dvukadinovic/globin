@@ -433,10 +433,12 @@ def plot_chi2(chi2, fpath="chi2.png", log_scale=False):
 	plt.close()
 
 def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes="I", 
+			 use_wavelength_grid=True,
 			 logtau_top=-6, logtau_bot=1,
 			 lmin=None, lmax=None,
 			 vmin=None, vmax=None,
-	    	 rf_wave_integrate=False, rf_tau_integrate=False):
+	    	 rf_wave_integrate=False, 
+			 rf_tau_integrate=False):
 	cmap = {"temp"  : "bwr",
 			"vmic"  : "bwr",
 			"vz"    : "bwr", 
@@ -458,7 +460,10 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	if not _rf.normed_spec:
 		cmap["temp"] = "YlOrRd"
 
-	wavs = _rf.wavelength * 10
+	if use_wavelength_grid:
+		wavs = _rf.wavelength * 10
+	else:
+		wavs = np.arange(_rf.nw)
 	lam_min, lam_max = wavs[0], wavs[-1]
 	if lmin is not None:
 		lam_min = lmin
