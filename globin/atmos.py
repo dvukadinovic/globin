@@ -3348,7 +3348,7 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 
 	if atmos.spectrum is None:
 		atmos.spectrum = Spectrum(nx=atmos.nx, ny=atmos.ny, nw=len(atmos.wavelength_air))
-		atmos.spectrum.wavelength = atmos.wavelength_air			
+		atmos.spectrum.wavelength = atmos.wavelength_air
 
 	if norm:
 		atmos.norm = True
@@ -3583,6 +3583,18 @@ def compute_full_rf(atmos, local_pars=None, global_pars=None, norm=False, fpath=
 				start_index += atmos.line_no[par].size
 
 			hdulist.append(global_hdu)
+
+		#--- compute the spectrum for the unperturbed atmosphere
+		spectrum = atmos.compute_spectra()
+		par_hdu = fits.ImageHDU(spectrum)
+		par_hdu.name = "spectrum"
+		par_hdu.header["UNIT"] = "erg/s/cm2/Hz/ster" if not norm else "1"
+		par_hdu.header.comments["NAXIS1"] = "stokes components"
+		par_hdu.header.comments["NAXIS2"] = "number of wavelengths"
+		par_hdu.header.comments["NAXIS3"] = "y-axis atmospheres"
+		par_hdu.header.comments["NAXIS4"] = "x-axis atmospheres"
+		par_hdu.header["STOKES"] = ("IQUV", "the Stokes vector order")
+		hdulist.append(par_hdu)
 
 		#--- wavelength list
 		par_hdu = fits.ImageHDU(atmos.wavelength_air)

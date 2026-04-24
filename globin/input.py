@@ -1450,6 +1450,8 @@ class RF(object):
 
 		self.normed_spec = None
 
+		self.spectrum = None
+
 		if fpath is not None:
 			self.read(fpath)
 
@@ -1472,6 +1474,9 @@ class RF(object):
 		self.wavelength = hdulist[-2].data
 		# get the optical depth scale
 		self.logtau = hdulist[-1].data
+
+		idh = hdulist.index_of("spectrum")
+		self.spectrum = hdulist[idh].data
 
 	def read_atmospheric_RFs(self, hdu):
 		self.rf_local = hdu.data
