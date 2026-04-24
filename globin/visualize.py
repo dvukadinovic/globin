@@ -46,6 +46,14 @@ parameter_norm = {"temp"  : 5000,		# [K]
 				  "vmac"  : 2,			# [km/s]
 				  "dlam"  : 10,			# [mA]
 				  "loggf" : -1.0}		#
+COLORS = ["#1b9e77",
+		  "#d95f02",
+		  "#7570b3",
+		  "#e7298a",
+		  "#66a61e",
+		  "#e6ab02"
+		]
+Ncolors = len(COLORS)
 
 def show():
 	"""
@@ -55,9 +63,7 @@ def show():
 	plt.show()
 
 def plot_atmosphere(atmos, parameters, idx=0, idy=0, ls="-", lw=2, color="tab:red", show_errors=False, labels=None, reference=None):
-	colors = ["tab:red", "tab:green", "tab:orange"]
-	Ncolors = len(colors)
-
+	colors = COLORS
 	logtau = atmos.logtau
 	cube = atmos.data[idx,idy]
 
@@ -209,10 +215,9 @@ def plot_spectra(obs, wavelength, inv=None, axes=None, aspect=1, shift=None, nor
 	center_wavelength_grid : bool (optional)
 		Flag for setting the wavelength grid relative to the central wavelength.
 	"""
-	colors = ["tab:red", "tab:green", "tab:orange"]
+	colors = COLORS
 	if inv_colors is not None:
 		colors = inv_colors
-
 	Ncolors = len(colors)
 
 	lmin = np.min(wavelength)
