@@ -530,7 +530,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 			if not rf_wave_integrate:
 				for j_, ids in enumerate(stokes_range):
-					ax = axs[j_,i_]
+					ax = axs[i_,j_]
 					if i_==0:
 						ax.set_title(stokes_labels[j_], fontsize=fontsize)
 					if j_==0:
@@ -540,6 +540,8 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 					_vmax = np.max(np.abs(matrix))
 					_vmin = -_vmax
 					par_cmap = cmap[parameter]
+					if parameter=="temp":
+						_vmin = 0
 					# if parameter=="temp":
 					# 	_vmin = np.min(matrix)
 					# 	if ids!=0:
