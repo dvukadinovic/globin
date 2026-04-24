@@ -853,7 +853,7 @@ class Observation(Spectrum):
 		self.shape = self.spec.shape
 
 	def read_hinode(self, fpath, obs_range):
-		hdu = fits.open(fpath)
+		hdu = fits.open(fpath, mode="readonly")
 
 		if len(hdu)!=3:
 			raise IndexError("Wrong number of headers. Header list does not contain 3 extensions (including primary).")
