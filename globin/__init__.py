@@ -13,6 +13,7 @@ from .atoms import AtomPars
 from .rh import *
 
 import globin.invert as invert
+from .makeHSE import *
 
 __all__ = ["rh", "atmos", "atoms", "inversion", "spec", "tools", "input", "visualize", "utils", "invert"]
 __name__ = "globin"
