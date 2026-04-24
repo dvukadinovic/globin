@@ -270,6 +270,7 @@ def imshow_plots(atm1, atm2=None, parameters=["temp"], labels=["reference", "inv
             if idr==0:
                 title = labels[0]
                 if nnodes>1:
+                    title += "\n"
                     title += r"$\log\tau = {:3.2f}$".format(atm1.nodes[parameter][idr])
                 ax.set_title(title, fontsize="large")
             if nnodes>1 and idr>0:
