@@ -729,7 +729,7 @@ class InputData(object):
 
 		# set the parameter scale
 		atmosphere.parameter_scale[parameter] = np.ones((atmosphere.nx, atmosphere.ny, len(atmosphere.nodes[parameter])))
-
+ 
 	def read_node_values_limits(self, parameter):
 		"""
 		Get the lmits for each parameter (and for each node for a parameter if specified).

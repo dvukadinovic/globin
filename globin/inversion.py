@@ -769,7 +769,7 @@ class Inverter(InputData):
 					Gamma = atmos.get_regularization_gamma()
 					# Gamma *= np.sqrt(reg_weight)
 
-				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec.spec[0,0]])
+				# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec[0,0]])
 				# globin.show()
 
 				if self.debug:
@@ -950,6 +950,9 @@ class Inverter(InputData):
 				else:
 					atmos.spectrum.spec /= atmos.norm_level
 			
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec[0,0], atmos.spectrum.spec[0,0]])
+			# globin.show()
+
 			#--- compute new chi2 value
 			new_diff = obs.spec - atmos.spectrum.spec
 			new_diff *= self.weights
