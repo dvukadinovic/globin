@@ -1,7 +1,7 @@
 def create_kurucz_input(line_list_name, fpath):
     out = open(fpath, "w")
 
-    out.write(f"{line_list_name}\n")
+    out.write(f"{line_list_name}")
     out.close()
 
 class AtoMol(object):
@@ -53,7 +53,7 @@ class RHAtomsMolecules(object):
             if type=="molecules":
                 out.write("\n")
 
-        out.write("\n")
+        # out.write("\n")
         out.close()
 
     def create_atoms_list(self, fpath="atoms.input"):
