@@ -71,6 +71,7 @@ class Line(object):
                     dlam=None, dlam_min=None, dlam_max=None,
                     ion=None, state=None, elow=None, eup=None,
                     gLlow=None, gLup=None, Jlow=None, Jup=None,
+                    llow=-1, lup=-1,
                     Grad=None,
                     config_low=None, config_up=None,
                     swap=False):
@@ -85,6 +86,8 @@ class Line(object):
 
         self.Jlow = Jlow
         self.Jup = Jup
+        self.llow = llow
+        self.lup = lup
 
         if Grad is not None:
             self.Grad = 10**Grad # [1/s]
@@ -118,6 +121,7 @@ class Line(object):
         self.elow, self.eup = self.eup, self.elow
         self.gLlow, self.gLup = self.gLup, self.gLlow
         self.config_low, self.config_up = self.config_up, self.config_low
+        self.llow, self.lup = self.lup, self.llow
 
     def get_effective_Lande(self):
         self.gLeff = 0.5*(self.gLup + self.gLlow) + 0.25*(self.gLup - self.gLlow) * (self.Jup*(self.Jup + 1.0) - self.Jlow*(self.Jlow + 1.0))
@@ -249,7 +253,9 @@ def read_RLK_lines(fpath):
         ion = int(integer)
         state = round(decimal*100)
         elow = float(line[23:35])/ 8065.544 # [1/cm --> eV]
+        elow = abs(elow)
         eup = float(line[51:63])/ 8065.544 # [1/cm --> eV]
+        eup = abs(eup)
         gLlow = float(line[143:148]) / 1e3
         gLup = float(line[149:154]) / 1e3
         Jlow = float(line[35:40])
@@ -257,6 +263,15 @@ def read_RLK_lines(fpath):
         Grad = float(line[81:86])
         config_low = line[42:54].rstrip(" ")
         config_up = line[70:81].rstrip(" ")
+
+        l_low = -1
+        l_up = -1
+        if len(line)>160:
+            try:
+                l_low = int(line[160:162])
+                l_up = int(line[162:164])
+            except:
+                pass
 
         swap = False
         if elow>eup:
@@ -267,6 +282,7 @@ def read_RLK_lines(fpath):
                               elow=elow, eup=eup,
                               gLlow=gLlow, gLup=gLup,
                               Jlow=Jlow, Jup=Jup,
+                              llow=l_low, lup=l_up,
                               Grad=Grad,
                               config_low=config_low, config_up=config_up,
                               swap=swap))
