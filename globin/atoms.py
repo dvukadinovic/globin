@@ -40,6 +40,21 @@ accuracy = {"AAA" : 0.3,
             "D+"  : 40,
             "D"   : 50}
 
+def Aji(lam0, gu, gl, f):
+    """
+    Compute the Einstein coefficient for the spontaneous emission from the osciallator strength value.
+    """
+    nu = lam0*1e-9/LIGHT_SPEED
+    Aji =  2*np.pi*ELECTRON_CHARGE**2 * nu**2/(EPSILON_0*ELECTRON_MASS*LIGHT_SPEED**3) * gu/gl * f
+    return Aji
+
+def Aji2loggf(Aji, lam0, gu):
+    """
+    lam0 [A] -- line central wavelength
+    gu -- statistical weight of the upper level
+    Aji [1/s] -- Einstein coefficient for the spontaneous emission
+    """
+    return np.log10(lam0**3*Aji*gu/6.6702e15)
 
 def gamma_function(a, b, c):
     if a==0:
