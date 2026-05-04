@@ -1738,35 +1738,37 @@ class Atmosphere(object):
 		"""
 		for parameter in self.values:
 			# inclination is wrapped around [0, 180] interval
-			# if parameter=="gamma":
-			# 	y = np.cos(self.values[parameter])
-			# 	self.values[parameter] = np.arccos(y)
-			# # azimuth is wrapped around [-90, 90] interval
-			# elif parameter=="chi":
-			# 	# y = np.sin(self.values[parameter])
-			# 	# self.values[parameter] = np.arcsin(y)
-			# 	y = np.where(self.values[parameter]<0, self.values[parameter]+360, self.values[parameter])
-			# 	self.values[parameter] = y%180
-			# else:
-			for idn in range(len(self.nodes[parameter])-1, -1, -1):
-				# check lower boundary condition
-				vmin = self.limit_values[parameter].min[0]
-				if self.limit_values[parameter].vmin_dim!=1:
-					vmin = self.limit_values[parameter].min[idn]
-				indx, indy = np.where(self.values[parameter][...,idn]<vmin)
-				self.values[parameter][indx,indy,idn] = vmin
+			if parameter=="gamma":
+				y = np.cos(self.values[parameter])
+				self.values[parameter] = np.arccos(y)
+			# azimuth is wrapped around [-90, 90] interval
+			elif parameter=="chi":
+				y = np.sin(self.values[parameter])
+				self.values[parameter] = np.arcsin(y)
+				# print(parameter, self.values[parameter][:5,0], end=" ")
+				# y = np.where(self.values[parameter]<0, self.values[parameter]+360, self.values[parameter])
+				# self.values[parameter] = y%180
+				# print(self.values[parameter][:5,:])
+			else:
+				for idn in range(len(self.nodes[parameter])-1, -1, -1):
+					# check lower boundary condition
+					vmin = self.limit_values[parameter].min[0]
+					if self.limit_values[parameter].vmin_dim!=1:
+						vmin = self.limit_values[parameter].min[idn]
+					indx, indy = np.where(self.values[parameter][...,idn]<vmin)
+					self.values[parameter][indx,indy,idn] = vmin
 
-				# check upper boundary condition
-				vmax = self.limit_values[parameter].max[0]
-				if self.limit_values[parameter].vmax_dim!=1:
-					vmax = self.limit_values[parameter].max[idn]
-				if parameter=="temp" and self.decreasing_temperature and (idn+1)!=len(self.nodes[parameter]):
-					vmax = self.values[parameter][...,idn+1]
-					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
-					self.values[parameter][indx,indy,idn] = vmax[indx,indy]
-				else:
-					indx, indy = np.where(self.values[parameter][...,idn]>vmax)
-					self.values[parameter][indx,indy,idn] = vmax
+					# check upper boundary condition
+					vmax = self.limit_values[parameter].max[0]
+					if self.limit_values[parameter].vmax_dim!=1:
+						vmax = self.limit_values[parameter].max[idn]
+					if parameter=="temp" and self.decreasing_temperature and (idn+1)!=len(self.nodes[parameter]):
+						vmax = self.values[parameter][...,idn+1]
+						indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+						self.values[parameter][indx,indy,idn] = vmax[indx,indy]
+					else:
+						indx, indy = np.where(self.values[parameter][...,idn]>vmax)
+						self.values[parameter][indx,indy,idn] = vmax
 
 		for parameter in self.global_pars:
 			if (parameter=="vmac"):
