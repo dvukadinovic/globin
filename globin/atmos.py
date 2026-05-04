@@ -655,7 +655,8 @@ class Atmosphere(object):
 
 				self.parameter_scale[parameter] = np.ones((self.nx, self.ny, nnodes))
 			except Exception as e:
-				print(e)
+				# print(e)
+				pass
 
 		#--- try to get the second atmosphere
 		try:
@@ -680,7 +681,8 @@ class Atmosphere(object):
 				self.sl_atmos.values["sl_vmic"] = self.values["sl_vmic"]
 				self.sl_atmos.data[:,:,self.par_id["vmic"]] = self.values["sl_vmic"]
 		except Exception as e:
-			print(e)
+			# print(e)
+			pass
 
 		if self.sl_atmos is not None:
 			for parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
@@ -976,6 +978,8 @@ class Atmosphere(object):
 				new_atmos.pg = self.pg[idx_min:idx_max,idy_min:idy_max, idz_min:idz_max]
 			elif key=="nHtot":
 				new_atmos.nHtot = self.nHtot[idx_min:idx_max,idy_min:idy_max, idz_min:idz_max]
+			elif key=="stray_light":
+				new_atmos.stray_light = self.stray_light[idx_min:idx_max,idy_min:idy_max]
 			elif key in ["rank", "size", "use_mpi"]:
 				pass
 			else:
@@ -2366,7 +2370,6 @@ class Atmosphere(object):
 							free_par_ID_atomic.append(free_par_ID)
 							free_par_ID += 1
 						continue
-				
 
 					if self.line_no[parameter].size==0:
 						continue
