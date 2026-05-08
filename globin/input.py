@@ -1533,8 +1533,11 @@ class RF(object):
 		# get the optical depth scale
 		self.logtau = hdulist[-1].data
 
-		idh = hdulist.index_of("spectrum")
-		self.spectrum = hdulist[idh].data
+		try:
+			idh = hdulist.index_of("spectrum")
+			self.spectrum = hdulist[idh].data
+		except:
+			pass
 
 	def read_atmospheric_RFs(self, hdu):
 		self.rf_local = hdu.data
