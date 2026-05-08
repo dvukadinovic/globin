@@ -130,8 +130,8 @@ def lnprior(local_pars, global_pars, limits):
 					for idl in range(Npar):
 						if limits[parameter].ndim==2:
 							limit = limits[parameter][idl]
+						
 						#--- check lower boundary condition
-
 						indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
 						if len(indx)>0:
 							return -np.inf
@@ -193,7 +193,7 @@ def log_prob(theta, obs, atmos, pool):
 			low = up
 			up += npars
 			if parameter in ["loggf", "dlam"]:
-				atmos.global_pars[parameter][0,0] = theta[low:up]
+				atmos.global_pars[parameter][:,:] = theta[low:up]
 				if atmos.sl_atmos is not None:
 					atmos.sl_atmos.global_pars[parameter][0,0] = theta[low:up]
 			if parameter=="stray":
