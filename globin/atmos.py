@@ -991,34 +991,102 @@ class Atmosphere(object):
 		return new_atmos
 
 	def get_atmos(self, indx, indy):
+		dic = self.__dict__
+		keys = dic.keys()
+
 		nx = 1
 		ny = len(indy)
 
 		dtau = self.logtau[1] - self.logtau[0]
-		new = Atmosphere(nx=nx, ny=ny, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
+		new_atmos = Atmosphere(nx=nx, ny=ny, nz=self.nz, logtau_top=self.logtau[0], logtau_bot=self.logtau[-1], logtau_step=dtau)
 
 		# this needs to be cleaned and optimized...
-		new.cwd = self.cwd
-		new.scale_id = self.scale_id
+		new_atmos.cwd = self.cwd
+		# new_atmos.scale_id = self.scale_id
 		# new.fudge_lam = self.fudge_lam
 		# new.fudge = self.fudge[indx,indy]
 		# new.global_pars = self.global_pars
 		#-------------------------------------------
 
-		new.data[0,:,:,:] = self.data[indx,indy]
-		new.logtau = self.logtau
+		# new.data[0,:,:,:] = self.data[indx,indy]
+		# new.logtau = self.logtau
+		# new.shape = new.data.shape
 
-		for parameter in self.nodes:
-			new.nodes[parameter] = self.nodes[parameter]
-			new.values[parameter] = self.values[parameter][indx,indy]
-			# nnodes = len(self.nodes[parameter])
-			# new.nodes[parameter] = np.zeros((1,1,nnodes))
-			# new.nodes[parameter][0,0] = self.nodes[parameter]
-			# new.values[parameter] = np.zeros((1,1,nnodes))
-			# new.values[parameter][0,0] = self.values[parameter][idx,idy]
-			# new.parameter_scale[parameter][0,0] = self.parameter_scale[parameter][idx,idy]
+		# for parameter in self.nodes:
+		# 	new.nodes[parameter] = np.atleast_1d(self.nodes[parameter])
+		# 	new.values[parameter] = np.zeros((new.nx, new.ny, len(self.nodes[parameter])))
+		# 	new.values[parameter][:,:,:] = self.values[parameter][indx,indy,:]
+		# 	# new.parameter_scale[parameter][0,0] = self.parameter_scale[parameter][idx,idy]
 
-		return new
+		# for parameter in self.global_pars:
+		# 	if parameter in ["loggf", "dlam"]:
+		# 		new.global_pars[parameter] = self.global_pars[parameter][indx,indy]
+		# 		new.line_no[parameter] = self.line_no[parameter]
+
+		# 	# if parameter in ["stray", "sl_temp", "sl_vz", "sl_vmic"]:
+		# 	# 	new.sl_atmos.global_pars[parameter] = self.global_pars[parameter][indx,indy]
+
+		# 	# if parameter in ["stray", "of", "sl_temp", "sl_vz", "sl_vmic"]:
+		# 	# 	new.sl_atmos.values[parameter] = self.values[parameter][indx,indy]
+
+		for key in keys:
+			if key=="data":
+				new_atmos.data[:,:,:,:] = self.data[indx, indy]
+				new_atmos.shape = new_atmos.data.shape
+				new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
+				new_atmos.logtau = self.logtau
+				# print(self.height.shape, new_atmos.height.shape)
+				# new_atmos.height = self.height[indx, indy]
+				idx, idy = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny), indexing="ij")
+				new_atmos.idx_meshgrid = idx.ravel(order="C")
+				new_atmos.idy_meshgrid = idy.ravel(order="C")
+				new_atmos.n_local_pars = 0
+				for parameter in self.nodes:
+					new_atmos.nodes[parameter] = self.nodes[parameter]
+					new_atmos.values[parameter] = np.empty((new_atmos.nx, new_atmos.ny, len(self.nodes[parameter])))
+					new_atmos.values[parameter][:,:,:] = self.values[parameter][indx, indy]
+					# not applicable to the 2nd atmospheric component
+					try:
+						new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.nodes[parameter])))
+						new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
+					except:
+						pass
+					new_atmos.n_local_pars += len(self.nodes[parameter])
+				if "stray" in self.nodes:
+					self.stray_light = self.values[parameter]
+			elif key in ["global_pars"]:
+				for parameter in ["loggf", "dlam"]:
+					if len(self.line_no[parameter])==0:
+						continue
+					new_atmos.global_pars[parameter] = np.empty((new_atmos.nx, new_atmos.ny, self.global_pars[parameter].shape[-1]))
+					new_atmos.global_pars[parameter][:,:,:] = self.global_pars[parameter][indx,indy,:]
+			elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
+				pass
+			elif key in ["idx_meshgrid", "idy_meshgrid"]:
+				pass
+			elif key in ["nodes", "values"]:
+				pass
+			elif key=="rho":
+				new_atmos.rho = np.empty((new_atmos.nx, new_atmos.ny, new_atmos.nz))
+				new_atmos.rho[:,:,:] = self.rho[indx,indy]
+			elif key=="pg":
+				new_atmos.pg = np.empty((new_atmos.nx, new_atmos.ny, new_atmos.nz))
+				new_atmos.pg[:,:,:] = self.pg[indx,indy]
+			elif key=="nHtot":
+				new_atmos.nHtot = np.empty((new_atmos.nx, new_atmos.ny, new_atmos.nz))
+				new_atmos.nHtot[:,:,:] = self.nHtot[indx,indy]
+			elif key=="stray_light":
+				new_atmos.stray_light = np.empty((new_atmos.nx, new_atmos.ny, 1))
+				new_atmos.stray_light[:,:,:] = self.stray_light[indx,indy]
+			elif key in ["rank", "size", "use_mpi"]:
+				pass
+			else:
+				setattr(new_atmos, key, dic[key])
+
+		if new_atmos.sl_atmos is not None:
+			new_atmos.sl_atmos = self.sl_atmos.get_atmos(indx, indy)
+
+		return new_atmos
 
 	def prepare_build_from_nodes_arguments(self, parameters):
 		Natmos = self.nx*self.ny
