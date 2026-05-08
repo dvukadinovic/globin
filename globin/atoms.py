@@ -276,8 +276,8 @@ def read_RLK_lines(fpath):
         Jlow = float(line[35:40])
         Jup = float(line[63:68])
         Grad = float(line[81:86])
-        config_low = line[42:54].rstrip(" ")
-        config_up = line[70:81].rstrip(" ")
+        config_low = line[41:53].rstrip(" ")
+        config_up = line[69:80].rstrip(" ")
 
         l_low = -1
         l_up = -1
