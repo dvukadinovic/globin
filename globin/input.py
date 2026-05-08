@@ -1455,6 +1455,64 @@ class RF(object):
 		if fpath is not None:
 			self.read(fpath)
 
+	def __sub__(self, other):
+		if self.rf_local is not None and other.rf_local is not None:
+			if self.rf_local.shape!=other.rf_local.shape:
+				raise ValueError("RFs have different shapes, cannot be subtracted.")
+			rf_local = self.rf_local - other.rf_local
+		else:
+			rf_local = None
+
+		if self.rf_global is not None and other.rf_global is not None:
+			if self.rf_global.shape!=other.rf_global.shape:
+				raise ValueError("RFs have different shapes, cannot be subtracted.")
+			rf_global = self.rf_global - other.rf_global
+		else:
+			rf_global = None
+
+		result = RF()
+		result.rf_local = rf_local
+		result.local_pars = self.local_pars
+
+		result.rf_global = rf_global
+		result.global_pars = self.global_pars
+
+		result.normed_spec = self.normed_spec
+		result.spectrum = self.spectrum
+		result.wavelength = self.wavelength
+		result.logtau = self.logtau
+
+		return result
+	
+	def __truediv__(self, other):
+		if self.rf_local is not None and other.rf_local is not None:
+			if self.rf_local.shape!=other.rf_local.shape:
+				raise ValueError("RFs have different shapes, cannot be divided.")
+			rf_local = self.rf_local / other.rf_local
+		else:
+			rf_local = None
+
+		if self.rf_global is not None and other.rf_global is not None:
+			if self.rf_global.shape!=other.rf_global.shape:
+				raise ValueError("RFs have different shapes, cannot be divided.")
+			rf_global = self.rf_global / other.rf_global
+		else:
+			rf_global = None
+
+		result = RF()
+		result.rf_local = rf_local
+		result.local_pars = self.local_pars
+
+		result.rf_global = rf_global
+		result.global_pars = self.global_pars
+
+		result.normed_spec = self.normed_spec
+		result.spectrum = self.spectrum
+		result.wavelength = self.wavelength
+		result.logtau = self.logtau
+
+		return result
+
 	def read(self, fpath):
 		hdulist = fits.open(fpath)
 		nheaders = len(hdulist)
