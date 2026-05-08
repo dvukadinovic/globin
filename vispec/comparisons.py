@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.stats import pearsonr
+from scipy.stats import pearsonr, spearmanr
 
 from .tools import add_colorbar
 from .tools import MidpointNormalizeFair
@@ -112,7 +112,8 @@ def scatter_plots(atm1, atm2, parameters=["temp"], weight=None, labels=["referen
                     yerr = None
 
             if statistics:
-                R = pearsonr(x, y)
+                # R = pearsonr(x, y)
+                R = spearmanr(x, y)
                 # par, cov = curve_fit(lin, x, y, p0=[1,0])
                 t = ax.text(0.95, 0.05, r"$R={:3.2f}$".format(R.statistic),
                         fontsize="x-small", 
