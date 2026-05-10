@@ -495,7 +495,9 @@ class InputData(object):
 			# read node parameters from .input file
 			for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:
 				self.read_node_parameters(parameter)
-				self.read_node_values_limits(parameter)
+				
+		for parameter in ["temp", "vz", "vmic", "mag", "gamma", "chi"]:		
+			self.read_node_values_limits(parameter)
 
 		#--- check for spatial regularization of atmospheric parameters
 		tmp = _find_value_by_key("spatial_regularization_weight", self.parameters_input, "optional")
