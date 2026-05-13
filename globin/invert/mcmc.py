@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 from time import time
 
 import globin
+from ..parallel_methods import _build_from_nodes
+from ..constants import LIGHT_SPEED
 
 RNG = np.random.default_rng()
 scales = {"temp"  : 1,			# [K]
@@ -147,11 +149,13 @@ def lnlike(obs, atmos, pool):
 	if pool is None:
 		if not atmos.skip_local_pars:
 			params = list(atmos.nodes.keys())
+			args = atmos.prepare_build_from_nodes_arguments(params)
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
-					args = atmos, 1, idx, idy, params
-					result = atmos._build_from_nodes(args)
-					atmos.data[idx,idy] = result
+					ida = idx*atmos.ny + idy
+					result = _build_from_nodes(args[ida])
+					for idp in range(len(params)):
+						atmos.data[idx,idy,atmos.par_id[params[idp]]] = result[idp]
 
 		spec = sequential_synthesize(atmos)
 	else:
