@@ -862,6 +862,8 @@ class Atmosphere(object):
 
 		na = self.nx*self.ny
 
+		print(self.height[0,0])
+
 		atmosphere_list = [None]*na
 
 		for idx in range(self.nx):
@@ -873,7 +875,8 @@ class Atmosphere(object):
 						new_atmos.shape = new_atmos.data.shape
 						new_atmos.nx, new_atmos.ny, _, new_atmos.nz = new_atmos.data.shape
 						new_atmos.logtau = np.copy(self.logtau[:])
-						new_atmos.height = np.copy(self.height[idx,idy,:])
+						# new_atmos.height = np.copy(self.height[idx,idy,:])
+						new_atmos.height = np.zeros((1,1,self.nz), dtype=np.float64)
 						xrange, yrange = np.meshgrid(np.arange(new_atmos.nx), np.arange(new_atmos.ny), indexing="ij")
 						new_atmos.idx_meshgrid = xrange.ravel()
 						new_atmos.idy_meshgrid = yrange.ravel()
