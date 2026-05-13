@@ -95,7 +95,9 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 
 		tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
 
-		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f}")
+		Neff = sampler.iteration / np.mean(tau)
+
+		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
 
 		# check convergence
 		# converged = np.all(tau * 100 < sampler.iteration)
