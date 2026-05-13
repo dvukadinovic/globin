@@ -212,9 +212,12 @@ def log_prob(theta, obs, atmos, pool):
 			low = up
 			up += npars
 			if parameter in ["loggf", "dlam"]:
-				atmos.global_pars[parameter][:,:] = theta[low:up]
+				correction = theta[low:up]
+				if parameter=="dlam":
+					correction *= np.mean(atmos.wavelength_obs*1e4)/(LIGHT_SPEED/1e3) # [mA] -> [km/s]
+				atmos.global_pars[parameter][:,:] = correction
 				if atmos.sl_atmos is not None:
-					atmos.sl_atmos.global_pars[parameter][0,0] = theta[low:up]
+					atmos.sl_atmos.global_pars[parameter][0,0] = correction
 			if parameter=="stray":
 				atmos.global_pars[parameter] = theta[low:up]
 
@@ -416,6 +419,8 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 								scale=scales[parameter],
 								size=(nwalkers,npars))
 			p0[:, low:up] = proposal
+			if parameter=="dlam":
+				p0[:, low:up] *= LIGHT_SPEED/1e3 / np.mean(atmos.wavelength_obs*1e4) # [mA] -> [km/s]
 
 	return p0
 
