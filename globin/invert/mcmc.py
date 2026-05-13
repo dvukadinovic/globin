@@ -23,6 +23,21 @@ scales = {"temp"  : 1,			# [K]
 		  "loggf" : 0.001,		#
 		  "dlam"  : 0.1}		#
 
+scales = {"temp"  : 50,			# [K]
+		  "vz"    : 0.1,		# [km/s]
+		  "vmic"  : 0.1,		# [km/s]
+		  "mag"   : 50,			# [G]
+		  "gamma" : 1,#1e-2*np.pi/360,	# [rad]
+		  "chi"   : 1,#1e-2*np.pi/360,	# [rad]
+		  "of"    : 1e-3,		# 
+		  "stray" : 1e-3,		#
+		  "sl_vz" : 1e-3,       # [km/s]
+		  "sl_vmic": 1e-3,      # [km/s]
+		  "vmac"  : 0.2,		# [km/s]
+		  "loggf" : 0.043,		#
+		  "dlam"  : 1}			#
+
+
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
