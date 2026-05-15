@@ -8,7 +8,7 @@ import globin
 from ..parallel_methods import _build_from_nodes, _makeHSE
 from ..constants import LIGHT_SPEED
 
-RNG = np.random.default_rn
+RNG = np.random.default_rng()
 scales = {"temp"  : 1,			# [K]
 		  "vz"    : 1e-3,		# [km/s]
 		  "vmic"  : 1e-3,		# [km/s]
