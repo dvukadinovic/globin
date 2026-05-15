@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 from time import time
 
 import globin
-from ..parallel_methods import _build_from_nodes
+from ..parallel_methods import _build_from_nodes, _makeHSE
 from ..constants import LIGHT_SPEED
 
-RNG = np.random.default_rng()
+RNG = np.random.default_rn
 scales = {"temp"  : 1,			# [K]
 		  "vz"    : 1e-3,		# [km/s]
 		  "vmic"  : 1e-3,		# [km/s]
@@ -93,6 +93,11 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		if sampler.iteration%progress_frequency:
 			continue
 
+		# plt.close()
+		# globin.plot_spectra(obs.spec[0,0], np.arange(obs.nw), 
+		# 			  inv=atmos.spectrum.spec[0,0])
+		# globin.show()
+
 		tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
 
 		Neff = sampler.iteration / np.mean(tau)
@@ -167,19 +172,25 @@ def lnlike(obs, atmos, pool):
 		if not atmos.skip_local_pars:
 			params = list(atmos.nodes.keys())
 			args = atmos.prepare_build_from_nodes_arguments(params)
+			if "temp" in params:
+				args_HSE = atmos.prepare_HSE_arguments()
 			for idx in range(atmos.nx):
 				for idy in range(atmos.ny):
 					ida = idx*atmos.ny + idy
 					result = _build_from_nodes(args[ida])
 					for idp in range(len(params)):
 						atmos.data[idx,idy,atmos.par_id[params[idp]]] = result[idp]
+					if "temp" in params:
+						ne, nH = _makeHSE(args_HSE[ida])
+						atmos.data[idx,idy,atmos.par_id["ne"]] = ne
+						atmos.data[idx,idy,atmos.par_id["nHtot"]] = nH
 
 		spec = sequential_synthesize(atmos)
 	else:
-		spec = mpi_synthesize(obs, atmos, pool)
+		spec = mpi_synthesize(atmos, pool)
 
-	# plt.plot(obs.wavelength, obs.I[0,0])
-	# plt.plot(spec.wavelength, spec.I[0,0])
+	# plt.plot(obs.I[0,0])
+	# plt.plot(spec.I[0,0])
 	# plt.show()
 
 	diff = obs.spec - spec.spec
@@ -215,8 +226,9 @@ def log_prob(theta, obs, atmos, pool):
 			up += npars
 			if parameter in ["loggf", "dlam"]:
 				correction = theta[low:up]
-				if parameter=="dlam":
-					correction *= np.mean(atmos.wavelength_obs*1e4)/(LIGHT_SPEED/1e3) # [mA] -> [km/s]
+				# if parameter=="dlam":
+					# correction += 200
+				#	correction *= np.mean(atmos.wavelength_obs*1e4)/(LIGHT_SPEED/1e3) # [mA] -> [km/s]
 				atmos.global_pars[parameter][:,:] = correction
 				if atmos.sl_atmos is not None:
 					atmos.sl_atmos.global_pars[parameter][0,0] = correction
@@ -234,6 +246,10 @@ def log_prob(theta, obs, atmos, pool):
 	if not np.isfinite(lp):
 		return -np.inf
 	
+	# globin.plot_spectra(obs.spec[0,0], np.arange(obs.nw), 
+	# 			  inv=atmos.spectrum.spec[0,0])
+	# globin.show()
+
 	# get back values into the atmosphere structure
 	if not atmos.skip_global_pars:
 		if "vmac" in atmos.global_pars:
@@ -321,54 +337,15 @@ def sequential_synthesize(atmos):
 
 	return atmos.spectrum
 
-def mpi_synthesize(obs, atmos, pool):
+def mpi_synthesize(atmos, pool):
 	atmos.build_from_nodes(pool=pool)
+	atmos.makeHSE(pool=pool)
 	
 	atmos.compute_spectra(pool=pool)
 	if atmos.sl_atmos is not None:
 		atmos.sl_atmos.compute_spectra(pool=pool)
 
-	atmos.spectrum.broaden_spectra(atmos.vmac, pool=pool)
-	if atmos.sl_atmos is not None:
-		atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, pool=pool)
-
-	#--- add instrument broadening (if applicable)
-	if atmos.instrumental_profile is not None:
-		atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
-		if atmos.sl_atmos is not None:
-			atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, pool=pool)
-
-	#--- add the stray light component:
-	if atmos.add_stray_light:
-		# get the stray light factor(s)
-		if "stray" in atmos.global_pars:
-			stray_light = atmos.global_pars["stray"]
-			stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
-		elif "stray" in atmos.values:
-			stray_light = atmos.values["stray"]
-		else:
-			stray_light = atmos.stray_light
-
-		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		sl_spectrum = None
-		if atmos.stray_type=="hsra":
-			sl_spectrum = atmos.hsra_spec.spec
-		if atmos.stray_type=="2nd_component":
-			sl_spectrum = atmos.sl_atmos.spectrum.spec
-		if atmos.stray_type in ["atmos", "spec"]:
-			sl_spectrum = atmos.stray_light_spectrum.spec
-
-		atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum)
-
-	#--- norm spectra
-	if atmos.norm:
-		if atmos.norm_level==1:
-			Ic = atmos.spectrum.I[...,atmos.continuum_idl]
-			atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
-		elif atmos.norm_level=="hsra":
-			atmos.spectrum.spec /= atmos.icont
-		else:
-			atmos.spectrum.spec /= atmos.norm_level
+	atmos.degrade_spectra(pool=pool)
 
 	return atmos.spectrum
 
@@ -421,8 +398,8 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 								scale=scales[parameter],
 								size=(nwalkers,npars))
 			p0[:, low:up] = proposal
-			if parameter=="dlam":
-				p0[:, low:up] *= LIGHT_SPEED/1e3 / np.mean(atmos.wavelength_obs*1e4) # [mA] -> [km/s]
+			#if parameter=="dlam":
+			#	p0[:, low:up] *= LIGHT_SPEED/1e3 / np.mean(atmos.wavelength_obs*1e4) # [mA] -> [km/s]
 
 	return p0
 
