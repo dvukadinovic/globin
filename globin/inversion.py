@@ -15,6 +15,8 @@ import emcee
 
 from tqdm import tqdm, trange
 
+from globin import atmos
+
 from .spec import Spectrum, get_noise_level
 from .input import InputData
 from .chi2 import Chi2, compute_chi2
@@ -764,7 +766,7 @@ class Inverter(InputData):
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
 				#               spec.shape = (nx, ny, Nw, 5)
 				spec = atmos.compute_rfs(rf_noise_scale=rf_noise_stokes, weights=self.weights, synthesize=ones, mean=self.mean, pool=pool)
-
+				
 				if atmos.spatial_regularization:
 					Gamma = atmos.get_regularization_gamma()
 					# Gamma *= np.sqrt(reg_weight)
@@ -878,7 +880,7 @@ class Inverter(InputData):
 			#--- update and check boundaries for new parameter values
 			atmos.update_parameters(proposed_steps)
 			atmos.check_parameter_bounds(self.mode)
-
+			
 			#--- set OF data (if we are inverting for them)
 			if atmos.add_fudge:
 				atmos.make_OF_table()
@@ -895,62 +897,11 @@ class Inverter(InputData):
 					flag = None
 				atmos.sl_atmos.compute_spectra(flag, pool=pool)
 
-			# broaden the corrected spectra by macro velocity
-			if not self.mean:
-				atmos.spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
-				if atmos.sl_atmos is not None:
-					flag = ones
-					if atmos.stray_mode==3:
-						flag = None
-					atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
+			atmos.degrade_spectra(pool=pool)
 			
-			# convolve profiles with instrumental profile
-			if atmos.instrumental_profile is not None:
-				atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
-				if atmos.sl_atmos is not None:
-					flag = ones
-					if atmos.stray_mode==3:
-						flag = None
-					atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
-
-			# add the stray light component:
-			if atmos.add_stray_light:
-				# get the stray light factor(s)
-				if "stray" in atmos.global_pars:
-					stray_light = atmos.global_pars["stray"]
-					stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
-				elif "stray" in atmos.values:
-					stray_light = atmos.values["stray"]
-				else:
-					stray_light = atmos.stray_light
-
-				# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-				sl_spectrum = None
-				if atmos.stray_type=="hsra":
-					sl_spectrum = atmos.hsra_spec.spec
-				if atmos.stray_type=="2nd_component":
-					sl_spectrum = atmos.sl_atmos.spectrum.spec
-					if atmos.stray_mode==3:
-						sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
-						sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
-				if atmos.stray_type in ["atmos", "spec"]:
-					sl_spectrum = atmos.stray_light_spectrum.spec
-
-				atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
-
-			if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-				atmos.spectrum.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
-
-			if atmos.norm:
-				if atmos.norm_level==1:
-					Ic = atmos.spectrum.I[...,atmos.continuum_idl]
-					atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
-				elif atmos.norm_level=="hsra":
-					atmos.spectrum.spec /= atmos.icont
-				else:
-					atmos.spectrum.spec /= atmos.norm_level
-			
-			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, inv=[spec[0,0], atmos.spectrum.spec[0,0]])
+			# globin.visualize.plot_spectra(obs.spec[0,0], obs.wavelength, 
+			# 					 inv=[spec[0,0], atmos.spectrum.spec[0,0]],
+			# 					 labels=["obs", "old", "new"])
 			# globin.show()
 
 			#--- compute new chi2 value
@@ -1063,60 +1014,8 @@ class Inverter(InputData):
 			if atmos.stray_mode==3:
 				flag = None
 			atmos.sl_atmos.compute_spectra(flag, pool=pool)
-		
-		if not self.mean:
-			atmos.spectrum.broaden_spectra(atmos.vmac, ones, self.n_thread, pool=pool)
-			if atmos.sl_atmos is not None:
-				flag = ones
-				if atmos.stray_mode==3:
-					flag = None
-				atmos.sl_atmos.spectrum.broaden_spectra(atmos.vmac, flag, self.n_thread, pool=pool)
-	
-		if atmos.instrumental_profile is not None:
-			atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=ones, n_thread=self.n_thread, pool=pool)
-			if atmos.sl_atmos is not None:
-				flag = ones
-				if atmos.stray_mode==3:
-					flag = None
-				atmos.sl_atmos.spectrum.instrumental_broadening(kernel=atmos.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
+		atmos.degrade_spectra(pool=pool)
 
-		if atmos.add_stray_light:
-			# get the stray light factor(s)
-			if "stray" in atmos.global_pars:
-				stray_light = atmos.global_pars["stray"]
-				stray_light = np.ones((atmos.nx, atmos.ny, 1)) * stray_light
-			elif "stray" in atmos.values:
-				stray_light = atmos.values["stray"]
-			else:
-				stray_light = atmos.stray_light
-
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			sl_spectrum = None
-			if atmos.stray_type=="hsra":
-				sl_spectrum = atmos.hsra_spec.spec
-			if atmos.stray_type=="2nd_component":
-				sl_spectrum = atmos.sl_atmos.spectrum.spec
-				if atmos.stray_mode==3:
-					sl_spectrum = np.repeat(sl_spectrum, atmos.nx, axis=0)
-					sl_spectrum = np.repeat(sl_spectrum, atmos.ny, axis=1)
-			if atmos.stray_type in ["atmos", "spec"]:
-				sl_spectrum = atmos.stray_light_spectrum.spec
-
-			atmos.spectrum.add_stray_light(atmos.stray_mode, atmos.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=ones)
-
-		if not np.array_equal(atmos.wavelength_obs, atmos.wavelength_air):
-			atmos.spectrum.interpolate(atmos.wavelength_obs, self.n_thread, pool=pool)
-
-		if atmos.norm:
-			if atmos.norm_level==1:
-				Ic = atmos.spectrum.I[...,atmos.continuum_idl]
-				atmos.spectrum.spec = np.einsum("ij...,ij->ij...", atmos.spectrum.spec, 1/Ic)
-			elif atmos.norm_level=="hsra":
-				atmos.spectrum.spec /= atmos.icont
-			else:
-				atmos.spectrum.spec /= atmos.norm_level
-
-		# try:
 		# 	# remove parameter normalization factor from Hessian
 		# 	parameter_norms = []
 		# 	for parameter in atmos.nodes:
@@ -1401,51 +1300,9 @@ def invert_single_pixel(args):
 		atmosphere.compute_spectra(stop_flag, pool=pool)
 		if atmosphere.sl_atmos is not None:
 			atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
+
+		atmosphere.degrade_spectra(pool=pool)
 		
-		if not inverter.mean:
-			atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
-			if atmosphere.sl_atmos is not None:
-				atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
-
-		if atmosphere.instrumental_profile is not None:
-			atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
-			if atmosphere.sl_atmos is not None:
-				atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
-
-		#--- add the stray light component:
-		if atmosphere.add_stray_light:
-			# get the stray light factor(s)
-			if "stray" in atmosphere.global_pars:
-				stray_light = atmosphere.global_pars["stray"]
-				stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
-			elif "stray" in atmosphere.values:
-				stray_light = atmosphere.values["stray"]
-			else:
-				stray_light = atmosphere.stray_light
-
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			sl_spectrum = None
-			if atmosphere.stray_type=="hsra":
-				sl_spectrum = atmosphere.hsra_spec.spec
-			if atmosphere.stray_type=="2nd_component":
-				sl_spectrum = atmosphere.sl_atmos.spectrum.spec
-			if atmosphere.stray_type in ["atmos", "spec"]:
-				sl_spectrum = atmosphere.stray_light_spectrum.spec
-
-			atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
-
-		if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
-			atmosphere.spectrum.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
-
-		if atmosphere.norm:
-			if atmosphere.norm_level==1:
-				Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
-				atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
-			elif atmosphere.norm_level=="hsra":
-				atmosphere.spectrum.spec /= atmosphere.icont
-			else:
-				atmosphere.spectrum.spec /= atmosphere.norm_level
-
 		# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[atmosphere.spectrum.spec[0,0]], labels=["obs", "new"])
 		# globin.show()
 
@@ -1510,52 +1367,7 @@ def invert_single_pixel(args):
 	if atmosphere.sl_atmos is not None:
 		atmosphere.sl_atmos.compute_spectra(stop_flag, pool=pool)
 
-	if not inverter.mean:
-		atmosphere.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
-		if atmosphere.sl_atmos is not None:
-			atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, stop_flag, inverter.n_thread, pool=pool)
-	
-	if atmosphere.instrumental_profile is not None:
-		atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
-		if atmosphere.sl_atmos is not None:
-			atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, flag=stop_flag, n_thread=inverter.n_thread, pool=pool)
-
-	#--- add the stray light component:
-	if atmosphere.add_stray_light:
-		# get the stray light factor(s)
-		if "stray" in atmosphere.global_pars:
-			stray_light = atmosphere.global_pars["stray"]
-			stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
-		elif "stray" in atmosphere.values:
-			stray_light = atmosphere.values["stray"]
-		else:
-			stray_light = atmosphere.stray_light
-
-		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		sl_spectrum = None
-		if atmosphere.stray_type=="hsra":
-			sl_spectrum = atmosphere.hsra_spec.spec
-		if atmosphere.stray_type=="2nd_component":
-			sl_spectrum = atmosphere.sl_atmos.spectrum.spec
-		if atmosphere.stray_type in ["atmos", "spec"]:
-			sl_spectrum = atmosphere.stray_light_spectrum.spec
-
-		atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=stop_flag)
-
-	if not np.array_equal(atmosphere.wavelength_obs, atmosphere.wavelength_air):
-		atmosphere.spectrum.interpolate(atmosphere.wavelength_obs, inverter.n_thread, pool=pool)
-
-	if atmosphere.norm:
-		if atmosphere.norm_level==1:
-			Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
-			atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
-		elif atmosphere.norm_level=="hsra":
-			atmosphere.spectrum.spec /= atmosphere.icont
-		else:
-			atmosphere.spectrum.spec /= atmosphere.norm_level
-
-	# globin.visualize.plot_spectra(observation.spec[0,0], observation.wavelength, inv=[atmosphere.spectrum.spec[0,0]], labels=["obs", "new"])
-	# globin.show()
+	atmosphere.degrade_spectra(pool=pool)
 
 	# try:
 	# 	# remove parameter normalization factor from Hessian
@@ -1916,48 +1728,7 @@ def synthesize(atmosphere, n_thread=1, pool=None, noise_level=0):
 	if atmosphere.sl_atmos is not None:
 		atmosphere.sl_atmos.compute_spectra(pool=pool)
 
-	#--- add macro-turbulent broadening
-	atmosphere.spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
-	if atmosphere.sl_atmos is not None:
-		atmosphere.sl_atmos.spectrum.broaden_spectra(atmosphere.vmac, n_thread=n_thread, pool=pool)
-
-	#--- add instrument broadening (if applicable)
-	if atmosphere.instrumental_profile is not None:
-		atmosphere.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
-		if atmosphere.sl_atmos is not None:
-			atmosphere.sl_atmos.spectrum.instrumental_broadening(kernel=atmosphere.instrumental_profile, n_thread=n_thread, pool=pool)
-
-	#--- add the stray light component:
-	if atmosphere.add_stray_light:
-		# get the stray light factor(s)
-		if "stray" in atmosphere.global_pars:
-			stray_light = atmosphere.global_pars["stray"]
-			stray_light = np.ones((atmosphere.nx, atmosphere.ny, 1)) * stray_light
-		elif "stray" in atmosphere.values:
-			stray_light = atmosphere.values["stray"]
-		else:
-			stray_light = atmosphere.stray_light
-
-		# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-		sl_spectrum = None
-		if atmosphere.stray_type=="hsra":
-			sl_spectrum = atmosphere.hsra_spec.spec
-		if atmosphere.stray_type=="2nd_component":
-			sl_spectrum = atmosphere.sl_atmos.spectrum.spec
-		if atmosphere.stray_type in ["atmos", "spec"]:
-			sl_spectrum = atmosphere.stray_light_spectrum.spec
-
-		atmosphere.spectrum.add_stray_light(atmosphere.stray_mode, atmosphere.stray_type, stray_light, sl_spectrum=sl_spectrum)
-
-	#--- norm spectra
-	if atmosphere.norm:
-		if atmosphere.norm_level==1:
-			Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
-			atmosphere.spectrum.spec = np.einsum("ij...,ij->ij...", atmosphere.spectrum.spec, 1/Ic)
-		elif atmosphere.norm_level=="hsra":
-			atmosphere.spectrum.spec /= atmosphere.icont
-		else:
-			atmosphere.spectrum.spec /= atmosphere.norm_level
+	atmosphere.degrade_spectra(pool=pool)
 
 	atmosphere.spectrum.Ic = atmosphere.spectrum.I[...,atmosphere.continuum_idl]
 

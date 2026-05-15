@@ -862,8 +862,6 @@ class Atmosphere(object):
 
 		na = self.nx*self.ny
 
-		print(self.height[0,0])
-
 		atmosphere_list = [None]*na
 
 		for idx in range(self.nx):
@@ -2194,7 +2192,6 @@ class Atmosphere(object):
 		
 		self.spectrum.wavelength = self.wavelength_air
 		self.spectrum.spec[self.idx_meshgrid,self.idy_meshgrid] = results[...,0]
-		
 		if get_atomic_rfs:
 			start = 1
 			end = start + self.global_pars["loggf"].shape[-1]
@@ -2222,6 +2219,65 @@ class Atmosphere(object):
 				self.nstar_pops[element] = self.nstar_pops[element].reshape(self.nx, self.ny, Nlevel, self.nz)
 
 		return np.copy(self.spectrum.spec)
+
+	def degrade_spectra(self, pool):
+		synthesize = None
+
+		#--- macro-turbulent broadening of the spectra
+		self.spectrum.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
+		if self.sl_atmos is not None:
+			flag = synthesize
+			if self.stray_mode==3:
+				flag = None
+			self.sl_atmos.spectrum.broaden_spectra(self.vmac, flag, self.n_thread, pool=pool)
+		
+		#--- add instrumental broadening
+		if self.instrumental_profile is not None:
+			self.spectrum.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
+
+			if self.sl_atmos is not None:
+				flag = synthesize
+				if self.stray_mode==3:
+					flag = None
+				self.sl_atmos.spectrum.instrumental_broadening(kernel=self.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
+
+		#--- add the stray light component:
+		if self.add_stray_light:
+			# get the stray light factor(s)
+			if "stray" in self.global_pars:
+				stray_light = self.global_pars["stray"]
+				stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
+			elif "stray" in self.values:
+					stray_light = self.values["stray"]
+			else:
+				stray_light = self.stray_light
+
+			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
+			sl_spectrum = None
+			if self.stray_type=="hsra":
+				sl_spectrum = self.hsra_spec.spec
+			if self.stray_type=="2nd_component":
+				sl_spectrum = self.sl_atmos.spectrum.spec
+				if self.stray_mode==3:
+					sl_spectrum = np.repeat(sl_spectrum, self.nx, axis=0)
+					sl_spectrum = np.repeat(sl_spectrum, self.ny, axis=1)
+			if self.stray_type in ["atmos", "spec"]:
+				sl_spectrum = self.stray_light_spectrum.spec
+
+			self.spectrum.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
+			
+		#--- downsample the synthetic spectrum to observed wavelength grid
+		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
+			self.spectrum.interpolate(self.wavelength_obs, self.n_thread, pool=pool)
+
+		if self.norm:
+			if self.norm_level==1:
+				Ic = self.spectrum.I[...,self.continuum_idl]
+				self.spectrum.spec = np.einsum("ij...,ij->ij...", self.spectrum.spec, 1/Ic)
+			elif self.norm_level=="hsra":
+				self.spectrum.spec /= self.icont
+			else:
+				self.spectrum.spec /= self.norm_level
 
 	def compute_rfs(self, rf_noise_scale, weights=1, synthesize=None, rf_type="node", mean=False, old_rf=None, old_pars=None, pool=None):
 		"""
@@ -2294,7 +2350,6 @@ class Atmosphere(object):
 				else:
 					self.build_from_nodes(synthesize, params=parameter, pool=pool)
 					self.makeHSE(synthesize, pool=pool)
-
 				if parameter in ["sl_temp", "sl_vz", "sl_vmic"]:
 					spectra_plus = self.sl_atmos.compute_spectra(synthesize, pool=pool)
 				elif parameter!="stray":
@@ -2515,30 +2570,19 @@ class Atmosphere(object):
 				else:
 					raise ValueError(f"Unsupported global parameter {parameter}")
 
-		# self.spectrum.spec[active_indx,active_indy] = np.copy(spec[active_indx,active_indy])
 		self.spectrum.spec = np.copy(spec)
 		del spec
 
+		self.degrade_spectra(pool=pool)
+
 		#--- broaden the spectra
 		if not mean:
-			self.spectrum.broaden_spectra(self.vmac, synthesize, self.n_thread, pool=pool)
-			if self.sl_atmos is not None:
-				flag = synthesize
-				if self.stray_mode==3:
-					flag = None
-				self.sl_atmos.spectrum.broaden_spectra(self.vmac, flag, self.n_thread, pool=pool)
 			if self.vmac!=0:
 				kernel = self.spectrum.get_kernel(self.vmac, order=0)
 				rf = broaden_rfs(rf, kernel, synthesize, skip_par, self.n_thread, pool=pool)
 		
 		#--- add instrumental broadening
 		if self.instrumental_profile is not None:
-			self.spectrum.instrumental_broadening(kernel=self.instrumental_profile, flag=synthesize, n_thread=self.n_thread, pool=pool)
-			if self.sl_atmos is not None:
-				flag = synthesize
-				if self.stray_mode==3:
-					flag = None
-				self.sl_atmos.spectrum.instrumental_broadening(kernel=self.instrumental_profile, flag=flag, n_thread=self.n_thread, pool=pool)
 			rf = broaden_rfs(rf, self.instrumental_profile, synthesize, -1, self.n_thread, pool=pool)
 
 		#--- add the stray light component:
@@ -2551,20 +2595,6 @@ class Atmosphere(object):
 					stray_light = self.values["stray"]
 			else:
 				stray_light = self.stray_light
-
-			# check for HSRA spectrum if we are using the 'hsra' stray light contamination
-			sl_spectrum = None
-			if self.stray_type=="hsra":
-				sl_spectrum = self.hsra_spec.spec
-			if self.stray_type=="2nd_component":
-				sl_spectrum = self.sl_atmos.spectrum.spec
-				if self.stray_mode==3:
-					sl_spectrum = np.repeat(sl_spectrum, self.nx, axis=0)
-					sl_spectrum = np.repeat(sl_spectrum, self.ny, axis=1)
-			if self.stray_type in ["atmos", "spec"]:
-				sl_spectrum = self.stray_light_spectrum.spec
-
-			self.spectrum.add_stray_light(self.stray_mode, self.stray_type, stray_light, sl_spectrum=sl_spectrum, flag=synthesize)
 
 			# skip adding the stray light to the RF for stray light
 			for idp in range(Npar):
@@ -2582,19 +2612,15 @@ class Atmosphere(object):
 
 		#--- downsample the synthetic spectrum to observed wavelength grid
 		if not np.array_equal(self.wavelength_obs, self.wavelength_air):
-			self.spectrum.interpolate(self.wavelength_obs, self.n_thread, pool=pool)
 			rf = interpolate_rf(rf, self.wavelength_air, self.wavelength_obs, self.n_thread, pool=pool)
 
 		if self.norm:
 			if self.norm_level==1:
 				Ic = self.spectrum.I[...,self.continuum_idl]
-				self.spectrum.spec = np.einsum("ij...,ij->ij...", self.spectrum.spec, 1/Ic)
 				rf = np.einsum("ij...,ij->ij...", rf, 1/Ic)
 			elif self.norm_level=="hsra":
-				self.spectrum.spec /= self.icont
 				rf /= self.icont
 			else:
-				self.spectrum.spec /= self.norm_level
 				rf /= self.norm_level
 
 		# update the RFs for those pixels that have updated parameters
