@@ -17,6 +17,8 @@ def _makeHSE(args):
     """
     global_pars, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg = args
 
+    pg0 = 10
+
     pyrh.hse(cwd=global_pars["cwd"], 
             atm_scale=global_pars["atm_scale"],
             scale=scale,
@@ -25,8 +27,8 @@ def _makeHSE(args):
             nHtot=nHtot,
             rho=rho,
             pg=pg,
-            # pg_top=100,
-            pg_top=pg[0]/10,
+            pg_top=pg0,
+            # pg_top=pg[0]/10,
             fudge_wave=fudge_lam, 
             fudge_value=fudge_value,
             atomic_number=global_pars["atomic_number"], 
