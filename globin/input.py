@@ -91,7 +91,6 @@ class InputData(object):
 		line_list = _find_value_by_key("line_list", self.parameters_input, "required")
 		globin.rh.create_kurucz_input(line_list, f"{self.cwd}/kurucz.input")
 
-
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
@@ -110,8 +109,11 @@ class InputData(object):
 		logtau_bot = _find_value_by_key("logtau_bot", self.parameters_input, "default", 1, conversion=float)
 		logtau_step = _find_value_by_key("logtau_step", self.parameters_input, "default", 0.1, conversion=float)
 		
-		# assumed noise for the synthetic spectrum/observations
-		self.noise = _find_value_by_key("noise", self.parameters_input, "default", 1e-3, conversion=float)
+		# noise level in observations
+		if self.mode!=0:
+			self.noise = _find_value_by_key("noise", self.parameters_input, "default", 1e-3, conversion=float)
+		else:
+			self.noise = _find_value_by_key("noise", self.parameters_input, "default", 0, conversion=float)
 
 		# type of the input atmosphere ('{reference, cube}_atmosphere')
 		atm_type = _find_value_by_key("atm_type", self.parameters_input, "default", "multi", conversion=str)
