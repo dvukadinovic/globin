@@ -93,7 +93,6 @@ def _build_from_nodes(args):
 
     for idp, parameter in enumerate(parameters):
         # K0, Kn by default; True for vmic, mag, gamma and chi
-        # K0, Kn = None, None
         K0, Kn = 0, 0
 
         x = nodes[parameter]
@@ -108,7 +107,7 @@ def _build_from_nodes(args):
         # for 2+ number of nodes
         if parameter=="temp":
             if interpolation_method=="bezier":	
-                K0 = (y[1]-y[0]) / (x[1]-x[0])
+                # K0 = (y[1]-y[0]) / (x[1]-x[0])
                 # bottom node slope for extrapolation based on temperature gradient from FAL C model
                 # if Tmax<(y[0] + K0 * (logtau[0]-x[0])):
                 # 	K0 = (Tmax - y[0]) / (logtau[0] - x[0])
@@ -123,21 +122,22 @@ def _build_from_nodes(args):
             
             # check if extrapolation at the top atmosphere point goes below the minimum
             # if does, change the slope so that at top point we have Tmin (globin.limit_values["temp"][0])
-            if Tmin>(y[0] + K0 * (logtau[0]-x[0])):
-                K0 = (Tmin - y[0]) / (logtau[0] - x[0])
+            # if Tmin>(y[0] + K0 * (logtau[0]-x[0])):
+            #     K0 = (Tmin - y[0]) / (logtau[0] - x[0])
             # temperature can not go below 1900 K because the RH will not compute spectrum (dunno why)
             
         elif parameter in ["gamma", "chi"]:
-            if interpolation_method=="bezier":
-                K0 = (y[1]-y[0]) / (x[1]-x[0])
-                Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
-            if interpolation_method=="spline":
-                x, y = add_node(logtau[0], x, y, None, None)
-                K0, Kn = get_K0_Kn(x, y, tension=spline_tension)
+            pass
+            # if interpolation_method=="bezier":
+            #     K0 = (y[1]-y[0]) / (x[1]-x[0])
+            #     Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
+            # if interpolation_method=="spline":
+            #     x, y = add_node(logtau[0], x, y, None, None)
+            #     K0, Kn = get_K0_Kn(x, y, tension=spline_tension)
         
         elif parameter in ["vz", "mag", "vmic"]:
             if interpolation_method=="bezier":
-                K0 = (y[1]-y[0]) / (x[1]-x[0])
+                # K0 = (y[1]-y[0]) / (x[1]-x[0])
                 Kn = (y[-1]-y[-2]) / (x[-1]-x[-2])
             if interpolation_method=="spline":
                 x, y = add_node(logtau[0], x, y, limits[parameter].min[0], limits[parameter].max[0])
@@ -146,8 +146,8 @@ def _build_from_nodes(args):
             if parameter in ["mag", "vmic"]:
                 # check if extrapolation at the top atmosphere point goes below the minimum
                 # if does, change the slopte so that at top point we have parameter_min (globin.limit_values[parameter][0])
-                if limits[parameter].min[0]>(y[0] + K0 * (logtau[0]-x[0])):
-                    K0 = (limits[parameter].min[0] - y[0]) / (logtau[0] - x[0])
+                # if limits[parameter].min[0]>(y[0] + K0 * (logtau[0]-x[0])):
+                #     K0 = (limits[parameter].min[0] - y[0]) / (logtau[0] - x[0])
                 # if limits[parameter].max[0]<(y[0] + K0 * (logtau[0]-x[0])):
                 # 	K0 = (limits[parameter].max[0] - y[0]) / (logtau[0] - x[0])
                 # similar for the bottom for maximum/min values
@@ -156,6 +156,7 @@ def _build_from_nodes(args):
                 if limits[parameter].min[0]>(y[-1] + Kn * (logtau[-1]-x[-1])):
                     Kn = (limits[parameter].min[0] - y[-1]) / (logtau[-1] - x[-1])
 
+        K0 = 0
         if interpolation_method=="bezier":
             y_new = bezier_spline(x, y, logtau, K0=K0, Kn=Kn, degree=degree, extrapolate=True)
         if interpolation_method=="spline":
