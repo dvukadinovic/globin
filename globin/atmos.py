@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm, trange
 import multiprocessing as mp
 import scipy.sparse as sp
+import logging
 
+logger = logging.getLogger(__name__)
 __path__ = os.path.dirname(__file__)
 
 try:
@@ -2087,7 +2089,7 @@ class Atmosphere(object):
 		if self.norm and self.norm_level=="hsra":
 			self.hsra_spec.spec /= self.icont
 
-			print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[self.continuum_idl]))
+			logger.info("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[self.continuum_idl]))
 
 		if self.sl_atmos is not None:
 			self.sl_atmos.icont = self.icont

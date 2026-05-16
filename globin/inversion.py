@@ -12,8 +12,10 @@ from scipy.linalg import eigvals
 from scipy.sparse.linalg import spsolve
 from scipy.interpolate import splrep, splev
 import emcee
-
 from tqdm import tqdm, trange
+import logging
+
+logger = logging.getLogger(__name__)
 
 from globin import atmos
 
@@ -67,7 +69,7 @@ class Inverter(InputData):
 
 		# name of the folder in which we will store all synthesis/inversion results
 		self.run_name = run_name
-		
+
 		#--- read the input parameters from input files
 		self.read_input_files(globin_input_name, rh_input_name, RH_kwargs=RH_kwargs)
 
@@ -91,22 +93,29 @@ class Inverter(InputData):
 		if self.mode>=1:
 			start = time.time()
 
-			print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=NCHAR))
+			# print("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=NCHAR))
+			logger.info("\n{:{char}{align}{width}}\n".format(f" Entering inversion mode {self.mode} ", char="-", align="^", width=NCHAR))
 
 			Npar = self._get_Npar()
 			
 			for cycle in range(self.ncycle):
 				if self.ncycle>1:
-					print("="*NCHAR)
-					print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=NCHAR,))
-					print("="*NCHAR)
-					print()
+					# print("="*NCHAR)
+					# print("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=NCHAR,))
+					# print("="*NCHAR)
+					# print()
+
+					logger.info("="*NCHAR)
+					logger.info("{:{align}{width}}".format(f"Inversion cycle {cycle+1}", align="^", width=NCHAR,))
+					logger.info("="*NCHAR)
+					logger.info("\n")
 
 				max_iter = self.get_maximum_iterations_number(cycle)
 				marq_lambda = self.get_Marquardt_lamba_parameter(cycle)
 
 				if self.atmosphere.stray_type=="hsra" or self.atmosphere.norm_level=="hsra":
-					print("[Info] Computing the HSRA spectrum...")
+					# print("[Info] Computing the HSRA spectrum...")
+					logger.info("[Info] Computing the HSRA spectrum...")
 					self.atmosphere.get_hsra_cont()
 					if self.atmosphere.stray_type=="hsra":
 						self.atmosphere.hsra_spec.broaden_spectra(self.atmosphere.vmac)
@@ -185,7 +194,8 @@ class Inverter(InputData):
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')
 			end = time.time() - start
-			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+			# print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+			logger.info(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
 			# if globin.collect_stats:
 			# 	globin.statistics.save()
@@ -195,7 +205,8 @@ class Inverter(InputData):
 		elif self.mode==0:
 			start = time.time()
 			
-			print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=NCHAR))
+			# print("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=NCHAR))
+			logger.info("\n{:{char}{align}{width}}\n".format(" Entering synthesis mode ", char="-", align="^", width=NCHAR))
 
 			spectrum = synthesize(self.atmosphere, self.n_thread, pool, self.noise)
 
@@ -205,10 +216,10 @@ class Inverter(InputData):
 			t0 = datetime.now()
 			t0 = t0.isoformat(sep=' ', timespec='seconds')
 			end = time.time() - start
-			print(f"[{t0:s}] Finished in: {end:.2f}s\n")
+			logger.info(f"[{t0:s}] Finished in: {end:.2f}s\n")
 
-			print("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=NCHAR))
-			print("-"*NCHAR)
+			logger.info("\n{:{char}{align}{width}}\n".format("All done!", char="", align="^", width=NCHAR))
+			logger.info("-"*NCHAR)
 
 			# if globin.collect_stats:
 			# 	globin.statistics.save()
@@ -225,7 +236,7 @@ class Inverter(InputData):
 			Npar = self.atmosphere.n_local_pars + self.atmosphere.n_global_pars
 
 		if Npar==0:
-			print("  There are no parameters to fit.")
+			logger.info("  There are no parameters to fit.")
 			sys.exit()
 
 		return Npar
@@ -670,9 +681,9 @@ class Inverter(InputData):
 		atmos = self.atmosphere
 
 		if self.verbose:
-			print("Initial parameters:\n")
+			logger.info("Initial parameters:\n")
 			pretty_print_parameters(atmos, np.ones((atmos.nx, atmos.ny)))
-			print()
+			logger.info("\n")
 
 		Nw = len(atmos.wavelength_obs)
 		# number of total free parameters: local per pixel + global
@@ -738,10 +749,10 @@ class Inverter(InputData):
 			loggf_history = np.copy(atmos.global_pars["loggf"][0,0])
 			N_loggf_history = 1
 
-		print(f"Observations: {obs.nx} x {obs.ny}")
-		print(f"Number of parameters/px: {Npar}")
-		print(f"  local/global: {Nlocalpar}/{Nglobalpar}")
-		print(f"Number of degrees of freedom: {Ndof}\n")
+		logger.info(f"Observations: {obs.nx} x {obs.ny}")
+		logger.info(f"Number of parameters/px: {Npar}")
+		logger.info(f"  local/global: {Nlocalpar}/{Nglobalpar}")
+		logger.info(f"Number of degrees of freedom: {Ndof}\n")
 
 		iter_start = datetime.now()
 
@@ -755,12 +766,12 @@ class Inverter(InputData):
 				t0 = datetime.now()
 				t0 = t0.isoformat(sep=' ', timespec='seconds')
 				if self.verbose:
-					print(f"[{t0:s}] Iteration: {np.min(itter)+1:2}\n")
+					logger.info(f"[{t0:s}] Iteration: {np.min(itter)+1:2}\n")
 				else:
 					dt = datetime.now() - iter_start
 					dt = dt.total_seconds()/60
 					dt = np.round(dt, decimals=1)
-					print(f"[{t0:s}] Iteration: {np.min(itter)+1:2} | per. iter {dt} min")
+					logger.info(f"[{t0:s}] Iteration: {np.min(itter)+1:2} | per. iter {dt} min")
 					iter_start = datetime.now()
 
 				# calculate RF; RF.shape = (nx, ny, Npar, Nw, 4)
@@ -865,10 +876,10 @@ class Inverter(InputData):
 
 			proposed_steps, info = sp.linalg.bicgstab(H, RHS)
 			if info>0:
-				print(f"[Error] Did not converge the solution of Ax=b.")
+				logger.info(f"[Error] Did not converge the solution of Ax=b.")
 				return chi2#tmos, atmos.spectrum, chi2
 			if info<0:
-				print("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
+				logger.info("[Error] Could not solve the system Ax=b.\n  Exiting now.\n")
 				return chi2#atmos, atmos.spectrum, chi2
 
 			#--- save the old parameters
@@ -953,17 +964,17 @@ class Inverter(InputData):
 			if LM_parameter<=1e-5:
 				LM_parameter = 1e-5
 			if LM_parameter>=1e5:
-				print("\nUpper limit in LM_parameter. We break\n")
+				logger.info("\nUpper limit in LM_parameter. We break\n")
 				break_flag = True
 
 			if updated_parameters:
-				print("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2.chi2[...,itter-1]), np.log10(LM_parameter)))
+				logger.info("  chi2 --> {:4.3e} | log10(LM) --> {:2.0f}".format(np.sum(chi2.chi2[...,itter-1]), np.log10(LM_parameter)))
 			
 			#--- print current parameters
 			if updated_parameters and self.verbose:
 				pretty_print_parameters(atmos, ones)
-				print(LM_parameter)
-				print("-"*NCHAR, "\n")
+				logger.info(LM_parameter)
+				logger.info("-"*NCHAR, "\n")
 
 			# we check if chi2 has converged for each pixel
 			# if yes, we set break_flag to True
@@ -975,13 +986,13 @@ class Inverter(InputData):
 				_old_chi2 = np.sum(chi2.chi2[...,itter-2])
 				relative_change = np.abs(_new_chi2/_old_chi2 - 1)
 				if relative_change<self.chi2_tolerance:
-					print("\nchi2 relative change is smaller than given value.\n")
+					logger.info("\nchi2 relative change is smaller than given value.\n")
 					break_flag = True
 				elif _new_chi2<1:
-					print("\nchi2 smaller than 1\n")
+					logger.info("\nchi2 smaller than 1\n")
 					break_flag = True
 				elif itter==max_iter:
-					print("\nMaximum number of iterations reached.\n")
+					logger.info("\nMaximum number of iterations reached.\n")
 					break_flag = True
 				else:
 					pass

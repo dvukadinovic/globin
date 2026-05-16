@@ -8,6 +8,9 @@ from astropy.io import fits
 from scipy.interpolate import interp1d, splev
 from scipy.integrate import simps
 from scipy.signal import find_peaks
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .atoms import read_RLK_lines, read_init_line_parameters
 from .atmos import Atmosphere
@@ -235,7 +238,7 @@ class InputData(object):
 		# if we have more threads than atmospheres, reduce the number of used threads
 		if self.n_thread > self.atmosphere.nx*self.atmosphere.ny:
 			self.n_thread = self.atmosphere.nx*self.atmosphere.ny
-			print(f"[Warning] Reduced the number of threads to {self.n_thread}.")
+			logger.info(f"[Warning] Reduced the number of threads to {self.n_thread}.")
 		self.atmosphere.set_n_thread(self.n_thread)
 		self.atmosphere.set_chunk_size()
 
@@ -487,11 +490,11 @@ class InputData(object):
 			self.atmosphere.read_multi_cube(fpath)
 
 			if (self.atmosphere.nx!=self.observation.nx) or (self.atmosphere.ny!=self.observation.ny):
-				print("--> Error in input.read_inverted_atmosphere()")
-				print("    initial atmosphere does not have same dimensions")
-				print("    as observations:")
-				print(f"    -- atm = ({self.atmosphere.nx},{self.atmosphere.ny})")
-				print(f"    -- obs = ({self.observation.nx},{self.observation.ny})")
+				logger.info("--> Error in input.read_inverted_atmosphere()")
+				logger.info("    initial atmosphere does not have same dimensions")
+				logger.info("    as observations:")
+				logger.info(f"    -- atm = ({self.atmosphere.nx},{self.atmosphere.ny})")
+				logger.info(f"    -- obs = ({self.observation.nx},{self.observation.ny})")
 				sys.exit()
 		else:
 			# read node parameters from .input file
@@ -508,14 +511,14 @@ class InputData(object):
 			self.atmosphere.spatial_regularization_weight = float(tmp)
 
 			if self.spatial_regularization_weight>10:
-				print("[Warning] Spatial regularization weight larger than 10!")
+				logger.info("[Warning] Spatial regularization weight larger than 10!")
 
 			# if self.spatial_regularization_weight<1e-6:
-			# 	print("[Info] Spatial regularization weight smaller than 1e-6. We will turn off the spatial regularization.")
+			# 	logger.info("[Info] Spatial regularization weight smaller than 1e-6. We will turn off the spatial regularization.")
 			# 	self.atmosphere.spatial_regularization = False
 
 			if self.atmosphere.spatial_regularization_weight<=0:
-				print("[Info] Spatial regularization weight is 0 or negative. We will turn off the spatial regularization.")
+				logger.info("[Info] Spatial regularization weight is 0 or negative. We will turn off the spatial regularization.")
 				self.atmosphere.spatial_regularization = False
 
 		# calculate the regularization weights for each parameter based on a given global value and relative weighting
@@ -541,7 +544,7 @@ class InputData(object):
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
 
 		if line_pars_path is None:
-			print("[Warning] No atomic parameters to fit. You sure?\n")
+			logger.info("[Warning] No atomic parameters to fit. You sure?\n")
 			return
 
 		# read line parameters
@@ -591,7 +594,7 @@ class InputData(object):
 		#--- line parameters to be fit
 		line_pars_path = _find_value_by_key("line_parameters", self.parameters_input, "optional")
 		if line_pars_path is None:
-			print("[Warning] No atomic parameters to fit. You sure?\n")
+			logger.info("[Warning] No atomic parameters to fit. You sure?\n")
 			return
 
 		# if we provided line parameters for fit, read those parameters
@@ -601,7 +604,7 @@ class InputData(object):
 			lines_to_fit = read_init_line_parameters(line_pars_path)
 
 			if len(lines_to_fit)==0:
-				print("[Warning] Did not find atomic parameters to fit. You sure?\n")
+				logger.info("[Warning] Did not find atomic parameters to fit. You sure?\n")
 				return
 
 			# get log(gf) parameters from line list
@@ -711,24 +714,24 @@ class InputData(object):
 		if dd_reg_weight is not None:
 			values = [item for item in dd_reg_weight.split(",")]
 			if len(values)!=2:
-				print(f"[Error] Wrong number of parameters for the depth-dependent regularization for {parameter}.")
-				print(f"        It has to consist of two number specifying weight and type.")
+				logger.info(f"[Error] Wrong number of parameters for the depth-dependent regularization for {parameter}.")
+				logger.info(f"        It has to consist of two number specifying weight and type.")
 				sys.exit()
 
 			atmosphere.dd_regularization_weight[parameter] = float(values[0])
 			atmosphere.dd_regularization_function[parameter] = int(values[1])
 			
 			if atmosphere.dd_regularization_weight[parameter]<=0:
-				print(f"[Warning] Depth-dependent regularization for {parameter} has 0 or negative weight. We will turn-off the regularization.")
+				logger.info(f"[Warning] Depth-dependent regularization for {parameter} has 0 or negative weight. We will turn-off the regularization.")
 			
 			if atmosphere.dd_regularization_function[parameter]==0:
-				print(f"[Warning] Depth-dependent regularization for {parameter} is turned-off. Type is set to 0.")
+				logger.info(f"[Warning] Depth-dependent regularization for {parameter} is turned-off. Type is set to 0.")
 				atmosphere.dd_regularization_function[parameter] = 0
 
 			if atmosphere.dd_regularization_function[parameter]<0 or \
 			   atmosphere.dd_regularization_function[parameter]>4:
-				print(f"[Warning] Depth-dependent regularization for {parameter} is of wrong type.")
-				print(f"          It should be between 0 and 4 (int). We will turn it off now.")
+				logger.info(f"[Warning] Depth-dependent regularization for {parameter} is of wrong type.")
+				logger.info(f"          It should be between 0 and 4 (int). We will turn it off now.")
 				atmosphere.dd_regularization_function[parameter] = 0
 
 		# set the parameter scale
@@ -862,7 +865,7 @@ def load_stray_light_parameters(input_text):
 
 	stray_mode = _find_value_by_key("stray_mode", input_text, "default", 0, int)
 	if stray_mode==0:
-		print("[Info] We are ignoring the stray light contribution.")
+		logger.info("[Info] We are ignoring the stray light contribution.")
 		return
 
 	if stray_mode not in [1,2,3]:
@@ -1243,9 +1246,9 @@ def initialize_atmos_pars(atmos, obs, fpath, norm=True):
 			Geff = geff**2 - delta
 			init_lines[idl] = [lam0, line_dlam/1e4, geff, Geff, Bexp]
 		else:
-			print("[Error] input.initialize_atmos_pars():")
-			print("  Wrong number of parameters for initializing")
-			print("  the LOS velocity and magnetic field vector.")
+			logger.info("[Error] input.initialize_atmos_pars():")
+			logger.info("  Wrong number of parameters for initializing")
+			logger.info("  the LOS velocity and magnetic field vector.")
 			sys.exit()
 
 
