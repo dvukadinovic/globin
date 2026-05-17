@@ -873,9 +873,12 @@ class Observation(Spectrum):
 		if isinstance(obs_range, list):
 			xmin, xmax, ymin, ymax = obs_range
 			data = hdu[0].data[xmin:xmax, ymin:ymax]
+			self.Ic = self.Ic[xmin:xmax, ymin:ymax]
 		elif isinstance(obs_range, np.ndarray):
 			data = hdu[0].data[obs_range[0],obs_range[1]]
 			data = data[np.newaxis,...]
+			self.Ic = self.Ic[obs_range[0],obs_range[1]]
+			self.Ic = self.Ic[np.newaxis,...]
 		else:
 			raise ValueError("Unrecognized type of 'atm_range'.")
 		
