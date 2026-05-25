@@ -1094,7 +1094,7 @@ class Atmosphere(object):
 	def prepare_build_from_nodes_arguments(self, parameters):
 		Natmos = self.nx*self.ny
 
-		global_pars = {"method" : self.interpolation_method,
+		global_arg = {"method" : self.interpolation_method,
 						"logtau" : self.logtau,
 						"spline_tension" : self.spline_tension,
 						"degree" : self.interp_degree,
@@ -1138,7 +1138,7 @@ class Atmosphere(object):
 			_data[idp] = self.data[:,:,self.par_id[parameter]].reshape(Natmos, self.nz, order="C")
 
 
-		return list(zip([global_pars]*Natmos, values, *_data))
+		return list(zip([global_arg]*Natmos, values, *_data))
 
 	def build_from_nodes(self, flag=None, params=None, pool=None):
 		"""
@@ -1259,7 +1259,7 @@ class Atmosphere(object):
 		rho = self.rho.reshape(Natmos, self.nz, order="C")
 		pg = self.pg.reshape(Natmos, self.nz, order="C")
 
-		return list(zip([global_pars]*Natmos, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg))
+		return list(zip([global_arg]*Natmos, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg))
 
 	def makeHSE(self, flag=None, pool=None):
 		"""
@@ -2091,6 +2091,7 @@ class Atmosphere(object):
 			self.hsra_spec.spec /= self.icont
 
 			logger.info("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[self.continuum_idl]))
+			# print("[Info] HSRA continuum level {:5.4e} @ {:8.4f}nm\n".format(self.icont, self.wavelength_air[self.continuum_idl]))
 
 		if self.sl_atmos is not None:
 			self.sl_atmos.icont = self.icont
@@ -2305,6 +2306,9 @@ class Atmosphere(object):
 			self.makeHSE(synthesize, pool=pool)
 
 		spec = self.compute_spectra(synthesize, pool=pool, get_atomic_rfs=self.get_atomic_rfs)
+
+		# plt.plot(spec[0,0,:,0], label="I")
+		# plt.show()
 
 		if self.sl_atmos is not None:
 			flag = synthesize

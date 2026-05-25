@@ -32,8 +32,8 @@ def _makeHSE(args):
             # pg_top=pg[0]/10,
             fudge_wave=fudge_lam, 
             fudge_value=fudge_value,
-            atomic_number=global_pars["atomic_number"], 
-            atomic_abundance=global_pars["atomic_abundance"],
+            atomic_number=global_arg["atomic_number"], 
+            atomic_abundance=global_arg["atomic_abundance"],
             full_output=False)
 
     return np.vstack((ne/1e6, nHtot/1e6))
@@ -76,13 +76,13 @@ def _build_from_nodes(args):
     """
     FALC_temp_tck = globin.FALC_temp_tck
 
-    global_pars = args[0]
-    nodes = global_pars["nodes"]
-    interpolation_method = global_pars["method"]
-    logtau = global_pars["logtau"]
-    spline_tension = global_pars["spline_tension"]
-    limits = global_pars["limits"]
-    degree = global_pars["degree"]
+    global_arg = args[0]
+    nodes = global_arg["nodes"]
+    interpolation_method = global_arg["method"]
+    logtau = global_arg["logtau"]
+    spline_tension = global_arg["spline_tension"]
+    limits = global_arg["limits"]
+    degree = global_arg["degree"]
 
     values = args[1]
     parameters = list(values.keys())
@@ -168,27 +168,27 @@ def _build_from_nodes(args):
     return data
 
 def _compute_spectra_sequential(args):
-    global_pars, data, spec, rfs, loggf, dlam, fudge_wave, fudge = args
+    global_arg, data, spec, rfs, loggf, dlam, fudge_wave, fudge = args
 
-    pyrh.compute1d(cwd=global_pars["cwd"], 
-                    mu=global_pars["mu"],
+    pyrh.compute1d(cwd=global_arg["cwd"], 
+                    mu=global_arg["mu"],
                     spectrum=spec,
-                    atm_scale=global_pars["atm_scale"],
+                    atm_scale=global_arg["atm_scale"],
                     atmosphere=data, 
-                    wave=global_pars["wavelength"],
-                    loggf_ids=global_pars["loggf_ids"], 
+                    wave=global_arg["wavelength"],
+                    loggf_ids=global_arg["loggf_ids"], 
                     loggf_values=loggf,
-                    lam_ids=global_pars["dlam_ids"],
+                    lam_ids=global_arg["dlam_ids"],
                     lam_values=dlam,
                     fudge_wave=fudge_wave, 
                     fudge_value=fudge,
-                    atomic_number=global_pars["atomic_number"],
-                    atomic_abundance=global_pars["abundances"],
-                    get_atomic_rfs=global_pars["get_atomic_rfs"],
+                    atomic_number=global_arg["atomic_number"],
+                    atomic_abundance=global_arg["abundances"],
+                    get_atomic_rfs=global_arg["get_atomic_rfs"],
                     rfs=rfs,
-                    get_populations=global_pars["get_populations"])
+                    get_populations=global_arg["get_populations"])
 
-    if global_pars["get_atomic_rfs"]:
+    if global_arg["get_atomic_rfs"]:
         return np.concatenate((spec[...,np.newaxis], rfs), axis=-1)
 
     return spec
