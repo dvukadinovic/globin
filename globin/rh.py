@@ -203,42 +203,42 @@ def create_RH_input_files(cwd, RH_kwargs, line_list_path, atoms_passive_paths, a
 	RH_keys.set_keywords(RH_kwargs)
 	RH_keys.create_input_file(f"{cwd}/keyword.input")
 
-# # atoms
-# H_6 = AtoMol("H_6.atom")
-# He = AtoMol("He.atom")
-# C = AtoMol("C.atom")
-# N = AtoMol("N.atom")
-# O = AtoMol("O.atom")
-# S = AtoMol("S.atom")
-# Fe = AtoMol("Fe.atom")
-# #Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
-# #Fe = AtoMol("Fe52.atom", state="ACTIVE")
-# #Fe = AtoMol("Fe52_167_50_A2fupd_NORAD.atom", state="ACTIVE")
-# Si = AtoMol("Si.atom")
-# Al = AtoMol("Al.atom")
-# Na = AtoMol("Na.atom")
-# Mg = AtoMol("Mg.atom")
+# atoms
+H_6 = AtoMol("H_6.atom")
+He = AtoMol("He.atom")
+C = AtoMol("C.atom")
+N = AtoMol("N.atom")
+O = AtoMol("O.atom")
+S = AtoMol("S.atom")
+Fe = AtoMol("Fe.atom")
+#Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
+#Fe = AtoMol("Fe52.atom", state="ACTIVE")
+#Fe = AtoMol("Fe52_167_50_A2fupd_NORAD.atom", state="ACTIVE")
+Si = AtoMol("Si.atom")
+Al = AtoMol("Al.atom")
+Na = AtoMol("Na.atom")
+Mg = AtoMol("Mg.atom")
 
-# # molecules
-# H2 = AtoMol("H2.molecule")
-# H2p = AtoMol("H2+.molecule")
-# C2 = AtoMol("C2.molecule")
-# N2 = AtoMol("N2.molecule")
-# O2 = AtoMol("O2.molecule")
-# CH = AtoMol("CH.molecule")
-# CO = AtoMol("CO.molecule")
-# CN = AtoMol("CN.molecule")
-# NH = AtoMol("NH.molecule")
-# NO = AtoMol("NO.molecule")
-# OH = AtoMol("OH.molecule")
-# H2O = AtoMol("H2O.molecule")
+# molecules
+H2 = AtoMol("H2.molecule")
+H2p = AtoMol("H2+.molecule")
+C2 = AtoMol("C2.molecule")
+N2 = AtoMol("N2.molecule")
+O2 = AtoMol("O2.molecule")
+CH = AtoMol("CH.molecule")
+CO = AtoMol("CO.molecule")
+CN = AtoMol("CN.molecule")
+NH = AtoMol("NH.molecule")
+NO = AtoMol("NO.molecule")
+OH = AtoMol("OH.molecule")
+H2O = AtoMol("H2O.molecule")
 
-# atmols = RHAtomsMolecules()
+atmols = RHAtomsMolecules()
 
-# RHatoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]#, AtoMol("CaII.atom")]
-# for atom in RHatoms:
-#     atmols.add_atom(atom)
+RHatoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]#, AtoMol("CaII.atom")]
+for atom in RHatoms:
+    atmols.add_atom(atom)
 
-# RHmolecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
-# for molecule in RHmolecules:
-#     atmols.add_molecule(molecule)
+RHmolecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
+for molecule in RHmolecules:
+    atmols.add_molecule(molecule)
