@@ -860,7 +860,8 @@ class Observation(Spectrum):
 
 		self.header = hdu[0].header
 
-		self.Ic = hdu[2].data
+		# self.Ic = hdu[2].data
+		# print(repr(hdu[2].header))
 
 		try:	
 			self.Icont = float(hdu[2].header["IC_HSRA"])
@@ -873,12 +874,13 @@ class Observation(Spectrum):
 		if isinstance(obs_range, list):
 			xmin, xmax, ymin, ymax = obs_range
 			data = hdu[0].data[xmin:xmax, ymin:ymax]
-			self.Ic = self.Ic[xmin:xmax, ymin:ymax]
+			# print(self.Ic.shape)
+			# self.Ic = self.Ic[xmin:xmax, ymin:ymax]
 		elif isinstance(obs_range, np.ndarray):
 			data = hdu[0].data[obs_range[0],obs_range[1]]
 			data = data[np.newaxis,...]
-			self.Ic = self.Ic[obs_range[0],obs_range[1]]
-			self.Ic = self.Ic[np.newaxis,...]
+			# self.Ic = self.Ic[obs_range[0],obs_range[1]]
+			# self.Ic = self.Ic[np.newaxis,...]
 		else:
 			raise ValueError("Unrecognized type of 'atm_range'.")
 		
@@ -889,6 +891,8 @@ class Observation(Spectrum):
 		self.nx, self.ny = self.spec.shape[0], self.spec.shape[1]
 		self.nw = len(self.wavelength)
 		self.shape = self.spec.shape
+
+		self.Ic = np.ones_like(self.spec[...,0])
 
 	def read_1d_spectrum(self, fpath):
 		spectrum = np.loadtxt(fpath)
