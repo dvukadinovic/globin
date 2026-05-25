@@ -3,6 +3,9 @@ import emcee
 from astropy.io import fits
 import matplotlib.pyplot as plt
 from time import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 import globin
 from ..parallel_methods import _build_from_nodes, _makeHSE
@@ -34,12 +37,12 @@ scales = {"temp"  : 50,			# [K]
 		  "sl_vz" : 1e-3,       # [km/s]
 		  "sl_vmic": 1e-3,      # [km/s]
 		  "vmac"  : 0.2,		# [km/s]
-		  "loggf" : 0.043,		#
+		  "loggf" : 0.01,		#
 		  "dlam"  : 1}			#
 
 
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
-	print("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
+	logger.info("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
 	# if atmos.sl_atmos is not None:
 	# 	# start = time()
@@ -49,10 +52,10 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
 	atmos.limit_values["chi"] = globin.atmos.MinMax(-1,1)
 
-	if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-		atmos.get_hsra_cont()
-		if atmos.stray_type=="hsra":
-			atmos.hsra_spec.broaden_spectra(atmos.vmac)
+	# if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
+	# 	atmos.get_hsra_cont()
+	# 	if atmos.stray_type=="hsra":
+	# 		atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 	Natmos = atmos.nx*atmos.ny
 
@@ -65,22 +68,26 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	if not atmos.skip_global_pars:
 		ndim += atmos.n_global_pars
 	
-	obs.Ndof = np.count_nonzero(obs.weights)*obs.nw*Natmos - ndim
 
-	print("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.constants.NCHAR))
-	print("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
+	logger.info("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.constants.NCHAR))
+	logger.info("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
-		print("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
+		logger.info("N_local_pars {:{char}{align}{width}}".format(f" {atmos.n_local_pars}", char=".", align=">", width=20))
 	if not atmos.skip_global_pars:
-		print("N_global_pars {:{char}{align}{width}}".format(f" {atmos.n_global_pars}", char=".", align=">", width=20))
-	print("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
-	print("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
+		logger.info("N_global_pars {:{char}{align}{width}}".format(f" {atmos.n_global_pars}", char=".", align=">", width=20))
+	logger.info("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
+	logger.info("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 	
+	# ndim += 1 # for noise level in the data
 	if reset_backend:
 		backend.reset(nwalkers, ndim)
 		p0 = initialize_walker_states(nwalkers, ndim, atmos)
+		# noise
+		# p0[:, -1] = RNG.normal(loc=5e-3, scale=1e-4, size=nwalkers)
 	else:
 		p0 = backend.get_last_sample()
+		# print(p0.shape)
+		# asd
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos, None if sequential else pool], 
@@ -102,7 +109,7 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 
 		Neff = sampler.iteration / np.mean(tau)
 
-		print(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
+		logger.info(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
 
 		# check convergence
 		# converged = np.all(tau * 100 < sampler.iteration)
@@ -183,24 +190,37 @@ def lnlike(obs, atmos, pool):
 					if "temp" in params:
 						ne, nH = _makeHSE(args_HSE[ida])
 						atmos.data[idx,idy,atmos.par_id["ne"]] = ne
-						atmos.data[idx,idy,atmos.par_id["nHtot"]] = nH
+						atmos.data[idx,idy,atmos.par_id["nH"]] = nH
 
 		spec = sequential_synthesize(atmos)
 	else:
 		spec = mpi_synthesize(atmos, pool)
 
-	# plt.plot(obs.I[0,0])
-	# plt.plot(spec.I[0,0])
+	# spec.add_noise(np.sqrt(obs.noise**2))# + obs.noise_parameter**2))
+
+	# fig, axs = plt.subplots(nrows=2, ncols=1, sharex=True)
+	# axs[0].set_title(f"{atmos.global_pars['loggf'][0,0,0]:.3f}")
+	# axs[0].set_title(f"{atmos.values['vmic'][0,0,0]:.3f}")
+	# axs[0].plot(obs.I[0,0])
+	# axs[0].plot(spec.I[0,0])
+	# axs[1].plot(obs.I[0,0] - spec.I[0,0])
 	# plt.show()
 
 	diff = obs.spec - spec.spec
 	diff *= obs.weights
 	diff *= obs.wavs_weight
-	diff /= obs.noise_stokes
-	chi2 = np.sum(diff**2)
-	chi2 /= obs.Ndof
+	# noise = obs.noise*obs.I[:,:,atmos.continuum_idl][:,:,np.newaxis,np.newaxis]
+	noise = obs.noise_stokes
+	noise2 = noise**2
+	# noise2 = obs.noise_parameter**2 + obs.noise**2
+	# noise2 *= obs.I[:,:,atmos.continuum_idl][:,:,np.newaxis,np.newaxis]**2
+	diff2 = diff**2
+	diff2 /= noise2
+	diff2 -= np.log(2*np.pi*noise2)
 
-	return chi2 * (-0.5)
+	chi2 = np.sum(diff2)
+
+	return -chi2/2
 
 def log_prob(theta, obs, atmos, pool):
 	"""
@@ -245,6 +265,11 @@ def log_prob(theta, obs, atmos, pool):
 
 	if not np.isfinite(lp):
 		return -np.inf
+	
+	# if theta[-1]<=1e-6 or theta[-1]>1:
+	# 	return -np.inf
+	
+	# obs.noise_parameter = theta[-1]
 	
 	# globin.plot_spectra(obs.spec[0,0], np.arange(obs.nw), 
 	# 			  inv=atmos.spectrum.spec[0,0])
