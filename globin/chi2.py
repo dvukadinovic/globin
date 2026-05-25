@@ -114,15 +114,13 @@ class Chi2(object):
 		# save
 		hdulist.writeto(fpath, overwrite=True)
 
-def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, npar=0, total=False, per_stokes=False):
+def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, total=False, per_stokes=False):
 	"""
 	Get the chi^2 value between observed O_i and inverted S_i spectrum as:
 
-	chi^2 = 1/Ndof * sum_i [(w_i/sig_i)^2 * (O_i - S_i)^2 ]
+	chi^2 = sum_i [(w_i)^2 * (O_i - S_i)^2 ] / noise
 
-	Ndof = 4*Nw - Npar
 	w_i --> wavelength dependent weight
-	sig_i --> wavelength depedent noise
 
 	Parameters:
 	-----------
@@ -134,8 +132,6 @@ def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, npar=0, total=False, p
 		array containing weights for each Stokes component.
 	noise : float
 		assumed noise level of observations.
-	npar : int
-		number of free parameters in the inference.
 	total : bool, False (default)
 		sum chi^2 value through all the pixels.
 
@@ -144,13 +140,8 @@ def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, npar=0, total=False, p
 	chi2 : float, numpy.ndarray
 		returns float if 'total=True', otherwise its numpy.ndarray.
 	"""
-	noise = obs._get_weights_by_noise(noise)
-
 	if isinstance(weights, list):
 		weights = np.array(weights)
-
-	# if total and per_stokes:
-	# 	raise ValueError("Cannot compute chi2 for each Stokes component and the total value simultaneously.")
 
 	diff = obs.spec - inv.spec
 	diff *= weights
@@ -160,7 +151,7 @@ def compute_chi2(obs, inv, weights=[1,1,1,1], noise=1e-3, npar=0, total=False, p
 	else:
 		chi2 = np.sum(diff**2, axis=(2,3))
 
-	Ndof = np.count_nonzero(weights)*obs.nw - npar
+	Ndof = np.count_nonzero(weights)*obs.nw
 	chi2 /= Ndof
 
 	if total and not per_stokes:
