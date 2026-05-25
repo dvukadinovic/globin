@@ -108,10 +108,10 @@ def _build_from_nodes(args):
         # for 2+ number of nodes
         if parameter=="temp":
             if interpolation_method=="bezier":	
-                # K0 = (y[1]-y[0]) / (x[1]-x[0])
+                K0 = (y[1]-y[0]) / (x[1]-x[0])
                 # bottom node slope for extrapolation based on temperature gradient from FAL C model
-                # if Tmax<(y[0] + K0 * (logtau[0]-x[0])):
-                # 	K0 = (Tmax - y[0]) / (logtau[0] - x[0])
+                if Tmax<(y[0] + K0 * (logtau[0]-x[0])):
+                    K0 = (Tmax - y[0]) / (logtau[0] - x[0])
                 Kn = splev(x[-1], FALC_temp_tck, der=1)
             if interpolation_method=="spline":
                 # add top of the atmosphere as a node (ask SPPINOR devs why ...)
@@ -157,7 +157,7 @@ def _build_from_nodes(args):
                 if limits[parameter].min[0]>(y[-1] + Kn * (logtau[-1]-x[-1])):
                     Kn = (limits[parameter].min[0] - y[-1]) / (logtau[-1] - x[-1])
 
-        K0 = 0
+        # K0 = 0
         if interpolation_method=="bezier":
             y_new = bezier_spline(x, y, logtau, K0=K0, Kn=Kn, degree=degree, extrapolate=True)
         if interpolation_method=="spline":
