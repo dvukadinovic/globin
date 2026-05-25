@@ -28,17 +28,17 @@ orbitals = {"S": 0, "P": 1, "D": 2, "F": 3,
 # the upper limits of the log(gf) uncertainty in % by NIST database
 # those that are more than 50% off are in class E;
 # see https://physics.nist.gov/PhysRefData/ASD/Html/lineshelp.html
-# 1% of uncertainty is equal to \delta(log(gf)) = 0.00434 dex
+# 1% of uncertainty is equal to \delta(\log(gf)) = 0.00434 dex
 accuracy = {"AAA" : 0.3,
             "AA"  : 1,
             "A+"  : 2,
-            "A"   : 3,
-            "B+"  : 7,
-            "B"   : 10,
-            "C+"  : 18,
-            "C"   : 25,
-            "D+"  : 40,
-            "D"   : 50}
+            "A"   : 3,  # 0.013
+            "B+"  : 7,  # 0.031
+            "B"   : 10, # 0.043
+            "C+"  : 18, # 0.077
+            "C"   : 25, # 0.107
+            "D+"  : 40, # 0.172
+            "D"   : 50} # 0.215
 
 def Aji(lam0, gu, gl, f):
     """
