@@ -68,12 +68,13 @@ class RHAtomsMolecules(object):
                 return ida, atom
 
 class RHKeywords(object):
-    def __init__(self, keywor_input=None):
-        if keywor_input:
-            self._read_keyword_input_file(keywor_input)
+    def __init__(self, keyword_input=None):
+        if keyword_input:
+            self._read_keyword_input_file(keyword_input)
 
         self.ATOMS_FILE = "atoms.input"
         self.MOLECULES_FILE = "molecules.input"
+        self.LS_LANDE = "TRUE"
 
         self.set_LTE_parameters()
 
@@ -165,42 +166,79 @@ class RHKeywords(object):
                     value = keywords[key]
                 file.write(f"{prefix}  {key} = {value}\n")
 
-# atoms
-H_6 = AtoMol("H_6.atom")
-He = AtoMol("He.atom")
-C = AtoMol("C.atom")
-N = AtoMol("N.atom")
-O = AtoMol("O.atom")
-S = AtoMol("S.atom")
-Fe = AtoMol("Fe.atom")
-#Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
-#Fe = AtoMol("Fe52.atom", state="ACTIVE")
-#Fe = AtoMol("Fe52_167_50_A2fupd_NORAD.atom", state="ACTIVE")
-Si = AtoMol("Si.atom")
-Al = AtoMol("Al.atom")
-Na = AtoMol("Na.atom")
-Mg = AtoMol("Mg.atom")
+def load_atoms(atmols, atoms_paths, state):
+    for path in atoms_paths:
+        if len(path)==0:
+            continue
+        atmols.add_atom(AtoMol(f"{path}.atom", state=state))
 
-# molecules
-H2 = AtoMol("H2.molecule")
-H2p = AtoMol("H2+.molecule")
-C2 = AtoMol("C2.molecule")
-N2 = AtoMol("N2.molecule")
-O2 = AtoMol("O2.molecule")
-CH = AtoMol("CH.molecule")
-CO = AtoMol("CO.molecule")
-CN = AtoMol("CN.molecule")
-NH = AtoMol("NH.molecule")
-NO = AtoMol("NO.molecule")
-OH = AtoMol("OH.molecule")
-H2O = AtoMol("H2O.molecule")
+    return atmols
 
-atmols = RHAtomsMolecules()
+def load_molecules(atmols, molecules_paths):
+    for path in molecules_paths:
+        if len(path)==0:
+            continue
+        atmols.add_molecule(AtoMol(f"{path}.molecule"))
 
-RHatoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]
-for atom in RHatoms:
-    atmols.add_atom(atom)
+    return atmols
 
-RHmolecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
-for molecule in RHmolecules:
-    atmols.add_molecule(molecule)
+def load_atoms_and_molecules(atoms_passive_paths, atoms_active_paths, molecules_paths):
+    atmols = RHAtomsMolecules()
+    atmols = load_atoms(atmols, atoms_passive_paths, state="PASSIVE")
+    atmols = load_atoms(atmols, atoms_active_paths, state="ACTIVE")
+    atmols = load_molecules(atmols, molecules_paths)
+
+    return atmols
+
+def create_RH_input_files(cwd, RH_kwargs, line_list_path, atoms_passive_paths, atoms_active_paths, molecules_paths):
+	# create atoms and molecules RH input files 
+	atmols = load_atoms_and_molecules(atoms_passive_paths, atoms_active_paths, molecules_paths)
+	atmols.create_atoms_list(f"{cwd}/atoms.input")
+	atmols.create_molecules_list(f"{cwd}/molecules.input")
+
+	create_kurucz_input(line_list_path, f"{cwd}/kurucz.input")
+
+	# create keywords.input file
+	RH_keys = RHKeywords()
+	RH_keys.set_keywords(RH_kwargs)
+	RH_keys.create_input_file(f"{cwd}/keyword.input")
+
+# # atoms
+# H_6 = AtoMol("H_6.atom")
+# He = AtoMol("He.atom")
+# C = AtoMol("C.atom")
+# N = AtoMol("N.atom")
+# O = AtoMol("O.atom")
+# S = AtoMol("S.atom")
+# Fe = AtoMol("Fe.atom")
+# #Fe = AtoMol("Fe_simple.atom", state="ACTIVE")
+# #Fe = AtoMol("Fe52.atom", state="ACTIVE")
+# #Fe = AtoMol("Fe52_167_50_A2fupd_NORAD.atom", state="ACTIVE")
+# Si = AtoMol("Si.atom")
+# Al = AtoMol("Al.atom")
+# Na = AtoMol("Na.atom")
+# Mg = AtoMol("Mg.atom")
+
+# # molecules
+# H2 = AtoMol("H2.molecule")
+# H2p = AtoMol("H2+.molecule")
+# C2 = AtoMol("C2.molecule")
+# N2 = AtoMol("N2.molecule")
+# O2 = AtoMol("O2.molecule")
+# CH = AtoMol("CH.molecule")
+# CO = AtoMol("CO.molecule")
+# CN = AtoMol("CN.molecule")
+# NH = AtoMol("NH.molecule")
+# NO = AtoMol("NO.molecule")
+# OH = AtoMol("OH.molecule")
+# H2O = AtoMol("H2O.molecule")
+
+# atmols = RHAtomsMolecules()
+
+# RHatoms = [H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg]#, AtoMol("CaII.atom")]
+# for atom in RHatoms:
+#     atmols.add_atom(atom)
+
+# RHmolecules = [H2, H2p, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O]
+# for molecule in RHmolecules:
+#     atmols.add_molecule(molecule)

@@ -18,6 +18,7 @@ from .spec import Observation
 from .utils import _slice_line, construct_atmosphere_from_nodes, air_to_vacuum
 from .utils import compute_wavelength_grid
 from .constants import atmosphere_scale_ID
+from .rh import create_RH_input_files, RHKeywords
 
 import globin
 
@@ -58,42 +59,57 @@ class InputData(object):
 		rh_input_name : str
 			path to 'keyword.input' file for RH parameters
 		"""
-		self.cwd = f"./runs/{self.run_name}"
-		
 		self.globin_input_name = globin_input_name
-		self.rh_input_name = rh_input_name
 
-		# make runs directory if not existing
+		#--- create runs directory if not existing
 		# here we store all runs with different 'run_name'
 		if not os.path.exists("runs"):
 			os.mkdir("runs")
 
-		# make directory for specified run with provided 'run_name'
+		#--- make directory for specified run with provided 'run_name'
+		self.cwd = f"./runs/{self.run_name}"
 		if not os.path.exists(self.cwd):
 			os.mkdir(self.cwd)
-		# else:
-			# sp.run(f"rm {self.cwd}/*.input", shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
 
-		# copy input files into 'run_name' directory
-		sp.run(f"cp {globin_input_name} {rh_input_name} {self.cwd}",
+		#--- copy input file into 'cwd' directory
+		sp.run(f"cp {globin_input_name} {self.cwd}",
 			shell=True, stdout=sp.PIPE, stderr=sp.STDOUT)
-
-		# create atoms and molecules RH input files 
-		globin.rh.atmols.create_atoms_list(f"{self.cwd}/atoms.input")
-		globin.rh.atmols.create_molecules_list(f"{self.cwd}/molecules.input")
-
-		# create keywords.input file
-		RH_keys = globin.rh.RHKeywords()
-		RH_keys.set_keywords(RH_kwargs)
-		RH_keys.create_input_file(f"{self.cwd}/keyword.input")
-
-		#--- get parameters from globin input file
+		
+		#--- read the globin input file
 		text = open(self.globin_input_name, "r").read()
 		self.parameters_input = text
 
-		line_list = _find_value_by_key("line_list", self.parameters_input, "required")
-		globin.rh.create_kurucz_input(line_list, f"{self.cwd}/kurucz.input")
+		self.read_RH_input_parameters()
+		self.read_globin_input_parameters()
 
+	def read_RH_input_parameters(self):
+		#--- find LTE atomic models
+		atoms_passive_paths = _find_value_by_key("atoms_passive", self.parameters_input, "default", "H_6, He, C, N, O, S, Fe, Si, Al, Na, Mg")
+		atoms_passive_paths = [item.strip() for item in atoms_passive_paths.split(",")]
+		
+		#--- find NLTE atomic models
+		atoms_active_paths = _find_value_by_key("atoms_active", self.parameters_input, "default", "")
+		atoms_active_paths = [item.strip() for item in atoms_active_paths.split(",")]
+		
+		#--- find molecular models
+		molecules_paths = _find_value_by_key("molecules", self.parameters_input, "default", "H2, H2+, C2, N2, O2, CH, CO, CN, NH, NO, OH, H2O")
+		molecules_paths = [item.strip() for item in molecules_paths.split(",")]
+
+		#--- find line list
+		line_list_path = _find_value_by_key("line_list", self.parameters_input, "required")
+
+		RH_kwargs = {}
+		for key in RHKeywords().__dict__.keys():
+			value = _find_value_by_key(key, self.parameters_input, "optional")
+			if value is None:
+				continue
+
+			RH_kwargs[key] = value
+
+		create_RH_input_files(self.cwd, RH_kwargs, line_list_path, atoms_passive_paths, atoms_active_paths, molecules_paths)
+
+	def read_globin_input_parameters(self):
+		# continue
 		self.mode = _find_value_by_key("mode", self.parameters_input, "required", conversion=int)
 
 		self.n_thread = _find_value_by_key("n_thread", self.parameters_input, "default", 1, conversion=int)
