@@ -18,20 +18,21 @@ aparser.add_argument("--n-cpus", type=int, default=1, help="Number of CPUs to be
 
 args = aparser.parse_args()
 
-atmosphere = globin.falc
+atmosphere = globin.FALC
 
 atmosphere.set_mu(args.mu)
 atmosphere.set_cwd(".")
 atmosphere.set_vmac(args.vmac)
-# if args.norm:
-#     atmosphere.set_spectrum_normalization(True, 1)
-# atmosphere.add_magnetic_vector(B=1500, gamma=60, chi=15)
+if args.norm:
+    atmosphere.set_spectrum_normalization(True, 1)
+# atmosphere.add_magnetic_vector(B=150, gamma=60, chi=15)
 
 atmosphere.line_list = args.linelist
 _, lines = globin.atoms.read_RLK_lines(args.linelist)
 lmin = lines[0].lam0 - 0.10
 lmax = lines[-1].lam0 + 0.05
 
+Icont = 1
 if args.of:
     keys = {}
     atmosphere.create_input_files(keys=keys)
