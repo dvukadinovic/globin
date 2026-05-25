@@ -318,14 +318,27 @@ def makeHSE(wave, logt, temp, pg_top=None):
 	return pg, pe, kappa, rho
 
 if __name__=="__main__":
-	import globin
+	# from .atmos import Atmosphere
+	import matplotlib.pyplot as plt
 
-	atmos = globin.Atmosphere("./data/falc_multi.atmos")
+	# atmos = Atmosphere("./data/falc_multi.atmos")
+	# wave = 5000
+	# pg, pe, kappa, rho = makeHSE(wave, atmos.data[0,0,0], atmos.data[0,0,1])
 
-	# print(atmos.data[0,0,2] * 1e7 * k * atmos.data[0,0,1])
+	temp = np.arange(3000, 15000, 100)
+	pe = 30e2
 
-	wave = 5000
+	for ide, Eion in enumerate([8.9, 7.9, 6.9]):
+		# O = Ion([8.68009e+00, 8.77224e+00, 8.85532e+00, 8.94697e+00, 9.05112e+00, 9.16637e+00, 9.28982e+00, 9.41864e+00],
+		# 		[4.00003e+00, 4.00065e+00, 4.00451e+00, 4.01649e+00, 4.04186e+00, 4.08460e+00, 4.14679e+00, 4.22885e+00],
+		# 		13.6171, 8.75, 15.999)
 
-	pg, pe, kappa, rho = makeHSE(wave, atmos.data[0,0,0], atmos.data[0,0,1])
-	# print("electron pressure:")
-	# print(pe)
+		eta = Cr.get_phi(temp)/pe
+		pe *= 5
+
+		n0 = 1/(1 + eta)
+		npos = eta * n0
+
+		plt.plot(temp, n0, c=f"C{ide}", ls="-")
+		plt.plot(temp, npos, c=f"C{ide}", ls="--")
+	plt.show()
