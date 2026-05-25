@@ -457,8 +457,8 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 
 	fontsize = "large"
 
-	if not _rf.normed_spec:
-		cmap["temp"] = "YlOrRd"
+	# if not _rf.normed_spec:
+	# cmap["temp"] = "YlOrRd"
 
 	if use_wavelength_grid:
 		wavs = _rf.wavelength * 10
@@ -491,7 +491,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	try:
 		rf_global = _rf.rf_global[idx,idy,:, ind_lmin:ind_lmax]
 	except:
-		pass
+		rf_global = None
 
 	if rf_local is not None:
 		npar, nz, nw, ns = rf_local.shape
@@ -516,7 +516,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 		NW = 5
 
 	width, height = 3, 2+2/3
-	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=True)
+	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=False)
 	fig.subplots_adjust(wspace=0.5, hspace=0.4)
 	axs = np.atleast_2d(axs)
 
@@ -541,7 +541,7 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 					_vmin = -_vmax
 					par_cmap = cmap[parameter]
 					if parameter=="temp":
-						_vmin = 0
+						_vmin = np.min(matrix)
 					# if parameter=="temp":
 					# 	_vmin = np.min(matrix)
 					# 	if ids!=0:
@@ -584,11 +584,13 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 					ax.plot(logtau, integratedRF[...,ids], c="k")
 					ax.axhline(y=0, c="k", lw=0.5, alpha=0.5)
 					ax.set_xlim([logtau[0], logtau[-1]])
+					ax.xaxis.set_major_locator(ticker.MultipleLocator(1.0))
+					ax.xaxis.set_minor_locator(ticker.MultipleLocator(0.2))
 					ax.set_ylim([vmin, vmax])
 					if j_==0:
 						ax.set_ylabel(f"{cbar_label[parameter]}")
 
-					# ax.grid(b=True, which="major", axis="both", lw=0.5)
+					ax.grid(which="major", axis="x", lw=0.5)
 
 	i_ = len(local_parameters)
 	for ii, parameter in enumerate(global_parameters):
