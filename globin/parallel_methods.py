@@ -15,12 +15,13 @@ def _makeHSE(args):
     """
     Parallelized call from makeHSE() function.
     """
-    global_pars, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg = args
+    global_arg, fudge_lam, fudge_value, scale, temp, ne, nHtot, rho, pg = args
 
-    pg0 = 10
+    # pg0 = 10
+    pg0 = global_arg["pg0"]
 
-    pyrh.hse(cwd=global_pars["cwd"], 
-            atm_scale=global_pars["atm_scale"],
+    pyrh.hse(cwd=global_arg["cwd"], 
+            atm_scale=global_arg["atm_scale"],
             scale=scale,
             temp=temp,
             ne=ne,

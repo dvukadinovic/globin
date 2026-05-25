@@ -195,7 +195,7 @@ class Atmosphere(object):
 		self.hydrostatic = False
 
 		# gas pressure at the top (used for HSE computation from RH)
-		self.pg_top = 0.03 # [N/m2]
+		self.pg_top = 0.1 # [N/m2]
 
 		# interpolation degree, method for building atmosphere from node values
 		# and (optional) tension value in case of "spinor" method
@@ -1245,10 +1245,11 @@ class Atmosphere(object):
 			fudge_lam = [None]*Natmos
 			fudge_value = [None]*Natmos
 
-		global_pars = {"cwd"       : self.cwd,
+		global_arg = {"cwd"       : self.cwd,
 				 	   "atm_scale" : self.scale_id,
 					   "atomic_number" : self.atomic_number,
 					   "atomic_abundance" : self.atomic_abundance,
+					   "pg0"    : self.pg_top
 					   }
 
 		scale = self.data[:,:,0].reshape(Natmos, self.nz, order="C")
