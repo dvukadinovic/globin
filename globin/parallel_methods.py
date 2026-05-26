@@ -112,6 +112,8 @@ def _build_from_nodes(args):
                 # bottom node slope for extrapolation based on temperature gradient from FAL C model
                 if Tmax<(y[0] + K0 * (logtau[0]-x[0])):
                     K0 = (Tmax - y[0]) / (logtau[0] - x[0])
+                if Tmin>(y[0] + K0 * (logtau[0]-x[0])):
+                    K0 = (Tmin - y[0]) / (logtau[0] - x[0])
                 Kn = splev(x[-1], FALC_temp_tck, der=1)
             if interpolation_method=="spline":
                 # add top of the atmosphere as a node (ask SPPINOR devs why ...)
