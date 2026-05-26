@@ -18,6 +18,7 @@ from .spec import Observation
 from .utils import _slice_line, construct_atmosphere_from_nodes, air_to_vacuum
 from .utils import compute_wavelength_grid
 from .constants import atmosphere_scale_ID
+from .constants import Tmin, Tmax
 from .rh import create_RH_input_files, RHKeywords
 
 import globin
@@ -773,6 +774,8 @@ class InputData(object):
 			vmin = np.array([float(item) for item in min_limits.split(",")])
 			if parameter in ["gamma", "chi"]:
 				vmin  = np.deg2rad(vmin)
+			if parameter in ["temp"]:
+				vmin = np.clip(vmin, Tmin, Tmax)
 			atmosphere.limit_values[parameter].vmin = vmin
 			atmosphere.limit_values[parameter].vmin_dim = len(vmin)
 
@@ -784,6 +787,8 @@ class InputData(object):
 			vmax = np.array([float(item) for item in max_limits.split(",")])
 			if parameter in ["gamma", "chi"]:
 				vmax  = np.deg2rad(vmax)
+			if parameter in ["temp"]:
+				vmax = np.clip(vmax, Tmin, Tmax)
 			atmosphere.limit_values[parameter].vmax = vmax
 			atmosphere.limit_values[parameter].vmax_dim = len(vmax)
 
