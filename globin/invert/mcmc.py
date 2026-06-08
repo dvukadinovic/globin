@@ -41,6 +41,14 @@ scales = {"temp"  : 50,			# [K]
 		  "dlam"  : 1}			#
 
 
+def lnprior_gaussian(x, loc, std):
+	return -((x - loc) / std) ** 2 - np.log(std * np.sqrt(np.pi))
+
+def lnprior_uniform(x, low, high):
+	if x < low or x > high:
+		return -np.inf
+	return 0
+
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 	logger.info("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
@@ -118,12 +126,13 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		# 	break
 		# old_tau = tau
 
-def lnprior(local_pars, global_pars, limits):
+def lnprior(local_pars, global_pars, limits, priors):
 	"""
 	Check if each parameter is in its respective bounds given by globin.limit_values.
 
 	If one fails, return -np.inf, else return 0.
 	"""	
+	_lnprior = 0.0
 	if local_pars is not None:
 		for parameter in local_pars:
 			nnodes = local_pars[parameter].shape[-1]
@@ -162,17 +171,25 @@ def lnprior(local_pars, global_pars, limits):
 						if limits[parameter].ndim==2:
 							limit = limits[parameter][idl]
 						
-						#--- check lower boundary condition
-						indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
-						if len(indx)>0:
-							return -np.inf
+						if priors[parameter][idl]=="uniform":
+							_lnprior += lnprior_uniform(global_pars[parameter][0,0,idl], limit[0], limit[1])
+						if priors[parameter][idl]=="gaussian":
+							_lnprior += lnprior_gaussian(global_pars[parameter][0,0,idl], limit[0], limit[1])
 
-						#--- check upper boundary condition
-						indx, indy = np.where(global_pars[parameter][...,idl]>limit[1])
-						if len(indx)>0:
-							return -np.inf					
+							# _lnprior += priors[parameter][idl](global_pars[parameter][0,0,idl])
+							# if not np.isfinite(_lnprior):
+							# 	return -np.inf
+						# #--- check lower boundary condition
+						# indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
+						# if len(indx)>0:
+						# 	return -np.inf
+						
+						# #--- check upper boundary condition
+						# indx, indy = np.where(global_pars[parameter][...,idl]>limit[1])
+						# if len(indx)>0:
+						# 	return -np.inf					
 
-	return 0.0
+	return _lnprior
 
 def lnlike(obs, atmos, pool):
 	if pool is None:
@@ -257,11 +274,11 @@ def log_prob(theta, obs, atmos, pool):
 
 	#--- compute posterior
 	if atmos.skip_local_pars:
-		lp = lnprior(None, atmos.global_pars, atmos.limit_values)
+		lp = lnprior(None, atmos.global_pars, atmos.limit_values, atmos.priors)
 	elif atmos.skip_global_pars:
-		lp = lnprior(atmos.values, None, atmos.limit_values)
+		lp = lnprior(atmos.values, None, atmos.limit_values, atmos.priors)
 	else:
-		lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values)
+		lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values, atmos.priors)
 
 	if not np.isfinite(lp):
 		return -np.inf
