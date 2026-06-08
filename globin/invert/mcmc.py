@@ -52,18 +52,8 @@ def lnprior_uniform(x, low, high):
 def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 	logger.info("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
-	# if atmos.sl_atmos is not None:
-	# 	# start = time()
-	# 	obs.sl_spec = atmos.sl_atmos.compute_spectra(pool=pool)
-	# 	# print(time() - start)
-
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
 	atmos.limit_values["chi"] = globin.atmos.MinMax(-1,1)
-
-	# if atmos.stray_type=="hsra" or atmos.norm_level=="hsra":
-	# 	atmos.get_hsra_cont()
-	# 	if atmos.stray_type=="hsra":
-	# 		atmos.hsra_spec.broaden_spectra(atmos.vmac)
 
 	Natmos = atmos.nx*atmos.ny
 
@@ -76,7 +66,6 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	if not atmos.skip_global_pars:
 		ndim += atmos.n_global_pars
 	
-
 	logger.info("\n{:{char}{align}{width}}\n".format(f" Info ", char="-", align="^", width=globin.constants.NCHAR))
 	logger.info("atmos.shape {:{char}{align}{width}}".format(f" {atmos.shape}", char=".", align=">", width=20))
 	if not atmos.skip_local_pars:
@@ -86,16 +75,11 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	logger.info("Nwalkers {:{char}{align}{width}}".format(f" {nwalkers}", char=".", align=">", width=20))
 	logger.info("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 	
-	# ndim += 1 # for noise level in the data
 	if reset_backend:
 		backend.reset(nwalkers, ndim)
 		p0 = initialize_walker_states(nwalkers, ndim, atmos)
-		# noise
-		# p0[:, -1] = RNG.normal(loc=5e-3, scale=1e-4, size=nwalkers)
 	else:
 		p0 = backend.get_last_sample()
-		# print(p0.shape)
-		# asd
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos, None if sequential else pool], 
@@ -103,7 +87,6 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		pool=pool if sequential else None,
 		backend=backend)
 
-	old_tau = np.inf
 	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True, store=True):
 		if sampler.iteration%progress_frequency:
 			continue
@@ -118,13 +101,6 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		Neff = sampler.iteration / np.mean(tau)
 
 		logger.info(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
-
-		# check convergence
-		# converged = np.all(tau * 100 < sampler.iteration)
-		# converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
-		# if converged:
-		# 	break
-		# old_tau = tau
 
 def lnprior(local_pars, global_pars, limits, priors):
 	"""
@@ -176,19 +152,6 @@ def lnprior(local_pars, global_pars, limits, priors):
 						if priors[parameter][idl]=="gaussian":
 							_lnprior += lnprior_gaussian(global_pars[parameter][0,0,idl], limit[0], limit[1])
 
-							# _lnprior += priors[parameter][idl](global_pars[parameter][0,0,idl])
-							# if not np.isfinite(_lnprior):
-							# 	return -np.inf
-						# #--- check lower boundary condition
-						# indx, indy = np.where(global_pars[parameter][...,idl]<limit[0])
-						# if len(indx)>0:
-						# 	return -np.inf
-						
-						# #--- check upper boundary condition
-						# indx, indy = np.where(global_pars[parameter][...,idl]>limit[1])
-						# if len(indx)>0:
-						# 	return -np.inf					
-
 	return _lnprior
 
 def lnlike(obs, atmos, pool):
@@ -226,17 +189,16 @@ def lnlike(obs, atmos, pool):
 	diff = obs.spec - spec.spec
 	diff *= obs.weights
 	diff *= obs.wavs_weight
-	# noise = obs.noise*obs.I[:,:,atmos.continuum_idl][:,:,np.newaxis,np.newaxis]
+	diff2 = diff**2
+
 	noise = obs.noise_stokes
 	noise2 = noise**2
-	# noise2 = obs.noise_parameter**2 + obs.noise**2
-	# noise2 *= obs.I[:,:,atmos.continuum_idl][:,:,np.newaxis,np.newaxis]**2
-	diff2 = diff**2
+	
 	diff2 /= noise2
 	diff2 -= np.log(2*np.pi*noise2)
 
 	chi2 = np.sum(diff2)
-
+	
 	return -chi2/2
 
 def log_prob(theta, obs, atmos, pool):
@@ -263,9 +225,6 @@ def log_prob(theta, obs, atmos, pool):
 			up += npars
 			if parameter in ["loggf", "dlam"]:
 				correction = theta[low:up]
-				# if parameter=="dlam":
-					# correction += 200
-				#	correction *= np.mean(atmos.wavelength_obs*1e4)/(LIGHT_SPEED/1e3) # [mA] -> [km/s]
 				atmos.global_pars[parameter][:,:] = correction
 				if atmos.sl_atmos is not None:
 					atmos.sl_atmos.global_pars[parameter][0,0] = correction
@@ -283,15 +242,6 @@ def log_prob(theta, obs, atmos, pool):
 	if not np.isfinite(lp):
 		return -np.inf
 	
-	# if theta[-1]<=1e-6 or theta[-1]>1:
-	# 	return -np.inf
-	
-	# obs.noise_parameter = theta[-1]
-	
-	# globin.plot_spectra(obs.spec[0,0], np.arange(obs.nw), 
-	# 			  inv=atmos.spectrum.spec[0,0])
-	# globin.show()
-
 	# get back values into the atmosphere structure
 	if not atmos.skip_global_pars:
 		if "vmac" in atmos.global_pars:
@@ -445,41 +395,41 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 
 	return p0
 
-def save_mcmc_results(chains, acceptance_fraction, log_probabilities, fpath="mcmc_results.fits", **kwargs):
-	primary = fits.PrimaryHDU(chains)
-	primary.name = "chains"
-	total_n_steps, ndim = chains.shape
-	primary.header["NAXIS1"] = (ndim, "number of free parameters")
-	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
-	primary.header["MEAN_AF"] = (acceptance_fraction, "average acceptance fraction over all walkers")
+# def save_mcmc_results(chains, acceptance_fraction, log_probabilities, fpath="mcmc_results.fits", **kwargs):
+# 	primary = fits.PrimaryHDU(chains)
+# 	primary.name = "chains"
+# 	total_n_steps, ndim = chains.shape
+# 	primary.header["NAXIS1"] = (ndim, "number of free parameters")
+# 	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
+# 	primary.header["MEAN_AF"] = (acceptance_fraction, "average acceptance fraction over all walkers")
 	
-	for key, value in kwargs.items():
-		primary.header[key.upper()] = value
+# 	for key, value in kwargs.items():
+# 		primary.header[key.upper()] = value
 
-	hdulist = fits.HDUList([primary])
+# 	hdulist = fits.HDUList([primary])
 
-	hdu = fits.ImageHDU(log_probabilities)
-	hdu.name = "probabilities"
-	primary.header["NAXIS1"] = (ndim, "number of free parameters")
-	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
-	hdulist.append(hdu)
+# 	hdu = fits.ImageHDU(log_probabilities)
+# 	hdu.name = "probabilities"
+# 	primary.header["NAXIS1"] = (ndim, "number of free parameters")
+# 	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
+# 	hdulist.append(hdu)
 	
-	hdulist.writeto(fpath, overwrite=True)
+# 	hdulist.writeto(fpath, overwrite=True)
 
-class Chains(object):
-	def __init__(self, fpath):
-		self.read(fpath)
+# class Chains(object):
+# 	def __init__(self, fpath):
+# 		self.read(fpath)
 
-	def read(self, fpath):
-		hdu = fits.open(fpath)
+# 	def read(self, fpath):
+# 		hdu = fits.open(fpath)
 
-		self.chains = hdu[0].data
-		self.shape = self.chains.shape
-		self.nwalkers = hdu[0].header["NWALKERS"]
-		self.nsteps = hdu[0].header["NSTEPS"]
-		self.move = hdu[0].header["MOVE"]
-		self.ntotal_samples = self.shape[0]
+# 		self.chains = hdu[0].data
+# 		self.shape = self.chains.shape
+# 		self.nwalkers = hdu[0].header["NWALKERS"]
+# 		self.nsteps = hdu[0].header["NSTEPS"]
+# 		self.move = hdu[0].header["MOVE"]
+# 		self.ntotal_samples = self.shape[0]
 
-	def burn_chains(self, burn):
-		idi = int(burn*self.ntotal_samples)
-		return self.chains[idi:]
+# 	def burn_chains(self, burn):
+# 		idi = int(burn*self.ntotal_samples)
+# 		return self.chains[idi:]
