@@ -139,6 +139,9 @@ class InputData(object):
 		atm_type = _find_value_by_key("atm_type", self.parameters_input, "default", "multi", conversion=str)
 		atm_type = atm_type.lower()
 
+		# gas pressure at the top (for HSE calculation)
+		Pg_top = _find_value_by_key("Pg_top", self.parameters_input, "default", 1, conversion=float)
+
 		# depth scale used to stratify atmospheric parameters
 		atm_scale = _find_value_by_key("atm_scale", self.parameters_input, "default", "tau", conversion=str)
 
@@ -220,6 +223,9 @@ class InputData(object):
 
 		# set wordking directory path (necessary for RH calls for reading runs/run_name/*.input files)
 		self.atmosphere.set_cwd(self.cwd)
+
+		# set the gas pressure at the top of the atmosphere
+		self.atmosphere.set_Pg_top(Pg_top)
 
 		# get the mu angle
 		mu = load_mu_angle(self.parameters_input)

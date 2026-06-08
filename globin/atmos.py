@@ -195,7 +195,7 @@ class Atmosphere(object):
 		self.hydrostatic = False
 
 		# gas pressure at the top (used for HSE computation from RH)
-		self.pg_top = 0.1 # [N/m2]
+		self.pg_top = 1 # [N/m2]
 
 		# interpolation degree, method for building atmosphere from node values
 		# and (optional) tension value in case of "spinor" method
@@ -2910,6 +2910,11 @@ class Atmosphere(object):
 		self.vmac = vmac
 		if self.sl_atmos is not None:
 			self.sl_atmos.set_vmac(vmac)
+
+	def set_Pg_top(self, Pg_top):
+		self.pg_top = Pg_top
+		if self.sl_atmos is not None:
+			self.sl_atmos.pg_top = Pg_top
 
 	def set_n_thread(self, n_thread):
 		"""
