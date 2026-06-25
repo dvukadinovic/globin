@@ -102,6 +102,9 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 
 		logger.info(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
 
+		if Neff>50:
+			break
+
 def lnprior(local_pars, global_pars, limits, priors):
 	"""
 	Check if each parameter is in its respective bounds given by globin.limit_values.
