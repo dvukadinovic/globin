@@ -1134,9 +1134,9 @@ class Atmosphere(object):
 		_data = [None]*len(parameters)
 		for idp, parameter in enumerate(parameters):
 			if parameter in ["stray", "sl_temp", "sl_vz", "sl_vmic"]:
+				_data[idp] = self.values[parameter].reshape(Natmos, 1, order="C")
 				continue
 			_data[idp] = self.data[:,:,self.par_id[parameter]].reshape(Natmos, self.nz, order="C")
-
 
 		return list(zip([global_arg]*Natmos, values, *_data))
 
