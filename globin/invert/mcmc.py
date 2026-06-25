@@ -33,7 +33,7 @@ scales = {"temp"  : 50,			# [K]
 		  "gamma" : 1,#1e-2*np.pi/360,	# [rad]
 		  "chi"   : 1,#1e-2*np.pi/360,	# [rad]
 		  "of"    : 1e-3,		# 
-		  "stray" : 1e-3,		#
+		  "stray" : 1e-2,		#
 		  "sl_vz" : 1e-3,       # [km/s]
 		  "sl_vmic": 1e-3,      # [km/s]
 		  "vmac"  : 0.2,		# [km/s]
@@ -158,6 +158,7 @@ def lnlike(obs, atmos, pool):
 	if pool is None:
 		if not atmos.skip_local_pars:
 			params = list(atmos.nodes.keys())
+			params = [p for p in params if p not in ["stray", "sl_temp", "sl_vz", "sl_vmic"]]
 			args = atmos.prepare_build_from_nodes_arguments(params)
 			if "temp" in params:
 				args_HSE = atmos.prepare_HSE_arguments()
@@ -166,6 +167,8 @@ def lnlike(obs, atmos, pool):
 					ida = idx*atmos.ny + idy
 					result = _build_from_nodes(args[ida])
 					for idp in range(len(params)):
+						# if params[idp] in ["stray", "sl_temp", "sl_vz", "sl_vmic"]:
+						# 	continue
 						atmos.data[idx,idy,atmos.par_id[params[idp]]] = result[idp]
 					if "temp" in params:
 						ne, nH = _makeHSE(args_HSE[ida])
