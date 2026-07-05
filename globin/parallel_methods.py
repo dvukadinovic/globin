@@ -171,6 +171,7 @@ def _build_from_nodes(args):
 
 def _compute_spectra_sequential(args):
     global_arg, data, spec, rfs, loggf, dlam, fudge_wave, fudge = args
+    # spec = np.ascontiguousarray(spec.T)
 
     pyrh.compute1d(cwd=global_arg["cwd"], 
                     mu=global_arg["mu"],
@@ -193,4 +194,5 @@ def _compute_spectra_sequential(args):
     if global_arg["get_atomic_rfs"]:
         return np.concatenate((spec[...,np.newaxis], rfs), axis=-1)
 
+    # return spec.T
     return spec
