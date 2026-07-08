@@ -1355,9 +1355,9 @@ class Atmosphere(object):
 		for idx in range(self.nx):
 			for idy in range(self.ny):
 				tau[idx,idy], height[idx,idy], cmass[idx,idy] = pyrh.get_scales(self.cwd,
-																					  						 self.scale_id, self.data[idx,idy,0],
-																					  						 self.data[idx,idy],
-																					  						 referent_wavelength)
+																				self.scale_id, self.data[idx,idy,0],
+																				self.data[idx,idy],
+																				referent_wavelength)
 
 		if self.scale_id==0:
 			tau = 10**self.data[:,:,0]
