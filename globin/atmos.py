@@ -2314,7 +2314,7 @@ class Atmosphere(object):
 			flag = synthesize
 			if self.stray_mode==3:
 				flag = None
-			sl_spec = self.sl_atmos.compute_spectra(flag, pool=pool)
+			sl_spec = self.sl_atmos.compute_spectra(flag, pool=pool, get_atomic_rfs=self.sl_atmos.get_atomic_rfs)
 
 		Nw = len(self.wavelength_air)
 
@@ -2494,18 +2494,6 @@ class Atmosphere(object):
 					self.build_from_nodes(flag=synthesize, params=parameter, pool=pool)
 
 				elif parameter=="loggf" or parameter=="dlam":
-					# missing a contribution from the 2nd component in case of stray light
-					if self.get_atomic_rfs and parameter=="loggf":
-						for idp in range(self.line_no[parameter].size):
-							rf[:,:,free_par_ID,:,:] = self.atomic_rfs[...,idp]
-							rf[:,:,free_par_ID,:,:] *= weights
-							rf[:,:,free_par_ID,:,:] /= rf_noise_scale
-							rf[:,:,free_par_ID,:,:] *= np.sqrt(2)
-							rf[:,:,free_par_ID,:,:] /= self.parameter_norm[parameter]
-							free_par_ID_atomic.append(free_par_ID)
-							free_par_ID += 1
-						continue
-
 					if self.line_no[parameter].size==0:
 						continue
 
@@ -2518,6 +2506,34 @@ class Atmosphere(object):
 							stray_light = np.ones((self.nx, self.ny, 1)) * stray_light
 						else:
 							stray_light = self.stray_light
+
+					# analytical RFs
+					if self.get_atomic_rfs and parameter=="loggf":
+						for idp in range(self.line_no[parameter].size):
+							rf[:,:,free_par_ID] = self.atomic_rfs[...,idp]
+							rf[:,:,free_par_ID] *= weights
+							rf[:,:,free_par_ID] /= rf_noise_scale
+							rf[:,:,free_par_ID] *= np.sqrt(2)
+							rf[:,:,free_par_ID] /= self.parameter_norm[parameter]
+
+							if self.sl_atmos is not None:
+								sl_diff = self.sl_atmos.atomic_rfs[...,idp]
+								# if self.stray_mode==3:
+								# 	sl_diff = np.repeat(sl_diff, self.nx, axis=0)
+								# 	sl_diff = np.repeat(sl_diff, self.ny, axis=1)
+								sl_diff *= weights
+								sl_diff /= rf_noise_scale
+								sl_diff *= np.sqrt(2)
+								rf_sl_atom = sl_diff / self.parameter_norm[parameter]
+								rf[:,:,free_par_ID] = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], rf[:,:,free_par_ID])
+								aux = np.einsum("ij...,ij->ij...", rf_sl_atom, stray_light[...,0])
+								rf[:,:,free_par_ID] += aux
+
+							free_par_ID_atomic.append(free_par_ID)
+							free_par_ID += 1
+						# continue
+
+					free_par_ID -= 9
 
 					for idp in range(self.line_no[parameter].size):
 						self.global_pars[parameter][...,idp] += perturbation
@@ -2550,11 +2566,13 @@ class Atmosphere(object):
 						# plt.plot(diff[0,0,:,0], c="k")
 						# plt.show()
 
+						# plt.plot(rf[0,0,free_par_ID,:,0], c="k")
+
 						diff *= weights
 						diff /= rf_noise_scale
 						diff *= np.sqrt(2)
 						rf[:,:,free_par_ID,:,:] = diff / self.parameter_norm[parameter]
-
+						
 						if self.sl_atmos is not None:
 							if self.stray_mode==3:
 								sl_diff = np.repeat(sl_diff, self.nx, axis=0)
@@ -2566,6 +2584,9 @@ class Atmosphere(object):
 							rf[:,:,free_par_ID] = np.einsum("ij,ij...->ij...", 1 - stray_light[...,0], rf[:,:,free_par_ID])
 							aux = np.einsum("ij...,ij->ij...", rf_sl_atom, stray_light[...,0])
 							rf[:,:,free_par_ID] += aux
+
+						# plt.plot(rf[0,0,free_par_ID,:,0], c="r")
+						# plt.show()
 
 						free_par_ID_atomic.append(free_par_ID)
 						free_par_ID += 1
