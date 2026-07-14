@@ -519,6 +519,8 @@ def plot_rf(_rf, local_parameters=[], global_parameters=[], idx=0, idy=0, Stokes
 	fig, axs = plt.subplots(figsize=(width*ncols, height*nrows), nrows=nrows, ncols=ncols, sharex=False)
 	fig.subplots_adjust(wspace=0.5, hspace=0.4)
 	axs = np.atleast_2d(axs)
+	if ncols==1:
+		axs = np.atleast_2d(axs).T
 
 	if rf_local is not None:
 		for i_, parameter in enumerate(local_parameters):
