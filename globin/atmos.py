@@ -2531,9 +2531,7 @@ class Atmosphere(object):
 
 							free_par_ID_atomic.append(free_par_ID)
 							free_par_ID += 1
-						# continue
-
-					free_par_ID -= 9
+						continue
 
 					for idp in range(self.line_no[parameter].size):
 						self.global_pars[parameter][...,idp] += perturbation
