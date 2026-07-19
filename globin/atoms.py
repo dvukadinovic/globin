@@ -80,6 +80,20 @@ def gamma_function(a, b, c):
     return result
 
 def get_JK_Lande(J, K, l, S1, L1, J1):
+    """
+    S1, L1, J1 -- quantum numbers of the parent level
+    l -- quantum number of the further/outer/external electron
+    K -- in []
+    J -- total angular momentum of the level
+
+    Config example:
+
+    3s2.3p.(2P*<3/2>).7f 2[7/2]
+
+    parent term (2P*<3/2>) is coupled with the outer electron 7f and gives 2[7/2] term
+
+        ((2*S1+1)L1<J1>).#l #[K]
+    """
     gJK = 1 + gamma_function(J, 1/2, K)
     gJK += gamma_function(J,K,1/2) * gamma_function(K,J1,l) * gamma_function(J1,S1,L1)
     return gJK
