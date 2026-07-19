@@ -61,9 +61,10 @@ def parallel_call(args):
 		wavelength = np.insert(wavelength, 0, lines[idl].lam0-1)
 		atmos.set_wavelength_grid(wavelength)
 
-		StokesI = atmos._compute_spectra_sequential((0,0))[0][0]
-		StokesI = np.array(StokesI)
+		atmos.spectrum = globin.spec.Spectrum(nx=1, ny=1, nw=len(wavelength))
 
+		StokesI = atmos.compute_spectra()[0,0,:,0]
+		
 		# plt.plot(StokesI/StokesI[0])
 		# plt.show()
 
@@ -75,7 +76,7 @@ def parallel_call(args):
 	return line_depth, text
 
 def main(line_list, thresholds, n_cpus):
-	atmos = globin.falc
+	atmos = globin.FALC
 	atmos.interpolate_atmosphere(np.linspace(-4, 1, num=51), atmos.data)
 	atmos.set_mode(0)
 	atmos.set_mu(1)
