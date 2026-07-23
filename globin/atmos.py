@@ -101,7 +101,7 @@ class Atmosphere(object):
 					 "mag"   : 1,			# [G]
 					 "gamma" : 0.01,	# [rad]
 					 "chi"   : 0.01,	# [rad]
-					 "loggf" : 0.001,	#
+					 "loggf" : 1e-5,	#
 					 "dlam"  : 1,			# [mA]
 					 "of"    : 0.001,
 					 "stray" : 0,		# no perturbations (done analytically)
