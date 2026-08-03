@@ -12,33 +12,19 @@ from ..parallel_methods import _build_from_nodes, _makeHSE
 from ..constants import LIGHT_SPEED
 
 RNG = np.random.default_rng()
-scales = {"temp"  : 1,			# [K]
-		  "vz"    : 1e-3,		# [km/s]
-		  "vmic"  : 1e-3,		# [km/s]
-		  "mag"   : 1,			# [G]
-		  "gamma" : 0.01,#1e-2*np.pi/360,	# [rad]
-		  "chi"   : 0.01,#1e-2*np.pi/360,	# [rad]
-		  "of"    : 1e-3,		# 
-		  "stray" : 1e-3,		#
-		  "sl_vz" : 1e-3,       # [km/s]
-		  "sl_vmic": 1e-3,      # [km/s]
-		  "vmac"  : 1e-3,		# [km/s]
-		  "loggf" : 0.001,		#
-		  "dlam"  : 0.1}		#
-
-scales = {"temp"  : 50,			# [K]
-		  "vz"    : 0.1,		# [km/s]
-		  "vmic"  : 0.1,		# [km/s]
-		  "mag"   : 50,			# [G]
-		  "gamma" : 1,#1e-2*np.pi/360,	# [rad]
-		  "chi"   : 1,#1e-2*np.pi/360,	# [rad]
+scales = {"temp"  : 50,   # [K]
+		  "vz"    : 0.1,	   # [km/s]
+		  "vmic"  : 0.1,	   # [km/s]
+		  "mag"   : 50,   # [G]
+		  "gamma" : 1,	   # [rad]
+		  "chi"   : 1,	   # [rad]
 		  "of"    : 1e-3,		# 
 		  "stray" : 1e-2,		#
-		  "sl_vz" : 1e-3,       # [km/s]
-		  "sl_vmic": 1e-3,      # [km/s]
-		  "vmac"  : 0.2,		# [km/s]
-		  "loggf" : 0.01,		#
-		  "dlam"  : 1}			#
+		  "sl_vz" : 0.1,       # [km/s]
+		  "sl_vmic": 0.1,      # [km/s]
+		  "vmac"  : 0.1,		# [km/s]
+		  "loggf" : 0.012,		#
+		  "dlam"  : 2}			#
 
 
 def lnprior_gaussian(x, loc, std):
@@ -76,10 +62,32 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 	logger.info("Nsteps {:{char}{align}{width}}\n".format(f" {nsteps}", char=".", align=">", width=20))
 	
 	if reset_backend:
+		# ndim += 1
 		backend.reset(nwalkers, ndim)
 		p0 = initialize_walker_states(nwalkers, ndim, atmos)
+		# p0[:, -1] = np.random.normal(loc=noise, scale=noise/10, size=nwalkers)
+		# p0[:, -1][p0[:, -1]<0] = np.min(p0[:, -1][p0[:, -1]>0])
+		# p0[:, -1] = np.log10(p0[:, -1])
 	else:
 		p0 = backend.get_last_sample()
+
+	# set some attributes that can be useful later for analysis
+	attributes = {"noise" : noise, 
+					"local_parameters" : [],
+					"number_of_nodes" : [],
+					"global_parameters" : [],
+					"loggf_ID" : [],
+					"dlam_ID" : []}
+	for parameter in atmos.nodes:
+		attributes["local_parameters"].append(parameter)
+		attributes["number_of_nodes"].append(len(atmos.nodes[parameter]))
+	for parameter in atmos.global_pars:
+		attributes["global_parameters"].append(parameter)
+		if parameter=="loggf":
+			attributes["loggf_ID"] = atmos.line_no[parameter].tolist()
+		if parameter=="dlam":
+			attributes["dlam_ID"] = atmos.line_no[parameter].tolist()
+	backend.set_attributes(attributes)
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
 		args=[obs, atmos, None if sequential else pool], 
@@ -87,7 +95,7 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		pool=pool if sequential else None,
 		backend=backend)
 
-	for sample in sampler.sample(initial_state=p0, iterations=nsteps, progress=True, store=True):
+	for sample in sampler.sample(initial_state=p0, thin_by=1, iterations=nsteps, progress=True, store=True):
 		if sampler.iteration%progress_frequency:
 			continue
 
@@ -157,7 +165,7 @@ def lnprior(local_pars, global_pars, limits, priors):
 
 	return _lnprior
 
-def lnlike(obs, atmos, pool):
+def lnlike(obs, atmos, pool, noise_factor):
 	if pool is None:
 		if not atmos.skip_local_pars:
 			params = list(atmos.nodes.keys())
@@ -181,6 +189,8 @@ def lnlike(obs, atmos, pool):
 		spec = sequential_synthesize(atmos)
 	else:
 		spec = mpi_synthesize(atmos, pool)
+
+	# spec.spec += np.random.normal(loc=0, scale=10**noise_factor, size=spec.spec.shape)
 
 	# spec.add_noise(np.sqrt(obs.noise**2))# + obs.noise_parameter**2))
 
@@ -245,6 +255,10 @@ def log_prob(theta, obs, atmos, pool):
 	else:
 		lp = lnprior(atmos.values, atmos.global_pars, atmos.limit_values, atmos.priors)
 
+	# prior for log10(noise)
+	# if theta[-1] < -6 or theta[-1] > -2:
+	# 	lp = -np.inf
+
 	if not np.isfinite(lp):
 		return -np.inf
 	
@@ -267,7 +281,7 @@ def log_prob(theta, obs, atmos, pool):
 			proposal = np.arccos(atmos.values["gamma"])
 			atmos.values["gamma"][:,:,:] = proposal
 
-	return lp + lnlike(obs, atmos, pool)
+	return lp + lnlike(obs, atmos, pool, theta[-1])
 
 def sequential_synthesize(atmos):
 	# compute spectra
@@ -401,41 +415,54 @@ def initialize_walker_states(nwalkers, ndim, atmos):
 
 	return p0
 
-# def save_mcmc_results(chains, acceptance_fraction, log_probabilities, fpath="mcmc_results.fits", **kwargs):
-# 	primary = fits.PrimaryHDU(chains)
-# 	primary.name = "chains"
-# 	total_n_steps, ndim = chains.shape
-# 	primary.header["NAXIS1"] = (ndim, "number of free parameters")
-# 	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
-# 	primary.header["MEAN_AF"] = (acceptance_fraction, "average acceptance fraction over all walkers")
-	
-# 	for key, value in kwargs.items():
-# 		primary.header[key.upper()] = value
+class Storage(emcee.backends.HDFBackend):
+	def __init__(self, filename, name="mcmc", read_only=False):
+		super().__init__(filename, name=name, read_only=read_only)
+		self.loaded_attrs = False
 
-# 	hdulist = fits.HDUList([primary])
+	@property
+	def noise(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["noise"]
 
-# 	hdu = fits.ImageHDU(log_probabilities)
-# 	hdu.name = "probabilities"
-# 	primary.header["NAXIS1"] = (ndim, "number of free parameters")
-# 	primary.header["NAXIS2"] = (total_n_steps, "total number of samples")
-# 	hdulist.append(hdu)
-	
-# 	hdulist.writeto(fpath, overwrite=True)
+	@property
+	def local_parameters(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["local_parameters"]
 
-# class Chains(object):
-# 	def __init__(self, fpath):
-# 		self.read(fpath)
+	@property
+	def global_parameters(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["global_parameters"]
 
-# 	def read(self, fpath):
-# 		hdu = fits.open(fpath)
+	@property
+	def number_of_nodes(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["number_of_nodes"]
 
-# 		self.chains = hdu[0].data
-# 		self.shape = self.chains.shape
-# 		self.nwalkers = hdu[0].header["NWALKERS"]
-# 		self.nsteps = hdu[0].header["NSTEPS"]
-# 		self.move = hdu[0].header["MOVE"]
-# 		self.ntotal_samples = self.shape[0]
+	@property
+	def loggf_ID(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["loggf_ID"]
 
-# 	def burn_chains(self, burn):
-# 		idi = int(burn*self.ntotal_samples)
-# 		return self.chains[idi:]
+	@property
+	def dlam_ID(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["dlam_ID"]
+
+	def load_attributes(self):
+		with self.open(mode="r") as f:
+			self.attrs = f[self.name].attrs
+			attributes = {}
+			for key in self.attrs.keys():
+				attributes[key] = self.attrs[key]
+
+		self.loaded_attrs = True
+
+		return attributes
+
+	def set_attributes(self, attributes):
+		with self.open(mode="a") as f:
+			self.attrs = f[self.name].attrs
+			for key, value in attributes.items():
+				self.attrs[key] = value
