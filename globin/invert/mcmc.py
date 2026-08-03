@@ -23,7 +23,7 @@ scales = {"temp"  : 50,   # [K]
 		  "sl_vz" : 0.1,       # [km/s]
 		  "sl_vmic": 0.1,      # [km/s]
 		  "vmac"  : 0.1,		# [km/s]
-		  "loggf" : 0.012,		#
+		  "loggf" : 0.01,		#
 		  "dlam"  : 2}			#
 
 
@@ -73,20 +73,27 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 
 	# set some attributes that can be useful later for analysis
 	attributes = {"noise" : noise, 
-					"local_parameters" : [],
-					"number_of_nodes" : [],
-					"global_parameters" : [],
-					"loggf_ID" : [],
-					"dlam_ID" : []}
+				  "local_parameters" : [],
+				  "number_of_nodes" : [],
+				  "global_parameters" : [],
+				  "loggf_ID" : [],
+				  "dlam_ID" : [],
+				  "truths" : []}
 	for parameter in atmos.nodes:
 		attributes["local_parameters"].append(parameter)
 		attributes["number_of_nodes"].append(len(atmos.nodes[parameter]))
+		attributes["truths"] += atmos.values[parameter][0,0].tolist()
 	for parameter in atmos.global_pars:
+		if len(atmos.line_no[parameter])==0:
+			continue
+
 		attributes["global_parameters"].append(parameter)
 		if parameter=="loggf":
 			attributes["loggf_ID"] = atmos.line_no[parameter].tolist()
 		if parameter=="dlam":
 			attributes["dlam_ID"] = atmos.line_no[parameter].tolist()
+		attributes["truths"] += atmos.global_pars[parameter][0,0].tolist()
+	
 	backend.set_attributes(attributes)
 
 	sampler = emcee.EnsembleSampler(nwalkers, ndim, log_prob, 
@@ -449,6 +456,11 @@ class Storage(emcee.backends.HDFBackend):
 	def dlam_ID(self):
 		with self.open(mode="r") as f:
 			return f[self.name].attrs["dlam_ID"]
+
+	@property
+	def truths(self):
+		with self.open(mode="r") as f:
+			return f[self.name].attrs["truths"]
 
 	def load_attributes(self):
 		with self.open(mode="r") as f:
