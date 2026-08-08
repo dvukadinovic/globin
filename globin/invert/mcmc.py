@@ -35,7 +35,7 @@ def lnprior_uniform(x, low, high):
 		return -np.inf
 	return 0
 
-def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, thin_by=1, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 	logger.info("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
@@ -102,7 +102,7 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		pool=pool if sequential else None,
 		backend=backend)
 
-	for sample in sampler.sample(initial_state=p0, thin_by=1, iterations=nsteps, progress=True, store=True):
+	for sample in sampler.sample(initial_state=p0, thin_by=thin_by, iterations=nsteps, progress=True, store=True):
 		if sampler.iteration%progress_frequency:
 			continue
 
