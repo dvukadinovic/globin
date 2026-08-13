@@ -1,3 +1,4 @@
+from turtle import up
 import numpy as np
 import emcee
 from astropy.io import fits
@@ -35,7 +36,7 @@ def lnprior_uniform(x, low, high):
 		return -np.inf
 	return 0
 
-def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, nsteps=100, thin_by=1, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
+def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array([1,1,1,1]), noise=1e-3, reinitialize=False, nsteps=100, thin_by=1, nwalkers=2, pool=None, sequential=True, progress_frequency=100):
 	logger.info("\n{:{char}{align}{width}}\n".format(f" Entering MCMC inversion mode ", char="-", align="^", width=globin.constants.NCHAR))
 
 	atmos.limit_values["gamma"] = globin.atmos.MinMax(-1,1)
@@ -101,23 +102,41 @@ def invert_mcmc(obs, atmos, move, backend, reset_backend=True, weights=np.array(
 		moves=move, 
 		pool=pool if sequential else None,
 		backend=backend)
+	
+	if reinitialize:
+		samples = backend.get_chain()[-50:].reshape((-1, ndim))
+		median = np.median(samples, axis=0)
+
+		backend.reset(nwalkers, ndim)
+		p0 = np.zeros((nwalkers, ndim))
+
+		idp = 0
+		for parameter in attributes["local_parameters"]:
+			nnodes = len(atmos.nodes[parameter])
+			for idn in range(nnodes):
+				p0[:, idp] = median[idp] + RNG.normal(loc=0, scale=scales[parameter], size=nwalkers)
+				idp += 1
+
+		for parameter in attributes["global_parameters"]:
+			npars = atmos.global_pars[parameter].shape[-1]
+			if npars==0:
+				continue
+		
+			for idl in range(npars):
+				p0[:,idp] = median[idp] + RNG.normal(loc=0, scale=scales[parameter], size=nwalkers)
+				idp += 1
 
 	for sample in sampler.sample(initial_state=p0, thin_by=thin_by, iterations=nsteps, progress=True, store=True):
 		if sampler.iteration%progress_frequency:
 			continue
 
-		# plt.close()
-		# globin.plot_spectra(obs.spec[0,0], np.arange(obs.nw), 
-		# 			  inv=atmos.spectrum.spec[0,0])
-		# globin.show()
-
 		tau = sampler.get_autocorr_time(tol=0, has_walkers=False, quiet=True)
 
 		Neff = sampler.iteration / np.mean(tau)
 
-		logger.info(f"\nAR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f} \n")
+		logger.info(f"AR: {np.mean(sampler.acceptance_fraction):.3f} | ACT = {np.mean(tau):.2f} | Neff = {Neff:.1f}")
 
-		if Neff>50:
+		if Neff>100:
 			break
 
 def lnprior(local_pars, global_pars, limits, priors):
