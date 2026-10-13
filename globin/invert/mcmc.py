@@ -258,7 +258,7 @@ def log_prob(theta, obs, atmos, pool):
 			nnodes = len(atmos.nodes[parameter])
 			low = up
 			up += Natmos*nnodes
-			atmos.values[parameter][:,:,:] = theta[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="C")
+			atmos.values[parameter][:,:,:] = theta[low:up].reshape(atmos.nx, atmos.ny, nnodes, order="F")
 
 	for parameter in atmos.global_pars:
 		npars = atmos.global_pars[parameter].shape[-1]
