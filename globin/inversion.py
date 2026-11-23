@@ -751,7 +751,7 @@ class Inverter(InputData):
 		num_failed = 0
 
 		# save log(gf) parameter for computing the mean if we are doing multicycle inversion
-		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
+		if len(atmos.global_pars["loggf"])!=0:
 			loggf_history = np.copy(atmos.global_pars["loggf"][0,0])
 			N_loggf_history = 1
 
@@ -1018,7 +1018,7 @@ class Inverter(InputData):
 			if break_flag:
 				break
 
-		if self.ncycle!=1 and len(atmos.global_pars["loggf"])!=0:
+		if len(atmos.global_pars["loggf"])!=0:
 			atmos.loggf_history = loggf_history
 
 		atmos.build_from_nodes(ones, pool=pool)
