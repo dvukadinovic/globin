@@ -759,17 +759,16 @@ class Spectrum(object):
 		# (nx, ny, nw, 4)
 		weights = 1
 
-		if weights and self.weight_type=="StokesI":
-			aux = 1/self.spec.I
+		if self.weight_type=="StokesI":
+			StokesI_cont = np.quantile(self.I, 0.9, axis=2)
+			aux = StokesI_cont[...,np.newaxis]/self.I
+			# norm = np.sum(aux, axis=2)
+			# aux /= norm[...,np.newaxis]
 			weights = np.repeat(aux[..., np.newaxis], 4, axis=3)
 			# because they will enter the diff which will be squared in chi^2 computation
 			weights = np.sqrt(weights)
-			# norm = np.sum(weights, axis=2)
-			# weights = weights / np.repeat(norm[:,:, np.newaxis, :], nw, axis=2)
-		
-		# noise_stokes /= weights
 
-		weights = 1
+		# weights = 1
 
 		return weights
 

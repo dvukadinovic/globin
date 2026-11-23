@@ -418,6 +418,7 @@ class InputData(object):
 		
 		path_to_observations = _find_value_by_key("observation", self.parameters_input, "required")
 		self.observation = Observation(path_to_observations, obs_range=atm_range, spec_type=obs_fmt)
+		self.observation.weight_type = self.weight_type
 
 		# initialize container for atmosphere which we invert
 		# self.atmosphere = Atmosphere(nx=self.observation.nx, ny=self.observation.ny, 

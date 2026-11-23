@@ -704,6 +704,7 @@ class Inverter(InputData):
 		rf_weights_stokes = obs.get_wavelength_weights()
 		rf_noise_stokes /= rf_weights_stokes
 		diff_noise_stokes = get_noise_level(atmos.nx, atmos.ny, Nw, obs.I, noise=self.noise)
+		diff_noise_stokes /= rf_weights_stokes
 
 		#--- create Chi2 object for storing chi2 values
 		chi2 = Chi2(nx=obs.nx, ny=obs.ny, niter=max_iter)
