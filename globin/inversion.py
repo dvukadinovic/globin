@@ -130,7 +130,7 @@ class Inverter(InputData):
 					atmospheric_models = self.atmosphere.split_atmosphere()
 					observations = self.observation.split_spectra()
 					inverter = [inverter_container]*(self.atmosphere.nx*self.atmosphere.ny)
-					
+
 					# preallocate space for spectra and RFs
 					for idi in range(len(atmospheric_models)):
 						atmospheric_models[idi].spectrum = Spectrum(nx=1, ny=1, nw=len(self.atmosphere.wavelength_vacuum))
@@ -161,6 +161,11 @@ class Inverter(InputData):
 						self.atmosphere.data[idx,idy] = res[0].data[0,0]
 						for parameter in self.atmosphere.nodes:
 							self.atmosphere.values[parameter][idx,idy] = res[0].values[parameter][0,0]
+						
+						for parameter in self.atmosphere.global_pars:
+							if len(self.atmosphere.line_no[parameter])==0:
+								continue
+							self.atmosphere.global_pars[parameter][idx,idy] = res[0].global_pars[parameter][0,0]
 						
 						spec.spec[idx,idy] = res[0].spectrum.spec[0,0]
 						chi2.chi2[idx,idy] = res[1][0,0]
@@ -811,7 +816,7 @@ class Inverter(InputData):
 				tmp = atmos.rf.reshape(atmos.nx, atmos.ny, Npar, 4*Nw, order="F")
 				tmp = np.swapaxes(tmp, 2, 3)
 				tmp = tmp.reshape(Natmos, 4*Nw, Npar, order="C")
-
+				
 				# local part
 				Jl = sp.block_diag(tmp[...,:Nlocalpar].tolist())
 				# global part
@@ -867,7 +872,7 @@ class Inverter(InputData):
 				eta = LTLdiag/Hdiag
 
 			H = H.multiply(sp_scales)
-
+			
 			# add Marquardt parameter
 			diagonal = H.diagonal(k=0)
 			diagonal *= LM_parameter

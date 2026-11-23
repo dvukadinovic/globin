@@ -898,7 +898,10 @@ class Atmosphere(object):
 						for parameter in ["loggf", "dlam"]:
 							if len(self.line_no[parameter])==0:
 								continue
-							new_atmos.global_pars[parameter] = self.global_pars[parameter][idx,idy]
+							new_atmos.global_pars[parameter] = np.zeros((1,1,len(self.line_no[parameter])))
+							new_atmos.global_pars[parameter][0,0] = self.global_pars[parameter][idx,idy]
+							new_atmos.parameter_scale[parameter] = np.ones((1,1,len(self.line_no[parameter])))
+							new_atmos.parameter_scale[parameter][0,0] = np.copy(self.parameter_scale[parameter][idx,idy])
 					elif key in ["nx", "ny", "npar", "nz", "shape", "logtau", "height"]:
 						pass
 					elif key in ["idx_meshgrid", "idy_meshgrid"]:
@@ -1756,7 +1759,7 @@ class Atmosphere(object):
 					low_ind = up_ind
 					up_ind += self.line_no[parameter].size
 					step = proposed_steps[:,:,low_ind:up_ind] / self.parameter_scale[parameter]
-					self.global_pars[parameter] += step
+					self.global_pars[parameter] += step[0,0]
 					if self.sl_atmos is not None:
 						self.sl_atmos.global_pars[parameter] += step
 
